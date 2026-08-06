@@ -2819,7 +2819,9 @@ actor OAuthFlow {
             .init(name: "scope", value: Self.scope),
             .init(name: "state", value: state),
         ]
-        await MainActor.run { NSWorkspace.shared.open(components.url!) }
+        // The Bool result is discarded explicitly: an unused MainActor.run
+        // result is a warning, and test output has to stay pristine.
+        await MainActor.run { _ = NSWorkspace.shared.open(components.url!) }
 
         let callback = try await listener.waitForCallback()
         listener.stop()
