@@ -2349,6 +2349,27 @@ Deliverable : l'app obtient des jetons via le navigateur, les rafraîchit automa
 
 `HTTPTransport` est le point d'injection : les tests fournissent un transport en dur, sans réseau ni serveur factice.
 
+Deux exigences non négociables, découvertes en revue :
+
+- **Le rafraîchissement de jeton doit être mutualisé.** `StravaClient` est un acteur
+  réentrant et `validAccessToken()` suspend sur le réseau : deux requêtes concurrentes
+  rafraîchiraient toutes les deux, la seconde avec un refresh token que Strava a déjà
+  consommé et fait tourner. Son rejet effacerait le jeton tout juste enregistré par la
+  première, déconnectant silencieusement l'utilisateur. Comme `isExpired` déclenche
+  5 minutes avant l'échéance, deux requêtes dans la même fenêtre de 5 minutes suffisent.
+  Le rafraîchissement en cours est donc mémorisé dans un `Task` que tous les appelants
+  attendent, et un rejet n'efface les jetons que s'ils sont encore ceux qu'il a essayés.
+- **`OAuthFlow` doit être infaillible sans test.** Le listener ne doit résoudre l'attente
+  que sur une requête portant réellement des paramètres OAuth — tout navigateur ouvre des
+  connexions spéculatives et demande `/favicon.ico`, et laisser l'une d'elles consommer
+  l'attente unique perd le vrai redirect. Il doit aussi tamponner un callback arrivé avant
+  qu'un attendeur soit prêt, découvrir son port via `stateUpdateHandler` plutôt qu'en
+  bloquant un thread du pool coopératif, vérifier le retour de `NSWorkspace.open`, et
+  porter un délai maximal ainsi qu'une prise en charge de l'annulation.
+
+Le code de référence intégrant ces deux exigences est conservé dans
+`.superpowers/sdd/2026-08-06-stravalocal/task-9-fix-spec.md`.
+
 - [ ] **Step 1: Écrire les tests d'abord**
 
 `Tests/StravaClientTests.swift` :
