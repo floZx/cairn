@@ -67,25 +67,10 @@ struct ActivityDetailView: View {
                         trackColor: trackColor
                     )
                     .frame(height: 320)
-                    .overlay(alignment: .topTrailing) {
-                        VStack(alignment: .trailing, spacing: 8) {
-                            MapStylePicker(style: $mapStyle)
-                            if let onExpandMap {
-                                Button(action: onExpandMap) {
-                                    Label(
-                                        "Agrandir",
-                                        systemImage: "arrow.up.left.and.arrow.down.right"
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .mapControl()
-                                .help("Afficher la carte sur toute la fenêtre")
-                            }
+                    .mapChrome(style: $mapStyle) {
+                        if let onExpandMap {
+                            MapExpandButton(action: onExpandMap)
                         }
-                        .padding(8)
-                    }
-                    .overlay(alignment: .bottom) {
-                        MapAttribution(style: mapStyle).padding(8)
                     }
                     .clipShape(.rect(cornerRadius: 8))
                 }

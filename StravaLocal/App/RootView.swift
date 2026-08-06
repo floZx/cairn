@@ -10,6 +10,9 @@ struct RootView: View {
     @State private var selectedActivity: PersistentIdentifier?
     /// Which map, if any, is filling the window.
     @State private var expandedMap: ExpandedMap?
+    /// Shared with every map so the chosen background and colour carry over.
+    @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
+    @AppStorage(TrackColor.storageKey) private var expandedTrackColor: TrackColor = .accent
     @Query private var allActivities: [Activity]
 
     private var selected: Activity? {
@@ -54,21 +57,11 @@ struct RootView: View {
             case let .activity(id):
                 if let activity = allActivities.first(where: { $0.id == id }) {
                     ActivityMapView(
-                        coordinates: activity.streams?.coordinates.isEmpty == false
-                            ? activity.streams!.coordinates
-                            : activity.simplifiedCoordinates,
+                        coordinates: activity.displayCoordinates,
                         style: expandedStyle,
                         trackColor: expandedTrackColor
                     )
-                    .overlay(alignment: .topTrailing) {
-                        VStack(alignment: .trailing, spacing: 8) {
-                            MapStylePicker(style: $expandedStyle)
-                        }
-                        .padding()
-                    }
-                    .overlay(alignment: .bottom) {
-                        MapAttribution(style: expandedStyle).padding(8)
-                    }
+                    .mapChrome(style: $expandedStyle)
                 }
             }
         }
@@ -93,10 +86,6 @@ struct RootView: View {
                 .padding()
             }
     }
-
-    /// Shared with both maps so the chosen background carries over.
-    @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
-    @AppStorage(TrackColor.storageKey) private var expandedTrackColor: TrackColor = .accent
 
     private var regionBinding: Binding<BoundingBox?> {
         Binding(

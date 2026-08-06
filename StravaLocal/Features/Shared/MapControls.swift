@@ -10,6 +10,42 @@ extension View {
     }
 }
 
+extension View {
+    /// The chrome every map carries: the background picker in the top-right
+    /// corner — with any extra controls stacked beneath it — and the tile
+    /// provider's attribution along the bottom edge, clear of Apple's legal
+    /// link on the left and of the compass on the right.
+    func mapChrome<Extra: View>(
+        style: Binding<MapStyle>,
+        @ViewBuilder extraControls: () -> Extra = { EmptyView() }
+    ) -> some View {
+        overlay(alignment: .topTrailing) {
+            VStack(alignment: .trailing, spacing: 8) {
+                MapStylePicker(style: style)
+                extraControls()
+            }
+            .padding(8)
+        }
+        .overlay(alignment: .bottom) {
+            MapAttribution(style: style.wrappedValue).padding(8)
+        }
+    }
+}
+
+/// The button that sends a map to the full window.
+struct MapExpandButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Agrandir", systemImage: "arrow.up.left.and.arrow.down.right")
+        }
+        .buttonStyle(.plain)
+        .mapControl()
+        .help("Afficher la carte sur toute la fenêtre")
+    }
+}
+
 /// Compact background picker, shared by every map in the app.
 struct MapStylePicker: View {
     @Binding var style: MapStyle

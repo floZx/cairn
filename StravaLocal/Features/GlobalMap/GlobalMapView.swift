@@ -36,47 +36,33 @@ struct GlobalMapView: View {
                 isSelectingRegion = false
             }
         )
-        .overlay(alignment: .topTrailing) {
-            VStack(alignment: .trailing, spacing: 8) {
-                MapStylePicker(style: $style)
+        .mapChrome(style: $style) {
+            if let onExpand {
+                MapExpandButton(action: onExpand)
+            }
 
-                if let onExpand {
-                    Button(action: onExpand) {
-                        Label(
-                            "Agrandir",
-                            systemImage: "arrow.up.left.and.arrow.down.right"
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .mapControl()
-                    .help("Afficher la carte sur toute la fenêtre")
-                }
+            // A button rather than a Toggle: there is no plain toggle style,
+            // so `.toggleStyle(.button)` kept its own frame and drew a second
+            // border inside the shared backing. Engagement shows in the tint.
+            Button {
+                isSelectingRegion.toggle()
+            } label: {
+                Label("Sélectionner une zone", systemImage: "dot.viewfinder")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(isSelectingRegion ? Color.accentColor : Color.primary)
+            .mapControl()
+            .help("Tracez un rectangle sur la carte pour ne garder que les activités qui le traversent")
 
-                // A button rather than a Toggle: there is no plain toggle
-                // style, so `.toggleStyle(.button)` kept its own frame and drew
-                // a second border inside the shared backing. Engagement shows
-                // in the tint instead.
+            if region != nil {
                 Button {
-                    isSelectingRegion.toggle()
+                    region = nil
                 } label: {
-                    Label("Sélectionner une zone", systemImage: "dot.viewfinder")
+                    Label("Effacer la zone", systemImage: "xmark.circle")
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(isSelectingRegion ? Color.accentColor : Color.primary)
                 .mapControl()
-                .help("Tracez un rectangle sur la carte pour ne garder que les activités qui le traversent")
-
-                if region != nil {
-                    Button {
-                        region = nil
-                    } label: {
-                        Label("Effacer la zone", systemImage: "xmark.circle")
-                    }
-                    .buttonStyle(.plain)
-                    .mapControl()
-                }
             }
-            .padding()
         }
         .overlay(alignment: .bottomLeading) {
             Text(
@@ -87,11 +73,6 @@ struct GlobalMapView: View {
             .padding(6)
             .background(.regularMaterial, in: .rect(cornerRadius: 6))
             .padding()
-        }
-        // Centred, clear of Apple's legal link on the left and of the compass
-        // and zoom buttons on the right.
-        .overlay(alignment: .bottom) {
-            MapAttribution(style: style).padding(8)
         }
         .navigationTitle("Carte globale")
     }

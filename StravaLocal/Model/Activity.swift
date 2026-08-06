@@ -120,6 +120,13 @@ final class Activity {
         distance > 0 ? totalElevationGain / (distance / 1000) : 0
     }
 
+    /// The best track available for display: the full-resolution stream once it
+    /// has been synced, the simplified track until then.
+    var displayCoordinates: [Coordinate] {
+        let detailed = streams?.coordinates ?? []
+        return detailed.isEmpty ? simplifiedCoordinates : detailed
+    }
+
     var simplifiedCoordinates: [Coordinate] {
         simplifiedTrack.map(TrackBlob.decodeCoordinates) ?? []
     }
