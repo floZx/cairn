@@ -59,8 +59,11 @@ final class AppEnvironment {
     func connect() async {
         do {
             let athlete = try await oauth.authorize()
-            athleteName = [athlete?.firstname, athlete?.lastname]
-                .compactMap { $0 }.joined(separator: " ")
+            let name = [athlete?.firstname, athlete?.lastname]
+                .compactMap { $0 }
+                .joined(separator: " ")
+                .trimmingCharacters(in: .whitespaces)
+            athleteName = name.isEmpty ? nil : name
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -78,20 +81,24 @@ final class AppEnvironment {
     /// double-spend the API quota for nothing.
     func syncNow() {
         guard runningTask == nil, isAuthenticated else { return }
-        runningTask = Task { [engine] in
+        let task = Task { [engine] in
             do {
                 try await engine.syncAll()
                 errorMessage = nil
             } catch {
                 errorMessage = error.localizedDescription
             }
-            runningTask = nil
+        }
+        runningTask = task
+        Task {
+            _ = await task.value
+            if runningTask == task { runningTask = nil }
         }
     }
 
     func syncSummariesOnly() {
         guard runningTask == nil, isAuthenticated else { return }
-        runningTask = Task { [engine] in
+        let task = Task { [engine] in
             do {
                 try await engine.syncAthlete()
                 try await engine.syncSummaries()
@@ -99,13 +106,21 @@ final class AppEnvironment {
             } catch {
                 errorMessage = error.localizedDescription
             }
-            runningTask = nil
+        }
+        runningTask = task
+        Task {
+            _ = await task.value
+            if runningTask == task { runningTask = nil }
         }
     }
 
+    /// Cancellation is cooperative, so the slot can only be released by the
+    /// task itself once it has actually unwound — clearing it here would let
+    /// a second sync start alongside the dying one.
     func cancelSync() {
-        runningTask?.cancel()
-        runningTask = nil
+        guard let task = runningTask else { return }
+        task.cancel()
+        Task { _ = await task.value }
     }
 
     func loadDetail(stravaID: Int64) {

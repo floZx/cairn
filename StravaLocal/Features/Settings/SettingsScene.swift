@@ -65,7 +65,9 @@ private struct AccountSettingsView: View {
 
             if let message = app.errorMessage {
                 Section {
-                    Text(message).foregroundStyle(.red).font(.callout)
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
