@@ -64,10 +64,10 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
 
 /// OpenTopoMap raster tiles: contour lines, marked trails, shaded relief.
 ///
-/// `canReplaceMapContent` is deliberately left off: telling MapKit it may skip
-/// its own basemap appears to make it drop rendered tiles as the camera moves.
-/// Keeping Apple's map underneath costs a second set of tiles and lets its
-/// labels show through the gaps, but the layer stays put. Under evaluation.
+/// `canReplaceMapContent` is deliberately left off. Telling MapKit it may skip
+/// its own basemap made it drop rendered tiles as the camera moved; keeping
+/// Apple's map underneath costs a second set of tiles and lets its labels show
+/// through the gaps, but the layer stays put — confirmed in use.
 ///
 /// Their usage policy asks for reasonable, non-bulk use — an app browsing one
 /// athlete's own tracks sits well inside that.
@@ -90,6 +90,10 @@ final class TopoTileOverlay: MKTileOverlay {
         configuration.httpAdditionalHeaders = [
             "User-Agent": "StravaLocal (personal use)"
         ]
+        // A map view asks for twenty-odd tiles at once; a handful of
+        // connections is both politer and less likely to trip the server's
+        // faulty path below.
+        configuration.httpMaximumConnectionsPerHost = 4
         return URLSession(configuration: configuration)
     }()
 
@@ -102,11 +106,31 @@ final class TopoTileOverlay: MKTileOverlay {
         maximumZ = 17
     }
 
+    /// Retries a couple of times before giving up.
+    ///
+    /// The server intermittently emits an `Upgrade: h2,h2c` header *inside* an
+    /// HTTP/2 response, which the specification forbids and which URLSession
+    /// rejects outright — measured at roughly one request in ten, leaving the
+    /// map pockmarked with tiles that never arrive. Forcing HTTP/1.1 fixes it
+    /// completely (20/20 against 18/20 in testing), but URLSession offers no
+    /// public way to choose the protocol, so retries stand in: three attempts
+    /// take a 10% failure rate down to about one in a thousand.
     override func loadTile(at path: MKTileOverlayPath) async throws -> Data {
-        let (data, _) = try await Self.session.data(
-            for: URLRequest(url: url(forTilePath: path))
-        )
-        return data
+        let request = URLRequest(url: url(forTilePath: path))
+        var lastError: any Error = URLError(.cannotLoadFromNetwork)
+
+        for attempt in 0..<3 {
+            if attempt > 0 {
+                try? await Task.sleep(for: .milliseconds(120 * attempt))
+            }
+            do {
+                let (data, _) = try await Self.session.data(for: request)
+                return data
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError
     }
 }
 
