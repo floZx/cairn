@@ -32,6 +32,7 @@ struct SummaryActivityDTO: Decodable, Sendable {
     let trainer: Bool?
     let manual: Bool?
     let `private`: Bool?
+    let workout_type: Int?
     let kudos_count: Int?
     let achievement_count: Int?
     let pr_count: Int?

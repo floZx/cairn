@@ -58,6 +58,10 @@ struct ActivityFilter: Sendable, Equatable {
     /// to be split into sub-expressions to stay inside the type-checker. It is
     /// cheap arithmetic on rows the database has already narrowed.
     var minElevationPerKm: Double?
+    /// Also outside `predicate`: one of these labels comes from `workoutType`,
+    /// an optional Int, and SwiftData predicates cannot unwrap captured
+    /// optionals. An activity must carry *every* selected label.
+    var labels: Set<ActivityLabel> = []
     var region: BoundingBox?
 
     static let none = ActivityFilter()
@@ -126,6 +130,9 @@ struct ActivityFilter: Sendable, Equatable {
 
     /// Second pass: bounding boxes can overlap a region a track never enters.
     func matchesPrecisely(_ activity: Activity) -> Bool {
+        if !labels.isEmpty {
+            guard labels.isSubset(of: Set(activity.labels)) else { return false }
+        }
         if let minElevationPerKm {
             // An activity with no distance can't be hilly, so it never passes a
             // climbing-per-kilometre floor.
@@ -154,6 +161,7 @@ extension ActivityFilter: Hashable {
         hasher.combine(minDurationMinutes)
         hasher.combine(minElevation)
         hasher.combine(minElevationPerKm)
+        hasher.combine(labels)
         hasher.combine(region?.minLat)
         hasher.combine(region?.maxLat)
         hasher.combine(region?.minLon)

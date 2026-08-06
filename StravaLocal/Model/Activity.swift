@@ -31,6 +31,9 @@ final class Activity {
     var isTrainer: Bool = false
     var isManual: Bool = false
     var isPrivate: Bool = false
+    /// Strava's `workout_type`. Kept raw because its meaning depends on the
+    /// sport; `ActivityLabel.fromWorkoutType` does the interpretation.
+    var workoutType: Int?
 
     var kudosCount: Int = 0
     var achievementCount: Int = 0
@@ -94,6 +97,19 @@ final class Activity {
         minLon = box.minLon
         maxLon = box.maxLon
         hasTrack = true
+    }
+
+    /// The markers set on this activity, in a stable order for display.
+    var labels: [ActivityLabel] {
+        var found: [ActivityLabel] = []
+        if let fromType = ActivityLabel.fromWorkoutType(workoutType) {
+            found.append(fromType)
+        }
+        if isCommute { found.append(.commute) }
+        if isTrainer { found.append(.trainer) }
+        if isManual { found.append(.manual) }
+        if isPrivate { found.append(.isPrivate) }
+        return found
     }
 
     /// Metres of climbing per kilometre — the usual way to compare how hilly

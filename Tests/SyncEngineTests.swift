@@ -82,6 +82,7 @@ private func makeSummary(
         average_heartrate: nil, max_heartrate: nil, average_watts: nil,
         weighted_average_watts: nil, kilojoules: nil, average_cadence: nil,
         commute: nil, trainer: nil, manual: nil, private: nil,
+        workout_type: nil,
         kudos_count: nil, achievement_count: nil, pr_count: nil,
         athlete_count: nil, start_latlng: nil, end_latlng: nil, gear_id: gearID,
         map: MapDTO(summary_polyline: "_p~iF~ps|U_ulLnnqC_mqNvxq`@")

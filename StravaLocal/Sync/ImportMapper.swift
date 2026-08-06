@@ -53,6 +53,7 @@ struct ImportMapper {
         activity.isTrainer = dto.trainer ?? false
         activity.isManual = dto.manual ?? false
         activity.isPrivate = dto.private ?? false
+        activity.workoutType = dto.workout_type
 
         activity.kudosCount = dto.kudos_count ?? 0
         activity.achievementCount = dto.achievement_count ?? 0

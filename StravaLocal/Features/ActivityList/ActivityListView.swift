@@ -63,6 +63,17 @@ struct ActivityListView: View {
             }
             .width(min: 70, ideal: 80)
 
+            TableColumn("Étiquettes") { activity in
+                HStack(spacing: 4) {
+                    ForEach(activity.labels) { label in
+                        Image(systemName: label.symbolName)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .help(activity.labels.map(\.displayName).joined(separator: ", "))
+            }
+            .width(min: 60, ideal: 80)
+
             TableColumn("D+/km", value: \.elevationPerKilometre) { activity in
                 Text(Format.elevationPerKilometre(activity.elevationPerKilometre))
             }

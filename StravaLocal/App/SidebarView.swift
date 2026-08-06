@@ -49,6 +49,15 @@ struct SidebarView: View {
                 }
             }
 
+            Section("Étiquettes") {
+                ForEach(ActivityLabel.allCases) { label in
+                    Toggle(isOn: binding(for: label)) {
+                        Label(label.displayName, systemImage: label.symbolName)
+                    }
+                    .toggleStyle(.checkbox)
+                }
+            }
+
             Section("Filtres") {
                 Picker("Période", selection: $filter.period) {
                     ForEach(DatePeriod.allCases) { period in
@@ -88,6 +97,19 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+    }
+
+    private func binding(for label: ActivityLabel) -> Binding<Bool> {
+        Binding(
+            get: { filter.labels.contains(label) },
+            set: { isOn in
+                if isOn {
+                    filter.labels.insert(label)
+                } else {
+                    filter.labels.remove(label)
+                }
+            }
+        )
     }
 
     /// No sport checked means no sport filter at all, so the empty set has to
