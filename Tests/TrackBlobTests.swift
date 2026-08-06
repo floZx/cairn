@@ -47,4 +47,23 @@ struct TrackBlobTests {
         data.append(contentsOf: [0x01, 0x02, 0x03])
         #expect(TrackBlob.decodeCoordinates(data).count == 1)
     }
+
+    @Test("un blob décalé dans un tampon plus grand se décode correctement")
+    func decodesFromOffsetSlice() {
+        let coordinates = [
+            Coordinate(latitude: 45.764043, longitude: 4.835659),
+            Coordinate(latitude: -33.868820, longitude: 151.209290),
+        ]
+        // Un octet de tête force un début de tranche non aligné sur 8.
+        var padded = Data([0xFF])
+        padded.append(TrackBlob.encode(coordinates: coordinates))
+        let slice = padded.dropFirst()
+        #expect(TrackBlob.decodeCoordinates(slice) == coordinates)
+
+        let values: [Float] = [0, 1.5, -20.25, 1234.5]
+        var paddedScalars = Data([0xFF])
+        paddedScalars.append(TrackBlob.encode(scalars: values))
+        let scalarSlice = paddedScalars.dropFirst()
+        #expect(TrackBlob.decodeScalars(scalarSlice) == values)
+    }
 }

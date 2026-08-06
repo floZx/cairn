@@ -41,14 +41,16 @@ enum TrackBlob {
 
     /// Trailing bytes that don't form a whole element are dropped rather than
     /// trapping, so a corrupted store degrades instead of crashing.
+    ///
+    /// Reads are unaligned on purpose: `Data.withUnsafeBytes` makes no
+    /// alignment promise, and a `Data` that is a slice of a larger buffer can
+    /// start at any byte offset.
     private static func unpack<T>(_ data: Data) -> [T] {
-        let count = data.count / MemoryLayout<T>.stride
+        let stride = MemoryLayout<T>.stride
+        let count = data.count / stride
         guard count > 0 else { return [] }
         return data.withUnsafeBytes { raw in
-            Array(UnsafeBufferPointer(
-                start: raw.baseAddress!.assumingMemoryBound(to: T.self),
-                count: count
-            ))
+            (0..<count).map { raw.loadUnaligned(fromByteOffset: $0 * stride, as: T.self) }
         }
     }
 }
