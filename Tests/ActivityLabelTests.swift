@@ -15,6 +15,15 @@ struct ActivityLabelTests {
         #expect(ActivityLabel.fromWorkoutType(12) == .workout)
     }
 
+    @Test("la troisième famille de codes, vue en données réelles, est reconnue")
+    func mapsThirdFamily() {
+        // 30 apparaît sur des marches et randonnées ; 31 et 32 sont pris en
+        // charge par symétrie avec les deux autres familles.
+        #expect(ActivityLabel.fromWorkoutType(30) == nil)
+        #expect(ActivityLabel.fromWorkoutType(31) == .race)
+        #expect(ActivityLabel.fromWorkoutType(32) == .workout)
+    }
+
     @Test("l'absence de type ne produit pas d'étiquette")
     func noLabelWithoutType() {
         #expect(ActivityLabel.fromWorkoutType(nil) == nil)

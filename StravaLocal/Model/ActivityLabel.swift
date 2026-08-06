@@ -61,9 +61,12 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
     /// label rather than a label of its own.
     static func fromWorkoutType(_ code: Int?) -> ActivityLabel? {
         switch code {
-        case 1, 11: .race
+        // Runs 0-3, rides 10-12, and a third family in the 30s seen in real
+        // data (walks and hikes): each family reserves its round number for
+        // "no particular type", then +1 for a race and +2 for a workout.
+        case 1, 11, 31: .race
         case 2: .longRun
-        case 3, 12: .workout
+        case 3, 12, 32: .workout
         default: nil
         }
     }
