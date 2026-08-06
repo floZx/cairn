@@ -1,12 +1,6 @@
-import SwiftUI
 import MapKit
 
-/// The available map backgrounds.
-///
-/// MapKit offers no topographic option at all — no contour lines, no marked
-/// trails — so the last case leaves Apple's tiles behind and draws
-/// OpenTopoMap's instead. That is the only case that talks to a third party.
-/// A raster tile layer to draw instead of Apple's basemap.
+/// A raster tile layer drawn instead of Apple's basemap.
 struct TileSource: Sendable {
     let urlTemplate: String
     /// Shown on screen whenever the layer is; both providers require it.
@@ -14,6 +8,12 @@ struct TileSource: Sendable {
     let maximumZ: Int
 }
 
+/// The available map backgrounds.
+///
+/// Apple provides four looks but nothing topographic — no contour lines, no
+/// marked trails — so the last two cases draw third-party raster tiles
+/// instead. Those are the only styles that talk to a server other than
+/// Apple's.
 enum MapStyle: String, CaseIterable, Identifiable, Sendable {
     case standard
     case relief
@@ -96,223 +96,6 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
 
     var usesTopoTiles: Bool { tileSource != nil }
 
-    /// Remembered across launches, and shared by both maps.
+    /// Remembered across launches, and shared by every map in the app.
     static let storageKey = "mapStyle"
-}
-
-/// The colour tracks are drawn in, on both maps.
-///
-/// A closed list of system colours rather than a free picker: the same choice has
-/// to stay legible over a pale topographic tile, a dark satellite image and
-/// Apple's plan, and an arbitrary hex value can fail all three.
-enum TrackColor: String, CaseIterable, Identifiable, Sendable {
-    case accent
-    case blue
-    case orange
-    case red
-    case magenta
-    case purple
-    case black
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .accent: "Couleur d'accentuation"
-        case .blue: "Bleu"
-        case .orange: "Orange"
-        case .red: "Rouge"
-        case .magenta: "Magenta"
-        case .purple: "Violet"
-        case .black: "Noir"
-        }
-    }
-
-    var nsColor: NSColor {
-        switch self {
-        case .accent: .controlAccentColor
-        case .blue: .systemBlue
-        case .orange: .systemOrange
-        case .red: .systemRed
-        case .magenta: .magenta
-        case .purple: .systemPurple
-        case .black: .black
-        }
-    }
-
-    var color: Color { Color(nsColor: nsColor) }
-
-    static let storageKey = "trackColor"
-}
-
-/// Disk cache for raster tiles.
-///
-/// Reintroduced on its own, and that matters: an earlier attempt bundled a cache
-/// with a four-connection cap, an aggressive policy and retries, tiles stopped
-/// arriving, and the whole lot was reverted. The culprit turned out to be
-/// elsewhere — MapKit properties rewritten on every view update. So this adds
-/// the cache and nothing else: no connection limit, no retries.
-enum TileCache {
-    private static let directory = URL.cachesDirectory
-        .appending(path: "StravaLocal/Tiles")
-
-    static let session: URLSession = {
-        try? FileManager.default.createDirectory(
-            at: directory, withIntermediateDirectories: true
-        )
-        let configuration = URLSessionConfiguration.default
-        configuration.urlCache = URLCache(
-            memoryCapacity: 64 * 1024 * 1024,
-            diskCapacity: 1024 * 1024 * 1024,
-            directory: directory
-        )
-        // A cached tile is used whatever its age, and the network is touched
-        // only when there is none. Map tiles change on the scale of months, and
-        // the point is to stop re-fetching the same few départements forever.
-        configuration.requestCachePolicy = .returnCacheDataElseLoad
-        // OpenStreetMap-family services ask that clients identify themselves.
-        configuration.httpAdditionalHeaders = [
-            "User-Agent": "StravaLocal (personal use)"
-        ]
-        return URLSession(configuration: configuration)
-    }()
-
-    /// Bytes currently held, so the setting can show it rather than claim it.
-    static var diskUsage: Int {
-        guard let files = try? FileManager.default.subpathsOfDirectory(
-            atPath: directory.path(percentEncoded: false)
-        ) else { return 0 }
-        return files.reduce(0) { total, name in
-            let path = directory.appending(path: name).path(percentEncoded: false)
-            let size = (try? FileManager.default.attributesOfItem(atPath: path))
-                .flatMap { $0[.size] as? Int } ?? 0
-            return total + size
-        }
-    }
-
-    static func clear() {
-        session.configuration.urlCache?.removeAllCachedResponses()
-        try? FileManager.default.removeItem(at: directory)
-        try? FileManager.default.createDirectory(
-            at: directory, withIntermediateDirectories: true
-        )
-    }
-}
-
-/// A raster basemap drawn instead of Apple's.
-///
-/// Deliberately the plainest possible subclass: MapKit's own loader issues
-/// ordinary GETs through the shared URLSession, which honours the servers'
-/// cache headers — both declare their tiles valid for days. An earlier version
-/// added a private session, a disk cache, a four-connection cap and retries,
-/// and tiles stopped arriving; Leaflet fetching the very same tiles with plain
-/// GETs is flawless, so the extra machinery was the problem, not the servers.
-///
-/// `canReplaceMapContent` is on: Apple's basemap is not drawn underneath, so it
-/// no longer flashes through while the camera moves. It was briefly turned off
-/// while chasing tiles that vanished, but that had another cause entirely —
-/// MapKit properties being rewritten on every view update. The cost is that a
-/// tile still in flight leaves blank ground rather than a fallback map.
-final class RasterTileOverlay: MKTileOverlay {
-    init(source: TileSource) {
-        super.init(urlTemplate: source.urlTemplate)
-        canReplaceMapContent = true
-        minimumZ = 2
-        maximumZ = source.maximumZ
-    }
-
-    /// Routed through the cached session; MapKit's own loader keeps nothing on
-    /// disk, so panning back over the same ground re-fetched every tile.
-    override func loadTile(at path: MKTileOverlayPath) async throws -> Data {
-        let (data, _) = try await TileCache.session.data(
-            for: URLRequest(url: url(forTilePath: path))
-        )
-        return data
-    }
-}
-
-/// What a map view has already been told, so it is not told again.
-struct MapStyleState {
-    var applied: MapStyle?
-    var topoOverlay: MKTileOverlay?
-}
-
-extension MKMapView {
-    /// Applies a style, adding or removing the topo layer as needed.
-    ///
-    /// The tile layer is inserted at the bottom so a track always draws over it.
-    func apply(_ style: MapStyle, state: inout MapStyleState) {
-        // Reassigning `preferredConfiguration` makes MapKit reload its basemap
-        // and drop whatever the tile overlay had already rendered. Since this
-        // runs on every SwiftUI update — including every mouse move while a
-        // chart is hovered — doing it unconditionally made tiles blink out.
-        guard state.applied != style else { return }
-        state.applied = style
-
-        preferredConfiguration = style.configuration
-
-        // No 2D lock on the raster layers. An earlier version pinned the camera
-        // flat, on the theory that MapKit would not draw a tile overlay under a
-        // pitched view — but the tiles were rendering all along, in a rotated
-        // view, and what actually failed was tile loading. Pitch and rotation
-        // stay available everywhere.
-
-        if let source = style.tileSource {
-            guard state.topoOverlay == nil else { return }
-            let tiles = RasterTileOverlay(source: source)
-            insertOverlay(tiles, at: 0, level: .aboveRoads)
-            state.topoOverlay = tiles
-        } else if let existing = state.topoOverlay {
-            removeOverlay(existing)
-            state.topoOverlay = nil
-        }
-    }
-}
-
-extension View {
-    /// Standard treatment for a control floating over a map: a plain button has
-    /// no contrast against either a pale topographic tile or a dark satellite
-    /// image, so every one of them carries the same translucent backing.
-    func mapControl() -> some View {
-        padding(6)
-            .background(.regularMaterial, in: .rect(cornerRadius: 6))
-    }
-}
-
-/// Compact background picker, shared by the activity map and the global map.
-struct MapStylePicker: View {
-    @Binding var style: MapStyle
-
-    var body: some View {
-        Menu {
-            Picker("Fond de carte", selection: $style) {
-                ForEach(MapStyle.allCases) { style in
-                    Label(style.displayName, systemImage: style.symbolName)
-                        .tag(style)
-                }
-            }
-            .pickerStyle(.inline)
-        } label: {
-            Label(style.displayName, systemImage: style.symbolName)
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .mapControl()
-        .help("Choisir le fond de carte")
-    }
-}
-
-/// Shown only where a licence requires it.
-struct MapAttribution: View {
-    let style: MapStyle
-
-    var body: some View {
-        if let source = style.tileSource {
-            Text(source.attribution)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .padding(4)
-                .background(.regularMaterial, in: .rect(cornerRadius: 4))
-        }
-    }
 }
