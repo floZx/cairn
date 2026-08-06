@@ -78,60 +78,23 @@ final class AppEnvironment {
         refreshAuthenticationState()
     }
 
-    /// Full sync. Guarded against overlapping runs — two concurrent syncs would
-    /// double-spend the API quota for nothing.
+    /// Full sync: summaries, gear, then every pending stream.
     func syncNow() {
-        guard runningTask == nil, isAuthenticated else { return }
-        let task = Task { [engine] in
-            do {
-                try await engine.syncAll()
-                errorMessage = nil
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-        }
-        runningTask = task
-        Task {
-            _ = await task.value
-            if runningTask == task { runningTask = nil }
-        }
+        runSync { [engine] in try await engine.syncAll() }
     }
 
+    /// The cheap pass only — a couple of requests whatever the history size.
     func syncSummariesOnly() {
-        guard runningTask == nil, isAuthenticated else { return }
-        let task = Task { [engine] in
-            do {
-                try await engine.syncAthlete()
-                try await engine.syncSummaries()
-                errorMessage = nil
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-        }
-        runningTask = task
-        Task {
-            _ = await task.value
-            if runningTask == task { runningTask = nil }
+        runSync { [engine] in
+            try await engine.syncAthlete()
+            try await engine.syncSummaries()
         }
     }
 
     /// Re-reads every summary from Strava, picking up anything edited there
     /// after the fact. Streams are left as they are.
     func resyncEverything() {
-        guard runningTask == nil, isAuthenticated else { return }
-        let task = Task { [engine] in
-            do {
-                try await engine.resyncEverything()
-                errorMessage = nil
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-        }
-        runningTask = task
-        Task {
-            _ = await task.value
-            if runningTask == task { runningTask = nil }
-        }
+        runSync { [engine] in try await engine.resyncEverything() }
     }
 
     /// Whether launching the app looks for new activities.
@@ -149,6 +112,27 @@ final class AppEnvironment {
     func syncOnLaunch() {
         guard syncsOnLaunch, isAuthenticated else { return }
         syncSummariesOnly()
+    }
+
+    /// Runs one sync operation with the guarantees every entry point needs:
+    /// no overlapping runs (two concurrent syncs would double-spend the API
+    /// quota), the error surfaced to the UI, and the slot released only by the
+    /// task that owns it — see `cancelSync` for why.
+    private func runSync(_ operation: @escaping @Sendable () async throws -> Void) {
+        guard runningTask == nil, isAuthenticated else { return }
+        let task = Task {
+            do {
+                try await operation()
+                errorMessage = nil
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+        runningTask = task
+        Task {
+            _ = await task.value
+            if runningTask == task { runningTask = nil }
+        }
     }
 
     /// Cancellation is cooperative, so the slot can only be released by the
