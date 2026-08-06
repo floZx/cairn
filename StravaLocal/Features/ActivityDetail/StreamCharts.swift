@@ -105,11 +105,20 @@ struct StreamChartsView: View {
     }
 
     private func chart(for serie: StreamSeries) -> some View {
-        Chart {
+        let domain = yDomain(for: serie)
+
+        return Chart {
             ForEach(serie.points) { point in
                 if serie.isFilled {
-                    AreaMark(x: .value("km", point.distanceKm),
-                             y: .value(serie.label, point.value))
+                    // Anchored to the bottom of the axis, not to zero. A
+                    // one-argument AreaMark fills down to zero, which now sits
+                    // far below the plot — the fill then spills out of the chart
+                    // and over whatever follows it.
+                    AreaMark(
+                        x: .value("km", point.distanceKm),
+                        yStart: .value(serie.label, domain.lowerBound),
+                        yEnd: .value(serie.label, point.value)
+                    )
                     .opacity(0.15)
                 }
                 LineMark(x: .value("km", point.distanceKm),
@@ -124,7 +133,9 @@ struct StreamChartsView: View {
         // Scaled to the readings rather than to zero: an altitude profile
         // between 400 m and 850 m spends most of a zero-based chart as empty
         // space below the trace.
-        .chartYScale(domain: yDomain(for: serie))
+        .chartYScale(domain: domain)
+        // Belt and braces: nothing a chart draws may bleed onto its neighbours.
+        .clipped()
         // Pinned to the ride's own length, so the plot fills the width instead
         // of stopping short of a rounded-up axis maximum.
         .chartXScale(domain: 0...max(maxDistanceKm, 0.1))
