@@ -89,6 +89,8 @@ Deliverable : `xcodegen generate` produit un projet qui compile, lance une fenê
 
 - [ ] **Step 1: Écrire `.gitignore`**
 
+Le fichier existe peut-être déjà avec des lignes supplémentaires (par exemple `.superpowers/`) : **conserver ce qui y est** et compléter avec les lignes manquantes.
+
 ```gitignore
 *.xcodeproj
 *.xcworkspace
