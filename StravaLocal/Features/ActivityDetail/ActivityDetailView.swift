@@ -12,6 +12,24 @@ struct ActivityDetailView: View {
         return detailed.isEmpty ? activity.simplifiedCoordinates : detailed
     }
 
+    /// Distance under the cursor in a chart, mirrored on the map as a marker.
+    @State private var hoverDistanceKm: Double?
+
+    /// The point of the track at the hovered distance.
+    ///
+    /// Interpolated by position along the track rather than by real cumulative
+    /// distance — the same simplification the charts make when they spread
+    /// their samples evenly over the ride's length.
+    private var hoveredCoordinate: Coordinate? {
+        guard let hoverDistanceKm, activity.distance > 0 else { return nil }
+        let track = trackCoordinates
+        guard track.count > 1 else { return nil }
+        let fraction = (hoverDistanceKm * 1000) / activity.distance
+        guard fraction >= 0, fraction <= 1 else { return nil }
+        let index = Int((fraction * Double(track.count - 1)).rounded())
+        return track[min(max(index, 0), track.count - 1)]
+    }
+
     private var series: [StreamSeries] {
         StreamSeriesBuilder.series(
             from: activity.streams, totalDistance: activity.distance
@@ -27,7 +45,9 @@ struct ActivityDetailView: View {
                 // session simply has nowhere to be drawn, and a large empty
                 // panel announcing that is worse than the map's absence.
                 if trackCoordinates.count > 1 {
-                    ActivityMapView(coordinates: trackCoordinates)
+                    ActivityMapView(
+                        coordinates: trackCoordinates, highlight: hoveredCoordinate
+                    )
                         .frame(height: 320)
                         .clipShape(.rect(cornerRadius: 8))
                 }
@@ -35,7 +55,9 @@ struct ActivityDetailView: View {
                 statistics
 
                 if !series.isEmpty {
-                    StreamChartsView(series: series)
+                    StreamChartsView(
+                        series: series, hoverDistanceKm: $hoverDistanceKm
+                    )
                 }
 
                 if !activity.laps.isEmpty {
