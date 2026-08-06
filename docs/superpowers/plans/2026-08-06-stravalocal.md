@@ -803,6 +803,9 @@ enum Simplify {
         _ coordinates: [Coordinate],
         toleranceMeters: Double = defaultToleranceMeters
     ) -> [Coordinate] {
+        // A negative tolerance makes `recurse` re-enter itself with identical
+        // arguments on a run of duplicate points, so reject it at the door.
+        precondition(toleranceMeters >= 0, "tolerance must not be negative")
         guard coordinates.count > 2 else { return coordinates }
         var keep = [Bool](repeating: false, count: coordinates.count)
         keep[0] = true
@@ -861,12 +864,12 @@ enum Simplify {
     /// Evenly thins a series to at most `maxCount` elements, always keeping the
     /// first and last. Used to keep charts responsive on long activities.
     static func downsample<T>(_ values: [T], to maxCount: Int) -> [T] {
-        guard maxCount > 2, values.count > maxCount else { return values }
-        let stride = Double(values.count - 1) / Double(maxCount - 1)
+        guard maxCount >= 2, values.count > maxCount else { return values }
+        let spacing = Double(values.count - 1) / Double(maxCount - 1)
         var result = [T]()
         result.reserveCapacity(maxCount)
         for step in 0..<maxCount {
-            result.append(values[Int((Double(step) * stride).rounded())])
+            result.append(values[Int((Double(step) * spacing).rounded())])
         }
         return result
     }
