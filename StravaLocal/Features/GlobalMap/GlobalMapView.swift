@@ -121,10 +121,31 @@ struct TrackMapRepresentable: NSViewRepresentable {
         }
         let multi = MKMultiPolyline(polylines)
         mapView.addOverlay(multi)
+
+        // Opens where the user actually trains rather than framing every track:
+        // one ride abroad would otherwise zoom out to a continent. Falls back to
+        // the full extent if no dense area can be found.
+        let rect = TrackDensity.focusRegion(for: tracks)
+            .map(Self.mapRect(for:)) ?? multi.boundingMapRect
         mapView.setVisibleMapRect(
-            multi.boundingMapRect,
+            rect,
             edgePadding: NSEdgeInsets(top: 40, left: 40, bottom: 40, right: 40),
             animated: false
+        )
+    }
+
+    private static func mapRect(for box: BoundingBox) -> MKMapRect {
+        let topLeft = MKMapPoint(
+            CLLocationCoordinate2D(latitude: box.maxLat, longitude: box.minLon)
+        )
+        let bottomRight = MKMapPoint(
+            CLLocationCoordinate2D(latitude: box.minLat, longitude: box.maxLon)
+        )
+        return MKMapRect(
+            x: min(topLeft.x, bottomRight.x),
+            y: min(topLeft.y, bottomRight.y),
+            width: abs(bottomRight.x - topLeft.x),
+            height: abs(bottomRight.y - topLeft.y)
         )
     }
 
