@@ -64,10 +64,13 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
 
 /// OpenTopoMap raster tiles: contour lines, marked trails, shaded relief.
 ///
-/// `canReplaceMapContent` stops Apple's basemap being drawn underneath, which
-/// avoids doubled labels and halves the tiles fetched. Their usage policy asks
-/// for reasonable, non-bulk use — an app browsing one athlete's own tracks sits
-/// well inside that.
+/// `canReplaceMapContent` is deliberately left off: telling MapKit it may skip
+/// its own basemap appears to make it drop rendered tiles as the camera moves.
+/// Keeping Apple's map underneath costs a second set of tiles and lets its
+/// labels show through the gaps, but the layer stays put. Under evaluation.
+///
+/// Their usage policy asks for reasonable, non-bulk use — an app browsing one
+/// athlete's own tracks sits well inside that.
 final class TopoTileOverlay: MKTileOverlay {
     /// Tiles are fetched through a session with a real disk cache, so panning
     /// back over ground already seen costs nothing and survives a relaunch.
@@ -92,7 +95,7 @@ final class TopoTileOverlay: MKTileOverlay {
 
     init() {
         super.init(urlTemplate: "https://tile.opentopomap.org/{z}/{x}/{y}.png")
-        canReplaceMapContent = true
+        canReplaceMapContent = false
         minimumZ = 2
         // OpenTopoMap publishes nothing beyond 17; asking for more returns
         // blanks rather than an upscaled tile.
