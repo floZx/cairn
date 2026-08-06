@@ -23,7 +23,7 @@ struct ActivityMapView: NSViewRepresentable {
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
         let coordinator = context.coordinator
-        mapView.apply(style, topoOverlay: &coordinator.topoOverlay)
+        mapView.apply(style, state: &coordinator.mapStyleState)
 
         var hasher = Hasher()
         hasher.combine(coordinates.count)
@@ -80,7 +80,7 @@ struct ActivityMapView: NSViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var renderedSignature: Int?
         var marker: MKPointAnnotation?
-        var topoOverlay: MKTileOverlay?
+        var mapStyleState = MapStyleState()
 
         private static let markerIdentifier = "hover"
 

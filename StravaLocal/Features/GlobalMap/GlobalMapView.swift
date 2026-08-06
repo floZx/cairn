@@ -106,7 +106,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
     }
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
-        mapView.apply(style, topoOverlay: &context.coordinator.topoOverlay)
+        mapView.apply(style, state: &context.coordinator.mapStyleState)
         context.coordinator.selectionOverlay?.isEnabled = isSelectingRegion
         // Panning must stop while drawing, otherwise the drag moves the map.
         mapView.isScrollEnabled = !isSelectingRegion
@@ -162,7 +162,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var renderedSignature: Int?
-        var topoOverlay: MKTileOverlay?
+        var mapStyleState = MapStyleState()
         weak var selectionOverlay: SelectionOverlayView?
 
         func mapView(

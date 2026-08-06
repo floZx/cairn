@@ -69,6 +69,27 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
 /// for reasonable, non-bulk use — an app browsing one athlete's own tracks sits
 /// well inside that.
 final class TopoTileOverlay: MKTileOverlay {
+    /// Tiles are fetched through a session with a real disk cache, so panning
+    /// back over ground already seen costs nothing and survives a relaunch.
+    /// MapKit's default loader gives no such guarantee, and the server itself
+    /// declares the tiles cacheable for a week.
+    private static let session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = URLCache(
+            memoryCapacity: 32 * 1024 * 1024,
+            diskCapacity: 512 * 1024 * 1024,
+            directory: URL.cachesDirectory.appending(path: "StravaLocal/TopoTiles")
+        )
+        // Map tiles change on the scale of months: a cached tile is preferred
+        // even once nominally stale, rather than re-fetched on every pan.
+        configuration.requestCachePolicy = .returnCacheDataElseLoad
+        // OpenStreetMap-family services ask that clients identify themselves.
+        configuration.httpAdditionalHeaders = [
+            "User-Agent": "StravaLocal (personal use)"
+        ]
+        return URLSession(configuration: configuration)
+    }()
+
     init() {
         super.init(urlTemplate: "https://tile.opentopomap.org/{z}/{x}/{y}.png")
         canReplaceMapContent = true
@@ -77,13 +98,33 @@ final class TopoTileOverlay: MKTileOverlay {
         // blanks rather than an upscaled tile.
         maximumZ = 17
     }
+
+    override func loadTile(at path: MKTileOverlayPath) async throws -> Data {
+        let (data, _) = try await Self.session.data(
+            for: URLRequest(url: url(forTilePath: path))
+        )
+        return data
+    }
+}
+
+/// What a map view has already been told, so it is not told again.
+struct MapStyleState {
+    var applied: MapStyle?
+    var topoOverlay: MKTileOverlay?
 }
 
 extension MKMapView {
     /// Applies a style, adding or removing the topo layer as needed.
     ///
     /// The tile layer is inserted at the bottom so a track always draws over it.
-    func apply(_ style: MapStyle, topoOverlay: inout MKTileOverlay?) {
+    func apply(_ style: MapStyle, state: inout MapStyleState) {
+        // Reassigning `preferredConfiguration` makes MapKit reload its basemap
+        // and drop whatever the tile overlay had already rendered. Since this
+        // runs on every SwiftUI update — including every mouse move while a
+        // chart is hovered — doing it unconditionally made tiles blink out.
+        guard state.applied != style else { return }
+        state.applied = style
+
         preferredConfiguration = style.configuration
 
         // Raster tiles are flat images, and MapKit does not draw an overlay under
@@ -107,13 +148,13 @@ extension MKMapView {
         }
 
         if style.usesTopoTiles {
-            guard topoOverlay == nil else { return }
+            guard state.topoOverlay == nil else { return }
             let tiles = TopoTileOverlay()
             insertOverlay(tiles, at: 0, level: .aboveRoads)
-            topoOverlay = tiles
-        } else if let existing = topoOverlay {
+            state.topoOverlay = tiles
+        } else if let existing = state.topoOverlay {
             removeOverlay(existing)
-            topoOverlay = nil
+            state.topoOverlay = nil
         }
     }
 }
