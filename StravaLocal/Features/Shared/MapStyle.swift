@@ -108,12 +108,16 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
 /// added a private session, a disk cache, a four-connection cap and retries,
 /// and tiles stopped arriving; Leaflet fetching the very same tiles with plain
 /// GETs is flawless, so the extra machinery was the problem, not the servers.
+///
+/// `canReplaceMapContent` is on: Apple's basemap is not drawn underneath, so it
+/// no longer flashes through while the camera moves. It was briefly turned off
+/// while chasing tiles that vanished, but that had another cause entirely —
+/// MapKit properties being rewritten on every view update. The cost is that a
+/// tile still in flight leaves blank ground rather than a fallback map.
 final class RasterTileOverlay: MKTileOverlay {
     init(source: TileSource) {
         super.init(urlTemplate: source.urlTemplate)
-        // Apple's basemap stays underneath: claiming to replace it made MapKit
-        // drop already-rendered tiles as the camera moved.
-        canReplaceMapContent = false
+        canReplaceMapContent = true
         minimumZ = 2
         maximumZ = source.maximumZ
     }
