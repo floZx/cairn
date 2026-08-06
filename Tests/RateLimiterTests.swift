@@ -41,7 +41,7 @@ struct RateLimiterTests {
     @Test("aucune attente quand il reste de la marge")
     func noDelayWithHeadroom() async {
         let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 0) })
-        await limiter.observe(headers: headers(short: "10", daily: "100"))
+        await limiter.observeSuccess(headers: headers(short: "10", daily: "100"))
         #expect(await limiter.delayBeforeNextRequest() == 0)
     }
 
@@ -49,16 +49,16 @@ struct RateLimiterTests {
     func waitsForNextShortWindow() async {
         // 1970-01-01T00:03:00Z → current window ends at 00:15:00Z, that is 720 s.
         let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 180) })
-        await limiter.observe(headers: headers(short: "199", daily: "100"))
+        await limiter.observeSuccess(headers: headers(short: "199", daily: "100"))
         #expect(await limiter.delayBeforeNextRequest() == 720)
     }
 
     @Test("la réserve empêche de consommer les toutes dernières requêtes")
     func reserveTriggersWait() async {
         let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 0) }, reserve: 5)
-        await limiter.observe(headers: headers(short: "196", daily: "100"))
+        await limiter.observeSuccess(headers: headers(short: "196", daily: "100"))
         #expect(await limiter.delayBeforeNextRequest() > 0)
-        await limiter.observe(headers: headers(short: "194", daily: "100"))
+        await limiter.observeSuccess(headers: headers(short: "194", daily: "100"))
         #expect(await limiter.delayBeforeNextRequest() == 0)
     }
 
@@ -66,7 +66,7 @@ struct RateLimiterTests {
     func waitsForNextDay() async {
         // 1970-01-01T00:03:00Z → next midnight at 86400 s, that is 86220 s to wait.
         let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 180) })
-        await limiter.observe(headers: headers(short: "10", daily: "1999"))
+        await limiter.observeSuccess(headers: headers(short: "10", daily: "1999"))
         #expect(await limiter.delayBeforeNextRequest() == 86_220)
     }
 
@@ -86,7 +86,28 @@ struct RateLimiterTests {
         let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 0) })
         await limiter.observeTooManyRequests()
         #expect(await limiter.delayBeforeNextRequest() > 0)
-        await limiter.observe(headers: headers(short: "10", daily: "100"))
+        await limiter.observeSuccess(headers: headers(short: "10", daily: "100"))
         #expect(await limiter.delayBeforeNextRequest() == 0)
+    }
+
+    @Test("un succès aux en-têtes illisibles efface tout de même le backoff")
+    func successWithUnparseableHeadersStillClearsBackoff() async {
+        let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 0) })
+        await limiter.observeTooManyRequests()
+        #expect(await limiter.delayBeforeNextRequest() > 0)
+        // A 2xx proves the throttling is over, whatever the headers looked like.
+        await limiter.observeSuccess(headers: ["X-RateLimit-Limit": "garbage"])
+        #expect(await limiter.delayBeforeNextRequest() == 0)
+        #expect(await limiter.snapshot == nil)
+    }
+
+    @Test("les deux quotas saturés font attendre le plus long des deux")
+    func bothQuotasExhaustedWaitsForTheLonger() async {
+        // 1970-01-01T00:03:00Z: next 15-min window at 720 s, next day at 86220 s.
+        let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 180) })
+        await limiter.observeSuccess(
+            headers: ["X-RateLimit-Limit": "200,2000", "X-RateLimit-Usage": "199,1999"]
+        )
+        #expect(await limiter.delayBeforeNextRequest() == 86_220)
     }
 }

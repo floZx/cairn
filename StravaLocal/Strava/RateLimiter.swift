@@ -62,7 +62,13 @@ actor RateLimiter {
 
     var snapshot: RateLimitSnapshot? { latest }
 
-    func observe(headers: [String: String]) {
+    /// Records a successful response's quota headers.
+    ///
+    /// Call this **only** for a non-throttled (2xx) response. Success is proof
+    /// the throttling is over, so it clears any accumulated backoff — which is
+    /// why it must never be called for a 429, even though Strava sends quota
+    /// headers on those too. Use `observeTooManyRequests()` there instead.
+    func observeSuccess(headers: [String: String]) {
         consecutiveThrottles = 0
         if let parsed = RateLimitSnapshot(headers: headers) {
             latest = parsed
