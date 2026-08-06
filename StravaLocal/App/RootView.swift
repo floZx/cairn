@@ -8,6 +8,11 @@ struct RootView: View {
     // See the comment on `ActivityListView.selection`: `Activity.ID` can't be
     // named from this file, so `PersistentIdentifier` is used directly.
     @State private var selectedActivity: PersistentIdentifier?
+    @Query private var allActivities: [Activity]
+
+    private var selected: Activity? {
+        allActivities.first { $0.id == selectedActivity }
+    }
 
     /// The sidebar picks a sport; the filter bar refines within it.
     private var effectiveFilter: ActivityFilter {
@@ -32,8 +37,14 @@ struct RootView: View {
             .frame(minWidth: 520)
             .searchable(text: $filter.searchText, prompt: "Rechercher une activité")
         } detail: {
-            Text("Sélectionnez une activité")
-                .foregroundStyle(.secondary)
+            if let selected {
+                ActivityDetailView(activity: selected)
+            } else {
+                ContentUnavailableView(
+                    "Aucune activité sélectionnée", systemImage: "figure.run",
+                    description: Text("Choisissez une activité dans la liste.")
+                )
+            }
         }
         .toolbar {
             ToolbarItem(placement: .status) {
