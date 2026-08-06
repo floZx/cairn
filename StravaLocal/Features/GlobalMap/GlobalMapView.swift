@@ -52,13 +52,17 @@ struct GlobalMapView: View {
                     .help("Afficher la carte sur toute la fenêtre")
                 }
 
-                Toggle(isOn: $isSelectingRegion) {
+                // A button rather than a Toggle: there is no plain toggle
+                // style, so `.toggleStyle(.button)` kept its own frame and drew
+                // a second border inside the shared backing. Engagement shows
+                // in the tint instead.
+                Button {
+                    isSelectingRegion.toggle()
+                } label: {
                     Label("Sélectionner une zone", systemImage: "dot.viewfinder")
                 }
-                .toggleStyle(.button)
-                // Same backing as every other map control. Its own button chrome
-                // was legible on Apple's dark plan but vanished on a pale
-                // topographic tile.
+                .buttonStyle(.plain)
+                .foregroundStyle(isSelectingRegion ? Color.accentColor : Color.primary)
                 .mapControl()
                 .help("Tracez un rectangle sur la carte pour ne garder que les activités qui le traversent")
 
