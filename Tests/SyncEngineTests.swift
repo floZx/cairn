@@ -66,6 +66,8 @@ private actor FakeSource: ActivitySource {
     }
 
     func rateLimitSnapshot() async -> RateLimitSnapshot? { nil }
+
+    func delayBeforeNextRequest() async -> TimeInterval { 0 }
 }
 
 private func makeSummary(

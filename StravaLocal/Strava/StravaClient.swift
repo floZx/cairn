@@ -37,6 +37,12 @@ actor StravaClient {
         await rateLimiter.snapshot
     }
 
+    /// How long the next request has to wait, so callers can say so rather than
+    /// blocking silently inside `get`.
+    func delayBeforeNextRequest() async -> TimeInterval {
+        await rateLimiter.delayBeforeNextRequest()
+    }
+
     func signOut() throws { try store.clearTokens() }
 
     // MARK: - Endpoints

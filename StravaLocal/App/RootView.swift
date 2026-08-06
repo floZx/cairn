@@ -82,10 +82,11 @@ struct RootView: View {
                             .font(.caption)
                             .monospacedDigit()
                             .lineLimit(1)
+                            // Reserved on the text alone, so the pill keeps a
+                            // steady width as the counter ticks over without
+                            // pinning its contents against one edge.
+                            .frame(width: 96, alignment: .leading)
                     }
-                    // Reserved width: without it the item resizes on every page
-                    // and shoves the rest of the toolbar sideways.
-                    .frame(minWidth: 120, alignment: .leading)
                     .help(app.progress.statusText)
                 }
             }

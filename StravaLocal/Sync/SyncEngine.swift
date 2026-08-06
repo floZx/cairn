@@ -10,6 +10,7 @@ protocol ActivitySource: Sendable {
     func athlete() async throws -> AthleteDTO
     func gear(id: String) async throws -> GearDTO
     func rateLimitSnapshot() async -> RateLimitSnapshot?
+    func delayBeforeNextRequest() async -> TimeInterval
 }
 
 /// `StravaClient` already has every one of these signatures, so the conformance
@@ -163,6 +164,20 @@ actor SyncEngine {
             if Task.isCancelled { break }
             let current = try state()
             guard let stravaID = current.pendingStreamIDs.first else { break }
+
+            // Ask before spending: the limiter would otherwise sleep inside the
+            // HTTP client, leaving the UI on a frozen counter for up to fifteen
+            // minutes and looking hung when it is merely waiting its turn.
+            let wait = await source.delayBeforeNextRequest()
+            if wait > 0 {
+                await setPhase(.waitingForQuota(until: Date().addingTimeInterval(wait)))
+                do {
+                    try await Task.sleep(for: .seconds(wait))
+                } catch {
+                    break
+                }
+            }
+
             await setPhase(.streams(done: fetched, total: min(budget, total)))
 
             do {
