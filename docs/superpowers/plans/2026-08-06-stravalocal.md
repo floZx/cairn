@@ -3520,7 +3520,10 @@ Deliverable : une synchro remplit la base avec toutes les métadonnées, bbox et
   - `enum SyncPhase: Sendable, Equatable { case idle, summaries(page: Int), streams(done: Int, total: Int), waitingForQuota(until: Date), failed(String) }`
   - `@MainActor @Observable final class SyncProgress { var phase: SyncPhase; var lastRunAt: Date?; var quota: RateLimitSnapshot?; var isRunning: Bool { get }; var statusText: String { get } }`
   - `protocol ActivitySource: Sendable { func activities(after: Int, page: Int, perPage: Int) async throws -> [SummaryActivityDTO]; func streams(id: Int64) async throws -> StreamSetDTO; func activityDetail(id: Int64) async throws -> DetailActivityDTO; func athlete() async throws -> AthleteDTO; func rateLimitSnapshot() async -> RateLimitSnapshot? }` + `extension StravaClient: ActivitySource {}`
-  - `actor SyncEngine { init(source: ActivitySource, container: ModelContainer, progress: SyncProgress); func syncSummaries() async throws -> Int; func state() throws -> SyncState }`
+  - `struct SyncStateSnapshot: Sendable, Equatable { var lastSummaryEpoch: Int; var pendingStreamIDs: [Int64]; var lastRunAt: Date?; var lastErrorMessage: String?; var isInitialImportDone: Bool }`
+  - `actor SyncEngine { init(source: ActivitySource, container: ModelContainer, progress: SyncProgress); func syncSummaries() async throws -> Int; func stateSnapshot() throws -> SyncStateSnapshot }` — l'accesseur `state()` qui rend le modèle vivant reste **privé**.
+
+`SyncState` est un `@Model` SwiftData, lié au `ModelContext` privé de l'acteur : le sortir de l'acteur est une course de données que SwiftData ne rattrape pas. Les appelants externes reçoivent donc `SyncStateSnapshot`, une valeur. Ne jamais déclarer un `@Model` `Sendable`, même `@unchecked` — c'est faire taire un diagnostic correct.
 
 `ActivitySource` existe pour que `SyncEngine` soit testable avec une source en dur, sans HTTP du tout.
 
@@ -3651,7 +3654,7 @@ struct SyncSummariesTests {
         )
         _ = try await engine.syncSummaries()
 
-        let state = try engine.state()
+        let state = try await engine.stateSnapshot()
         #expect(Set(state.pendingStreamIDs) == [1, 2])
     }
 
@@ -3666,8 +3669,8 @@ struct SyncSummariesTests {
         )
         _ = try await engine.syncSummaries()
 
-        #expect(try engine.state().lastSummaryEpoch == 5000)
-        #expect(try engine.state().isInitialImportDone)
+        #expect(try await engine.stateSnapshot().lastSummaryEpoch == 5000)
+        #expect(try await engine.stateSnapshot().isInitialImportDone)
     }
 
     @Test("la deuxième synchro repart du curseur")
@@ -3799,6 +3802,18 @@ protocol ActivitySource: Sendable {
 /// needs no bridging methods — adding one here would just recurse.
 extension StravaClient: ActivitySource {}
 
+/// An immutable copy of the sync progress, safe to hand outside the engine.
+///
+/// `SyncState` itself is a SwiftData `@Model` bound to the engine's private
+/// `ModelContext`, so it must never cross an isolation boundary.
+struct SyncStateSnapshot: Sendable, Equatable {
+    var lastSummaryEpoch: Int
+    var pendingStreamIDs: [Int64]
+    var lastRunAt: Date?
+    var lastErrorMessage: String?
+    var isInitialImportDone: Bool
+}
+
 actor SyncEngine {
     private let source: ActivitySource
     private let container: ModelContainer
@@ -3817,8 +3832,9 @@ actor SyncEngine {
         self.mapper = ImportMapper(context: context)
     }
 
-    /// Single-row sync state, created on first access.
-    func state() throws -> SyncState {
+    /// Single-row sync state, created on first access. Private: the live model
+    /// must never leave the actor — see `stateSnapshot()`.
+    private func state() throws -> SyncState {
         if let existing = try context.fetch(FetchDescriptor<SyncState>()).first {
             return existing
         }
@@ -3826,6 +3842,18 @@ actor SyncEngine {
         context.insert(created)
         try context.save()
         return created
+    }
+
+    /// The progress record as a value, for callers outside the actor.
+    func stateSnapshot() throws -> SyncStateSnapshot {
+        let state = try state()
+        return SyncStateSnapshot(
+            lastSummaryEpoch: state.lastSummaryEpoch,
+            pendingStreamIDs: state.pendingStreamIDs,
+            lastRunAt: state.lastRunAt,
+            lastErrorMessage: state.lastErrorMessage,
+            isInitialImportDone: state.isInitialImportDone
+        )
     }
 
     /// Phase A: walk the summary endpoint. A handful of requests covers an
@@ -3946,7 +3974,7 @@ struct SyncStreamsTests {
 
         #expect(fetched == 2)
         #expect(Set(await source.streamRequests) == [1, 2])
-        #expect(try engine.state().pendingStreamIDs.isEmpty)
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
 
         let context = ModelContext(container)
         let activities = try context.fetch(FetchDescriptor<Activity>())
@@ -3971,7 +3999,7 @@ struct SyncStreamsTests {
         let fetched = try await engine.syncStreams(limit: 2)
 
         #expect(fetched == 2)
-        #expect(try engine.state().pendingStreamIDs.count == 1)
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.count == 1)
     }
 
     @Test("reprendre après un arrêt ne redemande pas ce qui est déjà là")
@@ -4090,7 +4118,7 @@ struct SyncStreamsTests {
         let activity = try context.fetch(FetchDescriptor<Activity>())[0]
         #expect(activity.streams?.latlng != nil)
         #expect(progress.phase == .idle)
-        #expect(try engine.state().pendingStreamIDs.isEmpty)
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
     }
 
     @Test("l'annulation laisse la file exploitable")
@@ -4113,7 +4141,7 @@ struct SyncStreamsTests {
 
         // Où que l'annulation tombe, rien n'est perdu : chaque activité est soit
         // déjà récupérée, soit encore dans la file.
-        let remaining = try engine.state().pendingStreamIDs.count
+        let remaining = try await engine.stateSnapshot().pendingStreamIDs.count
         let done = await source.streamRequests.count
         #expect(remaining + done == 3)
     }
