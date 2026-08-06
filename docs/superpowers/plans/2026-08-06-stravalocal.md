@@ -2296,20 +2296,28 @@ actor RateLimiter {
 
         let now = clock()
         if latest.dailyUsage >= latest.dailyLimit - reserve {
-            return secondsUntilNextBoundary(of: Self.dailyWindow, from: now)
+            return Self.secondsUntilNextBoundary(of: Self.dailyWindow, from: now)
         }
         if latest.shortTermUsage >= latest.shortTermLimit - reserve {
-            return secondsUntilNextBoundary(of: Self.shortWindow, from: now)
+            return Self.secondsUntilNextBoundary(of: Self.shortWindow, from: now)
         }
         return 0
     }
 
     /// Strava's windows are aligned on UTC clock boundaries, not on first use.
-    private func secondsUntilNextBoundary(
+    ///
+    /// Static so the sync engine can reuse it when reporting when a
+    /// quota-blocked walk will resume, rather than re-deriving the arithmetic.
+    static func secondsUntilNextBoundary(
         of window: TimeInterval, from now: Date
     ) -> TimeInterval {
         let elapsed = now.timeIntervalSince1970.truncatingRemainder(dividingBy: window)
         return window - elapsed
+    }
+
+    /// Seconds until the next 15-minute UTC window opens.
+    static func secondsUntilNextShortWindow(from now: Date) -> TimeInterval {
+        secondsUntilNextBoundary(of: shortWindow, from: now)
     }
 }
 ```
@@ -4197,7 +4205,11 @@ Insérer ces méthodes dans `actor SyncEngine`, après `syncSummaries()` :
                     "Activité \(stravaID) introuvable : \(message)"
                 try context.save()
             } catch let StravaError.http(status, _) where status == 429 {
-                let resumeAt = Date().addingTimeInterval(15 * 60)
+                // The real UTC window boundary, not a naive +15 min, which would
+                // overstate the wait by up to a full window.
+                let resumeAt = Date().addingTimeInterval(
+                    RateLimiter.secondsUntilNextShortWindow(from: Date())
+                )
                 await setPhase(.waitingForQuota(until: resumeAt))
                 current.lastErrorMessage = "Quota Strava atteint"
                 try context.save()
