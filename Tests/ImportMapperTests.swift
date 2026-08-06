@@ -231,4 +231,83 @@ struct ImportMapperTests {
         #expect(try mapper.activity(stravaID: 10_123_456_789) != nil)
         #expect(try mapper.activity(stravaID: 1) == nil)
     }
+
+    @Test("réimporter le résumé après les streams ne dégrade pas la trace")
+    func summaryReimportKeepsStreamTrack() throws {
+        let context = try makeContext()
+        let mapper = ImportMapper(context: context)
+        let dto = try Fixture.decode(SummaryActivityDTO.self, "summary_activity")
+        let activity = try mapper.upsert(summary: dto)
+        mapper.apply(
+            streams: try Fixture.decode(StreamSetDTO.self, "streams"), to: activity
+        )
+        try context.save()
+
+        let trackFromStreams = activity.simplifiedCoordinates
+        let boxFromStreams = activity.boundingBox
+
+        // The sync engine re-imports summaries on every incremental run.
+        _ = try mapper.upsert(summary: dto)
+        try context.save()
+
+        #expect(activity.simplifiedCoordinates == trackFromStreams)
+        #expect(activity.boundingBox == boxFromStreams)
+        // Still Lyon, from the streams — not California, from the summary polyline.
+        #expect(abs(activity.boundingBox!.minLat - 45.764043) < 0.001)
+    }
+
+    @Test("le matériel est unique et mis à jour au réimport")
+    func upsertsGear() throws {
+        let context = try makeContext()
+        let mapper = ImportMapper(context: context)
+        let bike = GearDTO(
+            id: "b1234567", name: "Vélo de route", brand_name: "Marque",
+            model_name: "Modèle", distance: 12_345
+        )
+
+        let first = try mapper.upsert(gear: bike)
+        try context.save()
+        #expect(first.isBike)
+        #expect(first.totalDistance == 12_345)
+
+        let renamed = GearDTO(
+            id: "b1234567", name: "Vélo repeint", brand_name: "Marque",
+            model_name: "Modèle", distance: 20_000
+        )
+        let second = try mapper.upsert(gear: renamed)
+        try context.save()
+
+        #expect(try context.fetch(FetchDescriptor<Gear>()).count == 1)
+        #expect(second.name == "Vélo repeint")
+        #expect(second.totalDistance == 20_000)
+
+        // A "g" prefix means shoes, not a bike.
+        let shoes = try mapper.upsert(
+            gear: GearDTO(
+                id: "g987", name: "Chaussures", brand_name: nil,
+                model_name: nil, distance: 0
+            )
+        )
+        try context.save()
+        #expect(!shoes.isBike)
+    }
+
+    @Test("les streams sans position comptent quand même leurs points")
+    func pointCountFromNonPositionStreams() throws {
+        let context = try makeContext()
+        let mapper = ImportMapper(context: context)
+        let activity = try mapper.upsert(
+            summary: try Fixture.decode(SummaryActivityDTO.self, "summary_activity")
+        )
+        let heartRateOnly = StreamSetDTO(
+            latlng: nil, altitude: nil, time: nil,
+            heartrate: StreamDTO(data: [100, 110, 120, 130]),
+            cadence: nil, watts: nil, velocity_smooth: nil,
+            temp: nil, grade_smooth: nil, moving: nil
+        )
+        mapper.apply(streams: heartRateOnly, to: activity)
+        try context.save()
+
+        #expect(activity.streams?.pointCount == 4)
+    }
 }

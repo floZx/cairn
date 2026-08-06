@@ -137,10 +137,18 @@ struct ImportMapper {
         streams.moving = Self.pack(dto.moving?.data.map { $0 ? 1.0 : 0.0 })
         streams.time = dto.time?.data.map { Int32($0) }
             .nonEmpty.map(TrackBlob.encode(times:))
-        streams.pointCount = max(
+        streams.pointCount = [
             coordinates.count,
-            dto.time?.data.count ?? dto.altitude?.data.count ?? 0
-        )
+            dto.time?.data.count ?? 0,
+            dto.altitude?.data.count ?? 0,
+            dto.heartrate?.data.count ?? 0,
+            dto.cadence?.data.count ?? 0,
+            dto.watts?.data.count ?? 0,
+            dto.velocity_smooth?.data.count ?? 0,
+            dto.temp?.data.count ?? 0,
+            dto.grade_smooth?.data.count ?? 0,
+            dto.moving?.data.count ?? 0,
+        ].max() ?? 0
 
         if !coordinates.isEmpty {
             applyTrack(coordinates: coordinates, to: activity)
