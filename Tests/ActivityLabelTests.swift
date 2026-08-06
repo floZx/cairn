@@ -17,8 +17,8 @@ struct ActivityLabelTests {
 
     @Test("la troisième famille de codes, vue en données réelles, est reconnue")
     func mapsThirdFamily() {
-        // 30 apparaît sur des marches et randonnées ; 31 et 32 sont pris en
-        // charge par symétrie avec les deux autres familles.
+        // 30 apparaît sur les séances de renforcement ; 31 et 32 sont pris
+        // en charge par symétrie avec les deux autres familles.
         #expect(ActivityLabel.fromWorkoutType(30) == nil)
         #expect(ActivityLabel.fromWorkoutType(31) == .race)
         #expect(ActivityLabel.fromWorkoutType(32) == .workout)

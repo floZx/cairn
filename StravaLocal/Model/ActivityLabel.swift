@@ -57,13 +57,17 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
 
     /// The workout type this label corresponds to, if any.
     ///
-    /// Strava sends 0/10 for "no particular type", which is the absence of a
-    /// label rather than a label of its own.
+    /// Strava only carries this field when a type was actually chosen on the
+    /// activity. Otherwise it either sends the family's round number — 0, 10,
+    /// 30 — or omits the field entirely; both mean "no particular type" and so
+    /// yield no label. In one real library of 840 activities, 230 carried a
+    /// round number and 460 had nothing at all, interleaved within the same
+    /// sport and period.
     static func fromWorkoutType(_ code: Int?) -> ActivityLabel? {
         switch code {
-        // Runs 0-3, rides 10-12, and a third family in the 30s seen in real
-        // data (walks and hikes): each family reserves its round number for
-        // "no particular type", then +1 for a race and +2 for a workout.
+        // Runs use 0-3, rides 10-12, and gym sessions 30-32. Each family
+        // reserves its round number for "no particular type", then +1 for a
+        // race and +2 for a workout.
         case 1, 11, 31: .race
         case 2: .longRun
         case 3, 12, 32: .workout
