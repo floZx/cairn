@@ -28,14 +28,24 @@ struct RootView: View {
             SidebarView(selection: $sidebarSelection)
                 .frame(minWidth: 200)
         } content: {
-            VStack(spacing: 0) {
-                FilterBar(filter: $filter)
-                Divider()
-                ActivityListView(filter: effectiveFilter, selection: $selectedActivity)
-                    .id(effectiveFilter)
+            switch sidebarSelection {
+            case .globalMap:
+                GlobalMapView(
+                    activities: allActivities.filter(effectiveFilter.matchesPrecisely),
+                    selection: $selectedActivity,
+                    region: $filter.region
+                )
+                .frame(minWidth: 520)
+            default:
+                VStack(spacing: 0) {
+                    FilterBar(filter: $filter)
+                    Divider()
+                    ActivityListView(filter: effectiveFilter, selection: $selectedActivity)
+                        .id(effectiveFilter)
+                }
+                .frame(minWidth: 520)
+                .searchable(text: $filter.searchText, prompt: "Rechercher une activité")
             }
-            .frame(minWidth: 520)
-            .searchable(text: $filter.searchText, prompt: "Rechercher une activité")
         } detail: {
             if let selected {
                 ActivityDetailView(activity: selected)
