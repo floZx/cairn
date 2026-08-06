@@ -3,12 +3,19 @@ import SwiftData
 
 enum SidebarItem: Hashable {
     case all
-    case sport(SportType)
     case globalMap
 }
 
+/// Navigation and every filter in one pane.
+///
+/// Sport used to be a sidebar *selection* while the other criteria lived in a
+/// bar above the list, which split one job across two places and let the
+/// sidebar hold only one sport at a time. Here sport is a filter like the
+/// others, so several can be combined — `ActivityFilter.sports` was already a
+/// `Set`, the old UI just couldn't express it.
 struct SidebarView: View {
     @Binding var selection: SidebarItem?
+    @Binding var filter: ActivityFilter
     @Query private var activities: [Activity]
 
     private var sportCounts: [(sport: SportType, count: Int)] {
@@ -29,12 +36,68 @@ struct SidebarView: View {
 
             Section("Sports") {
                 ForEach(sportCounts, id: \.sport) { entry in
-                    Label(entry.sport.displayName, systemImage: entry.sport.symbolName)
-                        .badge(entry.count)
-                        .tag(SidebarItem.sport(entry.sport))
+                    Toggle(isOn: binding(for: entry.sport)) {
+                        HStack {
+                            Label(entry.sport.displayName, systemImage: entry.sport.symbolName)
+                            Spacer(minLength: 8)
+                            Text("\(entry.count)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+                }
+            }
+
+            Section("Filtres") {
+                Picker("Période", selection: $filter.period) {
+                    ForEach(DatePeriod.allCases) { period in
+                        Text(period.displayName).tag(period)
+                    }
+                }
+                OptionalNumberField(
+                    title: "Distance min.", unit: "km", value: $filter.minDistanceKm
+                )
+                OptionalNumberField(
+                    title: "Distance max.", unit: "km", value: $filter.maxDistanceKm
+                )
+                OptionalNumberField(
+                    title: "Durée min.", unit: "min", value: $filter.minDurationMinutes
+                )
+                OptionalNumberField(
+                    title: "D+ min.", unit: "m", value: $filter.minElevation
+                )
+            }
+
+            if filter.isActive {
+                Section {
+                    if filter.region != nil {
+                        Button {
+                            filter.region = nil
+                        } label: {
+                            Label("Retirer la zone", systemImage: "xmark.circle")
+                        }
+                        .help("Retirer le filtre géographique dessiné sur la carte")
+                    }
+                    Button("Réinitialiser les filtres") { filter = .none }
                 }
             }
         }
         .listStyle(.sidebar)
+    }
+
+    /// No sport checked means no sport filter at all, so the empty set has to
+    /// behave as "everything" rather than "nothing".
+    private func binding(for sport: SportType) -> Binding<Bool> {
+        Binding(
+            get: { filter.sports.contains(sport) },
+            set: { isOn in
+                if isOn {
+                    filter.sports.insert(sport)
+                } else {
+                    filter.sports.remove(sport)
+                }
+            }
+        )
     }
 }

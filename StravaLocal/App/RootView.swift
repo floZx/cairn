@@ -14,23 +14,14 @@ struct RootView: View {
         allActivities.first { $0.id == selectedActivity }
     }
 
-    /// The sidebar picks a sport; the filter bar refines within it.
-    private var effectiveFilter: ActivityFilter {
-        var combined = filter
-        if case let .sport(sport) = sidebarSelection {
-            combined.sports = [sport]
-        }
-        return combined
-    }
-
     /// The global map honours the same filters as the list — picking a sport in
     /// the sidebar or typing a search has to narrow the tracks too, otherwise
     /// the map contradicts every other view.
     private var mapActivities: [Activity] {
-        let predicate = effectiveFilter.predicate()
+        let predicate = filter.predicate()
         return allActivities.filter { activity in
             ((try? predicate.evaluate(activity)) ?? true)
-                && effectiveFilter.matchesPrecisely(activity)
+                && filter.matchesPrecisely(activity)
         }
     }
 
@@ -47,8 +38,8 @@ struct RootView: View {
 
     private var splitView: some View {
         NavigationSplitView {
-            SidebarView(selection: $sidebarSelection)
-                .frame(minWidth: 200)
+            SidebarView(selection: $sidebarSelection, filter: $filter)
+                .frame(minWidth: 260)
         } content: {
             switch sidebarSelection {
             case .globalMap:
@@ -65,14 +56,12 @@ struct RootView: View {
                 )
                 .frame(minWidth: 520)
             default:
-                VStack(spacing: 0) {
-                    FilterBar(filter: $filter)
-                    Divider()
-                    ActivityListView(filter: effectiveFilter, selection: $selectedActivity)
-                        .id(effectiveFilter)
-                }
-                .frame(minWidth: 520)
-                .searchable(text: $filter.searchText, prompt: "Rechercher une activité")
+                ActivityListView(filter: filter, selection: $selectedActivity)
+                    .id(filter)
+                    .frame(minWidth: 520)
+                    .searchable(
+                        text: $filter.searchText, prompt: "Rechercher une activité"
+                    )
             }
         } detail: {
             if let selected {
