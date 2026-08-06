@@ -53,13 +53,24 @@ Les synchronisations suivantes sont incrémentales.
 Quatre fonds proviennent d'Apple et ne sollicitent aucun service tiers : Plan,
 Plan avec relief, Satellite, Satellite et noms.
 
-Le fond **Topographique** utilise les tuiles d'[OpenTopoMap](https://opentopomap.org),
-qui apportent les courbes de niveau et les sentiers — MapKit n'offre aucun
-équivalent. C'est le seul fond qui contacte un serveur extérieur : chaque
-déplacement de la carte y envoie une requête. Son attribution est affichée dès
-qu'il est actif, comme sa licence l'exige :
+Deux fonds topographiques apportent les courbes de niveau et les sentiers, que
+MapKit n'offre sous aucune forme. Ce sont les seuls à contacter un serveur
+extérieur : chaque déplacement de la carte y envoie des requêtes. Leur
+attribution est affichée dès qu'ils sont actifs, comme leurs licences l'exigent.
 
-> © OpenStreetMap · SRTM · OpenTopoMap (CC-BY-SA)
+- **Topographique IGN** — [Plan IGN v2](https://geoservices.ign.fr) via la
+  Géoplateforme, accessible sans clé, zoom jusqu'à 19. Le meilleur rendu en
+  France : courbes de niveau, bois nommés, hameaux, sentiers. Le SCAN25 au
+  1:25000 est en revanche sous licence et refusé aux clients anonymes.
+  Attribution : © IGN — Géoplateforme
+- **Topographique monde** — [OpenTopoMap](https://opentopomap.org), zoom jusqu'à
+  17, couverture mondiale. Attribution : © OpenStreetMap · SRTM · OpenTopoMap
+  (CC-BY-SA)
+
+Les tuiles passent par le chargeur de MapKit, qui utilise la session partagée et
+respecte les en-têtes de cache des serveurs. Toute machinerie ajoutée par-dessus
+— session privée, cache dédié, plafond de connexions, réessais — s'est révélée
+contre-productive : les tuiles cessaient d'arriver.
 
 Le choix du fond est mémorisé et partagé par la carte d'activité et la carte
 globale.

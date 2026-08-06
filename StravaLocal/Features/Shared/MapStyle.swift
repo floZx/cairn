@@ -30,8 +30,8 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
         case .relief: "Plan avec relief"
         case .satellite: "Satellite"
         case .hybrid: "Satellite et noms"
-        case .ignTopo: "Topographique IGN (2D)"
-        case .openTopo: "Topographique monde (2D)"
+        case .ignTopo: "Topographique IGN"
+        case .openTopo: "Topographique monde"
         }
     }
 
@@ -58,8 +58,12 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
             MKHybridMapConfiguration(elevationStyle: .realistic)
         case .ignTopo, .openTopo:
             // Drawn under the tile layer and mostly hidden; muted keeps Apple's
-            // labels discreet where a tile has yet to arrive.
-            MKStandardMapConfiguration(emphasisStyle: .muted)
+            // labels discreet where a tile has yet to arrive. Realistic
+            // elevation is kept on so a pitched camera has terrain to drape the
+            // raster over.
+            MKStandardMapConfiguration(
+                elevationStyle: .realistic, emphasisStyle: .muted
+            )
         }
     }
 
@@ -135,25 +139,11 @@ extension MKMapView {
 
         preferredConfiguration = style.configuration
 
-        // Raster tiles are flat images, and MapKit does not draw an overlay under
-        // a pitched or rotated camera: the layer flickers in and out as the map
-        // moves. Rather than half-render it, the camera is held flat and
-        // north-up while these tiles are in use — a raster has no relief to show
-        // in 3D anyway, since Apple computes that from its own terrain data.
-        isPitchEnabled = !style.usesTopoTiles
-        isRotateEnabled = !style.usesTopoTiles
-
-        if style.usesTopoTiles, camera.pitch != 0 || camera.heading != 0 {
-            setCamera(
-                MKMapCamera(
-                    lookingAtCenter: camera.centerCoordinate,
-                    fromDistance: camera.altitude,
-                    pitch: 0,
-                    heading: 0
-                ),
-                animated: true
-            )
-        }
+        // No 2D lock on the raster layers. An earlier version pinned the camera
+        // flat, on the theory that MapKit would not draw a tile overlay under a
+        // pitched view — but the tiles were rendering all along, in a rotated
+        // view, and what actually failed was tile loading. Pitch and rotation
+        // stay available everywhere.
 
         if let source = style.tileSource {
             guard state.topoOverlay == nil else { return }
