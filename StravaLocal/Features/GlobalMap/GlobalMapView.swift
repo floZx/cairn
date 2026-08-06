@@ -15,6 +15,7 @@ struct GlobalMapView: View {
     var onExpand: (() -> Void)?
 
     @State private var isSelectingRegion = false
+    @State private var zoom = MapZoomController()
     @AppStorage(MapStyle.storageKey) private var style: MapStyle = .standard
 
     private var tracks: [[Coordinate]] {
@@ -29,6 +30,7 @@ struct GlobalMapView: View {
             tracks: tracks,
             isSelectingRegion: isSelectingRegion,
             style: style,
+            zoom: zoom,
             onRegionSelected: { box in
                 region = box
                 isSelectingRegion = false
@@ -37,6 +39,8 @@ struct GlobalMapView: View {
         .overlay(alignment: .topTrailing) {
             VStack(alignment: .trailing, spacing: 8) {
                 MapStylePicker(style: $style)
+
+                MapZoomButtons(controller: zoom)
 
                 if let onExpand {
                     Button(action: onExpand) {
@@ -78,8 +82,10 @@ struct GlobalMapView: View {
             .background(.regularMaterial, in: .rect(cornerRadius: 6))
             .padding()
         }
-        .overlay(alignment: .bottomTrailing) {
-            MapAttribution(style: style).padding()
+        // Centred, clear of Apple's legal link on the left and of the compass
+        // and zoom buttons on the right.
+        .overlay(alignment: .bottom) {
+            MapAttribution(style: style).padding(8)
         }
         .navigationTitle("Carte globale")
     }
@@ -95,13 +101,16 @@ struct TrackMapRepresentable: NSViewRepresentable {
     let tracks: [[Coordinate]]
     let isSelectingRegion: Bool
     let style: MapStyle
+    let zoom: MapZoomController
     let onRegionSelected: (BoundingBox) -> Void
 
     func makeNSView(context: Context) -> MKMapView {
         let mapView = MKMapView()
         mapView.delegate = context.coordinator
         mapView.showsCompass = true
-        mapView.showsZoomControls = true
+        // Ours instead: Apple's cannot be restyled and disappear against a pale
+        // topographic tile.
+        mapView.showsZoomControls = false
 
         let overlay = SelectionOverlayView()
         overlay.onSelection = { rect in
@@ -123,6 +132,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
         mapView.apply(style, state: &context.coordinator.mapStyleState)
+        mapView.applyZoom(from: zoom, applied: &context.coordinator.appliedZoom)
 
         // Assigned only on a real change. Writing MapKit properties on every
         // SwiftUI update — and this view is rebuilt whenever the filtered
@@ -189,6 +199,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
         var renderedSignature: Int?
         var isSelectingRegion: Bool?
         var mapStyleState = MapStyleState()
+        var appliedZoom = 0
         weak var selectionOverlay: SelectionOverlayView?
 
         func mapView(

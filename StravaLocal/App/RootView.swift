@@ -57,8 +57,19 @@ struct RootView: View {
                         coordinates: activity.streams?.coordinates.isEmpty == false
                             ? activity.streams!.coordinates
                             : activity.simplifiedCoordinates,
-                        style: expandedStyle
+                        style: expandedStyle,
+                        zoom: expandedZoom
                     )
+                    .overlay(alignment: .topTrailing) {
+                        VStack(alignment: .trailing, spacing: 8) {
+                            MapStylePicker(style: $expandedStyle)
+                            MapZoomButtons(controller: expandedZoom)
+                        }
+                        .padding()
+                    }
+                    .overlay(alignment: .bottom) {
+                        MapAttribution(style: expandedStyle).padding(8)
+                    }
                 }
             }
         }
@@ -86,6 +97,7 @@ struct RootView: View {
 
     /// Shared with both maps so the chosen background carries over.
     @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
+    @State private var expandedZoom = MapZoomController()
 
     private var regionBinding: Binding<BoundingBox?> {
         Binding(

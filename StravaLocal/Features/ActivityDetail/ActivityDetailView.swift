@@ -16,6 +16,7 @@ struct ActivityDetailView: View {
     /// Distance under the cursor in a chart, mirrored on the map as a marker.
     @State private var hoverDistanceKm: Double?
     @AppStorage(MapStyle.storageKey) private var mapStyle: MapStyle = .standard
+    @State private var mapZoom = MapZoomController()
 
     /// Cumulative distance per track point, in metres.
     ///
@@ -62,12 +63,14 @@ struct ActivityDetailView: View {
                     ActivityMapView(
                         coordinates: trackCoordinates,
                         highlight: hoveredCoordinate,
-                        style: mapStyle
+                        style: mapStyle,
+                        zoom: mapZoom
                     )
                     .frame(height: 320)
                     .overlay(alignment: .topTrailing) {
                         VStack(alignment: .trailing, spacing: 8) {
                             MapStylePicker(style: $mapStyle)
+                            MapZoomButtons(controller: mapZoom)
                             if let onExpandMap {
                                 Button(action: onExpandMap) {
                                     Label(
@@ -82,7 +85,7 @@ struct ActivityDetailView: View {
                         }
                         .padding(8)
                     }
-                    .overlay(alignment: .bottomTrailing) {
+                    .overlay(alignment: .bottom) {
                         MapAttribution(style: mapStyle).padding(8)
                     }
                     .clipShape(.rect(cornerRadius: 8))
