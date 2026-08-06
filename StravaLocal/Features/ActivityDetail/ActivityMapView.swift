@@ -11,6 +11,7 @@ struct ActivityMapView: NSViewRepresentable {
     /// Follows the cursor over the charts. Updating it must not disturb the
     /// map's framing, which is why the track is only rebuilt when it changes.
     var highlight: Coordinate?
+    var style: MapStyle = .standard
 
     func makeNSView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -22,6 +23,7 @@ struct ActivityMapView: NSViewRepresentable {
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
         let coordinator = context.coordinator
+        mapView.apply(style, topoOverlay: &coordinator.topoOverlay)
 
         var hasher = Hasher()
         hasher.combine(coordinates.count)
@@ -34,7 +36,9 @@ struct ActivityMapView: NSViewRepresentable {
         // being hovered.
         if coordinator.renderedSignature != signature {
             coordinator.renderedSignature = signature
-            mapView.removeOverlays(mapView.overlays)
+            mapView.removeOverlays(
+                mapView.overlays.filter { !($0 is MKTileOverlay) }
+            )
             mapView.removeAnnotations(mapView.annotations)
             coordinator.marker = nil
 
@@ -76,12 +80,16 @@ struct ActivityMapView: NSViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var renderedSignature: Int?
         var marker: MKPointAnnotation?
+        var topoOverlay: MKTileOverlay?
 
         private static let markerIdentifier = "hover"
 
         func mapView(
             _ mapView: MKMapView, rendererFor overlay: any MKOverlay
         ) -> MKOverlayRenderer {
+            if let tiles = overlay as? MKTileOverlay {
+                return MKTileOverlayRenderer(tileOverlay: tiles)
+            }
             let renderer = MKPolylineRenderer(overlay: overlay)
             renderer.strokeColor = .controlAccentColor
             renderer.lineWidth = 4

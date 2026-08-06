@@ -48,6 +48,22 @@ La synchronisation se déroule en deux temps :
 
 Les synchronisations suivantes sont incrémentales.
 
+## Fonds de carte
+
+Quatre fonds proviennent d'Apple et ne sollicitent aucun service tiers : Plan,
+Plan avec relief, Satellite, Satellite et noms.
+
+Le fond **Topographique** utilise les tuiles d'[OpenTopoMap](https://opentopomap.org),
+qui apportent les courbes de niveau et les sentiers — MapKit n'offre aucun
+équivalent. C'est le seul fond qui contacte un serveur extérieur : chaque
+déplacement de la carte y envoie une requête. Son attribution est affichée dès
+qu'il est actif, comme sa licence l'exige :
+
+> © OpenStreetMap · SRTM · OpenTopoMap (CC-BY-SA)
+
+Le choix du fond est mémorisé et partagé par la carte d'activité et la carte
+globale.
+
 ## Emplacement des données
 
 `~/Library/Application Support/StravaLocal/StravaLocal.store`

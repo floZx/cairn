@@ -14,6 +14,7 @@ struct ActivityDetailView: View {
 
     /// Distance under the cursor in a chart, mirrored on the map as a marker.
     @State private var hoverDistanceKm: Double?
+    @AppStorage(MapStyle.storageKey) private var mapStyle: MapStyle = .standard
 
     /// Cumulative distance per track point, in metres.
     ///
@@ -58,10 +59,18 @@ struct ActivityDetailView: View {
                 // panel announcing that is worse than the map's absence.
                 if trackCoordinates.count > 1 {
                     ActivityMapView(
-                        coordinates: trackCoordinates, highlight: hoveredCoordinate
+                        coordinates: trackCoordinates,
+                        highlight: hoveredCoordinate,
+                        style: mapStyle
                     )
-                        .frame(height: 320)
-                        .clipShape(.rect(cornerRadius: 8))
+                    .frame(height: 320)
+                    .overlay(alignment: .topTrailing) {
+                        MapStylePicker(style: $mapStyle).padding(8)
+                    }
+                    .overlay(alignment: .bottomTrailing) {
+                        MapAttribution(style: mapStyle).padding(8)
+                    }
+                    .clipShape(.rect(cornerRadius: 8))
                 }
 
                 statistics

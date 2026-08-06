@@ -13,6 +13,7 @@ struct GlobalMapView: View {
     @Binding var region: BoundingBox?
 
     @State private var isSelectingRegion = false
+    @AppStorage(MapStyle.storageKey) private var style: MapStyle = .standard
 
     private var tracks: [[Coordinate]] {
         activities.compactMap {
@@ -25,6 +26,7 @@ struct GlobalMapView: View {
         TrackMapRepresentable(
             tracks: tracks,
             isSelectingRegion: isSelectingRegion,
+            style: style,
             onRegionSelected: { box in
                 region = box
                 isSelectingRegion = false
@@ -32,6 +34,8 @@ struct GlobalMapView: View {
         )
         .overlay(alignment: .topTrailing) {
             VStack(alignment: .trailing, spacing: 8) {
+                MapStylePicker(style: $style)
+
                 Toggle(isOn: $isSelectingRegion) {
                     Label("Sélectionner une zone", systemImage: "dot.viewfinder")
                 }
@@ -58,6 +62,9 @@ struct GlobalMapView: View {
             .background(.regularMaterial, in: .rect(cornerRadius: 6))
             .padding()
         }
+        .overlay(alignment: .bottomTrailing) {
+            MapAttribution(style: style).padding()
+        }
         .navigationTitle("Carte globale")
     }
 }
@@ -71,6 +78,7 @@ struct GlobalMapView: View {
 struct TrackMapRepresentable: NSViewRepresentable {
     let tracks: [[Coordinate]]
     let isSelectingRegion: Bool
+    let style: MapStyle
     let onRegionSelected: (BoundingBox) -> Void
 
     func makeNSView(context: Context) -> MKMapView {
@@ -98,6 +106,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
     }
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
+        mapView.apply(style, topoOverlay: &context.coordinator.topoOverlay)
         context.coordinator.selectionOverlay?.isEnabled = isSelectingRegion
         // Panning must stop while drawing, otherwise the drag moves the map.
         mapView.isScrollEnabled = !isSelectingRegion
@@ -113,7 +122,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
         guard context.coordinator.renderedSignature != signature else { return }
         context.coordinator.renderedSignature = signature
 
-        mapView.removeOverlays(mapView.overlays)
+        mapView.removeOverlays(mapView.overlays.filter { !($0 is MKTileOverlay) })
         guard !tracks.isEmpty else { return }
 
         let polylines = tracks.map {
@@ -153,11 +162,15 @@ struct TrackMapRepresentable: NSViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var renderedSignature: Int?
+        var topoOverlay: MKTileOverlay?
         weak var selectionOverlay: SelectionOverlayView?
 
         func mapView(
             _ mapView: MKMapView, rendererFor overlay: any MKOverlay
         ) -> MKOverlayRenderer {
+            if let tiles = overlay as? MKTileOverlay {
+                return MKTileOverlayRenderer(tileOverlay: tiles)
+            }
             let renderer = MKMultiPolylineRenderer(overlay: overlay)
             renderer.strokeColor = NSColor.systemOrange.withAlphaComponent(0.45)
             renderer.lineWidth = 2
