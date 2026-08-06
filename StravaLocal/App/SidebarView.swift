@@ -32,6 +32,17 @@ struct SidebarView: View {
                     .tag(SidebarItem.all)
                 Label("Carte globale", systemImage: "map")
                     .tag(SidebarItem.globalMap)
+
+                // Sits with the map rather than among the filters: it undoes a
+                // rectangle drawn there, and that is where it will be looked for.
+                if filter.region != nil {
+                    Button {
+                        filter.region = nil
+                    } label: {
+                        Label("Retirer la zone", systemImage: "xmark.circle")
+                    }
+                    .help("Retirer le filtre géographique dessiné sur la carte")
+                }
             }
 
             Section("Sports") {
@@ -84,14 +95,6 @@ struct SidebarView: View {
 
             if filter.isActive {
                 Section {
-                    if filter.region != nil {
-                        Button {
-                            filter.region = nil
-                        } label: {
-                            Label("Retirer la zone", systemImage: "xmark.circle")
-                        }
-                        .help("Retirer le filtre géographique dessiné sur la carte")
-                    }
                     Button("Réinitialiser les filtres") { filter = .none }
                 }
             }
