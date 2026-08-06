@@ -4164,10 +4164,12 @@ Insérer ces méthodes dans `actor SyncEngine`, après `syncSummaries()` :
     /// interruption at any point leaves the work still recorded as pending.
     @discardableResult
     func syncStreams(limit: Int? = nil) async throws -> Int {
-        let state = try state()
-        let total = state.pendingStreamIDs.count
+        // Named `initial` rather than `state`: a local called `state` would
+        // shadow the `state()` method the loop below re-reads on each iteration.
+        let initial = try state()
+        let total = initial.pendingStreamIDs.count
         guard total > 0 else {
-            await finish(quota: await source.rateLimitSnapshot(), at: state.lastRunAt)
+            await finish(quota: await source.rateLimitSnapshot(), at: initial.lastRunAt)
             return 0
         }
 
