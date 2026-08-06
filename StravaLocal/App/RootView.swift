@@ -35,6 +35,17 @@ struct RootView: View {
     }
 
     var body: some View {
+        Group {
+            if allActivities.isEmpty && !app.progress.isRunning {
+                WelcomeView()
+                    .frame(minWidth: 900, minHeight: 600)
+            } else {
+                splitView
+            }
+        }
+    }
+
+    private var splitView: some View {
         NavigationSplitView {
             SidebarView(selection: $sidebarSelection)
                 .frame(minWidth: 200)

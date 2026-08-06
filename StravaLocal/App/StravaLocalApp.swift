@@ -24,10 +24,17 @@ struct StravaLocalApp: App {
         }
         .modelContainer(container)
         .commands {
-            CommandGroup(after: .newItem) {
+            CommandGroup(replacing: .newItem) {}
+            CommandMenu("Strava") {
                 Button("Synchroniser") { app.syncNow() }
                     .keyboardShortcut("r")
                     .disabled(!app.isAuthenticated || app.progress.isRunning)
+                Button("Importer seulement les résumés") { app.syncSummariesOnly() }
+                    .keyboardShortcut("r", modifiers: [.command, .shift])
+                    .disabled(!app.isAuthenticated || app.progress.isRunning)
+                Divider()
+                Button("Interrompre la synchronisation") { app.cancelSync() }
+                    .disabled(!app.progress.isRunning)
             }
         }
 
