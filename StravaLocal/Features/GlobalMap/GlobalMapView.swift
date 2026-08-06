@@ -107,9 +107,18 @@ struct TrackMapRepresentable: NSViewRepresentable {
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
         mapView.apply(style, state: &context.coordinator.mapStyleState)
-        context.coordinator.selectionOverlay?.isEnabled = isSelectingRegion
-        // Panning must stop while drawing, otherwise the drag moves the map.
-        mapView.isScrollEnabled = !isSelectingRegion
+
+        // Assigned only on a real change. Writing MapKit properties on every
+        // SwiftUI update — and this view is rebuilt whenever the filtered
+        // activity list is recomputed — resets internal state and discards
+        // tiles in flight. That is what made the topo layer work on the
+        // activity map but not here.
+        if context.coordinator.isSelectingRegion != isSelectingRegion {
+            context.coordinator.isSelectingRegion = isSelectingRegion
+            context.coordinator.selectionOverlay?.isEnabled = isSelectingRegion
+            // Panning must stop while drawing, otherwise the drag moves the map.
+            mapView.isScrollEnabled = !isSelectingRegion
+        }
 
         // Keyed on a signature rather than the count: a filter change can swap
         // which activities are shown while leaving the count identical, and a
@@ -162,6 +171,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var renderedSignature: Int?
+        var isSelectingRegion: Bool?
         var mapStyleState = MapStyleState()
         weak var selectionOverlay: SelectionOverlayView?
 
