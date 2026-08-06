@@ -18,6 +18,7 @@
 - **App non sandboxée** : `com.apple.security.app-sandbox = false`. Le store SwiftData vit dans `~/Library/Application Support/StravaLocal/StravaLocal.store`.
 - Aucun package externe. Uniquement les frameworks Apple.
 - `StravaLocal.xcodeproj` n'est **jamais** committé — il est régénéré par `xcodegen generate`. Seul `project.yml` est versionné.
+- **Après toute création ou suppression de fichier source, lancer `xcodegen generate` avant de compiler.** XcodeGen énumère les fichiers au moment de la génération : `project.yml` n'a pas à changer quand on ajoute un fichier dans `StravaLocal/` ou `Tests/`, mais le `.pbxproj` doit être régénéré pour que le nouveau fichier entre dans la cible. Oublier cette étape produit une erreur « cannot find X in scope » trompeuse.
 - Aucun secret dans le dépôt. Client ID, Client Secret et jetons vivent exclusivement dans le Keychain.
 - Framework de test : **Swift Testing** (`import Testing`, `@Test`, `#expect`), pas XCTest.
 - Commande de test unique pour tout le plan :
