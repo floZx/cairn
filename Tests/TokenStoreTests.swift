@@ -58,7 +58,7 @@ struct TokenStoreTests {
 
     @Test("le Keychain respecte le même contrat")
     func keychainStoreRoundTrips() throws {
-        // Service dédié pour ne pas écraser les vrais identifiants de l'app.
+        // Dedicated service name so the app's real credentials are never touched.
         let store = KeychainStore(service: "com.florianmaisonnial.StravaLocal.tests")
         try store.clearAll()
 
@@ -66,7 +66,7 @@ struct TokenStoreTests {
         try store.save(credentials)
         #expect(store.credentials() == credentials)
 
-        // Réécriture : doit mettre à jour, pas échouer sur doublon.
+        // Rewrite must update in place, not fail on a duplicate item.
         let updated = StravaCredentials(clientID: "43", clientSecret: "shh2")
         try store.save(updated)
         #expect(store.credentials() == updated)
@@ -78,6 +78,11 @@ struct TokenStoreTests {
         try store.save(tokens)
         #expect(store.tokens()?.accessToken == "at")
         #expect(store.tokens()?.expiresAt == Date(timeIntervalSince1970: 1_800_000_000))
+
+        // Clearing tokens must not take the credentials with them.
+        try store.clearTokens()
+        #expect(store.tokens() == nil)
+        #expect(store.credentials() == updated)
 
         try store.clearAll()
         #expect(store.credentials() == nil)
