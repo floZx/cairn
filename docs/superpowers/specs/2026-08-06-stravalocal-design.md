@@ -127,12 +127,21 @@ L'utilisateur crée sa propre application API sur `strava.com/settings/api` avec
 Secret dans les Réglages. Les deux valeurs et les jetons vivent dans le **Keychain**
 (`TokenStore`), jamais sur disque en clair ni dans le dépôt.
 
-Flux : `NWListener` ouvre un port éphémère sur la loopback →
-`ASWebAuthenticationSession` ouvre la page d'autorisation Strava avec
-`redirect_uri=http://localhost:<port>/callback` et le scope
+Flux loopback (RFC 8252) : `NWListener` ouvre un port éphémère sur la loopback →
+`NSWorkspace.open` ouvre la page d'autorisation Strava dans le navigateur par défaut,
+avec `redirect_uri=http://localhost:<port>/callback` et le scope
 `read,activity:read_all,profile:read_all` → Strava redirige avec le code →
 le listener le capte, répond une page de confirmation minimale et se ferme →
 échange code contre jetons.
+
+`ASWebAuthenticationSession` est écarté volontairement : il ne peut compléter que sur
+un scheme custom ou un universal link `https`, jamais sur `http://localhost`, qui est
+le seul type de callback qu'accepte le champ *Authorization Callback Domain* de Strava
+pour une app de bureau. Passer par le navigateur par défaut a un bénéfice
+supplémentaire : la session Strava de l'utilisateur y est déjà ouverte.
+
+Un paramètre `state` aléatoire est généré à chaque tentative et vérifié au retour ; le
+listener rejette toute requête dont le `state` ne correspond pas.
 
 Le rafraîchissement est automatique : `StravaClient` vérifie l'expiration avant chaque
 appel et renouvelle si nécessaire. Un refresh refusé (jeton révoqué côté Strava) purge
