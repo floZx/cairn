@@ -23,20 +23,13 @@ struct ActivityDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
 
+                // No placeholder when there is no track: a pool swim or a gym
+                // session simply has nowhere to be drawn, and a large empty
+                // panel announcing that is worse than the map's absence.
                 if trackCoordinates.count > 1 {
                     ActivityMapView(coordinates: trackCoordinates)
                         .frame(height: 320)
                         .clipShape(.rect(cornerRadius: 8))
-                } else {
-                    ContentUnavailableView(
-                        "Pas de trace", systemImage: "map",
-                        description: Text(
-                            activity.isManual
-                                ? "Activité saisie manuellement."
-                                : "La trace n'a pas encore été synchronisée."
-                        )
-                    )
-                    .frame(height: 200)
                 }
 
                 statistics
@@ -70,7 +63,7 @@ struct ActivityDetailView: View {
             Label(activity.sportType.displayName, systemImage: activity.sportType.symbolName)
                 .foregroundStyle(.secondary)
             Text(activity.name).font(.largeTitle.weight(.semibold))
-            Text(activity.startLocalDate.formatted(date: .complete, time: .shortened))
+            Text(Format.longDate(activity.startLocalDate))
                 .foregroundStyle(.secondary)
         }
     }

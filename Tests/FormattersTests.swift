@@ -46,4 +46,20 @@ struct FormattersTests {
         #expect(Format.heartrate(138.4) == "138 bpm")
         #expect(Format.power(156.3) == "156 W")
     }
+
+    @Test("la natation s'exprime en allure aux 100 m, pas au kilomètre")
+    func formatsSwimPacePerHundredMetres() {
+        // 1000 m en 25 min = 0,6667 m/s → 2:30 aux 100 m.
+        #expect(Format.speed(0.6667, sport: .swim) == "2:30/100 m")
+        #expect(Format.speed(0, sport: .swim) == "—")
+    }
+
+    @Test("les dates sont en français quelle que soit la langue du système")
+    func formatsDatesInFrench() {
+        // 2026-08-05T12:33:00Z, soit le 5 août 2026 à 14:33 en heure de Paris.
+        let date = Date(timeIntervalSince1970: 1_785_933_180)
+        #expect(Format.longDate(date).contains("août"))
+        #expect(Format.shortDate(date).contains("août"))
+        #expect(!Format.longDate(date).contains("August"))
+    }
 }

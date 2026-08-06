@@ -29,14 +29,14 @@ final class SyncProgress {
         switch phase {
         case .idle:
             lastRunAt.map {
-                "Dernière synchro \($0.formatted(date: .abbreviated, time: .shortened))"
+                "Dernière synchro \(Format.shortDate($0))"
             } ?? "Jamais synchronisé"
         case let .summaries(page):
             "Import des activités… (page \(page))"
         case let .streams(done, total):
             "Import des traces… \(done)/\(total)"
         case let .waitingForQuota(until):
-            "Quota Strava atteint, reprise à \(until.formatted(date: .omitted, time: .shortened))"
+            "Quota Strava atteint, reprise à \(Format.time(until))"
         case let .failed(message):
             "Échec : \(message)"
         }

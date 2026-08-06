@@ -34,7 +34,7 @@ struct ActivityListView: View {
     var body: some View {
         Table(rows, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("Date", value: \.startLocalDate) { activity in
-                Text(activity.startLocalDate.formatted(date: .abbreviated, time: .shortened))
+                Text(Format.shortDate(activity.startLocalDate))
             }
             .width(min: 140, ideal: 160)
 
