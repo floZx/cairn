@@ -6,49 +6,16 @@ struct ActivityDetailView: View {
     var onExpandMap: (() -> Void)?
     @Environment(AppEnvironment.self) private var app
 
-    private var trackCoordinates: [Coordinate] {
-        // Full-resolution track when the streams are in; the simplified one is
-        // a perfectly good stand-in until then.
-        let detailed = activity.streams?.coordinates ?? []
-        return detailed.isEmpty ? activity.simplifiedCoordinates : detailed
-    }
-
     /// Distance under the cursor in a chart, mirrored on the map as a marker.
     @State private var hoverDistanceKm: Double?
     @AppStorage(MapStyle.storageKey) private var mapStyle: MapStyle = .standard
     @AppStorage(TrackColor.storageKey) private var trackColor: TrackColor = .accent
 
-    /// Cumulative distance per track point, in metres.
-    ///
-    /// Strava's own `distance` stream when it was synced, otherwise computed
-    /// from the coordinates already in the store — so activities imported before
-    /// that stream existed are just as precise, with no API request spent.
-    private var trackDistancesMetres: [Double] {
-        let track = trackCoordinates
-        if let blob = activity.streams?.distance {
-            let measured = TrackBlob.decodeScalars(blob).map(Double.init)
-            if measured.count == track.count { return measured }
-        }
-        return DistanceAxis.cumulativeMetres(along: track)
-    }
-
-    /// The point of the track at the hovered distance.
-    private var hoveredCoordinate: Coordinate? {
-        guard let hoverDistanceKm else { return nil }
-        let track = trackCoordinates
-        guard track.count > 1 else { return nil }
-        guard let index = DistanceAxis.nearestIndex(
-            to: hoverDistanceKm * 1000, in: trackDistancesMetres
-        ) else { return nil }
-        return track[min(index, track.count - 1)]
-    }
-
-    private var series: [StreamSeries] {
-        StreamSeriesBuilder.series(
-            from: activity.streams,
-            totalDistance: activity.distance,
-            distancesMetres: trackDistancesMetres
-        )
+    /// Cached: the body re-evaluates on every mouse move while a chart is
+    /// hovered, and deriving this from the blobs each time made hover pay an
+    /// O(n) decode per event.
+    private var trackModel: ActivityTrackModel {
+        ActivityTrackModelCache.model(for: activity)
     }
 
     var body: some View {
@@ -59,10 +26,10 @@ struct ActivityDetailView: View {
                 // No placeholder when there is no track: a pool swim or a gym
                 // session simply has nowhere to be drawn, and a large empty
                 // panel announcing that is worse than the map's absence.
-                if trackCoordinates.count > 1 {
+                if trackModel.coordinates.count > 1 {
                     ActivityMapView(
-                        coordinates: trackCoordinates,
-                        highlight: hoveredCoordinate,
+                        coordinates: trackModel.coordinates,
+                        highlight: hoverDistanceKm.flatMap(trackModel.coordinate(atKilometre:)),
                         style: mapStyle,
                         trackColor: trackColor
                     )
@@ -77,9 +44,9 @@ struct ActivityDetailView: View {
 
                 statistics
 
-                if !series.isEmpty {
+                if !trackModel.series.isEmpty {
                     StreamChartsView(
-                        series: series, hoverDistanceKm: $hoverDistanceKm
+                        series: trackModel.series, hoverDistanceKm: $hoverDistanceKm
                     )
                 }
 
