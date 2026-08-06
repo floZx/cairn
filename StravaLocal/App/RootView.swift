@@ -23,6 +23,17 @@ struct RootView: View {
         return combined
     }
 
+    /// The global map honours the same filters as the list — picking a sport in
+    /// the sidebar or typing a search has to narrow the tracks too, otherwise
+    /// the map contradicts every other view.
+    private var mapActivities: [Activity] {
+        let predicate = effectiveFilter.predicate()
+        return allActivities.filter { activity in
+            ((try? predicate.evaluate(activity)) ?? true)
+                && effectiveFilter.matchesPrecisely(activity)
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
             SidebarView(selection: $sidebarSelection)
@@ -31,7 +42,7 @@ struct RootView: View {
             switch sidebarSelection {
             case .globalMap:
                 GlobalMapView(
-                    activities: allActivities.filter(effectiveFilter.matchesPrecisely),
+                    activities: mapActivities,
                     selection: $selectedActivity,
                     region: Binding(
                         get: { filter.region },

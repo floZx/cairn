@@ -102,8 +102,16 @@ struct TrackMapRepresentable: NSViewRepresentable {
         // Panning must stop while drawing, otherwise the drag moves the map.
         mapView.isScrollEnabled = !isSelectingRegion
 
-        guard context.coordinator.renderedTrackCount != tracks.count else { return }
-        context.coordinator.renderedTrackCount = tracks.count
+        // Keyed on a signature rather than the count: a filter change can swap
+        // which activities are shown while leaving the count identical, and a
+        // count-only guard would then leave the previous tracks on screen.
+        var hasher = Hasher()
+        hasher.combine(tracks.count)
+        for track in tracks { hasher.combine(track.count) }
+        let signature = hasher.finalize()
+
+        guard context.coordinator.renderedSignature != signature else { return }
+        context.coordinator.renderedSignature = signature
 
         mapView.removeOverlays(mapView.overlays)
         guard !tracks.isEmpty else { return }
@@ -123,7 +131,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     final class Coordinator: NSObject, MKMapViewDelegate {
-        var renderedTrackCount = -1
+        var renderedSignature: Int?
         weak var selectionOverlay: SelectionOverlayView?
 
         func mapView(
