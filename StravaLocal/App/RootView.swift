@@ -113,13 +113,15 @@ struct RootView: View {
         )
     }
 
+    @ViewBuilder
     private var splitView: some View {
-        NavigationSplitView {
-            SidebarView(selection: $sidebarSelection, filter: $filter)
-                .frame(minWidth: 260)
-        } content: {
-            switch sidebarSelection {
-            case .globalMap:
+        // Two columns for the map, three for the list. A map has no companion
+        // pane to fill, and leaving an empty detail column beside it wasted half
+        // the window.
+        if sidebarSelection == .globalMap {
+            NavigationSplitView {
+                sidebar
+            } detail: {
                 GlobalMapView(
                     activities: mapActivities,
                     selection: $selectedActivity,
@@ -127,28 +129,42 @@ struct RootView: View {
                     onExpand: { expandedMap = .global }
                 )
                 .frame(minWidth: 520)
-            default:
+            }
+            .toolbar { syncToolbar }
+        } else {
+            NavigationSplitView {
+                sidebar
+            } content: {
                 ActivityListView(filter: filter, selection: $selectedActivity)
                     .id(filter)
                     .frame(minWidth: 520)
                     .searchable(
                         text: $filter.searchText, prompt: "Rechercher une activité"
                     )
+            } detail: {
+                if let selected {
+                    ActivityDetailView(
+                        activity: selected,
+                        onExpandMap: { expandedMap = .activity(selected.id) }
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Aucune activité sélectionnée", systemImage: "figure.run",
+                        description: Text("Choisissez une activité dans la liste.")
+                    )
+                }
             }
-        } detail: {
-            if let selected {
-                ActivityDetailView(
-                    activity: selected,
-                    onExpandMap: { expandedMap = .activity(selected.id) }
-                )
-            } else {
-                ContentUnavailableView(
-                    "Aucune activité sélectionnée", systemImage: "figure.run",
-                    description: Text("Choisissez une activité dans la liste.")
-                )
-            }
+            .toolbar { syncToolbar }
         }
-        .toolbar {
+    }
+
+    private var sidebar: some View {
+        SidebarView(selection: $sidebarSelection, filter: $filter)
+            .frame(minWidth: 260)
+    }
+
+    @ToolbarContentBuilder
+    private var syncToolbar: some ToolbarContent {
             ToolbarItem(placement: .status) {
                 if app.progress.isRunning {
                     HStack(spacing: 6) {
@@ -173,7 +189,6 @@ struct RootView: View {
                 }
                 .disabled(!app.isAuthenticated || app.progress.isRunning)
             }
-        }
     }
 }
 
