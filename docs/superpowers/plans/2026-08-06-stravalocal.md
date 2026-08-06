@@ -1626,9 +1626,11 @@ Dans `project.yml`, remplacer le bloc `sources` de la cible `StravaLocalTests` p
         excludes:
           - "Fixtures/**"
       - path: Tests/Fixtures
-        type: folder
+        type: group
         buildPhase: resources
 ```
+
+`type: group` et non `type: folder` : un dossier référencé conserve sa hiérarchie et place les fixtures sous `Resources/Fixtures/`, où le `url(forResource:withExtension:)` plat de `FixtureLoader` ne les trouve pas. En groupe, chaque fichier entre individuellement dans la phase de ressources et atterrit à la racine du bundle.
 
 Puis `xcodegen generate`.
 
