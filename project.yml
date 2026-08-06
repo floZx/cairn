@@ -1,0 +1,55 @@
+name: StravaLocal
+options:
+  bundleIdPrefix: com.florianmaisonnial
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: 89SHJR3N3S
+    CODE_SIGN_IDENTITY: "Apple Development"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  StravaLocal:
+    type: application
+    platform: macOS
+    sources:
+      - path: StravaLocal
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.florianmaisonnial.StravaLocal
+        PRODUCT_NAME: StravaLocal
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.healthcare-fitness
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        CODE_SIGN_ENTITLEMENTS: StravaLocal/StravaLocal.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+  StravaLocalTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: StravaLocal
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.florianmaisonnial.StravaLocalTests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  StravaLocal:
+    build:
+      targets:
+        StravaLocal: all
+        StravaLocalTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - StravaLocalTests
