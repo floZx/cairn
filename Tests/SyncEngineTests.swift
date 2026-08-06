@@ -186,3 +186,194 @@ struct SyncSummariesTests {
         #expect(!progress.isRunning)
     }
 }
+
+@Suite("SyncEngine — phase B")
+@MainActor
+struct SyncStreamsTests {
+    @Test("vide la file d'attente et rattache les streams")
+    func drainsQueue() async throws {
+        let source = FakeSource(pages: [
+            [makeSummary(id: 1, epoch: 1000), makeSummary(id: 2, epoch: 2000)]
+        ])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        let fetched = try await engine.syncStreams()
+
+        #expect(fetched == 2)
+        #expect(Set(await source.streamRequests) == [1, 2])
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
+
+        let context = ModelContext(container)
+        let activities = try context.fetch(FetchDescriptor<Activity>())
+        #expect(activities.allSatisfy { $0.streams?.latlng != nil })
+        #expect(activities.allSatisfy { $0.streams?.pointCount == 2 })
+    }
+
+    @Test("respecte la limite passée et laisse le reste en attente")
+    func honoursLimit() async throws {
+        let source = FakeSource(pages: [
+            [
+                makeSummary(id: 1, epoch: 1000), makeSummary(id: 2, epoch: 2000),
+                makeSummary(id: 3, epoch: 3000),
+            ]
+        ])
+        let engine = SyncEngine(
+            source: source, container: try AppModelContainer.inMemory(),
+            progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        let fetched = try await engine.syncStreams(limit: 2)
+
+        #expect(fetched == 2)
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.count == 1)
+    }
+
+    @Test("reprendre après un arrêt ne redemande pas ce qui est déjà là")
+    func resumesWithoutRefetching() async throws {
+        let source = FakeSource(pages: [
+            [
+                makeSummary(id: 1, epoch: 1000), makeSummary(id: 2, epoch: 2000),
+                makeSummary(id: 3, epoch: 3000),
+            ]
+        ])
+        let engine = SyncEngine(
+            source: source, container: try AppModelContainer.inMemory(),
+            progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        _ = try await engine.syncStreams(limit: 1)
+        _ = try await engine.syncStreams()
+
+        let requests = await source.streamRequests
+        #expect(requests.count == 3)
+        #expect(Set(requests).count == 3)
+    }
+
+    @Test("une file vide ne déclenche aucune requête")
+    func emptyQueueDoesNothing() async throws {
+        let source = FakeSource(pages: [[]])
+        let engine = SyncEngine(
+            source: source, container: try AppModelContainer.inMemory(),
+            progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        #expect(try await engine.syncStreams() == 0)
+        #expect(await source.streamRequests.isEmpty)
+    }
+
+    @Test("le détail n'est récupéré qu'une seule fois")
+    func fetchesDetailOnce() async throws {
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        try await engine.fetchDetailIfNeeded(stravaID: 1)
+        let context = ModelContext(container)
+        let first = try context.fetch(FetchDescriptor<Activity>())[0].detailFetchedAt
+        #expect(first != nil)
+
+        try await engine.fetchDetailIfNeeded(stravaID: 1)
+        let second = try ModelContext(container)
+            .fetch(FetchDescriptor<Activity>())[0].detailFetchedAt
+        #expect(second == first)
+    }
+
+    @Test("le matériel référencé est récupéré une fois et rattaché")
+    func linksGear() async throws {
+        let source = FakeSource(pages: [
+            [
+                makeSummary(id: 1, epoch: 1000, gearID: "b123"),
+                makeSummary(id: 2, epoch: 2000, gearID: "b123"),
+                makeSummary(id: 3, epoch: 3000),
+            ]
+        ])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        try await engine.syncGear()
+
+        // Un seul appel réseau pour deux activités partageant le même vélo.
+        #expect(await source.gearRequests == ["b123"])
+
+        let context = ModelContext(container)
+        let activities = try context.fetch(FetchDescriptor<Activity>())
+            .sorted { $0.stravaID < $1.stravaID }
+        #expect(activities[0].gear?.name == "Vélo de test")
+        #expect(activities[1].gear?.name == "Vélo de test")
+        #expect(activities[2].gear == nil)
+        #expect(try context.fetch(FetchDescriptor<Gear>()).count == 1)
+    }
+
+    @Test("relancer syncGear ne redemande pas ce qui est déjà rattaché")
+    func gearSyncIsIdempotent() async throws {
+        let source = FakeSource(pages: [
+            [makeSummary(id: 1, epoch: 1000, gearID: "b123")]
+        ])
+        let engine = SyncEngine(
+            source: source, container: try AppModelContainer.inMemory(),
+            progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        try await engine.syncGear()
+        try await engine.syncGear()
+
+        #expect(await source.gearRequests == ["b123"])
+    }
+
+    @Test("syncAll enchaîne les deux phases")
+    func syncAllRunsBothPhases() async throws {
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        let container = try AppModelContainer.inMemory()
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            source: source, container: container, progress: progress
+        )
+
+        try await engine.syncAll()
+
+        let context = ModelContext(container)
+        let activity = try context.fetch(FetchDescriptor<Activity>())[0]
+        #expect(activity.streams?.latlng != nil)
+        #expect(progress.phase == .idle)
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
+    }
+
+    @Test("l'annulation laisse la file exploitable")
+    func cancellationLeavesQueueIntact() async throws {
+        let source = FakeSource(pages: [
+            [
+                makeSummary(id: 1, epoch: 1000), makeSummary(id: 2, epoch: 2000),
+                makeSummary(id: 3, epoch: 3000),
+            ]
+        ])
+        let engine = SyncEngine(
+            source: source, container: try AppModelContainer.inMemory(),
+            progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        let task = Task { try await engine.syncStreams() }
+        task.cancel()
+        _ = try? await task.value
+
+        // Où que l'annulation tombe, rien n'est perdu : chaque activité est soit
+        // déjà récupérée, soit encore dans la file.
+        let remaining = try await engine.stateSnapshot().pendingStreamIDs.count
+        let done = await source.streamRequests.count
+        #expect(remaining + done == 3)
+    }
+}

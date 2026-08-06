@@ -120,6 +120,113 @@ actor SyncEngine {
         }
     }
 
+    /// Phase B: one request per activity, popped off a persisted queue.
+    ///
+    /// The queue entry is only removed once the streams are saved, so an
+    /// interruption at any point leaves the work still recorded as pending.
+    @discardableResult
+    func syncStreams(limit: Int? = nil) async throws -> Int {
+        let initial = try state()
+        let total = initial.pendingStreamIDs.count
+        guard total > 0 else {
+            await finish(quota: await source.rateLimitSnapshot(), at: initial.lastRunAt)
+            return 0
+        }
+
+        var fetched = 0
+        let budget = limit ?? total
+
+        while fetched < budget {
+            if Task.isCancelled { break }
+            let current = try state()
+            guard let stravaID = current.pendingStreamIDs.first else { break }
+            await setPhase(.streams(done: fetched, total: min(budget, total)))
+
+            do {
+                let streams = try await source.streams(id: stravaID)
+                if let activity = try mapper.activity(stravaID: stravaID) {
+                    mapper.apply(streams: streams, to: activity)
+                }
+                try dequeue(stravaID)
+                fetched += 1
+            } catch let StravaError.http(status, message) where status == 404 {
+                // The activity is gone from Strava: dropping it from the queue
+                // is the only way to make progress.
+                try dequeue(stravaID)
+                current.lastErrorMessage =
+                    "Activité \(stravaID) introuvable : \(message)"
+                try context.save()
+            } catch let StravaError.http(status, _) where status == 429 {
+                let resumeAt = Date().addingTimeInterval(15 * 60)
+                await setPhase(.waitingForQuota(until: resumeAt))
+                current.lastErrorMessage = "Quota Strava atteint"
+                try context.save()
+                return fetched
+            }
+        }
+
+        let finalState = try state()
+        finalState.lastRunAt = Date()
+        try context.save()
+        await finish(quota: await source.rateLimitSnapshot(), at: finalState.lastRunAt)
+        return fetched
+    }
+
+    private func dequeue(_ stravaID: Int64) throws {
+        let state = try state()
+        state.pendingStreamIDs.removeAll { $0 == stravaID }
+        try context.save()
+    }
+
+    func syncAll() async throws {
+        try await syncAthlete()
+        try await syncSummaries()
+        try await syncGear()
+        try await syncStreams()
+    }
+
+    /// Fetches the gear referenced by imported activities and links it up. Only
+    /// a handful of requests — a rider owns a few bikes, not a few thousand.
+    func syncGear() async throws {
+        let activities = try context.fetch(
+            FetchDescriptor<Activity>(predicate: #Predicate { $0.gearID != nil })
+        )
+        let unlinked = activities.filter { $0.gear == nil }
+        guard !unlinked.isEmpty else { return }
+
+        for gearID in Set(unlinked.compactMap(\.gearID)) {
+            let dto: GearDTO
+            do {
+                dto = try await source.gear(id: gearID)
+            } catch {
+                // Deleted or inaccessible gear must not stall the whole sync.
+                continue
+            }
+            let gear = try mapper.upsert(gear: dto)
+            for activity in unlinked where activity.gearID == gearID {
+                activity.gear = gear
+            }
+        }
+        try context.save()
+    }
+
+    func syncAthlete() async throws {
+        let dto = try await source.athlete()
+        try mapper.upsert(athlete: dto)
+        try context.save()
+    }
+
+    /// Fetches the detail endpoint lazily, on first open of an activity. Halves
+    /// the cost of the initial sync compared to fetching it up front.
+    func fetchDetailIfNeeded(stravaID: Int64) async throws {
+        guard let activity = try mapper.activity(stravaID: stravaID),
+              activity.detailFetchedAt == nil
+        else { return }
+        let detail = try await source.activityDetail(id: stravaID)
+        try mapper.apply(detail: detail, to: activity)
+        try context.save()
+    }
+
     private func setPhase(_ phase: SyncPhase) async {
         await MainActor.run { progress.phase = phase }
     }
