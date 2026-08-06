@@ -4802,7 +4802,9 @@ Deliverable : une `Table` façon Finder avec sidebar par sport, recherche texte 
   - `enum SidebarItem: Hashable { case all, sport(SportType), globalMap }`
   - `struct SidebarView: View`
 
-`predicate(now:)` couvre tout ce que la base peut faire, région comprise via la bbox. `matchesPrecisely` complète en mémoire pour le seul test que SQL ne peut pas faire : la trace passe-t-elle vraiment dans la région.
+`predicate(now:)` couvre tout ce que la base peut faire, région comprise via la bbox.
+
+**Deux limites du moteur de prédicats SwiftData rencontrées à l'implémentation.** D'abord, un `#Predicate` ne peut pas traduire un accès par key-path sur une valeur capturée : écrire `box.maxLat` à l'intérieur échoue, il faut décomposer la bounding box en scalaires (`let boxMaxLat = box.maxLat`) avant de construire le prédicat. Ensuite, une conjonction de huit conditions dépasse le vérificateur de types : il faut la scinder en sous-prédicats composés par `evaluate(_:)`. Le code livré fait les deux — voir `StravaLocal/Features/ActivityList/ActivityFilter.swift`, qui est la référence à jour plutôt que le bloc ci-dessous. `matchesPrecisely` complète en mémoire pour le seul test que SQL ne peut pas faire : la trace passe-t-elle vraiment dans la région.
 
 - [ ] **Step 1: Écrire les tests d'abord**
 
