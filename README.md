@@ -67,10 +67,17 @@ attribution est affichée dès qu'ils sont actifs, comme leurs licences l'exigen
   17, couverture mondiale. Attribution : © OpenStreetMap · SRTM · OpenTopoMap
   (CC-BY-SA)
 
-Les tuiles passent par le chargeur de MapKit, qui utilise la session partagée et
-respecte les en-têtes de cache des serveurs. Toute machinerie ajoutée par-dessus
-— session privée, cache dédié, plafond de connexions, réessais — s'est révélée
-contre-productive : les tuiles cessaient d'arriver.
+Les tuiles sont conservées dans un cache disque d'un gigaoctet sous
+`~/Library/Caches/StravaLocal/Tiles`, et une tuile déjà présente est utilisée
+quel que soit son âge : une zone consultée une fois ne se retélécharge pas, même
+après un redémarrage. Les réglages affichent la taille occupée et permettent de
+la vider.
+
+Rien de plus n'est ajouté autour du chargement. Une version antérieure avait
+introduit, en même temps que ce cache, un plafond de connexions simultanées et
+des réessais : les tuiles cessaient d'arriver. La cause s'est révélée être
+ailleurs — des propriétés de `MKMapView` réécrites à chaque mise à jour de vue —
+mais la leçon vaut d'être retenue : ne changer qu'une chose à la fois.
 
 Le choix du fond est mémorisé et partagé par la carte d'activité et la carte
 globale.
