@@ -17,7 +17,7 @@ actor StravaClient {
     private static let apiBase = URL(string: "https://www.strava.com/api/v3")!
     static let tokenEndpoint = URL(string: "https://www.strava.com/oauth/token")!
     private static let streamKeys = [
-        "latlng", "altitude", "time", "heartrate", "cadence",
+        "latlng", "distance", "altitude", "time", "heartrate", "cadence",
         "watts", "velocity_smooth", "temp", "grade_smooth", "moving",
     ]
 

@@ -13,6 +13,7 @@ private actor FakeSource: ActivitySource {
     private var failWithServerError = false
     var streamsToReturn = StreamSetDTO(
         latlng: StreamDTO(data: [[45.0, 4.0], [45.001, 4.001]]),
+        distance: StreamDTO(data: [0, 131]),
         altitude: StreamDTO(data: [100, 110]), time: StreamDTO(data: [0, 10]),
         heartrate: nil, cadence: nil, watts: nil, velocity_smooth: nil,
         temp: nil, grade_smooth: nil, moving: nil

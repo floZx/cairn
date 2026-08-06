@@ -15,24 +15,36 @@ struct ActivityDetailView: View {
     /// Distance under the cursor in a chart, mirrored on the map as a marker.
     @State private var hoverDistanceKm: Double?
 
-    /// The point of the track at the hovered distance.
+    /// Cumulative distance per track point, in metres.
     ///
-    /// Interpolated by position along the track rather than by real cumulative
-    /// distance — the same simplification the charts make when they spread
-    /// their samples evenly over the ride's length.
+    /// Strava's own `distance` stream when it was synced, otherwise computed
+    /// from the coordinates already in the store — so activities imported before
+    /// that stream existed are just as precise, with no API request spent.
+    private var trackDistancesMetres: [Double] {
+        let track = trackCoordinates
+        if let blob = activity.streams?.distance {
+            let measured = TrackBlob.decodeScalars(blob).map(Double.init)
+            if measured.count == track.count { return measured }
+        }
+        return DistanceAxis.cumulativeMetres(along: track)
+    }
+
+    /// The point of the track at the hovered distance.
     private var hoveredCoordinate: Coordinate? {
-        guard let hoverDistanceKm, activity.distance > 0 else { return nil }
+        guard let hoverDistanceKm else { return nil }
         let track = trackCoordinates
         guard track.count > 1 else { return nil }
-        let fraction = (hoverDistanceKm * 1000) / activity.distance
-        guard fraction >= 0, fraction <= 1 else { return nil }
-        let index = Int((fraction * Double(track.count - 1)).rounded())
-        return track[min(max(index, 0), track.count - 1)]
+        guard let index = DistanceAxis.nearestIndex(
+            to: hoverDistanceKm * 1000, in: trackDistancesMetres
+        ) else { return nil }
+        return track[min(index, track.count - 1)]
     }
 
     private var series: [StreamSeries] {
         StreamSeriesBuilder.series(
-            from: activity.streams, totalDistance: activity.distance
+            from: activity.streams,
+            totalDistance: activity.distance,
+            distancesMetres: trackDistancesMetres
         )
     }
 

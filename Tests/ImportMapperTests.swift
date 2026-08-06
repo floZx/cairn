@@ -300,7 +300,7 @@ struct ImportMapperTests {
             summary: try Fixture.decode(SummaryActivityDTO.self, "summary_activity")
         )
         let heartRateOnly = StreamSetDTO(
-            latlng: nil, altitude: nil, time: nil,
+            latlng: nil, distance: nil, altitude: nil, time: nil,
             heartrate: StreamDTO(data: [100, 110, 120, 130]),
             cadence: nil, watts: nil, velocity_smooth: nil,
             temp: nil, grade_smooth: nil, moving: nil

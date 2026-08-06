@@ -12,6 +12,11 @@ struct StreamSeries: Sendable, Identifiable {
     let label: String
     let unit: String
     let points: [StreamPoint]
+
+    /// Only altitude reads as a filled profile. Now that the vertical axis
+    /// starts at the lowest reading instead of zero, filling a heart-rate or
+    /// cadence trace turns the whole plot into a solid block.
+    var isFilled: Bool { id == "altitude" }
 }
 
 enum StreamSeriesBuilder {
@@ -19,8 +24,14 @@ enum StreamSeriesBuilder {
     /// detail is worth at screen resolution.
     static let maxChartPoints = 600
 
+    /// - Parameter distancesMetres: real cumulative distance per sample, aligned
+    ///   with the streams. When it is empty or misaligned the samples are spread
+    ///   evenly over `totalDistance` instead — good enough for a steady outing,
+    ///   but it drifts wherever the pace does.
     static func series(
-        from streams: ActivityStreams?, totalDistance: Double
+        from streams: ActivityStreams?,
+        totalDistance: Double,
+        distancesMetres: [Double] = []
     ) -> [StreamSeries] {
         guard let streams else { return [] }
         let definitions: [(String, String, String, Data?)] = [
@@ -32,22 +43,27 @@ enum StreamSeriesBuilder {
 
         return definitions.compactMap { id, label, unit, blob in
             guard let blob else { return nil }
-            let values = Simplify.downsample(
-                TrackBlob.decodeScalars(blob), to: maxChartPoints
-            )
-            guard !values.isEmpty else { return nil }
+            let rawValues = TrackBlob.decodeScalars(blob)
+            guard !rawValues.isEmpty else { return nil }
 
-            // Spread evenly over the activity's distance rather than plotting
-            // against point index, so stops don't distort the shape.
+            let values = Simplify.downsample(rawValues, to: maxChartPoints)
+            // Thinned in step with the values, so a sample keeps its own
+            // distance rather than an interpolated one.
+            let distances = distancesMetres.count == rawValues.count
+                ? Simplify.downsample(distancesMetres, to: maxChartPoints)
+                : []
+
             let span = max(values.count - 1, 1)
             let points = values.enumerated().map { index, value in
-                StreamPoint(
-                    id: index,
-                    distanceKm: totalDistance <= 0
-                        ? 0
-                        : (totalDistance / 1000) * Double(index) / Double(span),
-                    value: Double(value)
-                )
+                let distanceKm: Double
+                if index < distances.count {
+                    distanceKm = distances[index] / 1000
+                } else if totalDistance > 0 {
+                    distanceKm = (totalDistance / 1000) * Double(index) / Double(span)
+                } else {
+                    distanceKm = 0
+                }
+                return StreamPoint(id: index, distanceKm: distanceKm, value: Double(value))
             }
             return StreamSeries(id: id, label: label, unit: unit, points: points)
         }
@@ -91,9 +107,11 @@ struct StreamChartsView: View {
     private func chart(for serie: StreamSeries) -> some View {
         Chart {
             ForEach(serie.points) { point in
-                AreaMark(x: .value("km", point.distanceKm),
-                         y: .value(serie.label, point.value))
-                .opacity(0.15)
+                if serie.isFilled {
+                    AreaMark(x: .value("km", point.distanceKm),
+                             y: .value(serie.label, point.value))
+                    .opacity(0.15)
+                }
                 LineMark(x: .value("km", point.distanceKm),
                          y: .value(serie.label, point.value))
             }

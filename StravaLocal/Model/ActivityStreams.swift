@@ -9,6 +9,7 @@ final class ActivityStreams {
     var pointCount: Int = 0
 
     @Attribute(.externalStorage) var latlng: Data?
+    @Attribute(.externalStorage) var distance: Data?
     @Attribute(.externalStorage) var altitude: Data?
     @Attribute(.externalStorage) var time: Data?
     @Attribute(.externalStorage) var heartrate: Data?

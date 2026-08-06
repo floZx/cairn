@@ -73,6 +73,7 @@ struct StreamDTO<Element: Decodable & Sendable>: Decodable, Sendable {
 /// Result of `key_by_type=true`: one keyed object per requested stream.
 struct StreamSetDTO: Decodable, Sendable {
     let latlng: StreamDTO<[Double]>?
+    let distance: StreamDTO<Double>?
     let altitude: StreamDTO<Double>?
     let time: StreamDTO<Int>?
     let heartrate: StreamDTO<Double>?

@@ -127,6 +127,7 @@ struct ImportMapper {
 
         streams.latlng = coordinates.isEmpty
             ? nil : TrackBlob.encode(coordinates: coordinates)
+        streams.distance = Self.pack(dto.distance?.data)
         streams.altitude = Self.pack(dto.altitude?.data)
         streams.heartrate = Self.pack(dto.heartrate?.data)
         streams.cadence = Self.pack(dto.cadence?.data)
@@ -139,6 +140,7 @@ struct ImportMapper {
             .nonEmpty.map(TrackBlob.encode(times:))
         streams.pointCount = [
             coordinates.count,
+            dto.distance?.data.count ?? 0,
             dto.time?.data.count ?? 0,
             dto.altitude?.data.count ?? 0,
             dto.heartrate?.data.count ?? 0,
