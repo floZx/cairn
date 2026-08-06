@@ -1,0 +1,49 @@
+import Foundation
+import Observation
+
+enum SyncPhase: Sendable, Equatable {
+    case idle
+    case summaries(page: Int)
+    case streams(done: Int, total: Int)
+    case waitingForQuota(until: Date)
+    case failed(String)
+}
+
+/// UI-facing sync state. Lives on the main actor so views can observe it
+/// directly; the engine pushes updates into it.
+@MainActor
+@Observable
+final class SyncProgress {
+    var phase: SyncPhase = .idle
+    var lastRunAt: Date?
+    var quota: RateLimitSnapshot?
+
+    var isRunning: Bool {
+        switch phase {
+        case .idle, .failed: false
+        case .summaries, .streams, .waitingForQuota: true
+        }
+    }
+
+    var statusText: String {
+        switch phase {
+        case .idle:
+            lastRunAt.map {
+                "Dernière synchro \($0.formatted(date: .abbreviated, time: .shortened))"
+            } ?? "Jamais synchronisé"
+        case let .summaries(page):
+            "Import des activités… (page \(page))"
+        case let .streams(done, total):
+            "Import des traces… \(done)/\(total)"
+        case let .waitingForQuota(until):
+            "Quota Strava atteint, reprise à \(until.formatted(date: .omitted, time: .shortened))"
+        case let .failed(message):
+            "Échec : \(message)"
+        }
+    }
+
+    var fractionCompleted: Double? {
+        guard case let .streams(done, total) = phase, total > 0 else { return nil }
+        return Double(done) / Double(total)
+    }
+}
