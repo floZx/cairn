@@ -65,6 +65,14 @@ enum Format {
         return formatter
     }()
 
+    private static let dateOnlyFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "fr_FR")
@@ -84,6 +92,12 @@ enum Format {
         shortDateFormatter.string(from: date)
     }
 
+    /// Date without a time, for the list — the hour of the day adds noise to a
+    /// column that is mostly used for sorting and scanning.
+    static func dateOnly(_ date: Date) -> String {
+        dateOnlyFormatter.string(from: date)
+    }
+
     static func time(_ date: Date) -> String {
         timeFormatter.string(from: date)
     }
@@ -94,6 +108,13 @@ enum Format {
 
     static func power(_ watts: Double?) -> String {
         watts.map { "\(Int($0.rounded())) W" } ?? "—"
+    }
+
+    /// Metres of climbing per kilometre. A dash when there is no distance to
+    /// divide by, rather than a meaningless zero.
+    static func elevationPerKilometre(_ metresPerKilometre: Double) -> String {
+        guard metresPerKilometre > 0 else { return "—" }
+        return "\(Int(metresPerKilometre.rounded())) m/km"
     }
 
     static func cadence(_ rpm: Double?) -> String {

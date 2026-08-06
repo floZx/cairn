@@ -47,6 +47,22 @@ struct FormattersTests {
         #expect(Format.power(156.3) == "156 W")
     }
 
+    @Test("le dénivelé au kilomètre s'arrondit et gère l'absence de distance")
+    func formatsElevationPerKilometre() {
+        #expect(Format.elevationPerKilometre(23.4) == "23 m/km")
+        #expect(Format.elevationPerKilometre(0) == "—")
+    }
+
+    @Test("la date de la liste n'affiche pas l'heure")
+    func listDateOmitsTime() {
+        // 2026-08-05T12:33:00Z, soit 14:33 en heure de Paris.
+        let date = Date(timeIntervalSince1970: 1_785_933_180)
+        let formatted = Format.dateOnly(date)
+        #expect(formatted.contains("août"))
+        #expect(!formatted.contains("14:33"))
+        #expect(!formatted.contains(":"))
+    }
+
     @Test("la natation s'exprime en allure aux 100 m, pas au kilomètre")
     func formatsSwimPacePerHundredMetres() {
         // 1000 m en 25 min = 0,6667 m/s → 2:30 aux 100 m.

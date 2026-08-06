@@ -53,6 +53,11 @@ struct ActivityFilter: Sendable, Equatable {
     var maxDistanceKm: Double?
     var minDurationMinutes: Double?
     var minElevation: Double?
+    /// Kept out of `predicate` on purpose: expressing metres-per-kilometre in a
+    /// SwiftData predicate needs a division, and this predicate has already had
+    /// to be split into sub-expressions to stay inside the type-checker. It is
+    /// cheap arithmetic on rows the database has already narrowed.
+    var minElevationPerKm: Double?
     var region: BoundingBox?
 
     static let none = ActivityFilter()
@@ -121,6 +126,13 @@ struct ActivityFilter: Sendable, Equatable {
 
     /// Second pass: bounding boxes can overlap a region a track never enters.
     func matchesPrecisely(_ activity: Activity) -> Bool {
+        if let minElevationPerKm {
+            // An activity with no distance can't be hilly, so it never passes a
+            // climbing-per-kilometre floor.
+            guard activity.distance > 0,
+                  activity.elevationPerKilometre >= minElevationPerKm
+            else { return false }
+        }
         guard let region else { return true }
         guard activity.hasTrack else { return false }
         return region.containsAnyPoint(of: activity.simplifiedCoordinates)
@@ -141,6 +153,7 @@ extension ActivityFilter: Hashable {
         hasher.combine(maxDistanceKm)
         hasher.combine(minDurationMinutes)
         hasher.combine(minElevation)
+        hasher.combine(minElevationPerKm)
         hasher.combine(region?.minLat)
         hasher.combine(region?.maxLat)
         hasher.combine(region?.minLon)

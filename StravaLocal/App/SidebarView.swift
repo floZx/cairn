@@ -67,6 +67,10 @@ struct SidebarView: View {
                 OptionalNumberField(
                     title: "D+ min.", unit: "m", value: $filter.minElevation
                 )
+                OptionalNumberField(
+                    title: "D+/km min.", unit: "m/km",
+                    value: $filter.minElevationPerKm
+                )
             }
 
             if filter.isActive {

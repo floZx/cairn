@@ -96,6 +96,14 @@ final class Activity {
         hasTrack = true
     }
 
+    /// Metres of climbing per kilometre — the usual way to compare how hilly
+    /// two outings were, independently of their length. Zero for an activity
+    /// with no distance (a pool swim, a gym session), which is honest: there was
+    /// no climbing to spread over any distance.
+    var elevationPerKilometre: Double {
+        distance > 0 ? totalElevationGain / (distance / 1000) : 0
+    }
+
     var simplifiedCoordinates: [Coordinate] {
         simplifiedTrack.map(TrackBlob.decodeCoordinates) ?? []
     }

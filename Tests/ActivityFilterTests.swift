@@ -174,6 +174,46 @@ struct ActivityFilterTests {
         #expect(try fetch(context, filter).isEmpty)
     }
 
+    @Test("filtre par dénivelé au kilomètre")
+    func filtersByElevationPerKilometre() throws {
+        let context = try makeContext {
+            // 20 km pour 200 m → 10 m/km, une sortie plate.
+            insert($0, id: 1, distance: 20_000, elevation: 200)
+            // 20 km pour 800 m → 40 m/km, une sortie de montagne.
+            insert($0, id: 2, distance: 20_000, elevation: 800)
+            // Une séance sans distance ne peut pas être vallonnée.
+            insert($0, id: 3, distance: 0, elevation: 0, track: [])
+        }
+        var filter = ActivityFilter.none
+        filter.minElevationPerKm = 25
+
+        #expect(try fetch(context, filter).map(\.stravaID) == [2])
+    }
+
+    @Test("le dénivelé au kilomètre se combine avec les autres critères")
+    func elevationPerKilometreCombines() throws {
+        let context = try makeContext {
+            insert($0, id: 1, sport: .ride, distance: 20_000, elevation: 800)
+            insert($0, id: 2, sport: .run, distance: 20_000, elevation: 800)
+        }
+        var filter = ActivityFilter.none
+        filter.minElevationPerKm = 25
+        filter.sports = [.ride]
+
+        #expect(try fetch(context, filter).map(\.stravaID) == [1])
+    }
+
+    @Test("le dénivelé au kilomètre est nul sans distance, pas une division par zéro")
+    func elevationPerKilometreHandlesZeroDistance() throws {
+        let context = try makeContext {
+            insert($0, id: 1, distance: 0, elevation: 300, track: [])
+            insert($0, id: 2, distance: 10_000, elevation: 300)
+        }
+        let all = try fetch(context, .none).sorted { $0.stravaID < $1.stravaID }
+        #expect(all[0].elevationPerKilometre == 0)
+        #expect(all[1].elevationPerKilometre == 30)
+    }
+
     @Test("isActive distingue un filtre vide d'un filtre en cours")
     func reportsActivity() {
         #expect(!ActivityFilter.none.isActive)

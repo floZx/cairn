@@ -34,7 +34,7 @@ struct ActivityListView: View {
     var body: some View {
         Table(rows, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("Date", value: \.startLocalDate) { activity in
-                Text(Format.shortDate(activity.startLocalDate))
+                Text(Format.dateOnly(activity.startLocalDate))
             }
             .width(min: 140, ideal: 160)
 
@@ -62,6 +62,11 @@ struct ActivityListView: View {
                 Text(Format.elevation(activity.totalElevationGain))
             }
             .width(min: 70, ideal: 80)
+
+            TableColumn("D+/km", value: \.elevationPerKilometre) { activity in
+                Text(Format.elevationPerKilometre(activity.elevationPerKilometre))
+            }
+            .width(min: 80, ideal: 90)
 
             TableColumn("Vitesse", value: \.averageSpeed) { activity in
                 Text(Format.speed(activity.averageSpeed, sport: activity.sportType))
