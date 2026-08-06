@@ -183,6 +183,35 @@ struct SyncSummariesTests {
         #expect(try context.fetch(FetchDescriptor<Activity>()).count == 1)
     }
 
+    @Test("resynchroniser tout repart de zéro sans dupliquer")
+    func resyncRereadsEverything() async throws {
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 5000)]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+
+        _ = try await engine.syncSummaries()
+        // Simule un détail déjà récupéré, donc mis en cache pour toujours.
+        let context = ModelContext(container)
+        let activity = try context.fetch(FetchDescriptor<Activity>())[0]
+        activity.detailFetchedAt = Date(timeIntervalSince1970: 1000)
+        try context.save()
+        #expect(try await engine.stateSnapshot().lastSummaryEpoch == 5000)
+
+        try await engine.resyncEverything()
+
+        // Le curseur est reparti de 0, sinon rien n'aurait été relu.
+        let asked = await source.requestedAfter
+        #expect(asked.filter { $0 == 0 }.count >= 2)
+        // Et le cache du détail est invalidé, sinon une note modifiée sur
+        // Strava ne serait jamais relue.
+        let after = ModelContext(container)
+        let reread = try after.fetch(FetchDescriptor<Activity>())
+        #expect(reread.count == 1)
+        #expect(reread[0].detailFetchedAt == nil)
+    }
+
     @Test("la progression retombe à idle en fin de synchro")
     func reportsProgress() async throws {
         let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])

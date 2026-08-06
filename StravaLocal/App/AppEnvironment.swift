@@ -19,6 +19,7 @@ final class AppEnvironment {
     var errorMessage: String?
 
     private var runningTask: Task<Void, Never>?
+    private let defaults = UserDefaults.standard
 
     init(container: ModelContainer) {
         let store = KeychainStore()
@@ -112,6 +113,42 @@ final class AppEnvironment {
             _ = await task.value
             if runningTask == task { runningTask = nil }
         }
+    }
+
+    /// Re-reads every summary from Strava, picking up anything edited there
+    /// after the fact. Streams are left as they are.
+    func resyncEverything() {
+        guard runningTask == nil, isAuthenticated else { return }
+        let task = Task { [engine] in
+            do {
+                try await engine.resyncEverything()
+                errorMessage = nil
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+        runningTask = task
+        Task {
+            _ = await task.value
+            if runningTask == task { runningTask = nil }
+        }
+    }
+
+    /// Whether launching the app looks for new activities.
+    ///
+    /// Only the summary pass runs: a couple of requests whatever the size of the
+    /// history, so opening the app is never a surprise dent in the API quota.
+    /// Detailed tracks stay on demand, via ⌘R.
+    var syncsOnLaunch: Bool {
+        get { defaults.object(forKey: Self.syncOnLaunchKey) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Self.syncOnLaunchKey) }
+    }
+
+    private static let syncOnLaunchKey = "syncsOnLaunch"
+
+    func syncOnLaunch() {
+        guard syncsOnLaunch, isAuthenticated else { return }
+        syncSummariesOnly()
     }
 
     /// Cancellation is cooperative, so the slot can only be released by the

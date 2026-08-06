@@ -100,10 +100,22 @@ private struct SyncSettingsView: View {
                 }
             }
 
+            Section("Au lancement") {
+                Toggle(
+                    "Rechercher les nouvelles activités",
+                    isOn: Binding(
+                        get: { app.syncsOnLaunch },
+                        set: { app.syncsOnLaunch = $0 }
+                    )
+                )
+            }
+
             Section {
                 Button("Synchroniser maintenant") { app.syncNow() }
                     .disabled(!app.isAuthenticated || app.progress.isRunning)
                 Button("Importer seulement les résumés") { app.syncSummariesOnly() }
+                    .disabled(!app.isAuthenticated || app.progress.isRunning)
+                Button("Resynchroniser tout") { app.resyncEverything() }
                     .disabled(!app.isAuthenticated || app.progress.isRunning)
                 if app.progress.isRunning {
                     Button("Interrompre", role: .cancel) { app.cancelSync() }

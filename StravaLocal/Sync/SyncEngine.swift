@@ -251,6 +251,27 @@ actor SyncEngine {
         try context.save()
     }
 
+    /// Re-imports every summary from scratch, so edits made on Strava after the
+    /// fact — a renamed activity, a corrected sport, an edited note — land
+    /// locally.
+    ///
+    /// Streams are deliberately left alone: a recorded track does not change,
+    /// and re-fetching them would cost one request per activity. The detail
+    /// cache *is* cleared, because description, laps and device come from the
+    /// detail endpoint and are otherwise fetched once and kept forever.
+    func resyncEverything() async throws {
+        let state = try state()
+        state.lastSummaryEpoch = 0
+        for activity in try context.fetch(FetchDescriptor<Activity>()) {
+            activity.detailFetchedAt = nil
+        }
+        try context.save()
+
+        try await syncAthlete()
+        try await syncSummaries()
+        try await syncGear()
+    }
+
     func syncAthlete() async throws {
         let dto = try await source.athlete()
         try mapper.upsert(athlete: dto)

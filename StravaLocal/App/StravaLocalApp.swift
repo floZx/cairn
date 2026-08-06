@@ -21,6 +21,7 @@ struct StravaLocalApp: App {
         WindowGroup {
             RootView()
                 .environment(app)
+                .task { app.syncOnLaunch() }
         }
         .modelContainer(container)
         .commands {
@@ -31,6 +32,8 @@ struct StravaLocalApp: App {
                     .disabled(!app.isAuthenticated || app.progress.isRunning)
                 Button("Importer seulement les résumés") { app.syncSummariesOnly() }
                     .keyboardShortcut("r", modifiers: [.command, .shift])
+                    .disabled(!app.isAuthenticated || app.progress.isRunning)
+                Button("Resynchroniser tout") { app.resyncEverything() }
                     .disabled(!app.isAuthenticated || app.progress.isRunning)
                 Divider()
                 Button("Interrompre la synchronisation") { app.cancelSync() }
