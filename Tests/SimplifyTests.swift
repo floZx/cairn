@@ -57,4 +57,18 @@ struct SimplifyTests {
         let values = [1, 2, 3]
         #expect(Simplify.downsample(values, to: 100) == values)
     }
+
+    @Test("le sous-échantillonnage à deux points ne garde que les extrémités")
+    func downsampleToTwoKeepsOnlyEndpoints() {
+        let values = Array(0..<1000)
+        let reduced = Simplify.downsample(values, to: 2)
+        #expect(reduced == [0, 999])
+    }
+
+    @Test("une trace de points dupliqués se réduit sans boucler")
+    func collapsesDuplicatePoints() {
+        let point = Coordinate(latitude: 45.75, longitude: 4.83)
+        let duplicates = Array(repeating: point, count: 50)
+        #expect(Simplify.douglasPeucker(duplicates).count == 2)
+    }
 }
