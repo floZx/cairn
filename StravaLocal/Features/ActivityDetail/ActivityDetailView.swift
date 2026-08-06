@@ -75,6 +75,8 @@ struct ActivityDetailView: View {
                                         systemImage: "arrow.up.left.and.arrow.down.right"
                                     )
                                 }
+                                .buttonStyle(.plain)
+                                .mapControl()
                                 .help("Afficher la carte sur toute la fenêtre")
                             }
                         }

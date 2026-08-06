@@ -161,6 +161,16 @@ extension MKMapView {
     }
 }
 
+extension View {
+    /// Standard treatment for a control floating over a map: a plain button has
+    /// no contrast against either a pale topographic tile or a dark satellite
+    /// image, so every one of them carries the same translucent backing.
+    func mapControl() -> some View {
+        padding(6)
+            .background(.regularMaterial, in: .rect(cornerRadius: 6))
+    }
+}
+
 /// Compact background picker, shared by the activity map and the global map.
 struct MapStylePicker: View {
     @Binding var style: MapStyle
@@ -179,8 +189,7 @@ struct MapStylePicker: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .padding(6)
-        .background(.regularMaterial, in: .rect(cornerRadius: 6))
+        .mapControl()
         .help("Choisir le fond de carte")
     }
 }

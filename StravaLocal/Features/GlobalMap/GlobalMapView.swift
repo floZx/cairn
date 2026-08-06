@@ -45,6 +45,8 @@ struct GlobalMapView: View {
                             systemImage: "arrow.up.left.and.arrow.down.right"
                         )
                     }
+                    .buttonStyle(.plain)
+                    .mapControl()
                     .help("Afficher la carte sur toute la fenêtre")
                 }
 
@@ -60,6 +62,8 @@ struct GlobalMapView: View {
                     } label: {
                         Label("Effacer la zone", systemImage: "xmark.circle")
                     }
+                    .buttonStyle(.plain)
+                    .mapControl()
                 }
             }
             .padding()

@@ -74,11 +74,14 @@ struct RootView: View {
                         systemImage: "arrow.down.right.and.arrow.up.left"
                     )
                 }
+                .buttonStyle(.plain)
+                .mapControl()
+                // Attached to the button, not to the view: `onExitCommand` only
+                // fires for the focused view, and the map takes focus.
+                .keyboardShortcut(.escape, modifiers: [])
                 .help("Revenir à la liste — ou appuyez sur Échap")
                 .padding()
             }
-            // Escape leaves the expanded map, as it does everywhere on macOS.
-            .onExitCommand { expandedMap = nil }
     }
 
     /// Shared with both maps so the chosen background carries over.
