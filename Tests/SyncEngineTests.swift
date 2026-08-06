@@ -9,6 +9,8 @@ private actor FakeSource: ActivitySource {
     private(set) var requestedAfter: [Int] = []
     private(set) var streamRequests: [Int64] = []
     private(set) var gearRequests: [String] = []
+    private var notFoundIDs: Set<Int64> = []
+    private var failWithServerError = false
     var streamsToReturn = StreamSetDTO(
         latlng: StreamDTO(data: [[45.0, 4.0], [45.001, 4.001]]),
         altitude: StreamDTO(data: [100, 110]), time: StreamDTO(data: [0, 10]),
@@ -26,8 +28,18 @@ private actor FakeSource: ActivitySource {
         return pages[page - 1]
     }
 
+    func setNotFound(_ ids: Set<Int64>) { notFoundIDs = ids }
+
+    func setFailWithServerError(_ value: Bool) { failWithServerError = value }
+
     func streams(id: Int64) async throws -> StreamSetDTO {
         streamRequests.append(id)
+        if failWithServerError {
+            throw StravaError.http(500, "Internal Server Error")
+        }
+        if notFoundIDs.contains(id) {
+            throw StravaError.http(404, "Record Not Found")
+        }
         return streamsToReturn
     }
 
@@ -352,8 +364,8 @@ struct SyncStreamsTests {
         #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
     }
 
-    @Test("l'annulation laisse la file exploitable")
-    func cancellationLeavesQueueIntact() async throws {
+    @Test("une tâche déjà annulée n'émet aucune requête et laisse la file entière")
+    func cancelledTaskFetchesNothing() async throws {
         let source = FakeSource(pages: [
             [
                 makeSummary(id: 1, epoch: 1000), makeSummary(id: 2, epoch: 2000),
@@ -366,14 +378,63 @@ struct SyncStreamsTests {
         )
         _ = try await engine.syncSummaries()
 
-        let task = Task { try await engine.syncStreams() }
-        task.cancel()
-        _ = try? await task.value
+        let fetched = try await Task {
+            // Cancel ourselves before the walk starts, so the first
+            // cancellation check inside it fires deterministically.
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await engine.syncStreams()
+        }.value
 
-        // Où que l'annulation tombe, rien n'est perdu : chaque activité est soit
-        // déjà récupérée, soit encore dans la file.
-        let remaining = try await engine.stateSnapshot().pendingStreamIDs.count
-        let done = await source.streamRequests.count
-        #expect(remaining + done == 3)
+        #expect(fetched == 0)
+        #expect(await source.streamRequests.isEmpty)
+        // Nothing fetched means nothing lost: all three are still queued.
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.count == 3)
+    }
+
+    @Test("une activité supprimée consomme quand même le budget de requêtes")
+    func notFoundActivityCountsAgainstLimit() async throws {
+        let source = FakeSource(pages: [
+            [
+                makeSummary(id: 1, epoch: 1000), makeSummary(id: 2, epoch: 2000),
+                makeSummary(id: 3, epoch: 3000),
+            ]
+        ])
+        let engine = SyncEngine(
+            source: source, container: try AppModelContainer.inMemory(),
+            progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+        await source.setNotFound([1, 2])
+
+        // Two 404s exhaust a budget of two, even though nothing was imported.
+        let fetched = try await engine.syncStreams(limit: 2)
+
+        #expect(fetched == 0)
+        #expect(await source.streamRequests.count == 2)
+        #expect(try await engine.stateSnapshot().pendingStreamIDs == [3])
+    }
+
+    @Test("une erreur inattendue met la progression en échec au lieu de la figer")
+    func unexpectedErrorReportsFailure() async throws {
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            source: source, container: try AppModelContainer.inMemory(),
+            progress: progress
+        )
+        _ = try await engine.syncSummaries()
+        await source.setFailWithServerError(true)
+
+        await #expect(throws: StravaError.self) {
+            _ = try await engine.syncStreams()
+        }
+
+        // The UI must not be left believing a sync is still running.
+        #expect(!progress.isRunning)
+        if case .failed = progress.phase {} else {
+            Issue.record("expected .failed, got \(progress.phase)")
+        }
+        // The activity stays queued, so a retry picks it up.
+        #expect(try await engine.stateSnapshot().pendingStreamIDs == [1])
     }
 }

@@ -126,6 +126,8 @@ actor SyncEngine {
     /// interruption at any point leaves the work still recorded as pending.
     @discardableResult
     func syncStreams(limit: Int? = nil) async throws -> Int {
+        // Named `initial` rather than `state`: a local called `state` would
+        // shadow the `state()` method the loop below re-reads on each iteration.
         let initial = try state()
         let total = initial.pendingStreamIDs.count
         guard total > 0 else {
@@ -133,10 +135,31 @@ actor SyncEngine {
             return 0
         }
 
+        do {
+            return try await drainStreamQueue(limit: limit, total: total)
+        } catch {
+            let state = try? state()
+            state?.lastErrorMessage = error.localizedDescription
+            try? context.save()
+            await setPhase(.failed(error.localizedDescription))
+            throw error
+        }
+    }
+
+    /// Phase B's walk. One request per activity, popped off a persisted queue.
+    ///
+    /// The queue entry is only removed once the streams are saved, so an
+    /// interruption at any point leaves the work still recorded as pending.
+    private func drainStreamQueue(limit: Int?, total: Int) async throws -> Int {
         var fetched = 0
+        // Counts every request actually issued, including ones that 404. A 404
+        // still spends a request against the quota, so `limit` has to bound
+        // attempts rather than successes — otherwise a run of deleted
+        // activities blows straight through the caller's budget.
+        var attempts = 0
         let budget = limit ?? total
 
-        while fetched < budget {
+        while attempts < budget {
             if Task.isCancelled { break }
             let current = try state()
             guard let stravaID = current.pendingStreamIDs.first else { break }
@@ -144,20 +167,29 @@ actor SyncEngine {
 
             do {
                 let streams = try await source.streams(id: stravaID)
+                attempts += 1
                 if let activity = try mapper.activity(stravaID: stravaID) {
                     mapper.apply(streams: streams, to: activity)
+                    fetched += 1
+                } else {
+                    // The fetch succeeded but the row is gone, so nothing was
+                    // saved. Dequeue anyway — retrying cannot help — but leave
+                    // a trace rather than silently discarding a real request.
+                    current.lastErrorMessage =
+                        "Activité \(stravaID) absente de la base, streams ignorés"
                 }
                 try dequeue(stravaID)
-                fetched += 1
             } catch let StravaError.http(status, message) where status == 404 {
                 // The activity is gone from Strava: dropping it from the queue
                 // is the only way to make progress.
-                try dequeue(stravaID)
+                attempts += 1
                 current.lastErrorMessage =
                     "Activité \(stravaID) introuvable : \(message)"
-                try context.save()
+                try dequeue(stravaID)
             } catch let StravaError.http(status, _) where status == 429 {
-                let resumeAt = Date().addingTimeInterval(15 * 60)
+                let resumeAt = Date().addingTimeInterval(
+                    RateLimiter.secondsUntilNextShortWindow(from: Date())
+                )
                 await setPhase(.waitingForQuota(until: resumeAt))
                 current.lastErrorMessage = "Quota Strava atteint"
                 try context.save()
@@ -194,18 +226,27 @@ actor SyncEngine {
         let unlinked = activities.filter { $0.gear == nil }
         guard !unlinked.isEmpty else { return }
 
+        var failures = 0
         for gearID in Set(unlinked.compactMap(\.gearID)) {
             let dto: GearDTO
             do {
                 dto = try await source.gear(id: gearID)
             } catch {
-                // Deleted or inaccessible gear must not stall the whole sync.
+                // Deleted or inaccessible gear must not stall the whole sync,
+                // but a systematic failure has to leave a trace.
+                failures += 1
                 continue
             }
             let gear = try mapper.upsert(gear: dto)
             for activity in unlinked where activity.gearID == gearID {
                 activity.gear = gear
             }
+        }
+
+        if failures > 0 {
+            let state = try state()
+            state.lastErrorMessage =
+                "Matériel non récupéré pour \(failures) référence(s)"
         }
         try context.save()
     }

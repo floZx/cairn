@@ -109,4 +109,14 @@ actor RateLimiter {
         let elapsed = now.timeIntervalSince1970.truncatingRemainder(dividingBy: window)
         return window - elapsed
     }
+
+    /// Seconds until the next 15-minute UTC window opens.
+    ///
+    /// Exposed because the sync engine needs the same answer when it reports
+    /// when a quota-blocked walk will resume.
+    static func secondsUntilNextShortWindow(from now: Date) -> TimeInterval {
+        let elapsed = now.timeIntervalSince1970
+            .truncatingRemainder(dividingBy: shortWindow)
+        return shortWindow - elapsed
+    }
 }

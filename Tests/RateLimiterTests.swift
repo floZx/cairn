@@ -110,4 +110,14 @@ struct RateLimiterTests {
         )
         #expect(await limiter.delayBeforeNextRequest() == 86_220)
     }
+
+    @Test("la borne de fenêtre courte est exposée pour le moteur de synchro")
+    func exposesShortWindowBoundary() {
+        // 1970-01-01T00:03:00Z → the window closes at 00:15:00Z, 720 s later.
+        #expect(
+            RateLimiter.secondsUntilNextShortWindow(
+                from: Date(timeIntervalSince1970: 180)
+            ) == 720
+        )
+    }
 }
