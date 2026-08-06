@@ -112,6 +112,8 @@ actor SyncEngine {
             return imported
         } catch {
             state.lastErrorMessage = error.localizedDescription
+            // Swallowed on purpose: a save failure while recording an earlier
+            // error must not mask the error we are already reporting.
             try? context.save()
             await setPhase(.failed(error.localizedDescription))
             throw error
