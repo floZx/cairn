@@ -56,6 +56,10 @@ struct GlobalMapView: View {
                     Label("Sélectionner une zone", systemImage: "dot.viewfinder")
                 }
                 .toggleStyle(.button)
+                // Same backing as every other map control. Its own button chrome
+                // was legible on Apple's dark plan but vanished on a pale
+                // topographic tile.
+                .mapControl()
                 .help("Tracez un rectangle sur la carte pour ne garder que les activités qui le traversent")
 
                 if region != nil {
