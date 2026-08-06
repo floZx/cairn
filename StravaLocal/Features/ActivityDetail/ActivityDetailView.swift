@@ -41,14 +41,6 @@ struct ActivityDetailView: View {
                 if !activity.laps.isEmpty {
                     laps
                 }
-
-                if let description = activity.activityDescription,
-                   !description.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Notes").font(.headline)
-                        Text(description)
-                    }
-                }
             }
             .padding()
         }
@@ -65,6 +57,17 @@ struct ActivityDetailView: View {
             Text(activity.name).font(.largeTitle.weight(.semibold))
             Text(Format.longDate(activity.startLocalDate))
                 .foregroundStyle(.secondary)
+
+            // Sits with the title rather than at the foot of the page: the note
+            // is what the activity was about, and it arrives a moment after the
+            // rest, once the detail endpoint has been fetched.
+            if let note = activity.activityDescription?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !note.isEmpty {
+                Text(note)
+                    .textSelection(.enabled)
+                    .padding(.top, 4)
+            }
         }
     }
 
