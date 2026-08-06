@@ -42,6 +42,24 @@ final class SyncProgress {
         }
     }
 
+    /// Short form for the toolbar, where the detailed wording would be truncated
+    /// and would change width on every page. Digits are rendered monospaced by
+    /// the caller so a counter ticking over doesn't reflow the toolbar.
+    var toolbarText: String {
+        switch phase {
+        case .idle:
+            ""
+        case let .summaries(page):
+            "Activités \(page)"
+        case let .streams(done, total):
+            "Traces \(done)/\(total)"
+        case .waitingForQuota:
+            "Quota atteint"
+        case .failed:
+            "Échec"
+        }
+    }
+
     var fractionCompleted: Double? {
         guard case let .streams(done, total) = phase, total > 0 else { return nil }
         return Double(done) / Double(total)

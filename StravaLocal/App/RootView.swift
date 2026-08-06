@@ -78,8 +78,15 @@ struct RootView: View {
                 if app.progress.isRunning {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text(app.progress.statusText).font(.caption)
+                        Text(app.progress.toolbarText)
+                            .font(.caption)
+                            .monospacedDigit()
+                            .lineLimit(1)
                     }
+                    // Reserved width: without it the item resizes on every page
+                    // and shoves the rest of the toolbar sideways.
+                    .frame(minWidth: 120, alignment: .leading)
+                    .help(app.progress.statusText)
                 }
             }
             ToolbarItem {
