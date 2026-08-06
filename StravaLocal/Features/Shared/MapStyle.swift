@@ -161,65 +161,6 @@ extension MKMapView {
     }
 }
 
-/// Carries zoom requests from SwiftUI buttons down to the map view.
-///
-/// MapKit's own zoom controls cannot be restyled, and they are white pills that
-/// vanish against a pale topographic tile. Ours share the backing every other
-/// map control uses, and sit clear of the attribution.
-@Observable
-final class MapZoomController {
-    /// Net zoom steps requested. The map view applies the difference and
-    /// remembers where it got to.
-    private(set) var steps = 0
-
-    func zoomIn() { steps += 1 }
-    func zoomOut() { steps -= 1 }
-}
-
-/// The +/− pair, styled like the rest.
-struct MapZoomButtons: View {
-    let controller: MapZoomController
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Button { controller.zoomIn() } label: {
-                Image(systemName: "plus").frame(width: 12, height: 12)
-            }
-            .help("Zoomer")
-            Divider().frame(width: 20)
-            Button { controller.zoomOut() } label: {
-                Image(systemName: "minus").frame(width: 12, height: 12)
-            }
-            .help("Dézoomer")
-        }
-        .buttonStyle(.plain)
-        .mapControl()
-    }
-}
-
-extension MKMapView {
-    /// Applies whatever zoom steps have accumulated since the last call.
-    func applyZoom(from controller: MapZoomController, applied: inout Int) {
-        let delta = controller.steps - applied
-        guard delta != 0 else { return }
-        applied = controller.steps
-
-        // Halving or doubling the altitude is one zoom level, which is what the
-        // scroll wheel and the pinch gesture do.
-        let factor = pow(0.5, Double(delta))
-        let altitude = max(200, min(camera.altitude * factor, 40_000_000))
-        setCamera(
-            MKMapCamera(
-                lookingAtCenter: camera.centerCoordinate,
-                fromDistance: altitude,
-                pitch: camera.pitch,
-                heading: camera.heading
-            ),
-            animated: true
-        )
-    }
-}
-
 extension View {
     /// Standard treatment for a control floating over a map: a plain button has
     /// no contrast against either a pale topographic tile or a dark satellite

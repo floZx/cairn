@@ -12,24 +12,18 @@ struct ActivityMapView: NSViewRepresentable {
     /// map's framing, which is why the track is only rebuilt when it changes.
     var highlight: Coordinate?
     var style: MapStyle = .standard
-    var zoom: MapZoomController?
 
     func makeNSView(context: Context) -> MKMapView {
         let mapView = MKMapView()
         mapView.delegate = context.coordinator
         mapView.showsCompass = true
-        // Ours instead: Apple's cannot be restyled and disappear against a pale
-        // topographic tile.
-        mapView.showsZoomControls = false
+        mapView.showsZoomControls = true
         return mapView
     }
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
         let coordinator = context.coordinator
         mapView.apply(style, state: &coordinator.mapStyleState)
-        if let zoom {
-            mapView.applyZoom(from: zoom, applied: &coordinator.appliedZoom)
-        }
 
         var hasher = Hasher()
         hasher.combine(coordinates.count)
@@ -87,7 +81,6 @@ struct ActivityMapView: NSViewRepresentable {
         var renderedSignature: Int?
         var marker: MKPointAnnotation?
         var mapStyleState = MapStyleState()
-        var appliedZoom = 0
 
         private static let markerIdentifier = "hover"
 

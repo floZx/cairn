@@ -36,7 +36,8 @@ struct ActivityListView: View {
             TableColumn("Date", value: \.startLocalDate) { activity in
                 Text(Format.dateOnly(activity.startLocalDate))
             }
-            .width(min: 140, ideal: 160)
+            // "12 déc. 2025" is the widest this gets, now the time is gone.
+            .width(min: 90, ideal: 105)
 
             TableColumn("Nom", value: \.name) { activity in
                 Label(activity.name, systemImage: activity.sportType.symbolName)
