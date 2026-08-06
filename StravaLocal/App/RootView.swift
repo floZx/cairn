@@ -57,7 +57,8 @@ struct RootView: View {
                         coordinates: activity.streams?.coordinates.isEmpty == false
                             ? activity.streams!.coordinates
                             : activity.simplifiedCoordinates,
-                        style: expandedStyle
+                        style: expandedStyle,
+                        trackColor: expandedTrackColor
                     )
                     .overlay(alignment: .topTrailing) {
                         VStack(alignment: .trailing, spacing: 8) {
@@ -95,6 +96,7 @@ struct RootView: View {
 
     /// Shared with both maps so the chosen background carries over.
     @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
+    @AppStorage(TrackColor.storageKey) private var expandedTrackColor: TrackColor = .accent
 
     private var regionBinding: Binding<BoundingBox?> {
         Binding(

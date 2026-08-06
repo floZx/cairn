@@ -16,6 +16,7 @@ struct ActivityDetailView: View {
     /// Distance under the cursor in a chart, mirrored on the map as a marker.
     @State private var hoverDistanceKm: Double?
     @AppStorage(MapStyle.storageKey) private var mapStyle: MapStyle = .standard
+    @AppStorage(TrackColor.storageKey) private var trackColor: TrackColor = .accent
 
     /// Cumulative distance per track point, in metres.
     ///
@@ -62,7 +63,8 @@ struct ActivityDetailView: View {
                     ActivityMapView(
                         coordinates: trackCoordinates,
                         highlight: hoveredCoordinate,
-                        style: mapStyle
+                        style: mapStyle,
+                        trackColor: trackColor
                     )
                     .frame(height: 320)
                     .overlay(alignment: .topTrailing) {

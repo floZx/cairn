@@ -85,6 +85,7 @@ private struct SyncSettingsView: View {
     /// Read once when the pane appears rather than on every redraw: walking the
     /// cache directory is cheap but not free.
     @State private var cacheSize = SyncSettingsView.formattedCacheSize()
+    @AppStorage(TrackColor.storageKey) private var trackColor: TrackColor = .accent
 
     static func formattedCacheSize() -> String {
         let bytes = TileCache.diskUsage
@@ -108,6 +109,20 @@ private struct SyncSettingsView: View {
                 }
                 if let fraction = app.progress.fractionCompleted {
                     ProgressView(value: fraction)
+                }
+            }
+
+            Section("Traces") {
+                Picker("Couleur des traces", selection: $trackColor) {
+                    ForEach(TrackColor.allCases) { choice in
+                        Label {
+                            Text(choice.displayName)
+                        } icon: {
+                            Image(systemName: "circle.fill")
+                                .foregroundStyle(choice.color)
+                        }
+                        .tag(choice)
+                    }
                 }
             }
 

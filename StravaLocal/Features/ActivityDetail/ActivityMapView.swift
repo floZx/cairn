@@ -12,6 +12,7 @@ struct ActivityMapView: NSViewRepresentable {
     /// map's framing, which is why the track is only rebuilt when it changes.
     var highlight: Coordinate?
     var style: MapStyle = .standard
+    var trackColor: TrackColor = .accent
 
     func makeNSView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -29,6 +30,9 @@ struct ActivityMapView: NSViewRepresentable {
         hasher.combine(coordinates.count)
         hasher.combine(coordinates.first)
         hasher.combine(coordinates.last)
+        // In the signature so changing the colour redraws: MapKit keeps its
+        // renderers, and a new stroke colour alone would not reach the screen.
+        hasher.combine(trackColor)
         let signature = hasher.finalize()
 
         // Rebuilding and re-framing on every update would fight the user's own
@@ -36,6 +40,7 @@ struct ActivityMapView: NSViewRepresentable {
         // being hovered.
         if coordinator.renderedSignature != signature {
             coordinator.renderedSignature = signature
+            coordinator.trackColor = trackColor
             mapView.removeOverlays(
                 mapView.overlays.filter { !($0 is MKTileOverlay) }
             )
@@ -81,6 +86,7 @@ struct ActivityMapView: NSViewRepresentable {
         var renderedSignature: Int?
         var marker: MKPointAnnotation?
         var mapStyleState = MapStyleState()
+        var trackColor: TrackColor = .accent
 
         private static let markerIdentifier = "hover"
 
@@ -91,7 +97,7 @@ struct ActivityMapView: NSViewRepresentable {
                 return MKTileOverlayRenderer(tileOverlay: tiles)
             }
             let renderer = MKPolylineRenderer(overlay: overlay)
-            renderer.strokeColor = .controlAccentColor
+            renderer.strokeColor = trackColor.nsColor
             renderer.lineWidth = 4
             return renderer
         }

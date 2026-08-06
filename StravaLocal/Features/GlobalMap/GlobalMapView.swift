@@ -16,6 +16,7 @@ struct GlobalMapView: View {
 
     @State private var isSelectingRegion = false
     @AppStorage(MapStyle.storageKey) private var style: MapStyle = .standard
+    @AppStorage(TrackColor.storageKey) private var trackColor: TrackColor = .accent
 
     private var tracks: [[Coordinate]] {
         activities.compactMap {
@@ -29,6 +30,7 @@ struct GlobalMapView: View {
             tracks: tracks,
             isSelectingRegion: isSelectingRegion,
             style: style,
+            trackColor: trackColor,
             onRegionSelected: { box in
                 region = box
                 isSelectingRegion = false
@@ -97,6 +99,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
     let tracks: [[Coordinate]]
     let isSelectingRegion: Bool
     let style: MapStyle
+    let trackColor: TrackColor
     let onRegionSelected: (BoundingBox) -> Void
 
     func makeNSView(context: Context) -> MKMapView {
@@ -144,10 +147,14 @@ struct TrackMapRepresentable: NSViewRepresentable {
         var hasher = Hasher()
         hasher.combine(tracks.count)
         for track in tracks { hasher.combine(track.count) }
+        // In the signature so changing the colour redraws: MapKit keeps its
+        // renderers, and a new stroke colour alone would not reach the screen.
+        hasher.combine(trackColor)
         let signature = hasher.finalize()
 
         guard context.coordinator.renderedSignature != signature else { return }
         context.coordinator.renderedSignature = signature
+        context.coordinator.trackColor = trackColor
 
         mapView.removeOverlays(mapView.overlays.filter { !($0 is MKTileOverlay) })
         guard !tracks.isEmpty else { return }
@@ -191,6 +198,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
         var renderedSignature: Int?
         var isSelectingRegion: Bool?
         var mapStyleState = MapStyleState()
+        var trackColor: TrackColor = .accent
         weak var selectionOverlay: SelectionOverlayView?
 
         func mapView(
@@ -200,7 +208,8 @@ struct TrackMapRepresentable: NSViewRepresentable {
                 return MKTileOverlayRenderer(tileOverlay: tiles)
             }
             let renderer = MKMultiPolylineRenderer(overlay: overlay)
-            renderer.strokeColor = NSColor.systemOrange.withAlphaComponent(0.45)
+            // Translucent so repeated routes build up into a heatmap.
+            renderer.strokeColor = trackColor.nsColor.withAlphaComponent(0.45)
             renderer.lineWidth = 2
             return renderer
         }
