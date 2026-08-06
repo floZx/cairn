@@ -1536,8 +1536,9 @@ import Foundation
 import Testing
 @testable import StravaLocal
 
-/// Reads JSON fixtures from the test bundle. `project.yml` copies everything
-/// under `Tests/` into the bundle, so fixtures need no extra build phase.
+/// Reads JSON fixtures from the test bundle root. `project.yml` excludes
+/// `Fixtures/**` from the plain source list and declares it as a resources
+/// build phase group, so each file lands flat in the bundle.
 enum Fixture {
     static func data(_ name: String) throws -> Data {
         guard let url = Bundle(for: BundleToken.self)
