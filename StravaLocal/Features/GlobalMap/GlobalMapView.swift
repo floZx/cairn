@@ -11,6 +11,8 @@ struct GlobalMapView: View {
     // here instead.
     @Binding var selection: PersistentIdentifier?
     @Binding var region: BoundingBox?
+    /// Nil when the map is already filling the window, which hides the button.
+    var onExpand: (() -> Void)?
 
     @State private var isSelectingRegion = false
     @AppStorage(MapStyle.storageKey) private var style: MapStyle = .standard
@@ -35,6 +37,16 @@ struct GlobalMapView: View {
         .overlay(alignment: .topTrailing) {
             VStack(alignment: .trailing, spacing: 8) {
                 MapStylePicker(style: $style)
+
+                if let onExpand {
+                    Button(action: onExpand) {
+                        Label(
+                            "Agrandir",
+                            systemImage: "arrow.up.left.and.arrow.down.right"
+                        )
+                    }
+                    .help("Afficher la carte sur toute la fenêtre")
+                }
 
                 Toggle(isOn: $isSelectingRegion) {
                     Label("Sélectionner une zone", systemImage: "dot.viewfinder")

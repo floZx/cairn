@@ -8,6 +8,8 @@ struct RootView: View {
     // See the comment on `ActivityListView.selection`: `Activity.ID` can't be
     // named from this file, so `PersistentIdentifier` is used directly.
     @State private var selectedActivity: PersistentIdentifier?
+    /// Which map, if any, is filling the window.
+    @State private var expandedMap: ExpandedMap?
     @Query private var allActivities: [Activity]
 
     private var selected: Activity? {
@@ -27,13 +29,74 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if allActivities.isEmpty && !app.progress.isRunning {
+            if let expandedMap {
+                fullWindowMap(expandedMap)
+            } else if allActivities.isEmpty && !app.progress.isRunning {
                 WelcomeView()
                     .frame(minWidth: 900, minHeight: 600)
             } else {
                 splitView
             }
         }
+    }
+
+    /// A map on its own, with the sidebar and the detail pane out of the way.
+    @ViewBuilder
+    private func fullWindowMap(_ expanded: ExpandedMap) -> some View {
+        let map = Group {
+            switch expanded {
+            case .global:
+                GlobalMapView(
+                    activities: mapActivities,
+                    selection: $selectedActivity,
+                    region: regionBinding
+                )
+            case let .activity(id):
+                if let activity = allActivities.first(where: { $0.id == id }) {
+                    ActivityMapView(
+                        coordinates: activity.streams?.coordinates.isEmpty == false
+                            ? activity.streams!.coordinates
+                            : activity.simplifiedCoordinates,
+                        style: expandedStyle
+                    )
+                }
+            }
+        }
+
+        map
+            .frame(minWidth: 900, minHeight: 600)
+            .overlay(alignment: .topLeading) {
+                Button {
+                    expandedMap = nil
+                } label: {
+                    Label(
+                        "Réduire",
+                        systemImage: "arrow.down.right.and.arrow.up.left"
+                    )
+                }
+                .help("Revenir à la liste — ou appuyez sur Échap")
+                .padding()
+            }
+            // Escape leaves the expanded map, as it does everywhere on macOS.
+            .onExitCommand { expandedMap = nil }
+    }
+
+    /// Shared with both maps so the chosen background carries over.
+    @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
+
+    private var regionBinding: Binding<BoundingBox?> {
+        Binding(
+            get: { filter.region },
+            set: { newRegion in
+                filter.region = newRegion
+                if newRegion != nil {
+                    sidebarSelection = .all
+                    // A region chosen from the expanded map has to reveal the
+                    // list it just filtered.
+                    expandedMap = nil
+                }
+            }
+        )
     }
 
     private var splitView: some View {
@@ -46,13 +109,8 @@ struct RootView: View {
                 GlobalMapView(
                     activities: mapActivities,
                     selection: $selectedActivity,
-                    region: Binding(
-                        get: { filter.region },
-                        set: { newRegion in
-                            filter.region = newRegion
-                            if newRegion != nil { sidebarSelection = .all }
-                        }
-                    )
+                    region: regionBinding,
+                    onExpand: { expandedMap = .global }
                 )
                 .frame(minWidth: 520)
             default:
@@ -65,7 +123,10 @@ struct RootView: View {
             }
         } detail: {
             if let selected {
-                ActivityDetailView(activity: selected)
+                ActivityDetailView(
+                    activity: selected,
+                    onExpandMap: { expandedMap = .activity(selected.id) }
+                )
             } else {
                 ContentUnavailableView(
                     "Aucune activité sélectionnée", systemImage: "figure.run",
@@ -100,4 +161,10 @@ struct RootView: View {
             }
         }
     }
+}
+
+/// Which map is filling the window, if any.
+private enum ExpandedMap: Equatable {
+    case global
+    case activity(PersistentIdentifier)
 }

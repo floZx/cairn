@@ -3,6 +3,7 @@ import SwiftData
 
 struct ActivityDetailView: View {
     let activity: Activity
+    var onExpandMap: (() -> Void)?
     @Environment(AppEnvironment.self) private var app
 
     private var trackCoordinates: [Coordinate] {
@@ -65,7 +66,19 @@ struct ActivityDetailView: View {
                     )
                     .frame(height: 320)
                     .overlay(alignment: .topTrailing) {
-                        MapStylePicker(style: $mapStyle).padding(8)
+                        VStack(alignment: .trailing, spacing: 8) {
+                            MapStylePicker(style: $mapStyle)
+                            if let onExpandMap {
+                                Button(action: onExpandMap) {
+                                    Label(
+                                        "Agrandir",
+                                        systemImage: "arrow.up.left.and.arrow.down.right"
+                                    )
+                                }
+                                .help("Afficher la carte sur toute la fenêtre")
+                            }
+                        }
+                        .padding(8)
                     }
                     .overlay(alignment: .bottomTrailing) {
                         MapAttribution(style: mapStyle).padding(8)
