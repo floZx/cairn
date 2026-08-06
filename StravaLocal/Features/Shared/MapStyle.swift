@@ -6,12 +6,21 @@ import MapKit
 /// MapKit offers no topographic option at all — no contour lines, no marked
 /// trails — so the last case leaves Apple's tiles behind and draws
 /// OpenTopoMap's instead. That is the only case that talks to a third party.
+/// A raster tile layer to draw instead of Apple's basemap.
+struct TileSource: Sendable {
+    let urlTemplate: String
+    /// Shown on screen whenever the layer is; both providers require it.
+    let attribution: String
+    let maximumZ: Int
+}
+
 enum MapStyle: String, CaseIterable, Identifiable, Sendable {
     case standard
     case relief
     case satellite
     case hybrid
-    case topo
+    case ignTopo
+    case openTopo
 
     var id: String { rawValue }
 
@@ -21,7 +30,8 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
         case .relief: "Plan avec relief"
         case .satellite: "Satellite"
         case .hybrid: "Satellite et noms"
-        case .topo: "Topographique (2D)"
+        case .ignTopo: "Topographique IGN (2D)"
+        case .openTopo: "Topographique monde (2D)"
         }
     }
 
@@ -31,7 +41,8 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
         case .relief: "mountain.2"
         case .satellite: "globe.europe.africa"
         case .hybrid: "globe.europe.africa.fill"
-        case .topo: "mountain.2.circle"
+        case .ignTopo: "mountain.2.circle.fill"
+        case .openTopo: "mountain.2.circle"
         }
     }
 
@@ -45,92 +56,62 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
             MKImageryMapConfiguration(elevationStyle: .realistic)
         case .hybrid:
             MKHybridMapConfiguration(elevationStyle: .realistic)
-        case .topo:
-            // Hidden under the tile layer, but a configuration is still
-            // required; muted keeps Apple's labels from bleeding through at the
-            // zoom levels OpenTopoMap does not cover.
+        case .ignTopo, .openTopo:
+            // Drawn under the tile layer and mostly hidden; muted keeps Apple's
+            // labels discreet where a tile has yet to arrive.
             MKStandardMapConfiguration(emphasisStyle: .muted)
         }
     }
 
-    var usesTopoTiles: Bool { self == .topo }
+    /// The raster layer this style draws, if any.
+    var tileSource: TileSource? {
+        switch self {
+        case .standard, .relief, .satellite, .hybrid:
+            nil
+        case .ignTopo:
+            // France only, but contour lines, named woods, hamlets and tracks —
+            // and a server that answers every request. The true 1:25000 SCAN25
+            // needs a licence and is refused to anonymous clients.
+            TileSource(
+                urlTemplate: "https://data.geopf.fr/wmts?SERVICE=WMTS"
+                    + "&REQUEST=GetTile&VERSION=1.0.0&STYLE=normal"
+                    + "&TILEMATRIXSET=PM&FORMAT=image/png"
+                    + "&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2"
+                    + "&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
+                attribution: "© IGN — Géoplateforme",
+                maximumZ: 19
+            )
+        case .openTopo:
+            TileSource(
+                urlTemplate: "https://tile.opentopomap.org/{z}/{x}/{y}.png",
+                attribution: "© OpenStreetMap · SRTM · OpenTopoMap (CC-BY-SA)",
+                maximumZ: 17
+            )
+        }
+    }
 
-    /// Required by OpenTopoMap's licence, and shown whenever their tiles are.
-    static let topoAttribution = "© OpenStreetMap · SRTM · OpenTopoMap (CC-BY-SA)"
+    var usesTopoTiles: Bool { tileSource != nil }
 
     /// Remembered across launches, and shared by both maps.
     static let storageKey = "mapStyle"
 }
 
-/// OpenTopoMap raster tiles: contour lines, marked trails, shaded relief.
+/// A raster basemap drawn instead of Apple's.
 ///
-/// `canReplaceMapContent` is deliberately left off. Telling MapKit it may skip
-/// its own basemap made it drop rendered tiles as the camera moved; keeping
-/// Apple's map underneath costs a second set of tiles and lets its labels show
-/// through the gaps, but the layer stays put — confirmed in use.
-///
-/// Their usage policy asks for reasonable, non-bulk use — an app browsing one
-/// athlete's own tracks sits well inside that.
-final class TopoTileOverlay: MKTileOverlay {
-    /// Tiles are fetched through a session with a real disk cache, so panning
-    /// back over ground already seen costs nothing and survives a relaunch.
-    /// MapKit's default loader gives no such guarantee, and the server itself
-    /// declares the tiles cacheable for a week.
-    private static let session: URLSession = {
-        let configuration = URLSessionConfiguration.default
-        configuration.urlCache = URLCache(
-            memoryCapacity: 32 * 1024 * 1024,
-            diskCapacity: 512 * 1024 * 1024,
-            directory: URL.cachesDirectory.appending(path: "StravaLocal/TopoTiles")
-        )
-        // Map tiles change on the scale of months: a cached tile is preferred
-        // even once nominally stale, rather than re-fetched on every pan.
-        configuration.requestCachePolicy = .returnCacheDataElseLoad
-        // OpenStreetMap-family services ask that clients identify themselves.
-        configuration.httpAdditionalHeaders = [
-            "User-Agent": "StravaLocal (personal use)"
-        ]
-        // A map view asks for twenty-odd tiles at once; a handful of
-        // connections is both politer and less likely to trip the server's
-        // faulty path below.
-        configuration.httpMaximumConnectionsPerHost = 4
-        return URLSession(configuration: configuration)
-    }()
-
-    init() {
-        super.init(urlTemplate: "https://tile.opentopomap.org/{z}/{x}/{y}.png")
+/// Deliberately the plainest possible subclass: MapKit's own loader issues
+/// ordinary GETs through the shared URLSession, which honours the servers'
+/// cache headers — both declare their tiles valid for days. An earlier version
+/// added a private session, a disk cache, a four-connection cap and retries,
+/// and tiles stopped arriving; Leaflet fetching the very same tiles with plain
+/// GETs is flawless, so the extra machinery was the problem, not the servers.
+final class RasterTileOverlay: MKTileOverlay {
+    init(source: TileSource) {
+        super.init(urlTemplate: source.urlTemplate)
+        // Apple's basemap stays underneath: claiming to replace it made MapKit
+        // drop already-rendered tiles as the camera moved.
         canReplaceMapContent = false
         minimumZ = 2
-        // OpenTopoMap publishes nothing beyond 17; asking for more returns
-        // blanks rather than an upscaled tile.
-        maximumZ = 17
-    }
-
-    /// Retries a couple of times before giving up.
-    ///
-    /// The server intermittently emits an `Upgrade: h2,h2c` header *inside* an
-    /// HTTP/2 response, which the specification forbids and which URLSession
-    /// rejects outright — measured at roughly one request in ten, leaving the
-    /// map pockmarked with tiles that never arrive. Forcing HTTP/1.1 fixes it
-    /// completely (20/20 against 18/20 in testing), but URLSession offers no
-    /// public way to choose the protocol, so retries stand in: three attempts
-    /// take a 10% failure rate down to about one in a thousand.
-    override func loadTile(at path: MKTileOverlayPath) async throws -> Data {
-        let request = URLRequest(url: url(forTilePath: path))
-        var lastError: any Error = URLError(.cannotLoadFromNetwork)
-
-        for attempt in 0..<3 {
-            if attempt > 0 {
-                try? await Task.sleep(for: .milliseconds(120 * attempt))
-            }
-            do {
-                let (data, _) = try await Self.session.data(for: request)
-                return data
-            } catch {
-                lastError = error
-            }
-        }
-        throw lastError
+        maximumZ = source.maximumZ
     }
 }
 
@@ -174,9 +155,9 @@ extension MKMapView {
             )
         }
 
-        if style.usesTopoTiles {
+        if let source = style.tileSource {
             guard state.topoOverlay == nil else { return }
-            let tiles = TopoTileOverlay()
+            let tiles = RasterTileOverlay(source: source)
             insertOverlay(tiles, at: 0, level: .aboveRoads)
             state.topoOverlay = tiles
         } else if let existing = state.topoOverlay {
@@ -215,8 +196,8 @@ struct MapAttribution: View {
     let style: MapStyle
 
     var body: some View {
-        if style.usesTopoTiles {
-            Text(MapStyle.topoAttribution)
+        if let source = style.tileSource {
+            Text(source.attribution)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .padding(4)
