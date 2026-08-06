@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import AppKit
+import os
 
 /// RFC 8252 loopback authorisation flow.
 ///
@@ -13,6 +14,9 @@ actor OAuthFlow {
     private let store: SecretStore
     private let transport: HTTPTransport
     private static let scope = "read,activity:read_all,profile:read_all"
+    /// Long enough for a real person to read a consent screen, short enough that
+    /// an abandoned flow eventually releases the port.
+    private static let timeout: Duration = .seconds(300)
 
     init(store: SecretStore, transport: HTTPTransport = URLSessionTransport()) {
         self.store = store
@@ -25,7 +29,10 @@ actor OAuthFlow {
         }
 
         let listener = try LoopbackListener()
-        let port = try listener.start()
+        // Covers every exit: success, throw, and task cancellation.
+        defer { listener.stop() }
+
+        let port = try await listener.start()
         let state = UUID().uuidString
 
         var components = URLComponents(string: "https://www.strava.com/oauth/authorize")!
@@ -37,10 +44,12 @@ actor OAuthFlow {
             .init(name: "scope", value: Self.scope),
             .init(name: "state", value: state),
         ]
-        await MainActor.run { _ = NSWorkspace.shared.open(components.url!) }
+        let authorizationURL = components.url!
 
-        let callback = try await listener.waitForCallback()
-        listener.stop()
+        let opened = await MainActor.run { NSWorkspace.shared.open(authorizationURL) }
+        guard opened else { throw StravaError.browserLaunchFailed }
+
+        let callback = try await listener.waitForCallback(timeout: Self.timeout)
 
         guard callback.state == state else { throw StravaError.oauthStateMismatch }
         if let error = callback.error { throw StravaError.oauthDenied(error) }
@@ -80,8 +89,11 @@ actor OAuthFlow {
     }
 }
 
-/// Minimal one-shot HTTP listener on the loopback interface. It parses exactly
-/// one request line, answers a static page, and is done.
+/// Minimal one-shot HTTP listener on the loopback interface.
+///
+/// Only a request that actually carries OAuth parameters resolves the wait.
+/// Browsers routinely open speculative connections and fetch `/favicon.ico`, and
+/// letting one of those resolve a one-shot wait would drop the real redirect.
 private final class LoopbackListener: @unchecked Sendable {
     struct Callback: Sendable {
         let code: String?
@@ -90,8 +102,11 @@ private final class LoopbackListener: @unchecked Sendable {
     }
 
     private let listener: NWListener
-    private var continuation: CheckedContinuation<Callback, Error>?
     private let lock = NSLock()
+    private var continuation: CheckedContinuation<Callback, Error>?
+    /// Holds a callback that arrived before anyone was waiting for it.
+    private var bufferedCallback: Callback?
+    private var isFinished = false
 
     init() throws {
         let parameters = NWParameters.tcp
@@ -99,45 +114,140 @@ private final class LoopbackListener: @unchecked Sendable {
         listener = try NWListener(using: parameters, on: .any)
     }
 
-    func start() throws -> UInt16 {
+    /// Waits for the listener to be ready and returns the port the OS assigned.
+    func start() async throws -> UInt16 {
         listener.newConnectionHandler = { [weak self] connection in
             self?.handle(connection)
         }
-        listener.start(queue: .global(qos: .userInitiated))
 
-        // NWListener assigns the port asynchronously; poll briefly for it.
-        for _ in 0..<200 {
-            if let port = listener.port?.rawValue, port != 0 { return port }
-            Thread.sleep(forTimeInterval: 0.01)
+        let port: UInt16 = try await withCheckedThrowingContinuation { continuation in
+            let resumed = OSAllocatedUnfairLock(initialState: false)
+            listener.stateUpdateHandler = { state in
+                // stateUpdateHandler can fire more than once; resume only once.
+                let alreadyResumed = resumed.withLock { value -> Bool in
+                    if value { return true }
+                    switch state {
+                    case .ready, .failed, .cancelled: value = true; return false
+                    default: return true
+                    }
+                }
+                if alreadyResumed { return }
+
+                switch state {
+                case .ready:
+                    continuation.resume(returning: self.listener.port?.rawValue ?? 0)
+                case let .failed(error):
+                    continuation.resume(
+                        throwing: StravaError.loopbackUnavailable(error.localizedDescription)
+                    )
+                case .cancelled:
+                    continuation.resume(
+                        throwing: StravaError.loopbackUnavailable("listener annulé")
+                    )
+                default:
+                    break
+                }
+            }
+            listener.start(queue: .global(qos: .userInitiated))
         }
-        throw StravaError.oauthCancelled
+
+        guard port != 0 else {
+            throw StravaError.loopbackUnavailable("aucun port attribué")
+        }
+        return port
     }
 
     func stop() {
         listener.cancel()
+        // Anyone still waiting must not wait forever.
+        finish(with: .failure(StravaError.oauthCancelled))
     }
 
-    func waitForCallback() async throws -> Callback {
-        try await withCheckedThrowingContinuation { continuation in
-            lock.withLock { self.continuation = continuation }
+    /// Resolves with the first OAuth callback, or throws on timeout or cancellation.
+    func waitForCallback(timeout: Duration) async throws -> Callback {
+        try await withThrowingTaskGroup(of: Callback.self) { group in
+            group.addTask { try await self.awaitCallback() }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw StravaError.oauthTimedOut
+            }
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else {
+                throw StravaError.oauthCancelled
+            }
+            return result
         }
+    }
+
+    private func awaitCallback() async throws -> Callback {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let immediate: Result<Callback, Error>? = lock.withLock {
+                    if let buffered = bufferedCallback {
+                        bufferedCallback = nil
+                        isFinished = true
+                        return .success(buffered)
+                    }
+                    if isFinished { return .failure(StravaError.oauthCancelled) }
+                    self.continuation = continuation
+                    return nil
+                }
+                if let immediate {
+                    continuation.resume(with: immediate)
+                }
+            }
+        } onCancel: {
+            finish(with: .failure(StravaError.oauthCancelled))
+        }
+    }
+
+    /// Delivers exactly once: to a waiter if there is one, otherwise buffered.
+    private func deliver(_ callback: Callback) {
+        let waiter: CheckedContinuation<Callback, Error>? = lock.withLock {
+            guard !isFinished else { return nil }
+            if let waiting = continuation {
+                continuation = nil
+                isFinished = true
+                return waiting
+            }
+            bufferedCallback = callback
+            return nil
+        }
+        waiter?.resume(returning: callback)
+    }
+
+    private func finish(with result: Result<Callback, Error>) {
+        let waiter: CheckedContinuation<Callback, Error>? = lock.withLock {
+            guard !isFinished else { return nil }
+            isFinished = true
+            let waiting = continuation
+            continuation = nil
+            return waiting
+        }
+        waiter?.resume(with: result)
     }
 
     private func handle(_ connection: NWConnection) {
         connection.start(queue: .global(qos: .userInitiated))
         connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) {
             [weak self] data, _, _, _ in
-            guard let self else { return }
+            guard let self else {
+                connection.cancel()
+                return
+            }
             let request = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
             let callback = Self.parse(requestLine: request)
 
-            let body = callback.code != nil
+            let isOAuthCallback = callback != nil
+            let body = isOAuthCallback
                 ? "<h2>Connexion réussie</h2><p>Vous pouvez fermer cet onglet et revenir à StravaLocal.</p>"
-                : "<h2>Connexion refusée</h2><p>Revenez à StravaLocal pour réessayer.</p>"
+                : "<h2>StravaLocal</h2><p>En attente de l'autorisation Strava…</p>"
+            // no-store keeps the URL bearing the authorization code out of history.
             let response = """
                 HTTP/1.1 200 OK\r
                 Content-Type: text/html; charset=utf-8\r
                 Content-Length: \(body.utf8.count)\r
+                Cache-Control: no-store\r
                 Connection: close\r
                 \r
                 \(body)
@@ -147,25 +257,28 @@ private final class LoopbackListener: @unchecked Sendable {
                 completion: .contentProcessed { _ in connection.cancel() }
             )
 
-            let pending = self.lock.withLock {
-                let value = self.continuation
-                self.continuation = nil
-                return value
+            // A speculative connection or a favicon fetch carries no OAuth
+            // parameters; answering it must not resolve the wait.
+            if let callback {
+                self.deliver(callback)
             }
-            pending?.resume(returning: callback)
         }
     }
 
-    private static func parse(requestLine: String) -> Callback {
+    /// Returns nil for anything that is not an OAuth callback.
+    private static func parse(requestLine: String) -> Callback? {
         guard let line = requestLine.split(separator: "\r\n").first,
               let path = line.split(separator: " ").dropFirst().first,
               let components = URLComponents(string: "http://localhost\(path)")
-        else {
-            return Callback(code: nil, state: nil, error: "requête illisible")
-        }
+        else { return nil }
+
         func item(_ name: String) -> String? {
             components.queryItems?.first { $0.name == name }?.value
         }
-        return Callback(code: item("code"), state: item("state"), error: item("error"))
+        let code = item("code")
+        let state = item("state")
+        let error = item("error")
+        guard code != nil || state != nil || error != nil else { return nil }
+        return Callback(code: code, state: state, error: error)
     }
 }

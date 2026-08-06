@@ -141,7 +141,7 @@ struct StravaClientTests {
         ])
         let client = StravaClient(store: store, transport: transport)
 
-        await #expect(throws: StravaError.self) {
+        await #expect(throws: StravaError.tokenRefreshRejected) {
             _ = try await client.athlete()
         }
         #expect(store.tokens() == nil)
@@ -154,7 +154,7 @@ struct StravaClientTests {
             .init(status: 404, body: json(#"{"message":"Record Not Found"}"#), headers: [:])
         ])
         let client = StravaClient(store: validStore(), transport: transport)
-        await #expect(throws: StravaError.self) {
+        await #expect(throws: StravaError.http(404, "Record Not Found")) {
             _ = try await client.activityDetail(id: 1)
         }
     }
@@ -172,5 +172,27 @@ struct StravaClientTests {
         let snapshot = await client.rateLimitSnapshot()
         #expect(snapshot?.shortTermUsage == 17)
         #expect(snapshot?.dailyUsage == 342)
+    }
+
+    @Test("un 429 est signalé au limiteur sans passer par le chemin de succès")
+    func reportsThrottlingToRateLimiter() async {
+        let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 0) })
+        let transport = StubTransport([
+            .init(
+                status: 429, body: json(#"{"message":"Rate Limit Exceeded"}"#),
+                headers: quotaHeaders
+            )
+        ])
+        let client = StravaClient(
+            store: validStore(), transport: transport, rateLimiter: limiter
+        )
+
+        await #expect(throws: StravaError.http(429, "Quota d'API dépassé")) {
+            _ = try await client.athlete()
+        }
+        // A throttle must produce a wait, and must not record the quota headers
+        // as if the call had succeeded.
+        #expect(await limiter.delayBeforeNextRequest() > 0)
+        #expect(await limiter.snapshot == nil)
     }
 }

@@ -7,6 +7,13 @@ actor StravaClient {
     private let transport: HTTPTransport
     private let rateLimiter: RateLimiter
 
+    /// The refresh currently in flight, if any.
+    ///
+    /// Strava rotates the refresh token on every refresh, so a second concurrent
+    /// refresh would present an already-consumed token, be rejected, and take the
+    /// freshly-rotated one down with it. Everyone waits on the same task instead.
+    private var refreshTask: Task<String, Error>?
+
     private static let apiBase = URL(string: "https://www.strava.com/api/v3")!
     static let tokenEndpoint = URL(string: "https://www.strava.com/oauth/token")!
     private static let streamKeys = [
@@ -122,12 +129,36 @@ actor StravaClient {
         guard let tokens = store.tokens() else { throw StravaError.notAuthenticated }
         guard tokens.isExpired else { return tokens.accessToken }
 
-        var request = URLRequest(url: Self.tokenEndpoint)
+        if let existing = refreshTask {
+            return try await existing.value
+        }
+
+        let transport = self.transport
+        let store = self.store
+        let task = Task<String, Error> {
+            try await Self.refresh(
+                tokens: tokens, credentials: credentials,
+                transport: transport, store: store
+            )
+        }
+        refreshTask = task
+        defer { refreshTask = nil }
+        return try await task.value
+    }
+
+    /// Runs off the actor so the in-flight task can be awaited by several callers.
+    private static func refresh(
+        tokens: StravaTokens,
+        credentials: StravaCredentials,
+        transport: HTTPTransport,
+        store: SecretStore
+    ) async throws -> String {
+        var request = URLRequest(url: tokenEndpoint)
         request.httpMethod = "POST"
         request.setValue(
             "application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type"
         )
-        request.httpBody = Self.formBody([
+        request.httpBody = formBody([
             "client_id": credentials.clientID,
             "client_secret": credentials.clientSecret,
             "grant_type": "refresh_token",
@@ -138,10 +169,13 @@ actor StravaClient {
         guard (200..<300).contains(response.statusCode),
               let payload = try? StravaJSON.decoder.decode(TokenResponseDTO.self, from: data)
         else {
-            // A rejected refresh means the grant is gone for good; drop the
-            // tokens so the UI can ask for a fresh sign-in, but keep the
-            // credentials, which are still valid.
-            try? store.clearTokens()
+            // A rejected refresh means the grant is gone for good, so drop the
+            // tokens and let the UI ask for a fresh sign-in — but only if the
+            // stored token is still the one we just tried. If it changed under
+            // us, someone else already succeeded and their tokens must stand.
+            if store.tokens()?.refreshToken == tokens.refreshToken {
+                try? store.clearTokens()
+            }
             throw StravaError.tokenRefreshRejected
         }
 
@@ -163,8 +197,11 @@ actor StravaClient {
 
     private static func message(from data: Data) -> String {
         struct ErrorPayload: Decodable { let message: String? }
-        return (try? JSONDecoder().decode(ErrorPayload.self, from: data))?.message
-            ?? String(data: data, encoding: .utf8)
-            ?? "erreur inconnue"
+        if let payload = try? JSONDecoder().decode(ErrorPayload.self, from: data),
+           let message = payload.message {
+            return message
+        }
+        let raw = String(data: data, encoding: .utf8) ?? "erreur inconnue"
+        return raw.count > 200 ? String(raw.prefix(200)) + "…" : raw
     }
 }

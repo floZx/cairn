@@ -9,6 +9,9 @@ enum StravaError: LocalizedError, Sendable, Equatable {
     case oauthCancelled
     case oauthStateMismatch
     case oauthDenied(String)
+    case oauthTimedOut
+    case browserLaunchFailed
+    case loopbackUnavailable(String)
 
     var errorDescription: String? {
         switch self {
@@ -28,6 +31,12 @@ enum StravaError: LocalizedError, Sendable, Equatable {
             "La réponse d'autorisation ne correspond pas à la demande. Réessayez."
         case let .oauthDenied(reason):
             "Strava a refusé l'autorisation : \(reason)"
+        case .oauthTimedOut:
+            "L'autorisation Strava n'a pas abouti à temps. Réessayez."
+        case .browserLaunchFailed:
+            "Impossible d'ouvrir le navigateur pour autoriser l'accès à Strava."
+        case let .loopbackUnavailable(reason):
+            "Impossible d'ouvrir le port local d'autorisation : \(reason)"
         }
     }
 }
