@@ -94,8 +94,6 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var usesTopoTiles: Bool { tileSource != nil }
-
     /// Remembered across launches, and shared by every map in the app.
     static let storageKey = "mapStyle"
 }
