@@ -2089,7 +2089,7 @@ Deliverable : le quota Strava est suivi à partir des en-têtes de réponse, et 
 - Consumes: rien.
 - Produces:
   - `struct RateLimitSnapshot: Sendable, Equatable { let shortTermUsage: Int; let shortTermLimit: Int; let dailyUsage: Int; let dailyLimit: Int; init?(headers: [String: String]) }`
-  - `actor RateLimiter { init(clock: @escaping @Sendable () -> Date = { Date() }, reserve: Int = 5); func observe(headers: [String: String]); func observeTooManyRequests(); var snapshot: RateLimitSnapshot? { get }; func delayBeforeNextRequest() -> TimeInterval; func reset() }`
+  - `actor RateLimiter { init(clock: @escaping @Sendable () -> Date = { Date() }, reserve: Int = 5); func observeSuccess(headers: [String: String]); func observeTooManyRequests(); var snapshot: RateLimitSnapshot? { get }; func delayBeforeNextRequest() -> TimeInterval; func reset() }`
 
 `delayBeforeNextRequest` renvoie 0 quand il reste de la marge, la durée jusqu'à la prochaine fenêtre de 15 minutes quand le quota court terme est saturé, la durée jusqu'à minuit UTC quand le quota journalier est saturé, et un backoff exponentiel après un ou plusieurs `429`. L'horloge est injectée : les tests n'attendent jamais réellement.
 
@@ -2141,7 +2141,7 @@ struct RateLimiterTests {
     @Test("aucune attente quand il reste de la marge")
     func noDelayWithHeadroom() async {
         let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 0) })
-        await limiter.observe(headers: headers(short: "10", daily: "100"))
+        await limiter.observeSuccess(headers: headers(short: "10", daily: "100"))
         #expect(await limiter.delayBeforeNextRequest() == 0)
     }
 
@@ -2149,16 +2149,16 @@ struct RateLimiterTests {
     func waitsForNextShortWindow() async {
         // 1970-01-01T00:03:00Z → la fenêtre courante finit à 00:15:00Z, soit 720 s.
         let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 180) })
-        await limiter.observe(headers: headers(short: "199", daily: "100"))
+        await limiter.observeSuccess(headers: headers(short: "199", daily: "100"))
         #expect(await limiter.delayBeforeNextRequest() == 720)
     }
 
     @Test("la réserve empêche de consommer les toutes dernières requêtes")
     func reserveTriggersWait() async {
         let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 0) }, reserve: 5)
-        await limiter.observe(headers: headers(short: "196", daily: "100"))
+        await limiter.observeSuccess(headers: headers(short: "196", daily: "100"))
         #expect(await limiter.delayBeforeNextRequest() > 0)
-        await limiter.observe(headers: headers(short: "194", daily: "100"))
+        await limiter.observeSuccess(headers: headers(short: "194", daily: "100"))
         #expect(await limiter.delayBeforeNextRequest() == 0)
     }
 
@@ -2166,7 +2166,7 @@ struct RateLimiterTests {
     func waitsForNextDay() async {
         // 1970-01-01T00:03:00Z → minuit suivant à 86400 s, soit 86220 s d'attente.
         let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 180) })
-        await limiter.observe(headers: headers(short: "10", daily: "1999"))
+        await limiter.observeSuccess(headers: headers(short: "10", daily: "1999"))
         #expect(await limiter.delayBeforeNextRequest() == 86_220)
     }
 
@@ -2186,7 +2186,7 @@ struct RateLimiterTests {
         let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 0) })
         await limiter.observeTooManyRequests()
         #expect(await limiter.delayBeforeNextRequest() > 0)
-        await limiter.observe(headers: headers(short: "10", daily: "100"))
+        await limiter.observeSuccess(headers: headers(short: "10", daily: "100"))
         #expect(await limiter.delayBeforeNextRequest() == 0)
     }
 }
@@ -2264,7 +2264,13 @@ actor RateLimiter {
 
     var snapshot: RateLimitSnapshot? { latest }
 
-    func observe(headers: [String: String]) {
+    /// Records a successful response's quota headers.
+    ///
+    /// Call this **only** for a non-throttled (2xx) response. Success is proof
+    /// the throttling is over, so it clears any accumulated backoff — which is
+    /// why it must never be called for a 429, even though Strava sends quota
+    /// headers on those too. Use `observeTooManyRequests()` there instead.
+    func observeSuccess(headers: [String: String]) {
         consecutiveThrottles = 0
         if let parsed = RateLimitSnapshot(headers: headers) {
             latest = parsed
@@ -2697,7 +2703,7 @@ actor StravaClient {
 
         switch response.statusCode {
         case 200..<300:
-            await rateLimiter.observe(headers: headers)
+            await rateLimiter.observeSuccess(headers: headers)
             return try StravaJSON.decoder.decode(type, from: data)
         case 429:
             await rateLimiter.observeTooManyRequests()
