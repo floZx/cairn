@@ -182,6 +182,30 @@ struct ActivityFilterTests {
         #expect(filter.isActive)
     }
 
+    @Test("le filtre géographique se combine avec les autres critères")
+    func regionCombinesWithOtherFilters() throws {
+        let lyonTrack = [
+            Coordinate(latitude: 45.75, longitude: 4.83),
+            Coordinate(latitude: 45.76, longitude: 4.84),
+        ]
+        let context = try makeContext {
+            insert($0, id: 1, sport: .ride, distance: 80_000, track: lyonTrack)
+            insert($0, id: 2, sport: .run, distance: 10_000, track: lyonTrack)
+            insert(
+                $0, id: 3, sport: .ride, distance: 80_000,
+                track: [Coordinate(latitude: 48.85, longitude: 2.35)]
+            )
+        }
+        var filter = ActivityFilter.none
+        filter.region = BoundingBox(
+            minLat: 45.74, maxLat: 45.77, minLon: 4.82, maxLon: 4.85
+        )
+        filter.sports = [.ride]
+        filter.minDistanceKm = 50
+
+        #expect(try fetch(context, filter).map(\.stravaID) == [1])
+    }
+
     @Test("les périodes calculent des bornes cohérentes")
     func computesPeriodBounds() {
         #expect(DatePeriod.all.startDate(now: now) == nil)

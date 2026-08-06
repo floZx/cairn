@@ -33,7 +33,13 @@ struct RootView: View {
                 GlobalMapView(
                     activities: allActivities.filter(effectiveFilter.matchesPrecisely),
                     selection: $selectedActivity,
-                    region: $filter.region
+                    region: Binding(
+                        get: { filter.region },
+                        set: { newRegion in
+                            filter.region = newRegion
+                            if newRegion != nil { sidebarSelection = .all }
+                        }
+                    )
                 )
                 .frame(minWidth: 520)
             default:
