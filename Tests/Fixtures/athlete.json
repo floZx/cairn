@@ -1,0 +1,9 @@
+{
+  "id": 1234567,
+  "firstname": "Florian",
+  "lastname": "Maisonnial",
+  "city": "Lyon",
+  "country": "France",
+  "profile": "https://example.invalid/large.jpg",
+  "weight": 72.5
+}
