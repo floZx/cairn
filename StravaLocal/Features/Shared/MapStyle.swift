@@ -21,7 +21,7 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
         case .relief: "Plan avec relief"
         case .satellite: "Satellite"
         case .hybrid: "Satellite et noms"
-        case .topo: "Topographique"
+        case .topo: "Topographique (2D)"
         }
     }
 
@@ -31,7 +31,7 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
         case .relief: "mountain.2"
         case .satellite: "globe.europe.africa"
         case .hybrid: "globe.europe.africa.fill"
-        case .topo: "chart.line.uptrend.xyaxis"
+        case .topo: "mountain.2.circle"
         }
     }
 
@@ -85,6 +85,26 @@ extension MKMapView {
     /// The tile layer is inserted at the bottom so a track always draws over it.
     func apply(_ style: MapStyle, topoOverlay: inout MKTileOverlay?) {
         preferredConfiguration = style.configuration
+
+        // Raster tiles are flat images, and MapKit does not draw an overlay under
+        // a pitched or rotated camera: the layer flickers in and out as the map
+        // moves. Rather than half-render it, the camera is held flat and
+        // north-up while these tiles are in use — a raster has no relief to show
+        // in 3D anyway, since Apple computes that from its own terrain data.
+        isPitchEnabled = !style.usesTopoTiles
+        isRotateEnabled = !style.usesTopoTiles
+
+        if style.usesTopoTiles, camera.pitch != 0 || camera.heading != 0 {
+            setCamera(
+                MKMapCamera(
+                    lookingAtCenter: camera.centerCoordinate,
+                    fromDistance: camera.altitude,
+                    pitch: 0,
+                    heading: 0
+                ),
+                animated: true
+            )
+        }
 
         if style.usesTopoTiles {
             guard topoOverlay == nil else { return }
