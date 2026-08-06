@@ -94,16 +94,16 @@ actor RateLimiter {
 
         let now = clock()
         if latest.dailyUsage >= latest.dailyLimit - reserve {
-            return secondsUntilNextBoundary(of: Self.dailyWindow, from: now)
+            return Self.secondsUntilNextBoundary(of: Self.dailyWindow, from: now)
         }
         if latest.shortTermUsage >= latest.shortTermLimit - reserve {
-            return secondsUntilNextBoundary(of: Self.shortWindow, from: now)
+            return Self.secondsUntilNextBoundary(of: Self.shortWindow, from: now)
         }
         return 0
     }
 
     /// Strava's windows are aligned on UTC clock boundaries, not on first use.
-    private func secondsUntilNextBoundary(
+    static func secondsUntilNextBoundary(
         of window: TimeInterval, from now: Date
     ) -> TimeInterval {
         let elapsed = now.timeIntervalSince1970.truncatingRemainder(dividingBy: window)
@@ -115,8 +115,6 @@ actor RateLimiter {
     /// Exposed because the sync engine needs the same answer when it reports
     /// when a quota-blocked walk will resume.
     static func secondsUntilNextShortWindow(from now: Date) -> TimeInterval {
-        let elapsed = now.timeIntervalSince1970
-            .truncatingRemainder(dividingBy: shortWindow)
-        return shortWindow - elapsed
+        secondsUntilNextBoundary(of: shortWindow, from: now)
     }
 }
