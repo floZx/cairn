@@ -120,7 +120,7 @@ struct SyncSummariesTests {
         )
         _ = try await engine.syncSummaries()
 
-        let state = try await engine.state()
+        let state = try await engine.stateSnapshot()
         #expect(Set(state.pendingStreamIDs) == [1, 2])
     }
 
@@ -135,8 +135,8 @@ struct SyncSummariesTests {
         )
         _ = try await engine.syncSummaries()
 
-        #expect(try await engine.state().lastSummaryEpoch == 5000)
-        #expect(try await engine.state().isInitialImportDone)
+        #expect(try await engine.stateSnapshot().lastSummaryEpoch == 5000)
+        #expect(try await engine.stateSnapshot().isInitialImportDone)
     }
 
     @Test("la deuxième synchro repart du curseur")

@@ -16,15 +16,17 @@ protocol ActivitySource: Sendable {
 /// needs no bridging methods — adding one here would just recurse.
 extension StravaClient: ActivitySource {}
 
-/// `SyncEngine.state()` deliberately crosses the actor boundary (callers,
-/// including the tests, read it from `@MainActor`). The `@Model` macro does
-/// synthesize a `Sendable` conformance for `SyncState`, but that synthesized
-/// conformance is not visible from the separate test module, so the crossing
-/// is rejected there without an explicit conformance. Declared here — rather
-/// than in `SyncState.swift`, which belongs to the model layer this task does
-/// not modify — because the type is genuinely only ever touched from a single
-/// `ModelContext` at a time in this codebase's usage pattern.
-extension SyncState: @unchecked Sendable {}
+/// An immutable copy of the sync progress, safe to hand outside the engine.
+///
+/// `SyncState` itself is a SwiftData `@Model` bound to the engine's private
+/// `ModelContext`, so it must never cross an isolation boundary.
+struct SyncStateSnapshot: Sendable, Equatable {
+    var lastSummaryEpoch: Int
+    var pendingStreamIDs: [Int64]
+    var lastRunAt: Date?
+    var lastErrorMessage: String?
+    var isInitialImportDone: Bool
+}
 
 actor SyncEngine {
     private let source: ActivitySource
@@ -45,7 +47,7 @@ actor SyncEngine {
     }
 
     /// Single-row sync state, created on first access.
-    func state() throws -> SyncState {
+    private func state() throws -> SyncState {
         if let existing = try context.fetch(FetchDescriptor<SyncState>()).first {
             return existing
         }
@@ -53,6 +55,18 @@ actor SyncEngine {
         context.insert(created)
         try context.save()
         return created
+    }
+
+    /// The progress record as a value, for callers outside the actor.
+    func stateSnapshot() throws -> SyncStateSnapshot {
+        let state = try state()
+        return SyncStateSnapshot(
+            lastSummaryEpoch: state.lastSummaryEpoch,
+            pendingStreamIDs: state.pendingStreamIDs,
+            lastRunAt: state.lastRunAt,
+            lastErrorMessage: state.lastErrorMessage,
+            isInitialImportDone: state.isInitialImportDone
+        )
     }
 
     /// Phase A: walk the summary endpoint. A handful of requests covers an
