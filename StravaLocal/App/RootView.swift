@@ -68,7 +68,13 @@ struct RootView: View {
             case .global:
                 GlobalMapView(
                     activities: mapActivities,
-                    region: regionBinding
+                    region: regionBinding,
+                    // Clicking a track leaves the full-window map for the pane
+                    // that can actually show the activity.
+                    onSelect: { id in
+                        selectedActivities = [id]
+                        expandedMap = nil
+                    }
                 )
             case .comparison:
                 // Guarded because a selection can shrink under an expanded map:
@@ -126,9 +132,6 @@ struct RootView: View {
 
     private var showsGlobalMap: Bool { sidebarSelection == .globalMap }
 
-    /// Both take the whole width, the detail pane included: neither has anything
-    /// to show beside them.
-    private var fillsTheWindow: Bool { showsGlobalMap || showsStatistics }
     private var showsStatistics: Bool { sidebarSelection == .statistics }
 
     /// One three-column split view for the whole app life, never two.
@@ -152,7 +155,8 @@ struct RootView: View {
                     GlobalMapView(
                         activities: mapActivities,
                         region: regionBinding,
-                        onExpand: { expandedMap = .global }
+                        onExpand: { expandedMap = .global },
+                        onSelect: { selectedActivities = [$0] }
                     )
                 } else if showsStatistics {
                     StatisticsView(activities: statisticsActivities)
@@ -184,7 +188,10 @@ struct RootView: View {
 
     @ViewBuilder
     private var detailColumn: some View {
-        if fillsTheWindow {
+        // The global map no longer collapses the pane outright: clicking a track
+        // there opens it, and the map simply gives the width back. Statistics has
+        // nothing to put beside it either way.
+        if showsStatistics {
             collapsedDetailColumn
         } else if let selected {
             ActivityDetailView(
@@ -256,7 +263,7 @@ struct RootView: View {
                 } label: {
                     Label("Fermer le panneau", systemImage: "sidebar.trailing")
                 }
-                .disabled(selection.isEmpty || fillsTheWindow)
+                .disabled(selection.isEmpty)
                 .help("Fermer le panneau de droite et désélectionner")
             }
     }

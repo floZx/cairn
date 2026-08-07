@@ -7,16 +7,29 @@ struct GlobalMapView: View {
     @Binding var region: BoundingBox?
     /// Nil when the map is already filling the window, which hides the button.
     var onExpand: (() -> Void)?
+    /// Clicking a track opens it in the detail pane.
+    var onSelect: ((PersistentIdentifier) -> Void)?
 
     @State private var isSelectingRegion = false
     @AppStorage(MapStyle.storageKey) private var style: MapStyle = .standard
-    @AppStorage(TrackColor.storageKey) private var trackColor: TrackColor = .accent
 
-    private var tracks: [[Coordinate]] {
-        activities.compactMap {
-            let track = $0.simplifiedCoordinates
-            return track.count > 1 ? track : nil
-        }
+    /// Newest first, so the palette slot a track gets never changes between
+    /// redraws — the same reason the comparison map sorts before colouring.
+    private var tracks: [GlobalTrack] {
+        activities
+            .sorted { $0.startDate > $1.startDate }
+            .compactMap { activity -> (PersistentIdentifier, [Coordinate])? in
+                let track = activity.simplifiedCoordinates
+                return track.count > 1 ? (activity.id, track) : nil
+            }
+            .enumerated()
+            .map { index, track in
+                GlobalTrack(
+                    id: track.0,
+                    coordinates: track.1,
+                    colorIndex: index % TrackPalette.colors.count
+                )
+            }
     }
 
     var body: some View {
@@ -24,7 +37,7 @@ struct GlobalMapView: View {
             tracks: tracks,
             isSelectingRegion: isSelectingRegion,
             style: style,
-            trackColor: trackColor,
+            onSelect: onSelect,
             onRegionSelected: { box in
                 region = box
                 isSelectingRegion = false
@@ -72,17 +85,26 @@ struct GlobalMapView: View {
     }
 }
 
-/// All tracks in a single `MKMultiPolyline`.
+/// One track of the global map, with the palette slot it is drawn in.
+struct GlobalTrack {
+    let id: PersistentIdentifier
+    let coordinates: [Coordinate]
+    let colorIndex: Int
+}
+
+/// A multi-polyline per palette colour.
 ///
-/// One overlay per activity brings MapKit to its knees at a few thousand
-/// activities; one multi-polyline renders the same geometry in a single pass.
-/// The thin translucent stroke also gives repeated routes a heatmap look for
-/// free.
+/// The colours alternate so overlapping routes can be told apart, but not by
+/// giving each activity its own overlay — that brings MapKit to its knees at a
+/// few thousand of them. Grouping by colour keeps it to eight overlays whatever
+/// the library's size, since a renderer carries one stroke colour for everything
+/// it draws. The thin translucent stroke still gives repeated routes a heatmap
+/// look for free.
 struct TrackMapRepresentable: NSViewRepresentable {
-    let tracks: [[Coordinate]]
+    let tracks: [GlobalTrack]
     let isSelectingRegion: Bool
     let style: MapStyle
-    let trackColor: TrackColor
+    let onSelect: ((PersistentIdentifier) -> Void)?
     let onRegionSelected: (BoundingBox) -> Void
 
     func makeNSView(context: Context) -> MKMapView {
@@ -106,6 +128,17 @@ struct TrackMapRepresentable: NSViewRepresentable {
             overlay.trailingAnchor.constraint(equalTo: mapView.trailingAnchor),
         ])
         context.coordinator.selectionOverlay = overlay
+
+        // A click opens the track under the cursor. It does not swallow the
+        // event: without this the map would stop panning and lose its
+        // double-click zoom, and the selection overlay declines hit tests while
+        // disabled so the two never compete.
+        let click = NSClickGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleClick(_:))
+        )
+        click.delaysPrimaryMouseButtonEvents = false
+        mapView.addGestureRecognizer(click)
         return mapView
     }
 
@@ -124,34 +157,52 @@ struct TrackMapRepresentable: NSViewRepresentable {
             mapView.isScrollEnabled = !isSelectingRegion
         }
 
+        context.coordinator.onSelect = onSelect
+
         // Keyed on a signature rather than the count: a filter change can swap
         // which activities are shown while leaving the count identical, and a
         // count-only guard would then leave the previous tracks on screen.
         var hasher = Hasher()
         hasher.combine(tracks.count)
-        for track in tracks { hasher.combine(track.count) }
-        // In the signature so changing the colour redraws: MapKit keeps its
-        // renderers, and a new stroke colour alone would not reach the screen.
-        hasher.combine(trackColor)
+        for track in tracks {
+            hasher.combine(track.id)
+            hasher.combine(track.coordinates.count)
+            hasher.combine(track.colorIndex)
+        }
         let signature = hasher.finalize()
 
         guard context.coordinator.renderedSignature != signature else { return }
         context.coordinator.renderedSignature = signature
-        context.coordinator.trackColor = trackColor
 
         mapView.removeOverlays(mapView.overlays.filter { !($0 is MKTileOverlay) })
+        // Kept for hit testing, which MapKit does not do for overlay renderers.
+        context.coordinator.hitIDs = tracks.map(\.id)
+        context.coordinator.hitPoints = tracks.map {
+            $0.coordinates.map { MKMapPoint($0.clLocation) }
+        }
         guard !tracks.isEmpty else { return }
 
-        let polylines = tracks.map {
-            MKPolyline(coordinates: $0.map(\.clLocation), count: $0.count)
+        // Grouped by colour, so the overlay count is the palette's size rather
+        // than the library's.
+        let grouped = Dictionary(grouping: tracks, by: \.colorIndex)
+        let overlays = grouped.keys.sorted().map { slot -> ColoredMultiPolyline in
+            let lines = grouped[slot, default: []].map {
+                MKPolyline(
+                    coordinates: $0.coordinates.map(\.clLocation),
+                    count: $0.coordinates.count
+                )
+            }
+            let multi = ColoredMultiPolyline(lines)
+            multi.color = TrackPalette.color(at: slot)
+            return multi
         }
-        let multi = MKMultiPolyline(polylines)
-        mapView.addTrackOverlays([multi])
+        mapView.addTrackOverlays(overlays)
+        let multi = MKMultiPolyline(overlays.flatMap(\.polylines))
 
         // Opens where the user actually trains rather than framing every track:
         // one ride abroad would otherwise zoom out to a continent. Falls back to
         // the full extent if no dense area can be found.
-        let rect = TrackDensity.focusRegion(for: tracks)
+        let rect = TrackDensity.focusRegion(for: tracks.map(\.coordinates))
             .map(Self.mapRect(for:)) ?? multi.boundingMapRect
         mapView.setVisibleMapRect(
             rect,
@@ -181,8 +232,38 @@ struct TrackMapRepresentable: NSViewRepresentable {
         var renderedSignature: Int?
         var isSelectingRegion: Bool?
         var mapStyleState = MapStyleState()
-        var trackColor: TrackColor = .accent
         weak var selectionOverlay: SelectionOverlayView?
+        var onSelect: ((PersistentIdentifier) -> Void)?
+        /// The drawn geometry, in the same order as `hitIDs`. Overlays are grouped
+        /// by colour for drawing, which loses the per-activity mapping a click
+        /// needs, so it is kept here instead.
+        var hitIDs: [PersistentIdentifier] = []
+        var hitPoints: [[MKMapPoint]] = []
+
+        /// How near a click has to land, in screen points.
+        ///
+        /// Generous on purpose: a 2.5-point line is a hard target with a mouse,
+        /// and picking nothing is the outcome a user reads as "it doesn't work".
+        private static let hitTolerance: Double = 12
+
+        @objc func handleClick(_ recognizer: NSClickGestureRecognizer) {
+            guard let mapView = recognizer.view as? MKMapView,
+                  isSelectingRegion != true,
+                  !hitPoints.isEmpty,
+                  mapView.bounds.width > 0
+            else { return }
+
+            let location = recognizer.location(in: mapView)
+            let clicked = MKMapPoint(
+                mapView.convert(location, toCoordinateFrom: mapView)
+            )
+            // Screen points into map points, which is what the geometry works in.
+            let scale = mapView.visibleMapRect.width / Double(mapView.bounds.width)
+            guard let index = TrackHitTest.nearestTrack(
+                to: clicked, in: hitPoints, within: Self.hitTolerance * scale
+            ) else { return }
+            onSelect?(hitIDs[index])
+        }
 
         func mapView(
             _ mapView: MKMapView, rendererFor overlay: any MKOverlay
@@ -196,7 +277,9 @@ struct TrackMapRepresentable: NSViewRepresentable {
             // tile. Overlaps still darken — 0.7 then 0.91 then 0.97 — they just
             // saturate sooner, which is the right trade when one ride has to be
             // findable in the first place.
-            renderer.strokeColor = trackColor.nsColor.withAlphaComponent(0.7)
+            let colour = (overlay as? ColoredMultiPolyline)?.color
+                ?? TrackPalette.colors[0]
+            renderer.strokeColor = colour.withAlphaComponent(0.7)
             renderer.lineWidth = 2.5
             return renderer
         }
