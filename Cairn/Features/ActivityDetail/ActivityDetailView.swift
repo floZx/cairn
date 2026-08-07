@@ -70,30 +70,32 @@ struct ActivityDetailView: View {
             Text(Format.longDate(activity.startLocalDate))
                 .foregroundStyle(.secondary)
 
-            if activity.source != .strava || activity.editedAt != nil {
-                // Said outright: an activity the sync will not update is a
-                // different thing from one it will, and nothing else on screen
-                // would tell you which you are looking at.
-                HStack(spacing: 6) {
-                    if activity.source != .strava {
-                        Label(activity.source.displayName, systemImage: "pencil.and.list.clipboard")
-                    }
-                    if let editedAt = activity.editedAt {
-                        Label(
-                            "Modifiée le \(Format.dateOnly(editedAt))",
-                            systemImage: "pencil"
-                        )
-                        .help(
-                            "Champs protégés de la synchro : "
-                                + activity.editedFields
-                                    .map(\.displayName).sorted()
-                                    .joined(separator: ", ")
-                        )
-                    }
+            // Said outright, and for every source including Strava. Showing the
+            // origin only when it was *not* Strava made the common case silent,
+            // so an activity wrongly marked as imported looked no different from
+            // a synced one until you noticed the badge that should not be there.
+            HStack(spacing: 6) {
+                Label(activity.source.displayName, systemImage: activity.source.symbolName)
+                    .help(
+                        activity.source.isSynced
+                            ? "Apportée par la synchronisation Strava, qui continuera de la mettre à jour"
+                            : "N'existe que dans ce journal : la synchronisation Strava ne la touchera pas"
+                    )
+                if let editedAt = activity.editedAt {
+                    Label(
+                        "Modifiée le \(Format.dateOnly(editedAt))",
+                        systemImage: "pencil"
+                    )
+                    .help(
+                        "Champs protégés de la synchro : "
+                            + activity.editedFields
+                                .map(\.displayName).sorted()
+                                .joined(separator: ", ")
+                    )
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
+            .font(.caption)
+            .foregroundStyle(.secondary)
 
             // Sits with the title rather than at the foot of the page: the note
             // is what the activity was about, and it arrives a moment after the

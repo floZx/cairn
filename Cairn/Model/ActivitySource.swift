@@ -18,6 +18,18 @@ enum ActivitySource: String, CaseIterable, Sendable {
         }
     }
 
+    /// Shown beside the name, so where an activity came from is always visible.
+    ///
+    /// The sync's own arrows for Strava, deliberately: it is the same icon as
+    /// the toolbar button that brought the activity in.
+    var symbolName: String {
+        switch self {
+        case .strava: "arrow.triangle.2.circlepath"
+        case .manual: "hand.raised"
+        case .file: "doc"
+        }
+    }
+
     /// Whether a Strava sync may update this activity at all.
     var isSynced: Bool { self == .strava }
 

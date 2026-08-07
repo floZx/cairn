@@ -27,6 +27,19 @@ struct ActivityFieldTests {
         #expect(ActivitySource(rawValue: "healthkit") == nil)
     }
 
+    @Test("chaque origine se nomme et se distingue à l'écran")
+    func everySourceIsShown() {
+        // The detail pane names the origin for every activity, Strava included.
+        // While it only spoke up for local ones, the common case was silent —
+        // and an activity wrongly marked "fichier importé" looked exactly like a
+        // synced one unless you happened to notice a badge that should not be
+        // there. That is how one slipped through unnoticed for a day.
+        #expect(ActivitySource.allCases.allSatisfy { !$0.displayName.isEmpty })
+        #expect(ActivitySource.allCases.allSatisfy { !$0.symbolName.isEmpty })
+        #expect(Set(ActivitySource.allCases.map(\.displayName)).count == 3)
+        #expect(Set(ActivitySource.allCases.map(\.symbolName)).count == 3)
+    }
+
     @Test("le texte de confirmation de suppression dit laquelle des deux suppressions elle est")
     func deleteConfirmationMessageMatchesTheConsequence() {
         // A Strava deletion leaves a tombstone a resync cannot cross; a local
