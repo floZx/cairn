@@ -164,6 +164,14 @@ struct RootView: View {
         .toolbar { syncToolbar }
     }
 
+    /// A floor for the detail pane whenever it actually has something to show.
+    ///
+    /// Not decoration: the collapse below sets the column's width to zero, and
+    /// AppKit hands a reopening column back the width it had — near nothing. With
+    /// no remembered width to fall back on, as after a fresh build, the pane
+    /// reopened a few points wide, its labels wrapped one letter per line.
+    private static let detailMinWidth: CGFloat = 360
+
     @ViewBuilder
     private var detailColumn: some View {
         if showsGlobalMap {
@@ -173,11 +181,13 @@ struct RootView: View {
                 activity: selected,
                 onExpandMap: { expandedMap = .activity(selected.id) }
             )
+            .frame(minWidth: Self.detailMinWidth)
         } else if selection.count > 1 {
             ComparisonMapView(
                 activities: selection,
                 onExpand: { expandedMap = .comparison }
             )
+            .frame(minWidth: Self.detailMinWidth)
         } else {
             collapsedDetailColumn
         }
