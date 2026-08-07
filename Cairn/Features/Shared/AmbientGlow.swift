@@ -23,8 +23,11 @@ struct AmbientGlow: ViewModifier {
     /// near-black, where a colour has nothing to lighten and only greys the
     /// surface. Dark mode gets more of it, and the numbers are separated so the
     /// difference is a decision rather than an accident.
+    /// Both were dialled down after a first pass read as tinted panels rather
+    /// than as light: the ratio between the two schemes is what mattered, not
+    /// the absolute values, so both moved together.
     static func opacity(for scheme: ColorScheme) -> Double {
-        scheme == .dark ? 0.30 : 0.16
+        scheme == .dark ? 0.17 : 0.09
     }
 
     func body(content: Content) -> some View {
