@@ -16,6 +16,12 @@ struct ActivityListView: View {
     /// re-instantiates the list under the user.
     @Binding var hasAutoSelected: Bool
 
+    /// Commands this view cannot carry out itself — changing section, editing,
+    /// deleting. Motions stay here, where the sorted rows are.
+    let onCommand: (VimCommand) -> Void
+
+    @State private var keys = VimKeyBuffer()
+
     /// Built in `init` from the incoming filter. The parent applies
     /// `.id(filter)` so a filter change re-instantiates the view, which is what
     /// rebuilds this query — `@Query` can't be mutated in place.
@@ -39,11 +45,13 @@ struct ActivityListView: View {
     init(
         filter: ActivityFilter,
         selection: Binding<Set<PersistentIdentifier>>,
-        hasAutoSelected: Binding<Bool>
+        hasAutoSelected: Binding<Bool>,
+        onCommand: @escaping (VimCommand) -> Void
     ) {
         self.filter = filter
         self._selection = selection
         self._hasAutoSelected = hasAutoSelected
+        self.onCommand = onCommand
         _query = Query(
             filter: filter.predicate(),
             sort: [SortDescriptor(\Activity.startDate, order: .reverse)]
@@ -65,6 +73,30 @@ struct ActivityListView: View {
     ) -> PersistentIdentifier? {
         guard !hasAutoSelected, current.isEmpty else { return nil }
         return rows.first?.id
+    }
+
+    /// Runs a motion here, hands anything else to the parent.
+    private func perform(_ command: VimCommand, in rows: [Activity]) {
+        let delta: Int
+        switch command {
+        case let .move(value): delta = value
+        case let .halfPage(down):
+            delta = down ? VimMotion.halfPageRows : -VimMotion.halfPageRows
+        case .first: delta = -rows.count
+        case .last: delta = rows.count
+        default:
+            onCommand(command)
+            return
+        }
+
+        let current = selection.count == 1
+            ? rows.firstIndex { $0.id == selection.first } : nil
+        guard let index = VimMotion.destination(
+            from: current, delta: delta, count: rows.count
+        ) else { return }
+        // Replaces rather than extends: these motions move the cursor, and a
+        // growing selection would turn `j` into a way to select everything.
+        selection = [rows[index].id]
     }
 
     var body: some View {
@@ -147,6 +179,27 @@ struct ActivityListView: View {
         // when it is in fact a filtered slice of it.
         .navigationSubtitle(filter.summary ?? "")
         .background(FixedTableRowHeight())
+        // Attached to the table itself: key presses go to the focused view, and
+        // the table is what has focus while the list is being used.
+        .onKeyPress { press in
+            guard let character = press.characters.first else { return .ignored }
+            let control = press.modifiers.contains(.control)
+            // ⌘ belongs to the menus. Swallowing it here would shadow every
+            // shortcut the app already publishes.
+            guard !press.modifiers.contains(.command) else { return .ignored }
+            guard let command = keys.accept(character, control: control) else {
+                // A digit or a `g` was consumed even though nothing ran, and
+                // saying so is what stops it reaching the table's type-select.
+                return keys.isEmpty ? .ignored : .handled
+            }
+            perform(command, in: rows)
+            return .handled
+        }
+        .onKeyPress(.escape) {
+            keys.reset()
+            onCommand(.clear)
+            return .handled
+        }
         .onAppear {
             if let first = Self.initialSelection(
                 rows: rows, current: selection, hasAutoSelected: hasAutoSelected

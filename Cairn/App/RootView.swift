@@ -27,6 +27,8 @@ struct RootView: View {
     /// clears, the sheet dismisses) before `try?` used to hide a failed
     /// `context.save()` behind a screen that already looks correct.
     @State private var writeFailureMessage: String?
+    /// Whether the keyboard map is on screen, opened with `?`.
+    @State private var showsKeyboardHelp = false
     /// Kept apart from `writeFailureMessage`: a GPX that would not parse is not
     /// a failed save, and telling the user their work was lost when it was not
     /// is its own kind of wrong.
@@ -159,6 +161,9 @@ struct RootView: View {
         } message: {
             Text(fileMessage ?? "")
         }
+        .sheet(isPresented: $showsKeyboardHelp) {
+            KeyboardHelpSheet { showsKeyboardHelp = false }
+        }
         .onAppear {
             app.requestNewActivity = { editor = .create }
             app.requestEditSelection = { if let selected { editor = .edit(selected) } }
@@ -273,7 +278,8 @@ struct RootView: View {
                     ActivityListView(
                         filter: filter,
                         selection: $selectedActivities,
-                        hasAutoSelected: $hasAutoSelected
+                        hasAutoSelected: $hasAutoSelected,
+                        onCommand: perform
                     )
                     .id(filter)
                         .searchable(
@@ -315,6 +321,37 @@ struct RootView: View {
         } catch {
             writeFailureMessage =
                 "Votre suppression n'a pas pu être enregistrée. \(error.localizedDescription)"
+        }
+    }
+
+    /// The keyboard commands the list cannot carry out on its own.
+    private func perform(_ command: VimCommand) {
+        switch command {
+        case let .section(item):
+            sidebarSelection = item
+        case .edit:
+            if let selected { editor = .edit(selected) }
+        case .delete:
+            pendingDeletion = selected
+        case .toggleFavorite:
+            toggleFavorite()
+        case .expandMap:
+            if let selected { expandedMap = .activity(selected.id) }
+        case .showHelp:
+            showsKeyboardHelp = true
+        case .clear:
+            // Escape peels one layer at a time, as it does everywhere else on
+            // the system: the search first, since that is what narrowed the
+            // list, and only then the selection.
+            if !filter.searchText.isEmpty {
+                filter.searchText = ""
+            } else {
+                selectedActivities = []
+            }
+        case .openSearch, .move, .first, .last, .halfPage:
+            // Motions never reach here, and the search field is the list's own
+            // `.searchable`, which only it can focus.
+            break
         }
     }
 

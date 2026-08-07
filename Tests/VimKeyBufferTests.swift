@@ -1,0 +1,135 @@
+import Testing
+@testable import Cairn
+
+@Suite("Raccourcis vim")
+struct VimKeyBufferTests {
+    /// Types a whole sequence and returns the commands it produced.
+    private func run(_ keys: [(Character, Bool)]) -> [VimCommand] {
+        var buffer = VimKeyBuffer()
+        return keys.compactMap { buffer.accept($0.0, control: $0.1) }
+    }
+
+    private func run(_ keys: String) -> [VimCommand] {
+        run(keys.map { ($0, false) })
+    }
+
+    @Test("j et k déplacent d'une ligne")
+    func movesOneRow() {
+        #expect(run("j") == [.move(1)])
+        #expect(run("k") == [.move(-1)])
+    }
+
+    @Test("un compte précède le mouvement")
+    func countPrecedesTheMotion() {
+        // The digits produce nothing on their own: a count is not a command.
+        #expect(run("5j") == [.move(5)])
+        #expect(run("12k") == [.move(-12)])
+    }
+
+    @Test("le compte est consommé et ne se reporte pas")
+    func theCountIsConsumed() {
+        // The bug this closes: `3j` then `j` must move three rows then one, not
+        // three then three.
+        #expect(run("3jj") == [.move(3), .move(1)])
+    }
+
+    @Test("un zéro isolé n'ouvre pas un compte")
+    func aLeadingZeroIsNotACount() {
+        // In vim `0` is a motion, never the start of a number, so `0j` is a
+        // plain `j` rather than a move of zero rows — which would do nothing at
+        // all and look like a dead key.
+        #expect(run("0j") == [.move(1)])
+        #expect(run("10j") == [.move(10)])
+    }
+
+    @Test("gg va au début, G à la fin")
+    func goesToTheEnds() {
+        #expect(run("gg") == [.first])
+        #expect(run("G") == [.last])
+    }
+
+    @Test("g suivi d'une lettre change de section")
+    func gSwitchesSection() {
+        #expect(run("ga") == [.section(.all)])
+        #expect(run("gm") == [.section(.globalMap)])
+        #expect(run("gs") == [.section(.statistics)])
+    }
+
+    @Test("une séquence g inconnue est annulée, pas interprétée à moitié")
+    func anUnknownGSequenceIsCancelled() {
+        // `gj` must not fall through to the one-key table and move a row: a
+        // half-recognised prefix is worse than a dead one.
+        #expect(run("gj").isEmpty)
+        // And the buffer is left clean, so the next key starts fresh.
+        var buffer = VimKeyBuffer()
+        _ = buffer.accept("g")
+        _ = buffer.accept("z")
+        #expect(buffer.isEmpty)
+    }
+
+    @Test("contrôle-d et contrôle-u font une demi-page")
+    func halfPages() {
+        #expect(run([("d", true)]) == [.halfPage(down: true)])
+        #expect(run([("u", true)]) == [.halfPage(down: false)])
+    }
+
+    @Test("les actions sur l'activité ont leur touche")
+    func activityActions() {
+        #expect(run("e") == [.edit])
+        #expect(run("x") == [.delete])
+        #expect(run("f") == [.toggleFavorite])
+        #expect(run("o") == [.expandMap])
+        #expect(run("/") == [.openSearch])
+        #expect(run("?") == [.showHelp])
+    }
+
+    @Test("une touche inconnue nettoie l'état au lieu de l'armer")
+    func anUnknownKeyClearsThePendingState() {
+        // `3` then a typo then `j` would otherwise jump three rows, long after
+        // the user had given up on the count.
+        #expect(run("3zj") == [.move(1)])
+    }
+
+    @Test("un compte démesuré est borné")
+    func theCountIsBounded() {
+        // Leaning on a digit key must not produce a move nothing can undo.
+        #expect(run("99999999j") == [.move(VimKeyBuffer.maximumCount)])
+    }
+
+    @Test("la remise à zéro vide aussi un préfixe à moitié tapé")
+    func resetClearsAHalfTypedPrefix() {
+        var buffer = VimKeyBuffer()
+        _ = buffer.accept("4")
+        _ = buffer.accept("g")
+        #expect(!buffer.isEmpty)
+        buffer.reset()
+        #expect(buffer.isEmpty)
+        // And nothing of it survives into the next key.
+        #expect(buffer.accept("j") == .move(1))
+    }
+}
+
+@Suite("Déplacement dans la liste")
+struct VimMotionTests {
+    @Test("le mouvement est borné aux extrémités, il ne boucle pas")
+    func clampsRatherThanWraps() {
+        // A list that loops silently loses your place: `G` then `j` must stay
+        // on the last row.
+        #expect(VimMotion.destination(from: 9, delta: 1, count: 10) == 9)
+        #expect(VimMotion.destination(from: 0, delta: -1, count: 10) == 0)
+        #expect(VimMotion.destination(from: 3, delta: 100, count: 10) == 9)
+    }
+
+    @Test("sans sélection, j part du haut et k du bas")
+    func startsFromTheRightEnd() {
+        // Both keys have to do something on a list nobody has touched yet.
+        #expect(VimMotion.destination(from: nil, delta: 1, count: 10) == 0)
+        #expect(VimMotion.destination(from: nil, delta: -1, count: 10) == 9)
+    }
+
+    @Test("une liste vide ne mène nulle part")
+    func anEmptyListHasNoDestination() {
+        #expect(VimMotion.destination(from: nil, delta: 1, count: 0) == nil)
+        #expect(VimMotion.destination(from: 0, delta: 1, count: 0) == nil)
+    }
+}
