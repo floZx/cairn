@@ -22,7 +22,11 @@ struct ActivityListView: View {
     /// header to choose, drag to reorder, exactly as in the Finder. Persisted in
     /// `AppStorage` rather than `SceneStorage` so it survives a relaunch and not
     /// merely a window restore.
-    @AppStorage("activityColumns")
+    ///
+    /// The key carries a version because a stored order overrides the declared
+    /// one: moving a column in code would otherwise have no effect for anyone
+    /// who had already used the table. Bump it when the default order changes.
+    @AppStorage("activityColumns.v2")
     private var columnCustomization = TableColumnCustomization<Activity>()
 
     init(filter: ActivityFilter, selection: Binding<PersistentIdentifier?>) {
@@ -45,20 +49,20 @@ struct ActivityListView: View {
             sortOrder: $sortOrder,
             columnCustomization: $columnCustomization
         ) {
-            // No `customizationID`, which is what makes this column permanent:
-            // the Finder's Name column cannot be hidden or moved either, and it
-            // carries the sport icon, so hiding it would leave rows unreadable.
-            TableColumn("Nom", value: \.name) { activity in
-                Label(activity.name, systemImage: activity.sportType.symbolName)
-            }
-            .width(min: 180, ideal: 280)
-
             TableColumn("Date", value: \.startLocalDate) { activity in
                 Text(Format.dateOnly(activity.startLocalDate))
             }
             // "12 déc. 2025" is the widest this gets, now the time is gone.
             .width(min: 90, ideal: 105)
             .customizationID("date")
+
+            // No `customizationID`, which is what makes this column permanent:
+            // it carries the sport icon, so hiding it would leave rows
+            // unreadable. It stays second unless the date is hidden.
+            TableColumn("Nom", value: \.name) { activity in
+                Label(activity.name, systemImage: activity.sportType.symbolName)
+            }
+            .width(min: 180, ideal: 280)
 
             TableColumn("Distance", value: \.distance) { activity in
                 Text(Format.distance(activity.distance))
