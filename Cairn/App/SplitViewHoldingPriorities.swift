@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Decides which column absorbs a width change, so the detail pane holds still.
+/// Decides which column absorbs a width change, and gives the geometry a name
+/// that survives a rebuild.
 ///
 /// Collapsing the sidebar frees its width, and AppKit hands that space to
 /// whichever pane resists least — by default the detail pane, so the width the
@@ -68,6 +69,8 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
 
             guard let root = probe.window?.contentView else { continue }
             for splitView in root.descendantSplitViews() where apply(to: splitView) {
+                restoreDetailWidth(of: splitView)
+                observeDetailWidth(of: splitView)
                 return
             }
         }
@@ -96,6 +99,51 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         // otherwise AppKit answers a sidebar toggle by resizing the window.
         items[0].collapseBehavior = .preferResizingSiblingsWithFixedSplitView
         return true
+    }
+
+    /// Puts the last divider back where it leaves the detail pane its width.
+    ///
+    /// Runs after AppKit has restored its own geometry, which is the whole
+    /// point: AppKit restored from a key that a rebuild may have orphaned, and
+    /// this corrects it.
+    @MainActor
+    static func restoreDetailWidth(of splitView: NSSplitView) {
+        guard let width = DetailPaneWidth.saved(),
+              splitView.arrangedSubviews.count >= 3,
+              // Nothing to reopen when the pane is deliberately shut: `RootView`
+              // collapses it to zero whenever there is no selection.
+              splitView.arrangedSubviews[2].frame.width > 0
+        else { return }
+
+        let position = DetailPaneWidth.dividerPosition(
+            detailWidth: width,
+            totalWidth: splitView.bounds.width,
+            dividerThickness: splitView.dividerThickness,
+            sidebarWidth: splitView.arrangedSubviews[0].frame.width,
+            minimumMiddle: 480
+        )
+        guard let position else { return }
+        splitView.setPosition(position, ofDividerAt: 1)
+    }
+
+    /// Records the width whenever the user drags the divider.
+    ///
+    /// The split view is captured weakly and read on the main actor rather than
+    /// taken out of the notification: `Notification` is not `Sendable`, and the
+    /// observer is never removed — it lives exactly as long as the window does.
+    @MainActor
+    private static func observeDetailWidth(of splitView: NSSplitView) {
+        NotificationCenter.default.addObserver(
+            forName: NSSplitView.didResizeSubviewsNotification,
+            object: splitView, queue: .main
+        ) { [weak splitView] _ in
+            MainActor.assumeIsolated {
+                guard let splitView, splitView.arrangedSubviews.count >= 3 else {
+                    return
+                }
+                DetailPaneWidth.save(splitView.arrangedSubviews[2].frame.width)
+            }
+        }
     }
 
     private static func set(
