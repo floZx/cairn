@@ -11,6 +11,11 @@ struct StreamSeries: Sendable, Identifiable {
     let id: String
     let label: String
     let unit: String
+    /// Carried on the series rather than derived from `id` at draw time: a
+    /// lookup on the identifier would fall back silently the day one is
+    /// renamed, and a chart quietly reverting to the accent colour is exactly
+    /// the kind of thing nobody notices.
+    let color: Color
     let points: [StreamPoint]
 
     /// Only altitude reads as a filled profile. Now that the vertical axis
@@ -34,14 +39,16 @@ enum StreamSeriesBuilder {
         distancesMetres: [Double] = []
     ) -> [StreamSeries] {
         guard let streams else { return [] }
-        let definitions: [(String, String, String, Data?)] = [
-            ("altitude", "Altitude", "m", streams.altitude),
-            ("heartrate", "Fréquence cardiaque", "bpm", streams.heartrate),
-            ("watts", "Puissance", "W", streams.watts),
-            ("cadence", "Cadence", "rpm", streams.cadence),
+        // A colour per measurement, chosen for what it measures rather than for
+        // variety: red is heart rate everywhere, and the ground is green.
+        let definitions: [(String, String, String, Color, Data?)] = [
+            ("altitude", "Altitude", "m", .green, streams.altitude),
+            ("heartrate", "Fréquence cardiaque", "bpm", .red, streams.heartrate),
+            ("watts", "Puissance", "W", .orange, streams.watts),
+            ("cadence", "Cadence", "rpm", .purple, streams.cadence),
         ]
 
-        return definitions.compactMap { id, label, unit, blob in
+        return definitions.compactMap { id, label, unit, color, blob in
             guard let blob else { return nil }
             let rawValues = TrackBlob.decodeScalars(blob)
             guard !rawValues.isEmpty else { return nil }
@@ -65,7 +72,9 @@ enum StreamSeriesBuilder {
                 }
                 return StreamPoint(id: index, distanceKm: distanceKm, value: Double(value))
             }
-            return StreamSeries(id: id, label: label, unit: unit, points: points)
+            return StreamSeries(
+                id: id, label: label, unit: unit, color: color, points: points
+            )
         }
     }
 }
@@ -92,6 +101,11 @@ struct StreamChartsView: View {
 
     private func header(for serie: StreamSeries) -> some View {
         HStack {
+            // The same colour as its plot, so the reading below and the trace
+            // above are read as one thing.
+            Circle()
+                .fill(serie.color)
+                .frame(width: 7, height: 7)
             Text("\(serie.label) (\(serie.unit))")
             Spacer()
             // The hovered reading, so the cursor answers "how high was I here?"
@@ -119,10 +133,12 @@ struct StreamChartsView: View {
                         yStart: .value(serie.label, domain.lowerBound),
                         yEnd: .value(serie.label, point.value)
                     )
+                    .foregroundStyle(serie.color)
                     .opacity(0.15)
                 }
                 LineMark(x: .value("km", point.distanceKm),
                          y: .value(serie.label, point.value))
+                    .foregroundStyle(serie.color)
             }
             if let hoverDistanceKm {
                 RuleMark(x: .value("km", hoverDistanceKm))

@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SwiftUI
 @testable import Cairn
 
 @Suite("StreamSeriesBuilder")
@@ -74,5 +75,40 @@ struct StreamSeriesTests {
         let series = StreamSeriesBuilder.series(from: streams, totalDistance: 1000)
         #expect(series[0].points.count == 1)
         #expect(series[0].points[0].distanceKm == 0)
+    }
+}
+
+@Suite("Couleur des graphiques")
+@MainActor
+struct StreamSeriesColorTests {
+    private func makeStreams() -> ActivityStreams {
+        let streams = ActivityStreams()
+        streams.pointCount = 3
+        streams.altitude = TrackBlob.encode(scalars: [100, 110, 120])
+        streams.heartrate = TrackBlob.encode(scalars: [120, 130, 140])
+        streams.watts = TrackBlob.encode(scalars: [200, 210, 220])
+        streams.cadence = TrackBlob.encode(scalars: [80, 82, 84])
+        return streams
+    }
+
+    @Test("chaque graphique a sa couleur, et deux n'en partagent aucune")
+    func everySeriesHasItsOwnColour() {
+        let series = StreamSeriesBuilder.series(
+            from: makeStreams(), totalDistance: 10_000
+        )
+        #expect(series.count == 4)
+        // Two charts sharing a colour would suggest they measure the same thing.
+        #expect(Set(series.map(\.color)).count == series.count)
+    }
+
+    @Test("la couleur voyage avec la série, elle n'est pas redevinée à l'affichage")
+    func colourTravelsWithTheSeries() {
+        // Derived from `id` at draw time, a rename would send a chart silently
+        // back to the accent colour and nobody would notice.
+        let series = StreamSeriesBuilder.series(
+            from: makeStreams(), totalDistance: 10_000
+        )
+        #expect(series.first { $0.id == "heartrate" }?.color == .red)
+        #expect(series.first { $0.id == "altitude" }?.color == .green)
     }
 }
