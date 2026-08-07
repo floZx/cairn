@@ -112,6 +112,33 @@ struct SyncSummariesTests {
         #expect(try context.fetch(FetchDescriptor<Activity>()).count == 3)
     }
 
+    @Test("une activité écartée est ignorée en phase A sans échouer ni entrer dans la file de la phase B")
+    func discardedActivitySkippedDuringPhaseA() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        context.insert(DiscardedActivity(stravaID: 5, name: "Sortie supprimée"))
+        try context.save()
+
+        let source = FakeSource(pages: [
+            [makeSummary(id: 5, epoch: 1000), makeSummary(id: 6, epoch: 2000)]
+        ])
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+
+        // The skip must not surface as a sync failure, and must not cost a
+        // phase B request: neither assertion alone would catch a regression
+        // that only breaks the other.
+        let imported = try await engine.syncSummaries()
+        #expect(imported == 1)
+
+        let after = ModelContext(container)
+        #expect(try after.fetch(FetchDescriptor<Activity>()).count == 1)
+
+        let snapshot = try await engine.stateSnapshot()
+        #expect(snapshot.pendingStreamIDs.contains(5) == false)
+    }
+
     @Test("la trace simplifiée et la bbox sont renseignées dès la phase A")
     func fillsTrackInPhaseA() async throws {
         let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])

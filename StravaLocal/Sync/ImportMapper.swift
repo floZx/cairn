@@ -33,8 +33,42 @@ struct ImportMapper {
         return try context.fetch(descriptor).first
     }
 
+    func isDiscarded(stravaID: Int64) throws -> Bool {
+        guard stravaID != 0 else { return false }
+        var descriptor = FetchDescriptor<DiscardedActivity>(
+            predicate: #Predicate { $0.stravaID == stravaID }
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).isEmpty == false
+    }
+
+    /// Deletes an activity, and remembers it if Strava would send it again.
+    ///
+    /// A local activity leaves no stone: nothing would ever re-create it, and a
+    /// row saying "never import identifier 0" would be a trap.
+    func discard(_ activity: Activity) throws {
+        if activity.source.isSynced, activity.stravaID != 0 {
+            context.insert(
+                DiscardedActivity(stravaID: activity.stravaID, name: activity.name)
+            )
+        }
+        context.delete(activity)
+        try context.save()
+    }
+
+    func restore(_ stone: DiscardedActivity) throws {
+        context.delete(stone)
+        try context.save()
+    }
+
     @discardableResult
     func upsert(summary dto: SummaryActivityDTO) throws -> Activity {
+        // Checked before anything is created, so a discarded activity costs
+        // neither a row nor, in phase B, a request against the quota.
+        guard try !isDiscarded(stravaID: dto.id) else {
+            throw ImportSkip.discarded
+        }
+
         let activity = try activity(stravaID: dto.id)
             ?? {
                 let new = Activity(
@@ -265,4 +299,9 @@ struct ImportMapper {
 
 private extension Array {
     var nonEmpty: Self? { isEmpty ? nil : self }
+}
+
+/// Not an error: a deliberate skip the sync counts as handled.
+enum ImportSkip: Error {
+    case discarded
 }

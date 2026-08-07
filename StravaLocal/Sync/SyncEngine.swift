@@ -94,13 +94,19 @@ actor SyncEngine {
                 if batch.isEmpty { break }
 
                 for dto in batch {
-                    let activity = try mapper.upsert(summary: dto)
-                    if activity.streams?.latlng == nil,
-                       !state.pendingStreamIDs.contains(dto.id) {
-                        state.pendingStreamIDs.append(dto.id)
+                    do {
+                        let activity = try mapper.upsert(summary: dto)
+                        if activity.streams?.latlng == nil,
+                           !state.pendingStreamIDs.contains(dto.id) {
+                            state.pendingStreamIDs.append(dto.id)
+                        }
+                        imported += 1
+                    } catch ImportSkip.discarded {
+                        // Not queued for phase B either: a stream request for an
+                        // activity the user deleted would just burn quota.
+                        continue
                     }
                     newestEpoch = max(newestEpoch, Int(dto.start_date.timeIntervalSince1970))
-                    imported += 1
                 }
                 try context.save()
                 page += 1

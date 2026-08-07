@@ -85,4 +85,74 @@ struct DiscardedActivityTests {
         #expect(discardedAt >= before)
         #expect(discardedAt <= Date())
     }
+
+    @Test("une activité écartée n'est pas réimportée")
+    func discardedStaysDiscarded() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let mapper = ImportMapper(context: context)
+
+        let imported = try mapper.upsert(
+            summary: try Fixture.decode(
+                SummaryActivityDTO.self, from: "summary_activity", patching: ["id": 11]
+            )
+        )
+        try mapper.discard(imported)
+
+        #expect(try context.fetch(FetchDescriptor<Activity>()).isEmpty)
+        #expect(try mapper.isDiscarded(stravaID: 11))
+
+        // A full resync sends it again; it must not come back. `upsert` signals
+        // the skip by throwing rather than silently returning, so SyncEngine's
+        // phase A loop can tell "handled" apart from "row created".
+        #expect(throws: ImportSkip.self) {
+            _ = try mapper.upsert(
+                summary: try Fixture.decode(
+                    SummaryActivityDTO.self, from: "summary_activity", patching: ["id": 11]
+                )
+            )
+        }
+        #expect(try context.fetch(FetchDescriptor<Activity>()).isEmpty)
+    }
+
+    @Test("annuler l'écart la laisse revenir au passage suivant")
+    func restoringLetsItBack() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let mapper = ImportMapper(context: context)
+        let stone = DiscardedActivity(stravaID: 12, name: "Sortie")
+        context.insert(stone)
+
+        try mapper.restore(stone)
+
+        #expect(try mapper.isDiscarded(stravaID: 12) == false)
+        _ = try mapper.upsert(
+            summary: try Fixture.decode(
+                SummaryActivityDTO.self, from: "summary_activity", patching: ["id": 12]
+            )
+        )
+        #expect(try context.fetch(FetchDescriptor<Activity>()).count == 1)
+    }
+
+    @Test("une activité d'identifiant zéro écartée ne laisse pas de pierre tombale")
+    func discardingIdentifierZeroLeavesNoStone() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let mapper = ImportMapper(context: context)
+
+        // Source is left at its default (.strava, so isSynced is true): the
+        // identifier alone, not the source flag, must be what stops the
+        // tombstone here — otherwise a row would trap every future Strava
+        // activity that happens to carry identifier 0.
+        let activity = Activity(stravaID: 0, name: "Séance salle", sportType: .workout)
+        context.insert(activity)
+
+        try mapper.discard(activity)
+
+        #expect(try context.fetch(FetchDescriptor<DiscardedActivity>()).isEmpty)
+        #expect(try mapper.isDiscarded(stravaID: 0) == false)
+        _ = try mapper.upsert(
+            summary: try Fixture.decode(
+                SummaryActivityDTO.self, from: "summary_activity", patching: ["id": 0]
+            )
+        )
+        #expect(try context.fetch(FetchDescriptor<Activity>()).count == 1)
+    }
 }
