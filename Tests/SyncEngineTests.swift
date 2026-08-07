@@ -217,6 +217,34 @@ struct SyncSummariesTests {
         #expect(reread[0].detailFetchedAt == nil)
     }
 
+    @Test("resynchroniser tout laisse le détail d'une activité locale tel quel")
+    func resyncLeavesLocalDetailAlone() async throws {
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 5000)]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+
+        _ = try await engine.syncSummaries()
+        // A local activity, never touched by Strava — its cached detail must
+        // survive a resync exactly as `resyncRereadsEverything` shows a synced
+        // one's must not.
+        let context = ModelContext(container)
+        let manual = Activity(stravaID: 999, name: "Séance salle", sportType: .workout)
+        manual.source = .manual
+        manual.detailFetchedAt = Date(timeIntervalSince1970: 1000)
+        context.insert(manual)
+        try context.save()
+
+        try await engine.resyncEverything()
+
+        let after = ModelContext(container)
+        let reread = try after.fetch(
+            FetchDescriptor<Activity>(predicate: #Predicate { $0.stravaID == 999 })
+        ).first
+        #expect(reread?.detailFetchedAt != nil)
+    }
+
     @Test("la progression retombe à idle en fin de synchro")
     func reportsProgress() async throws {
         let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
