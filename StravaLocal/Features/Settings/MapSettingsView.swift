@@ -15,8 +15,7 @@ struct MapSettingsView: View {
                         Label {
                             Text(choice.displayName)
                         } icon: {
-                            Image(systemName: "circle.fill")
-                                .foregroundStyle(choice.color)
+                            Image(nsImage: choice.swatch)
                         }
                         .tag(choice)
                     }

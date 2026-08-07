@@ -42,5 +42,30 @@ enum TrackColor: String, CaseIterable, Identifiable, Sendable {
 
     var color: Color { Color(nsColor: nsColor) }
 
+    /// A filled disc as a non-template bitmap.
+    ///
+    /// A menu re-tints template images — SF Symbols included — to match its own
+    /// styling, so `Image(systemName: "circle.fill").foregroundStyle(color)`
+    /// arrives grey in a picker's menu. Drawing the disc ourselves and marking
+    /// the image non-template is what keeps the colour.
+    @MainActor
+    var swatch: NSImage {
+        let diameter: CGFloat = 12
+        let image = NSImage(
+            size: NSSize(width: diameter, height: diameter), flipped: false
+        ) { rect in
+            let disc = NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1))
+            nsColor.setFill()
+            disc.fill()
+            // A hairline keeps the black option visible in dark mode.
+            NSColor.separatorColor.setStroke()
+            disc.lineWidth = 0.5
+            disc.stroke()
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
     static let storageKey = "trackColor"
 }
