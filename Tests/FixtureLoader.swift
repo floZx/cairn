@@ -18,6 +18,21 @@ enum Fixture {
         try StravaJSON.decoder.decode(type, from: data(name))
     }
 
+    /// Decodes a fixture with a few top-level values replaced.
+    ///
+    /// Editing protection has to be tested against the same payload twice with
+    /// one field changed; a second fixture file per case would drift from the
+    /// first.
+    static func decode<T: Decodable>(
+        _ type: T.Type, from name: String, patching values: [String: Any]
+    ) throws -> T {
+        let data = try data(name)
+        var object = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        for (key, value) in values { object[key] = value }
+        let patched = try JSONSerialization.data(withJSONObject: object)
+        return try StravaJSON.decoder.decode(type, from: patched)
+    }
+
     enum FixtureError: Error { case notFound(String) }
     private final class BundleToken {}
 }

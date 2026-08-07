@@ -10,6 +10,21 @@ struct ImportMapper {
 
     init(context: ModelContext) { self.context = context }
 
+    /// Writes a field unless the user has claimed it.
+    ///
+    /// Every assignment in `upsert(summary:)` goes through here, and that is the
+    /// point: a field written directly would be a silent hole in the protection,
+    /// impossible to spot by reading twenty-five similar lines.
+    private func assign<Value>(
+        _ field: ActivityField,
+        on activity: Activity,
+        _ keyPath: ReferenceWritableKeyPath<Activity, Value>,
+        _ value: Value
+    ) {
+        guard !activity.isEdited(field) else { return }
+        activity[keyPath: keyPath] = value
+    }
+
     func activity(stravaID: Int64) throws -> Activity? {
         var descriptor = FetchDescriptor<Activity>(
             predicate: #Predicate { $0.stravaID == stravaID }
@@ -30,16 +45,25 @@ struct ImportMapper {
                 return new
             }()
 
-        activity.name = dto.name
-        activity.sportType = SportType(stravaValue: dto.sport_type)
-        activity.startDate = dto.start_date
-        activity.startLocalDate = dto.start_date_local
+        // Nothing the sync brought, nothing for it to update. Guards against a
+        // manual activity being captured by a Strava identifier of 0.
+        guard activity.source.isSynced else { return activity }
+
+        assign(.name, on: activity, \.name, dto.name)
+        assign(.sportType, on: activity, \.sportTypeRaw,
+               SportType(stravaValue: dto.sport_type).rawValue)
+        // Both properties behind one key, deliberately: the user edits a single
+        // "Date" field, and protecting one of the two would leave every sort and
+        // filter reading a value the sync had quietly put back.
+        assign(.startDate, on: activity, \.startDate, dto.start_date)
+        assign(.startDate, on: activity, \.startLocalDate, dto.start_date_local)
         activity.timezoneIdentifier = dto.timezone
 
-        activity.distance = dto.distance
-        activity.movingTime = dto.moving_time
+        assign(.distance, on: activity, \.distance, dto.distance)
+        assign(.movingTime, on: activity, \.movingTime, dto.moving_time)
         activity.elapsedTime = dto.elapsed_time
-        activity.totalElevationGain = dto.total_elevation_gain
+        assign(.totalElevationGain, on: activity, \.totalElevationGain,
+               dto.total_elevation_gain)
         activity.averageSpeed = dto.average_speed
         activity.maxSpeed = dto.max_speed
         activity.averageHeartrate = dto.average_heartrate
@@ -49,8 +73,8 @@ struct ImportMapper {
         activity.kilojoules = dto.kilojoules
         activity.averageCadence = dto.average_cadence
 
-        activity.isCommute = dto.commute ?? false
-        activity.isTrainer = dto.trainer ?? false
+        assign(.isCommute, on: activity, \.isCommute, dto.commute ?? false)
+        assign(.isTrainer, on: activity, \.isTrainer, dto.trainer ?? false)
         activity.isManual = dto.manual ?? false
         activity.isPrivate = dto.private ?? false
         activity.workoutType = dto.workout_type
@@ -83,7 +107,11 @@ struct ImportMapper {
     }
 
     func apply(detail dto: DetailActivityDTO, to activity: Activity) throws {
-        activity.activityDescription = dto.description
+        // Nothing the sync brought, nothing for it to update. Guards against a
+        // manual activity being captured by a Strava identifier of 0.
+        guard activity.source.isSynced else { return }
+
+        assign(.notes, on: activity, \.activityDescription, dto.description)
         activity.calories = dto.calories
         activity.deviceName = dto.device_name
         activity.detailFetchedAt = Date()
