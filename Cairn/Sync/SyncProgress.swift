@@ -17,6 +17,12 @@ final class SyncProgress {
     var phase: SyncPhase = .idle
     var lastRunAt: Date?
     var quota: RateLimitSnapshot?
+    /// Activities whose charts are still to be downloaded.
+    ///
+    /// Surfaced because nothing else could answer "is it finished?". Phase B
+    /// works from a persisted queue that survives quits, so an idle app with a
+    /// backlog and an idle app with nothing left to do looked identical.
+    var pendingStreams: Int = 0
 
     var isRunning: Bool {
         switch phase {
@@ -28,9 +34,14 @@ final class SyncProgress {
     var statusText: String {
         switch phase {
         case .idle:
-            lastRunAt.map {
-                "Dernière synchro \(Format.shortDate($0))"
-            } ?? "Jamais synchronisé"
+            [
+                lastRunAt.map { "Dernière synchro \(Format.shortDate($0))" }
+                    ?? "Jamais synchronisé",
+                pendingStreams > 0
+                    ? "\(pendingStreams) activité\(pendingStreams > 1 ? "s" : "") "
+                        + "en attente de leurs courbes"
+                    : "tout est à jour",
+            ].joined(separator: " · ")
         case let .summaries(page):
             "Import des activités… (page \(page))"
         case let .streams(done, total):

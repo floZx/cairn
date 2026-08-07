@@ -11,6 +11,11 @@ struct SyncSettingsView: View {
             Section("État") {
                 LabeledContent("Activités locales", value: "\(activities.count)")
                 LabeledContent("Synchronisation", value: app.progress.statusText)
+                LabeledContent(
+                    "Courbes en attente",
+                    value: app.progress.pendingStreams == 0
+                        ? "aucune" : "\(app.progress.pendingStreams) activités"
+                )
                 if let quota = app.progress.quota {
                     LabeledContent(
                         "Quota Strava",

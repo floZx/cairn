@@ -134,7 +134,11 @@ final class AppEnvironment {
     /// this launch goes on to sync, and whether or not anyone is signed in.
     func restoreLastSyncDate() {
         Task {
-            guard let date = try? await engine.stateSnapshot().lastRunAt else { return }
+            guard let snapshot = try? await engine.stateSnapshot() else { return }
+            // Set whatever the date turns out to be: a backlog is worth showing
+            // on an app that has not synced this launch.
+            progress.pendingStreams = snapshot.pendingStreamIDs.count
+            guard let date = snapshot.lastRunAt else { return }
             // Only while still empty: the launch sync starts immediately after
             // this and may well finish first, and an awaited read must not put
             // the older date back over it.

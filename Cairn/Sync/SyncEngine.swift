@@ -459,10 +459,12 @@ actor SyncEngine {
     }
 
     private func finish(quota: RateLimitSnapshot?, at date: Date?) async {
+        let pending = (try? state().pendingStreamIDs.count) ?? 0
         await MainActor.run {
             progress.phase = .idle
             progress.quota = quota
             progress.lastRunAt = date
+            progress.pendingStreams = pending
         }
     }
 }
