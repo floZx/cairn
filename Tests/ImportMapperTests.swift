@@ -313,25 +313,29 @@ struct ImportMapperTests {
         #expect(again.elapsedTime == editedElapsed)
     }
 
-    @Test("averageSpeed dérivée n'écrase pas une distance ou une durée protégée")
-    func averageSpeedFollowsDistanceOrMovingTimeProtection() throws {
+    @Test("averageSpeed reste cohérente avec la distance et la durée stockées, protégées ou non")
+    func averageSpeedStaysConsistentWithStoredDistanceAndMovingTime() throws {
         let context = try makeContext()
         let mapper = ImportMapper(context: context)
         let activity = try mapper.upsert(
             summary: try Fixture.decode(SummaryActivityDTO.self, "summary_activity")
         )
-        activity.distance = 12_000
-        activity.markEdited([.distance])
-        let editedAverageSpeed = activity.averageSpeed
+        // Only the moving time is protected; distance keeps following Strava.
+        activity.movingTime = 1_800
+        activity.markEdited([.movingTime])
 
-        // Strava recomputed average speed from its own, uncorrected distance.
         let corrected = try Fixture.decode(
             SummaryActivityDTO.self, from: "summary_activity",
-            patching: ["id": activity.stravaID, "average_speed": 99.0]
+            patching: [
+                "id": activity.stravaID, "distance": 20_000.0, "average_speed": 99.0,
+            ]
         )
         let again = try mapper.upsert(summary: corrected)
 
-        #expect(again.averageSpeed == editedAverageSpeed)
+        // Neither Strava's own (bogus) figure nor the speed frozen before
+        // this reimport — recomputed from the pair actually on the record,
+        // one half of which just moved.
+        #expect(again.averageSpeed == 20_000.0 / 1_800.0)
     }
 
     @Test("les streams sans position comptent quand même leurs points")

@@ -118,23 +118,32 @@ struct ImportMapper {
 
         assign(.distance, on: activity, \.distance, dto.distance)
         assign(.movingTime, on: activity, \.movingTime, dto.moving_time)
-        // Neither field has its own `ActivityField` case, yet both are derived
-        // from the two above — `ActivityDraft.write` maintains them the same
-        // way for a local edit, raising `elapsedTime` to at least the moving
-        // time and recomputing `averageSpeed` from distance and moving time.
-        // Writing them unconditionally here would let a plain resync undo a
-        // distance or duration correction the moment it runs again, without
-        // either protected field itself being touched. `maxSpeed` stays
-        // unconditional: it is an instantaneous reading from the device, not
-        // something `ActivityDraft` ever recomputes.
+        // `elapsedTime` has no `ActivityField` case of its own, yet it is
+        // derived from `.movingTime` — `ActivityDraft.write` maintains it the
+        // same way for a local edit, raising it to at least the moving time.
+        // Writing it unconditionally here would let a plain resync undo a
+        // duration correction the moment it runs again, without `.movingTime`
+        // itself being touched. `maxSpeed` stays unconditional below: it is
+        // an instantaneous reading from the device, not something
+        // `ActivityDraft` ever recomputes.
         if !activity.isEdited(.movingTime) {
             activity.elapsedTime = dto.elapsed_time
         }
         assign(.totalElevationGain, on: activity, \.totalElevationGain,
                dto.total_elevation_gain)
-        if !activity.isEdited(.distance) && !activity.isEdited(.movingTime) {
-            activity.averageSpeed = dto.average_speed
-        }
+        // Recomputed from the distance and moving time just written above —
+        // protected or not — rather than trusted from `dto.average_speed`,
+        // exactly like `ActivityDraft.write`. Freezing Strava's incoming
+        // figure whenever either one is protected was an improvement over
+        // overwriting it outright, but still left a stale number the moment
+        // only one of the pair moved: distance corrected, moving time still
+        // Strava's, and the frozen speed matching neither. A speed that
+        // stays consistent with what is displayed beside it is worth more
+        // than one that once came from Strava and now describes nothing on
+        // screen.
+        activity.averageSpeed = activity.movingTime > 0
+            ? activity.distance / Double(activity.movingTime)
+            : 0
         activity.maxSpeed = dto.max_speed
         activity.averageHeartrate = dto.average_heartrate
         activity.maxHeartrate = dto.max_heartrate
