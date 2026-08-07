@@ -44,13 +44,27 @@ struct ActivityDraft: Equatable {
         isTrainer = false
     }
 
+    /// The name as it will actually be saved, computed once so `changedFields`
+    /// and `write(to:)` can never disagree about what counts as "the name".
+    /// Otherwise a name compared untrimmed but written trimmed would freeze
+    /// `.name` for ever the moment a trailing space made it through — with
+    /// nothing on screen to explain why. Newlines count as whitespace too: a
+    /// name reduced to one would otherwise read as non-empty.
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     /// Why this cannot be saved, or nil if it can.
     ///
     /// A message rather than a Bool so the sheet can say what is missing instead
     /// of merely greying out a button.
     var validationMessage: String? {
-        if name.trimmingCharacters(in: .whitespaces).isEmpty {
+        if trimmedName.isEmpty {
             return "Le nom ne peut pas être vide."
+        }
+        // NaN or infinite values pass every comparison below without tripping
+        // it — `NaN <= 0` and `NaN < 0` are both false — and would otherwise
+        // reach `Int(...)` in `write(to:)`, which traps rather than throwing.
+        if !movingMinutes.isFinite || !distanceKm.isFinite || !elevationGain.isFinite {
+            return "Durée, distance et dénivelé doivent être des nombres valides."
         }
         if movingMinutes <= 0 {
             return "La durée doit être supérieure à zéro."
@@ -68,7 +82,7 @@ struct ActivityDraft: Equatable {
     func changedFields(comparedTo activity: Activity) -> Set<ActivityField> {
         var changed: Set<ActivityField> = []
         let original = ActivityDraft(activity)
-        if name != original.name { changed.insert(.name) }
+        if trimmedName != original.name { changed.insert(.name) }
         if sport != original.sport { changed.insert(.sportType) }
         if startLocalDate != original.startLocalDate { changed.insert(.startDate) }
         if distanceKm != original.distanceKm { changed.insert(.distance) }
@@ -97,22 +111,50 @@ struct ActivityDraft: Equatable {
     func makeActivity() -> Activity {
         let activity = Activity(stravaID: 0, name: name, sportType: sport)
         activity.source = .manual
+        // `Activity.labels` reads `isManual`, not `source`: without this a
+        // hand-entered session would carry no badge at all.
+        activity.isManual = true
         write(to: activity)
         return activity
     }
 
     private func write(to activity: Activity) {
-        activity.name = name.trimmingCharacters(in: .whitespaces)
+        activity.name = trimmedName
         activity.sportType = sport
+        // `startDate` is the UTC instant, `startLocalDate` the wall time where
+        // the activity happened. Assigning one to the other silently drops the
+        // offset — two hours, for an outing recorded in UTC+2 — on a value the
+        // list sorts by, the period filter bounds with, and the sync cursor
+        // rewinds to. Shifting by the delta keeps the offset whatever it was,
+        // and this reduces to a plain assignment for a brand-new activity,
+        // whose `startDate` and `startLocalDate` start out equal.
+        activity.startDate = activity.startDate.addingTimeInterval(
+            startLocalDate.timeIntervalSince(activity.startLocalDate)
+        )
         activity.startLocalDate = startLocalDate
-        // Both, because every sort and filter reads `startDate` while the user
-        // only ever sees the local one.
-        activity.startDate = startLocalDate
+
+        let previousDistance = activity.distance
+        let previousMovingTime = activity.movingTime
         activity.distance = distanceKm * 1000
-        activity.movingTime = Int(movingMinutes * 60)
+        // Rounded rather than truncated: `Int(_:)` on a value one
+        // floating-point epsilon below the intended second — an artefact of
+        // the km/minutes round trip, not a real edit — would otherwise lose a
+        // second on every save, silently, since the field stays unmarked.
+        activity.movingTime = Int((movingMinutes * 60).rounded())
         // Elapsed time is not editable and would otherwise stay below moving
         // time, which reads as a bug in the detail pane.
         activity.elapsedTime = max(activity.elapsedTime, activity.movingTime)
+        // A stored column, not a computed one, so it stays sortable and reads
+        // straight off the model everywhere else — but that means it goes
+        // stale the moment distance or moving time change, exactly like
+        // `elapsedTime`. Recomputed only when one of them actually moved, so
+        // an unrelated edit (or a brand-new manual entry with neither) leaves
+        // it alone.
+        if activity.distance != previousDistance || activity.movingTime != previousMovingTime {
+            activity.averageSpeed = activity.movingTime > 0
+                ? activity.distance / Double(activity.movingTime)
+                : 0
+        }
         activity.totalElevationGain = elevationGain
         activity.activityDescription = notes.isEmpty ? nil : notes
         activity.isCommute = isCommute
