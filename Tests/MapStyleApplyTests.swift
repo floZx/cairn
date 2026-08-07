@@ -44,7 +44,6 @@ struct MapStyleApplyTests {
     @Test("les fonds Apple n'ont pas de source de tuiles, les topo en ont une")
     func tileSourcesMatchStyles() {
         #expect(MapStyle.standard.tileSource == nil)
-        #expect(MapStyle.relief.tileSource == nil)
         #expect(MapStyle.satellite.tileSource == nil)
         #expect(MapStyle.hybrid.tileSource == nil)
         #expect(MapStyle.ignTopo.tileSource != nil)
@@ -86,5 +85,39 @@ struct MapStyleApplyTests {
             #expect(overlay.canReplaceMapContent == false)
             #expect(overlay.maximumZ == style.tileSource!.maximumZ)
         }
+    }
+
+    @Test("tous les fonds rendent le relief, il n'y a plus de doublon")
+    func everyStyleRendersTerrain() {
+        // "Plan avec relief" is gone: with the plain plan now realistic too, the
+        // two would have been the same map under two names.
+        #expect(MapStyle.allCases.count == 5)
+        #expect(MapStyle(rawValue: "relief") == nil)
+        for style in MapStyle.allCases {
+            let elevation = (style.configuration as? MKStandardMapConfiguration)?
+                .elevationStyle
+                ?? (style.configuration as? MKImageryMapConfiguration)?.elevationStyle
+                ?? (style.configuration as? MKHybridMapConfiguration)?.elevationStyle
+            #expect(elevation == .realistic)
+        }
+    }
+
+    /// Only the single-activity map tilts: the global map and the comparison map
+    /// are read from above, where a tilt would distort what they exist to show.
+    @Test("la caméra s'incline sur le terrain et recule pour ne rien couper")
+    func tiltsTheCamera() {
+        let mapView = MKMapView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        mapView.setVisibleMapRect(
+            MKMapRect(x: 130_000_000, y: 90_000_000, width: 40_000, height: 40_000),
+            animated: false
+        )
+        let distanceBefore = mapView.camera.centerCoordinateDistance
+
+        mapView.tiltForTerrain()
+
+        // MapKit clamps the pitch by altitude, so the exact angle is its call —
+        // what matters is that the camera is no longer flat and has pulled back.
+        #expect(mapView.camera.pitch > 0)
+        #expect(mapView.camera.centerCoordinateDistance > distanceBefore)
     }
 }

@@ -57,6 +57,7 @@ struct ActivityMapView: NSViewRepresentable {
                 edgePadding: NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24),
                 animated: false
             )
+            mapView.tiltForTerrain()
         }
 
         // The marker is an annotation whose coordinate is moved in place, not an

@@ -16,7 +16,6 @@ struct TileSource: Sendable {
 /// Apple's.
 enum MapStyle: String, CaseIterable, Identifiable, Sendable {
     case standard
-    case relief
     case satellite
     case hybrid
     case ignTopo
@@ -27,7 +26,6 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
     var displayName: String {
         switch self {
         case .standard: "Plan"
-        case .relief: "Plan avec relief"
         case .satellite: "Satellite"
         case .hybrid: "Satellite et noms"
         case .ignTopo: "Topographique IGN"
@@ -38,7 +36,6 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
     var symbolName: String {
         switch self {
         case .standard: "map"
-        case .relief: "mountain.2"
         case .satellite: "globe.europe.africa"
         case .hybrid: "globe.europe.africa.fill"
         case .ignTopo: "mountain.2.circle.fill"
@@ -49,8 +46,9 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
     var configuration: MKMapConfiguration {
         switch self {
         case .standard:
-            MKStandardMapConfiguration(elevationStyle: .flat)
-        case .relief:
+            // Realistic rather than flat, and no separate "with relief" entry:
+            // every style now renders terrain, so the two would have been the
+            // same map under two names.
             MKStandardMapConfiguration(elevationStyle: .realistic)
         case .satellite:
             MKImageryMapConfiguration(elevationStyle: .realistic)
@@ -71,7 +69,7 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
     /// The raster layer this style draws, if any.
     var tileSource: TileSource? {
         switch self {
-        case .standard, .relief, .satellite, .hybrid:
+        case .standard, .satellite, .hybrid:
             nil
         case .ignTopo:
             // France only, but contour lines, named woods, hamlets and tracks —
