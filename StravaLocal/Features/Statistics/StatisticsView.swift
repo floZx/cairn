@@ -3,12 +3,17 @@ import Charts
 
 /// Aggregates over the filtered activities, in place of the list.
 ///
-/// Solidary with the filters by design — that is what makes it worth having.
-/// "My trail runs over 20 km this year" is a question the sidebar can already
-/// express; this pane answers it. The window subtitle already states which
-/// filters are on, so the figures never stand without their context.
+/// The date range is set here rather than taken from the sidebar's period
+/// filter: comparing against the preceding period means reading activities that
+/// filter would have already removed. Every other criterion — sport, labels,
+/// distance, region — still comes from the sidebar, which is what makes this
+/// worth having: "my trail runs over 20 km, last six months against the six
+/// before" is a question the two controls answer together.
 struct StatisticsView: View {
+    /// Filtered by everything except the date range, which is `period`'s job.
     let activities: [Activity]
+
+    @AppStorage(StatsPeriod.storageKey) private var period: StatsPeriod = .twelveMonths
 
     /// Which measure the monthly chart plots. Distance and climbing tell very
     /// different stories about the same months.
@@ -29,16 +34,17 @@ struct StatisticsView: View {
     }
 
     var body: some View {
-        let stats = ActivityStatistics.compute(for: activities)
+        let stats = ActivityStatistics.compute(for: activities, period: period)
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
+                periodPicker
                 if stats.count == 0 {
                     ContentUnavailableView(
                         "Aucune activité",
                         systemImage: "chart.bar",
-                        description: Text("Les filtres actifs ne laissent rien à mesurer.")
+                        description: Text("Rien à mesurer sur cette période avec les filtres actifs.")
                     )
-                    .padding(.top, 40)
+                    .padding(.top, 30)
                 } else {
                     totals(stats)
                     Divider()
@@ -53,6 +59,25 @@ struct StatisticsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("Statistiques")
+    }
+
+    // MARK: - Period
+
+    private var periodPicker: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Picker("Période", selection: $period) {
+                ForEach(StatsPeriod.allCases) { choice in
+                    Text(choice.displayName).tag(choice)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            // Said plainly, because the sidebar has a period filter of its own
+            // that deliberately does not apply here.
+            Text("La période se règle ici. Les autres filtres de la barre latérale s'appliquent.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     // MARK: - Totals
@@ -78,7 +103,7 @@ struct StatisticsView: View {
     private func monthly(_ stats: ActivityStatistics) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                sectionTitle("Douze derniers mois")
+                sectionTitle("Par mois")
                 Spacer()
                 Picker("Mesure", selection: $monthlyMeasure) {
                     ForEach(MonthlyMeasure.allCases) { measure in
@@ -93,15 +118,30 @@ struct StatisticsView: View {
             Chart(stats.months) { month in
                 BarMark(
                     x: .value("Mois", month.month, unit: .month),
-                    y: .value(monthlyMeasure.label, plotted(month))
+                    y: .value(monthlyMeasure.label, current(month))
                 )
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(by: .value("Série", "Période"))
+
+                // A line over the bars rather than a second set of bars: at
+                // twelve months, twenty-four bars in one pane are unreadable,
+                // and the shape of the line is what makes the two comparable.
+                LineMark(
+                    x: .value("Mois", month.month, unit: .month),
+                    y: .value(monthlyMeasure.label, comparison(month))
+                )
+                .foregroundStyle(by: .value("Série", period.comparisonName))
+                .symbol(.circle)
+                .lineStyle(StrokeStyle(lineWidth: 2))
             }
+            .chartForegroundStyleScale([
+                "Période": Color.accentColor,
+                period.comparisonName: Color.secondary,
+            ])
             .chartXAxis {
-                AxisMarks(values: .stride(by: .month)) { value in
+                AxisMarks(values: .stride(by: .month)) { _ in
                     AxisGridLine()
                     // Initial only: twelve three-letter labels do not fit the
-                    // pane, and the year is redundant on a twelve-month window.
+                    // pane, and the year is redundant on a rolling window.
                     AxisValueLabel(format: .dateTime.month(.narrow))
                 }
             }
@@ -115,14 +155,21 @@ struct StatisticsView: View {
                     }
                 }
             }
-            .frame(height: 180)
+            .frame(height: 200)
         }
     }
 
-    private func plotted(_ month: ActivityStatistics.MonthTotals) -> Double {
+    private func current(_ month: ActivityStatistics.MonthTotals) -> Double {
         switch monthlyMeasure {
         case .distance: month.distance / 1000
         case .elevation: month.elevationGain
+        }
+    }
+
+    private func comparison(_ month: ActivityStatistics.MonthTotals) -> Double {
+        switch monthlyMeasure {
+        case .distance: month.comparisonDistance / 1000
+        case .elevation: month.comparisonElevationGain
         }
     }
 

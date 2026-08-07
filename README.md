@@ -71,10 +71,19 @@ Les synchronisations suivantes sont incrémentales.
 
 ## Statistiques
 
-La vue Statistiques porte sur les activités **que les filtres laissent**, jamais
-sur la bibliothèque entière : le sous-titre de la fenêtre rappelle toujours ce
-qui est inclus. Elle donne les cumuls, un histogramme des douze derniers mois,
-une ventilation par sport et les records.
+La vue Statistiques donne les cumuls, un histogramme mensuel, une ventilation par
+sport et les records.
+
+La période — 3 mois, 6 mois, 12 mois ou année en cours — se règle **dans la vue
+elle-même**, et non par le filtre « Période » de la barre latérale. Ce n'est pas
+un doublon : l'histogramme superpose la période précédente en courbe, ce qui
+suppose de lire des activités que ce filtre aurait déjà écartées. Tous les autres
+critères — sport, étiquettes, distance, zone — viennent bien de la barre
+latérale, et c'est ce qui fait l'intérêt de l'ensemble : « mes trails de plus de
+20 km, six mois contre les six précédents ».
+
+Une année en cours se compare à l'année précédente, non au semestre qui précède :
+sans quoi la comparaison porterait sur une autre saison.
 
 Un choix de fond : aucune distance totale n'est affichée globalement. Additionner
 une natation, une sortie en vélo électrique et un trail donne un nombre qui

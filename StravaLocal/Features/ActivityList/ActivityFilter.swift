@@ -178,6 +178,29 @@ struct ActivityFilter: Sendable, Equatable {
         }
     }
 
+    /// Both passes at once, for callers holding activities already in memory.
+    ///
+    /// The database predicate narrows, then `matchesPrecisely` settles what SQL
+    /// could not express. Every in-memory caller needs the pair, and running one
+    /// without the other silently over-reports.
+    func apply(to activities: [Activity], now: Date = Date()) -> [Activity] {
+        let predicate = predicate(now: now)
+        return activities.filter { activity in
+            ((try? predicate.evaluate(activity)) ?? true) && matchesPrecisely(activity)
+        }
+    }
+
+    /// The same filter with its date range dropped.
+    ///
+    /// The statistics view owns its own period — it has to reach into the
+    /// preceding one to compare against it, which this filter would have already
+    /// removed — while every other criterion still applies.
+    var ignoringPeriod: ActivityFilter {
+        var copy = self
+        copy.period = .all
+        return copy
+    }
+
     /// Second pass: bounding boxes can overlap a region a track never enters.
     func matchesPrecisely(_ activity: Activity) -> Bool {
         if !labels.isEmpty {

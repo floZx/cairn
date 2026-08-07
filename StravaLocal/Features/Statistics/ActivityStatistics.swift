@@ -1,10 +1,11 @@
 import Foundation
 
-/// Aggregates over a set of activities — whichever set the filters have left.
+/// Aggregates over a set of activities, for one period and the one before it.
 ///
 /// Pure computation over values already in memory: no fetch, no pre-aggregation.
 /// A few hundred activities is nothing to sum, and keeping it a plain function of
-/// its input is what makes it testable.
+/// its inputs is what makes it testable — `now` included, so the window is never
+/// a moving target under a test.
 ///
 /// The shape of it answers one problem: **adding different sports together says
 /// nothing**. A total distance mixing e-bike rides, runs and swims informs on
@@ -17,9 +18,12 @@ struct ActivityStatistics: Equatable {
     /// Per sport, so distances are never added across sports.
     let sports: [SportTotals]
     let records: [Record]
-    /// Twelve contiguous months ending on the most recent activity's month.
+    /// One entry per month of the period, each carrying its counterpart from the
+    /// preceding period.
     let months: [MonthTotals]
 
+    /// Nothing at all, for a window that could not be built. Not the same as an
+    /// empty period, which still lays its months out as zeros.
     static let empty = ActivityStatistics(
         count: 0, movingTime: 0, elevationGain: 0,
         sports: [], records: [], months: []
@@ -80,27 +84,91 @@ struct ActivityStatistics: Equatable {
         var formattedValue: String { kind.formatted(value) }
     }
 
+    /// One month of the period, beside the matching month of the one before.
     struct MonthTotals: Identifiable, Equatable {
         let month: Date
         let distance: Double
         let elevationGain: Double
+        /// The month this is compared against — a period or a year earlier.
+        let comparisonMonth: Date
+        let comparisonDistance: Double
+        let comparisonElevationGain: Double
 
         var id: Date { month }
     }
 
     private static let calendar = Calendar(identifier: .gregorian)
 
-    static func compute(for activities: [Activity]) -> ActivityStatistics {
-        guard !activities.isEmpty else { return .empty }
+    static func compute(
+        for activities: [Activity],
+        period: StatsPeriod,
+        now: Date = Date()
+    ) -> ActivityStatistics {
+        let count = period.monthCount(now: now, calendar: calendar)
+        let shift = period.comparisonShift(now: now, calendar: calendar)
+        guard count > 0, let currentMonth = startOfMonth(of: now) else {
+            return .empty
+        }
+
+        // Chronological, ending on the current month.
+        let months: [Date] = (0..<count).reversed().compactMap {
+            calendar.date(byAdding: .month, value: -$0, to: currentMonth)
+        }
+        guard let firstMonth = months.first else { return .empty }
+
+        let byMonth = totalsByMonth(for: activities)
+        let inPeriod = activities.filter { activity in
+            guard let month = startOfMonth(of: activity.startLocalDate) else {
+                return false
+            }
+            return month >= firstMonth && month <= currentMonth
+        }
 
         return ActivityStatistics(
-            count: activities.count,
-            movingTime: activities.reduce(0) { $0 + $1.movingTime },
-            elevationGain: activities.reduce(0) { $0 + $1.totalElevationGain },
-            sports: sportTotals(for: activities),
-            records: records(for: activities),
-            months: monthlyTotals(for: activities)
+            count: inPeriod.count,
+            movingTime: inPeriod.reduce(0) { $0 + $1.movingTime },
+            elevationGain: inPeriod.reduce(0) { $0 + $1.totalElevationGain },
+            sports: sportTotals(for: inPeriod),
+            records: records(for: inPeriod),
+            months: months.compactMap { month in
+                guard let comparisonMonth = calendar.date(
+                    byAdding: .month, value: -shift, to: month
+                ) else { return nil }
+                let current = byMonth[month] ?? .zero
+                let previous = byMonth[comparisonMonth] ?? .zero
+                return MonthTotals(
+                    month: month,
+                    distance: current.distance,
+                    elevationGain: current.elevation,
+                    comparisonMonth: comparisonMonth,
+                    comparisonDistance: previous.distance,
+                    comparisonElevationGain: previous.elevation
+                )
+            }
         )
+    }
+
+    private struct MonthSums {
+        var distance: Double = 0
+        var elevation: Double = 0
+
+        static let zero = MonthSums()
+    }
+
+    /// Every month at once, including those outside the period: the comparison
+    /// series reads months the period itself does not cover.
+    private static func totalsByMonth(
+        for activities: [Activity]
+    ) -> [Date: MonthSums] {
+        var totals: [Date: MonthSums] = [:]
+        for activity in activities {
+            guard let month = startOfMonth(of: activity.startLocalDate) else {
+                continue
+            }
+            totals[month, default: .zero].distance += activity.distance
+            totals[month, default: .zero].elevation += activity.totalElevationGain
+        }
+        return totals
     }
 
     private static func sportTotals(for activities: [Activity]) -> [SportTotals] {
@@ -137,35 +205,6 @@ struct ActivityStatistics: Equatable {
                 activityName: best.name,
                 sport: best.sportType,
                 date: best.startLocalDate
-            )
-        }
-    }
-
-    /// Twelve contiguous months ending on the most recent activity's month.
-    ///
-    /// Contiguous, and that is the point: listing only the months that have
-    /// activities would put January next to December and read as a steady year.
-    /// Empty months are worth showing as zero.
-    private static func monthlyTotals(for activities: [Activity]) -> [MonthTotals] {
-        let months = activities.compactMap { startOfMonth(of: $0.startLocalDate) }
-        guard let mostRecent = months.max() else { return [] }
-
-        var totals: [Date: (distance: Double, elevation: Double)] = [:]
-        for activity in activities {
-            guard let month = startOfMonth(of: activity.startLocalDate) else {
-                continue
-            }
-            totals[month, default: (0, 0)].distance += activity.distance
-            totals[month, default: (0, 0)].elevation += activity.totalElevationGain
-        }
-
-        return (0..<12).reversed().compactMap { monthsBack in
-            guard let month = calendar.date(
-                byAdding: .month, value: -monthsBack, to: mostRecent
-            ) else { return nil }
-            let total = totals[month] ?? (distance: 0, elevation: 0)
-            return MonthTotals(
-                month: month, distance: total.distance, elevationGain: total.elevation
             )
         }
     }

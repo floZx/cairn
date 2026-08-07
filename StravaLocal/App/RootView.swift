@@ -37,11 +37,14 @@ struct RootView: View {
     /// the sidebar or typing a search has to narrow the tracks too, otherwise
     /// the map contradicts every other view.
     private var mapActivities: [Activity] {
-        let predicate = filter.predicate()
-        return allActivities.filter { activity in
-            ((try? predicate.evaluate(activity)) ?? true)
-                && filter.matchesPrecisely(activity)
-        }
+        filter.apply(to: allActivities)
+    }
+
+    /// Everything the filters keep except the date range, which the statistics
+    /// view sets for itself — it has to reach into the preceding period to
+    /// compare against it.
+    private var statisticsActivities: [Activity] {
+        filter.ignoringPeriod.apply(to: allActivities)
     }
 
     var body: some View {
@@ -152,7 +155,7 @@ struct RootView: View {
                         onExpand: { expandedMap = .global }
                     )
                 } else if showsStatistics {
-                    StatisticsView(activities: mapActivities)
+                    StatisticsView(activities: statisticsActivities)
                 } else {
                     ActivityListView(filter: filter, selection: $selectedActivities)
                         .id(filter)
