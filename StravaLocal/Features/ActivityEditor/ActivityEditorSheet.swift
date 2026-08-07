@@ -38,6 +38,16 @@ struct ActivityEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // `.navigationTitle` has no effect on a macOS sheet with no
+            // navigation bar to put it in — the title landed nowhere. Its own
+            // `VStack` in the sheet's header is what actually shows it.
+            VStack(alignment: .leading) {
+                Text(title)
+                    .font(.title2.bold())
+            }
+            .padding([.top, .horizontal])
+            .padding(.bottom, 4)
+
             Form {
                 Section {
                     TextField("Nom", text: $draft.name)
@@ -115,7 +125,6 @@ struct ActivityEditorSheet: View {
             .padding(12)
         }
         .frame(width: 460, height: 560)
-        .navigationTitle(title)
     }
 }
 
