@@ -60,15 +60,6 @@ struct SidebarView: View {
                 }
             }
 
-            Section("Étiquettes") {
-                ForEach(ActivityLabel.allCases) { label in
-                    Toggle(isOn: binding(for: label)) {
-                        Label(label.displayName, systemImage: label.symbolName)
-                    }
-                    .toggleStyle(.checkbox)
-                }
-            }
-
             Section("Filtres") {
                 Picker("Période", selection: $filter.period) {
                     ForEach(DatePeriod.allCases) { period in
@@ -91,6 +82,15 @@ struct SidebarView: View {
                     title: "D+/km min.", unit: "m/km",
                     value: $filter.minElevationPerKm
                 )
+            }
+
+            Section("Étiquettes") {
+                ForEach(ActivityLabel.allCases) { label in
+                    Toggle(isOn: binding(for: label)) {
+                        Label(label.displayName, systemImage: label.symbolName)
+                    }
+                    .toggleStyle(.checkbox)
+                }
             }
 
             if filter.isActive {
