@@ -68,6 +68,56 @@ struct ActivityFilter: Sendable, Equatable {
 
     var isActive: Bool { self != .none }
 
+    /// How many criteria are narrowing the list.
+    var activeCriteriaCount: Int { criteria.count }
+
+    /// What is narrowing the list, in words — nil when nothing is.
+    ///
+    /// A shortened list with no visible reason is confusing, so this goes beside
+    /// the activity count. Long selections are cut short: the point is knowing
+    /// that a filter is on and roughly which, not reading the whole set from a
+    /// title bar.
+    var summary: String? {
+        let parts = criteria
+        guard !parts.isEmpty else { return nil }
+        guard parts.count > 3 else { return parts.joined(separator: " · ") }
+        let shown = parts.prefix(3).joined(separator: " · ")
+        return "\(shown) · +\(parts.count - 3)"
+    }
+
+    /// Each active criterion as a short phrase, in a stable order.
+    ///
+    /// Sets are walked through an ordered source rather than iterated, so the
+    /// same filter always reads the same way.
+    private var criteria: [String] {
+        var parts: [String] = []
+        let text = searchText.trimmingCharacters(in: .whitespaces)
+        if !text.isEmpty { parts.append("« \(text) »") }
+        if !sports.isEmpty {
+            let names = SportType.allCases.filter(sports.contains).map(\.displayName)
+            parts.append(
+                names.count <= 2 ? names.joined(separator: ", ") : "\(names.count) sports"
+            )
+        }
+        if period != .all { parts.append(period.displayName) }
+        if let minDistanceKm { parts.append("≥ \(Format.typedNumber(minDistanceKm)) km") }
+        if let maxDistanceKm { parts.append("≤ \(Format.typedNumber(maxDistanceKm)) km") }
+        if let minDurationMinutes {
+            parts.append("≥ \(Format.typedNumber(minDurationMinutes)) min")
+        }
+        if let minElevation {
+            parts.append("D+ ≥ \(Format.typedNumber(minElevation)) m")
+        }
+        if let minElevationPerKm {
+            parts.append("D+/km ≥ \(Format.typedNumber(minElevationPerKm)) m")
+        }
+        parts.append(
+            contentsOf: ActivityLabel.allCases.filter(labels.contains).map(\.displayName)
+        )
+        if region != nil { parts.append("zone sur la carte") }
+        return parts
+    }
+
     func predicate(now: Date = Date()) -> Predicate<Activity> {
         // Sentinel bounds instead of optionals: SwiftData predicates can't
         // unwrap captured optionals, but they compare captured scalars fine.

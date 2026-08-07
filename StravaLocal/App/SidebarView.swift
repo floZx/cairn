@@ -95,7 +95,12 @@ struct SidebarView: View {
 
             if filter.isActive {
                 Section {
-                    Button("Réinitialiser les filtres") { filter = .none }
+                    // The count is on the button because that is where the eye
+                    // already goes to undo a filter; the window subtitle says
+                    // which ones.
+                    Button("Réinitialiser les filtres (\(filter.activeCriteriaCount))") {
+                        filter = .none
+                    }
                 }
             }
         }

@@ -117,5 +117,8 @@ struct ActivityListView: View {
         .navigationTitle(
             rows.count == 1 ? "1 activité" : "\(rows.count) activités"
         )
+        // The window subtitle, so the count is never read as the whole library
+        // when it is in fact a filtered slice of it.
+        .navigationSubtitle(filter.summary ?? "")
     }
 }

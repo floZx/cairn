@@ -254,4 +254,65 @@ struct ActivityFilterTests {
         #expect(DatePeriod.lastYear.endDate(now: now) != nil)
         #expect(DatePeriod.thisYear.endDate(now: now) == nil)
     }
+
+    @Test("sans filtre il n'y a rien à annoncer")
+    func summarisesNothingWhenInactive() {
+        #expect(ActivityFilter.none.summary == nil)
+        #expect(ActivityFilter.none.activeCriteriaCount == 0)
+        // Whitespace typed into the search field is not a filter.
+        var filter = ActivityFilter.none
+        filter.searchText = "   "
+        #expect(filter.summary == nil)
+    }
+
+    @Test("le résumé nomme chaque critère actif")
+    func summarisesActiveCriteria() {
+        var filter = ActivityFilter.none
+        filter.sports = [.ride]
+        #expect(filter.summary == "Vélo")
+
+        filter = ActivityFilter.none
+        filter.searchText = "  Loire  "
+        #expect(filter.summary == "« Loire »")
+
+        filter = ActivityFilter.none
+        filter.minDistanceKm = 20
+        filter.minElevationPerKm = 12.5
+        // Round figures lose their decimal, the rest keep a French comma.
+        #expect(filter.summary == "≥ 20 km · D+/km ≥ 12,5 m")
+        #expect(filter.activeCriteriaCount == 2)
+
+        filter = ActivityFilter.none
+        filter.region = BoundingBox(
+            minLat: 45.74, maxLat: 45.77, minLon: 4.82, maxLon: 4.85
+        )
+        #expect(filter.summary == "zone sur la carte")
+    }
+
+    @Test("plusieurs sports se résument par leur nombre")
+    func summarisesManySports() {
+        var filter = ActivityFilter.none
+        filter.sports = [.ride, .run]
+        // Two still fit, and read through an ordered source so the wording is
+        // stable rather than following the Set's own order.
+        #expect(filter.summary == "Vélo, Course")
+
+        filter.sports = [.ride, .run, .swim]
+        #expect(filter.summary == "3 sports")
+    }
+
+    @Test("au-delà de trois critères le résumé est écourté")
+    func abbreviatesLongSummaries() {
+        var filter = ActivityFilter.none
+        filter.searchText = "col"
+        filter.period = .thisYear
+        filter.minDistanceKm = 10
+        filter.maxDistanceKm = 100
+        filter.minElevation = 500
+
+        #expect(filter.activeCriteriaCount == 5)
+        // Three criteria then a count: a title bar is not the place to read a
+        // whole filter set.
+        #expect(filter.summary == "« col » · Cette année · ≥ 10 km · +2")
+    }
 }

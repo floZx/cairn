@@ -45,6 +45,15 @@ enum Format {
         "\(Int(metres.rounded())) m"
     }
 
+    /// A number the user typed, written back the way they would write it.
+    ///
+    /// No trailing ",0" on a round figure, and a comma rather than a point on
+    /// the rest — the filter fields are French-facing.
+    static func typedNumber(_ value: Double) -> String {
+        guard value != value.rounded() else { return "\(Int(value))" }
+        return oneDecimal.string(from: value as NSNumber) ?? "\(value)"
+    }
+
     /// Runners think in pace, cyclists in speed. Showing the wrong one makes
     /// every number in the row useless to read at a glance.
     static func speed(_ metresPerSecond: Double, sport: SportType) -> String {
