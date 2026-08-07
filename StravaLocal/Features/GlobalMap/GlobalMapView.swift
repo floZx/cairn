@@ -191,9 +191,13 @@ struct TrackMapRepresentable: NSViewRepresentable {
                 return MKTileOverlayRenderer(tileOverlay: tiles)
             }
             let renderer = MKMultiPolylineRenderer(overlay: overlay)
-            // Translucent so repeated routes build up into a heatmap.
-            renderer.strokeColor = trackColor.nsColor.withAlphaComponent(0.45)
-            renderer.lineWidth = 2
+            // Still translucent, so repeated routes build up into a heatmap, but
+            // no longer so faint that a single passage vanishes into a satellite
+            // tile. Overlaps still darken — 0.7 then 0.91 then 0.97 — they just
+            // saturate sooner, which is the right trade when one ride has to be
+            // findable in the first place.
+            renderer.strokeColor = trackColor.nsColor.withAlphaComponent(0.7)
+            renderer.lineWidth = 2.5
             return renderer
         }
 

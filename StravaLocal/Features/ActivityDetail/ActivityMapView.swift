@@ -98,7 +98,9 @@ struct ActivityMapView: NSViewRepresentable {
             }
             let renderer = MKPolylineRenderer(overlay: overlay)
             renderer.strokeColor = trackColor.nsColor
-            renderer.lineWidth = 4
+            // Thin enough that the route's own shape stays readable: at 4 the
+            // stroke swallowed the switchbacks it was meant to show.
+            renderer.lineWidth = 3
             return renderer
         }
 
