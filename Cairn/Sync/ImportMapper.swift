@@ -271,6 +271,51 @@ struct ImportMapper {
         }
     }
 
+    /// Creates a row per photo the activity does not already have, and returns
+    /// the ones still needing their bytes downloaded.
+    ///
+    /// Deduplicated on `unique_id`, so a re-sync neither duplicates a photo nor
+    /// re-downloads one already held. Rows come first and bytes later on
+    /// purpose: the download is the slow part, and a photo whose image failed to
+    /// arrive is still worth remembering — the next sync retries it rather than
+    /// starting from nothing.
+    func upsert(photos dtos: [PhotoDTO], on activity: Activity) -> [ActivityPhoto] {
+        // Same guard as everywhere else in this type: an identifier collision
+        // must not staple someone else's photos onto a local activity.
+        guard activity.source.isSynced else { return [] }
+
+        var existing = Dictionary(
+            activity.photos.map { ($0.uniqueID, $0) }, uniquingKeysWith: { first, _ in first }
+        )
+        var pending: [ActivityPhoto] = []
+
+        for (index, dto) in dtos.enumerated() {
+            guard let url = ActivityPhoto.largestURL(in: dto.urls) else { continue }
+            // Strava always sends a `unique_id`, but the undocumented endpoint
+            // owes us nothing: the address is the next best identity, and using
+            // it keeps a re-sync from inserting the same photo twice.
+            let identity = dto.unique_id ?? url
+
+            let photo = existing[identity] ?? {
+                let new = ActivityPhoto(uniqueID: identity)
+                new.activity = activity
+                context.insert(new)
+                activity.photos.append(new)
+                existing[identity] = new
+                return new
+            }()
+
+            photo.sortIndex = index
+            photo.caption = dto.caption
+            photo.takenAt = dto.created_at_local ?? dto.created_at
+            // Refreshed every time: the previous address has probably expired,
+            // and this is the one a pending download will use.
+            photo.sourceURL = url
+            if photo.data == nil { pending.append(photo) }
+        }
+        return pending
+    }
+
     @discardableResult
     func upsert(athlete dto: AthleteDTO) throws -> Athlete {
         let stravaID = dto.id

@@ -10,6 +10,15 @@ private actor FakeSource: StravaSyncSource {
     private(set) var streamRequests: [Int64] = []
     private(set) var gearRequests: [String] = []
     private(set) var detailRequests: [Int64] = []
+    private(set) var photoRequests: [Int64] = []
+    private(set) var downloadedURLs: [String] = []
+    var listedPhotos: [PhotoDTO] = []
+    var photosToReturn: PhotosSummaryDTO?
+    var failPhotoDownload = false
+
+    func setListedPhotos(_ photos: [PhotoDTO]) { listedPhotos = photos }
+    func setPrimaryPhoto(_ summary: PhotosSummaryDTO?) { photosToReturn = summary }
+    func setFailPhotoDownload(_ fail: Bool) { failPhotoDownload = fail }
     private var notFoundIDs: Set<Int64> = []
     private var failWithServerError = false
     var streamsToReturn = StreamSetDTO(
@@ -48,8 +57,20 @@ private actor FakeSource: StravaSyncSource {
     func activityDetail(id: Int64) async throws -> DetailActivityDTO {
         detailRequests.append(id)
         return DetailActivityDTO(
-            id: id, description: nil, calories: nil, device_name: nil, laps: nil
+            id: id, description: nil, calories: nil, device_name: nil,
+            laps: nil, photos: photosToReturn
         )
+    }
+
+    func photos(id: Int64) async throws -> [PhotoDTO] {
+        photoRequests.append(id)
+        return listedPhotos
+    }
+
+    func imageData(from url: URL) async throws -> Data {
+        downloadedURLs.append(url.absoluteString)
+        if failPhotoDownload { throw StravaError.http(500, "CDN indisponible") }
+        return Data("image-\(url.lastPathComponent)".utf8)
     }
 
     func athlete() async throws -> AthleteDTO {
@@ -596,5 +617,82 @@ struct SyncStreamsTests {
         }
         // The activity stays queued, so a retry picks it up.
         #expect(try await engine.stateSnapshot().pendingStreamIDs == [1])
+    }
+}
+
+@Suite("SyncEngine — photos")
+@MainActor
+struct SyncPhotosTests {
+    private func makeEngine() throws -> (FakeSource, SyncEngine, ModelContainer) {
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        let container = try AppModelContainer.inMemory()
+        return (
+            source,
+            SyncEngine(source: source, container: container, progress: SyncProgress()),
+            container
+        )
+    }
+
+    private func photo(id: String, url: String) -> PhotoDTO {
+        PhotoDTO(
+            unique_id: id, urls: ["1800": url], caption: nil,
+            created_at: nil, created_at_local: nil
+        )
+    }
+
+    @Test("les photos listées sont enregistrées et téléchargées")
+    func downloadsListedPhotos() async throws {
+        let (source, engine, container) = try makeEngine()
+        await source.setListedPhotos([
+            photo(id: "a", url: "https://cdn.test/a.jpg"),
+            photo(id: "b", url: "https://cdn.test/b.jpg"),
+        ])
+        _ = try await engine.syncSummaries()
+        try await engine.fetchDetailIfNeeded(stravaID: 1)
+
+        let context = ModelContext(container)
+        let activity = try context.fetch(FetchDescriptor<Activity>())[0]
+        #expect(activity.orderedPhotos.map(\.uniqueID) == ["a", "b"])
+        // Bytes, not links: Strava's photo URLs are signed and expire, so a
+        // stored address is a dead photo within months.
+        #expect(activity.orderedPhotos.allSatisfy { $0.data != nil })
+        #expect(await source.downloadedURLs.count == 2)
+    }
+
+    @Test("sans l'endpoint non documenté, la photo principale documentée reste")
+    func fallsBackToTheDocumentedPrimary() async throws {
+        // The listing endpoint is in no published spec and may be withdrawn at
+        // any moment. When it goes, an activity must still show its one
+        // documented photo rather than none at all.
+        let (source, engine, container) = try makeEngine()
+        await source.setListedPhotos([])
+        await source.setPrimaryPhoto(
+            PhotosSummaryDTO(count: 3, primary: photo(id: "p", url: "https://cdn.test/p.jpg"))
+        )
+        _ = try await engine.syncSummaries()
+        try await engine.fetchDetailIfNeeded(stravaID: 1)
+
+        let context = ModelContext(container)
+        let activity = try context.fetch(FetchDescriptor<Activity>())[0]
+        #expect(activity.photos.map(\.uniqueID) == ["p"])
+        #expect(activity.photos[0].data != nil)
+    }
+
+    @Test("un téléchargement en échec ne fait pas échouer la synchro")
+    func aFailedDownloadKeepsTheRow() async throws {
+        // Photos are the one part of an activity whose absence costs only a
+        // picture. A CDN hiccup must not cost the run its tracks — and the row
+        // stays so the next pass retries it instead of starting from nothing.
+        let (source, engine, container) = try makeEngine()
+        await source.setListedPhotos([photo(id: "a", url: "https://cdn.test/a.jpg")])
+        await source.setFailPhotoDownload(true)
+        _ = try await engine.syncSummaries()
+        try await engine.fetchDetailIfNeeded(stravaID: 1)
+
+        let context = ModelContext(container)
+        let activity = try context.fetch(FetchDescriptor<Activity>())[0]
+        #expect(activity.photos.count == 1)
+        #expect(activity.photos[0].data == nil)
+        #expect(activity.detailFetchedAt != nil)
     }
 }

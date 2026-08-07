@@ -113,7 +113,7 @@ struct EditProtectionTests {
             detail: DetailActivityDTO(
                 id: 50, description: "Description Strava", calories: 812,
                 device_name: "Garmin Edge 840", laps: nil
-            ),
+            , photos: nil),
             to: activity
         )
 
@@ -211,7 +211,7 @@ struct EditProtectionTests {
                 detail: DetailActivityDTO(
                     id: 60, description: "Description Strava", calories: nil,
                     device_name: nil, laps: nil
-                ),
+                , photos: nil),
                 to: activity
             )
             #expect(activity.activityDescription == "Note perso")
@@ -269,7 +269,7 @@ struct EditProtectionTests {
             detail: DetailActivityDTO(
                 id: 51, description: "Description Strava", calories: 812,
                 device_name: "Garmin Edge 840", laps: nil
-            ),
+            , photos: nil),
             to: manual
         )
 

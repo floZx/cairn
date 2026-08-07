@@ -65,6 +65,28 @@ struct DetailActivityDTO: Decodable, Sendable {
     let calories: Double?
     let device_name: String?
     let laps: [LapDTO]?
+    let photos: PhotosSummaryDTO?
+}
+
+/// What the documented detail endpoint says about photos: a count, and the
+/// primary one. There is no documented way to list the others.
+struct PhotosSummaryDTO: Decodable, Sendable {
+    let count: Int?
+    let primary: PhotoDTO?
+}
+
+/// One photo, from either source.
+///
+/// Every field is optional because the two endpoints disagree about which they
+/// send, and the undocumented one is under no obligation to keep sending any of
+/// them. A photo missing everything but a URL is still a photo worth keeping.
+struct PhotoDTO: Decodable, Sendable {
+    let unique_id: String?
+    /// Pixel size to address. Keys are strings even though they are numbers.
+    let urls: [String: String]?
+    let caption: String?
+    let created_at: Date?
+    let created_at_local: Date?
 }
 
 struct StreamDTO<Element: Decodable & Sendable>: Decodable, Sendable {

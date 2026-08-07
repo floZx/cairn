@@ -161,7 +161,8 @@ struct ImportMapperTests {
                     average_speed: 7.7, max_speed: 15, average_heartrate: 135,
                     average_cadence: 80, start_index: 0, end_index: 1500
                 )
-            ]
+            ],
+            photos: nil
         )
 
         try mapper.apply(detail: detail, to: activity)
@@ -192,7 +193,7 @@ struct ImportMapperTests {
         let detail = DetailActivityDTO(
             id: 10_123_456_789, description: nil, calories: nil,
             device_name: nil, laps: [lap]
-        )
+        , photos: nil)
 
         try mapper.apply(detail: detail, to: activity)
         try context.save()

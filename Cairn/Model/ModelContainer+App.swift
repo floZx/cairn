@@ -5,6 +5,7 @@ enum AppModelContainer {
     static let schema = Schema([
         Activity.self, ActivityStreams.self, Athlete.self,
         Lap.self, Gear.self, SyncState.self, DiscardedActivity.self,
+        ActivityPhoto.self,
     ])
 
     /// The store file to open, decided in one place rather than scattered across

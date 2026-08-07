@@ -91,6 +91,14 @@ final class Activity {
     var laps: [Lap] = []
     @Relationship(deleteRule: .cascade, inverse: \ActivityStreams.activity)
     var streams: ActivityStreams?
+    @Relationship(deleteRule: .cascade, inverse: \ActivityPhoto.activity)
+    var photos: [ActivityPhoto] = []
+
+    /// The photos in the order they were taken, which is the order Strava shows
+    /// them in and the only one a stored relationship will not give back.
+    var orderedPhotos: [ActivityPhoto] {
+        photos.sorted { $0.sortIndex < $1.sortIndex }
+    }
 
     init(stravaID: Int64, name: String, sportType: SportType) {
         self.stravaID = stravaID

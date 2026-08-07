@@ -76,6 +76,45 @@ actor StravaClient {
         )
     }
 
+    /// Every photo on an activity, largest size first.
+    ///
+    /// `GET /activities/{id}/photos` is **not in any published Strava spec** —
+    /// their own web client uses it, and it is the only way to reach more than
+    /// the single primary photo the documented detail endpoint exposes. Being
+    /// undocumented, it may change shape or disappear without notice, so a
+    /// failure here is not an error: the caller falls back to the documented
+    /// `photos.primary`. That fallback is the whole reason this returns an empty
+    /// array rather than throwing on a 404 or a shape it cannot read.
+    func photos(id: Int64) async throws -> [PhotoDTO] {
+        do {
+            return try await get(
+                [PhotoDTO].self, path: "activities/\(id)/photos",
+                // 5000 is past any photo Strava stores, and it answers with the
+                // largest it has rather than refusing.
+                query: ["photo_sources": "true", "size": "5000"]
+            )
+        } catch StravaError.http(let status, _) where status != 429 {
+            // A quota error still has to propagate: it means "wait", not "there
+            // are no photos", and swallowing it would burn the rest of the run.
+            return []
+        } catch is DecodingError {
+            return []
+        }
+    }
+
+    /// Downloads an image by its URL.
+    ///
+    /// Deliberately outside `get`: photo bytes come from Strava's CDN, not from
+    /// the API host, so they carry no token, need no rate-limit accounting, and
+    /// consume none of the quota.
+    func imageData(from url: URL) async throws -> Data {
+        let (data, response) = try await transport.send(URLRequest(url: url))
+        guard (200..<300).contains(response.statusCode) else {
+            throw StravaError.http(response.statusCode, "Photo inaccessible")
+        }
+        return data
+    }
+
     func athlete() async throws -> AthleteDTO {
         try await get(AthleteDTO.self, path: "athlete", query: [:])
     }

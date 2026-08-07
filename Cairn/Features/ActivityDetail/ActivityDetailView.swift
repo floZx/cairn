@@ -42,6 +42,12 @@ struct ActivityDetailView: View {
                     .clipShape(.rect(cornerRadius: 8))
                 }
 
+                // Above the figures: a photo says what an outing was in a way no
+                // number does, and it arrives with the detail fetch anyway.
+                if !activity.photos.isEmpty {
+                    ActivityPhotosStrip(photos: activity.orderedPhotos)
+                }
+
                 statistics
 
                 if !trackModel.series.isEmpty {

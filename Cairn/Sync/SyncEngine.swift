@@ -11,6 +11,8 @@ protocol StravaSyncSource: Sendable {
     func activities(after: Int, page: Int, perPage: Int) async throws -> [SummaryActivityDTO]
     func streams(id: Int64) async throws -> StreamSetDTO
     func activityDetail(id: Int64) async throws -> DetailActivityDTO
+    func photos(id: Int64) async throws -> [PhotoDTO]
+    func imageData(from url: URL) async throws -> Data
     func athlete() async throws -> AthleteDTO
     func gear(id: String) async throws -> GearDTO
     func rateLimitSnapshot() async -> RateLimitSnapshot?
@@ -334,6 +336,35 @@ actor SyncEngine {
         else { return }
         let detail = try await source.activityDetail(id: stravaID)
         try mapper.apply(detail: detail, to: activity)
+        try context.save()
+        try await syncPhotos(of: activity, detail: detail)
+    }
+
+    /// Fetches the activity's photos, then their bytes.
+    ///
+    /// The undocumented listing endpoint is tried first because it is the only
+    /// one that returns more than a single photo; when it gives nothing — it may
+    /// be withdrawn at any time — the documented `photos.primary` still stands.
+    ///
+    /// Nothing here is allowed to fail the sync. Photos are the one part of an
+    /// activity whose absence costs nothing but a picture, and a CDN hiccup must
+    /// not cost the run its tracks.
+    private func syncPhotos(of activity: Activity, detail: DetailActivityDTO) async throws {
+        var listed = (try? await source.photos(id: activity.stravaID)) ?? []
+        if listed.isEmpty, let primary = detail.photos?.primary {
+            listed = [primary]
+        }
+        guard !listed.isEmpty else { return }
+
+        let pending = mapper.upsert(photos: listed, on: activity)
+        try context.save()
+
+        for photo in pending {
+            guard let address = photo.sourceURL, let url = URL(string: address),
+                  let data = try? await source.imageData(from: url)
+            else { continue }
+            photo.data = data
+        }
         try context.save()
     }
 

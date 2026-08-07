@@ -122,6 +122,16 @@ main n'aurait de sens.
 **Ajout (⌘N).** Une séance sans montre s'ajoute à la main. Elle n'a pas
 d'identifiant Strava et la synchronisation l'ignore entièrement.
 
+**Photos.** Elles arrivent avec le détail d'une activité et s'affichent au-dessus
+des chiffres. L'API documentée n'expose qu'une seule photo par activité, la
+principale, en 600 px ; l'endpoint `/activities/{id}/photos`, que l'app web de
+Strava utilise mais qu'aucune spec publiée ne décrit, les rend toutes en pleine
+définition. Cairn essaie le second et retombe sur le premier s'il ne répond pas.
+Les octets sont téléchargés et rangés en stockage externe, comme les traces : les
+URL de Strava sont signées et expirent, donc conserver le lien donnerait un
+journal de photos mortes en quelques mois. Le téléchargement passe par leur CDN
+et ne consomme pas le quota d'API.
+
 **Import GPX (⌘I).** Un ou plusieurs fichiers à la fois. Distance, dénivelé et
 temps en mouvement sont recalculés depuis les points, puisque aucun fichier ne les
 porte : le dénivelé par hystérésis, pour qu'un baromètre qui oscille de deux mètres
