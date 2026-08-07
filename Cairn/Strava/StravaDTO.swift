@@ -33,6 +33,8 @@ struct SummaryActivityDTO: Decodable, Sendable {
     let manual: Bool?
     let `private`: Bool?
     let workout_type: Int?
+    /// Instagram et Strava confondus, d'après la spec.
+    let total_photo_count: Int?
     let kudos_count: Int?
     let achievement_count: Int?
     let pr_count: Int?

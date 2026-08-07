@@ -313,6 +313,7 @@ actor SyncEngine {
         for activity in try context.fetch(FetchDescriptor<Activity>())
         where activity.source.isSynced {
             activity.detailFetchedAt = nil
+            activity.photosFetchedAt = nil
         }
         try context.save()
 
@@ -331,32 +332,69 @@ actor SyncEngine {
     /// the cost of the initial sync compared to fetching it up front.
     func fetchDetailIfNeeded(stravaID: Int64) async throws {
         guard let activity = try mapper.activity(stravaID: stravaID),
-              activity.source.isSynced,
-              activity.detailFetchedAt == nil
+              activity.source.isSynced
         else { return }
-        let detail = try await source.activityDetail(id: stravaID)
-        try mapper.apply(detail: detail, to: activity)
-        try context.save()
-        try await syncPhotos(of: activity, detail: detail)
+
+        // Two markers, checked separately. Bundling them behind the detail's
+        // guard is what made photos unreachable for every activity synced
+        // before they existed: their detail date was already set, so opening
+        // one returned here and asked Strava nothing.
+        var detail: DetailActivityDTO?
+        if activity.detailFetchedAt == nil {
+            let fetched = try await source.activityDetail(id: stravaID)
+            try mapper.apply(detail: fetched, to: activity)
+            try context.save()
+            detail = fetched
+        }
+        try await fetchPhotosIfNeeded(activity, detail: detail)
     }
 
-    /// Fetches the activity's photos, then their bytes.
+    /// Looks for an activity's photos once, whether or not its detail was
+    /// fetched long ago.
     ///
-    /// The undocumented listing endpoint is tried first because it is the only
-    /// one that returns more than a single photo; when it gives nothing — it may
-    /// be withdrawn at any time — the documented `photos.primary` still stands.
+    /// This is the whole reason `photosFetchedAt` exists rather than reusing
+    /// `detailFetchedAt`: every activity synced before photos were supported
+    /// already carries a detail date, so hanging the photo fetch off that marker
+    /// would mean the entire existing library never looks for a photo at all.
     ///
-    /// Nothing here is allowed to fail the sync. Photos are the one part of an
-    /// activity whose absence costs nothing but a picture, and a CDN hiccup must
-    /// not cost the run its tracks.
-    private func syncPhotos(of activity: Activity, detail: DetailActivityDTO) async throws {
-        var listed = (try? await source.photos(id: activity.stravaID)) ?? []
-        if listed.isEmpty, let primary = detail.photos?.primary {
-            listed = [primary]
+    /// `detail` is whatever the caller already has in hand, so opening an
+    /// activity for the first time costs no extra request.
+    func fetchPhotosIfNeeded(
+        _ activity: Activity, detail: DetailActivityDTO? = nil
+    ) async throws {
+        guard activity.source.isSynced, activity.photosFetchedAt == nil else { return }
+        // A known zero costs nothing: the summary already said there is nothing
+        // to look for. Nil is *unknown*, not zero — everything synced before
+        // `total_photo_count` was read — and unknown still deserves a look.
+        guard activity.photoCount != 0 else {
+            activity.photosFetchedAt = Date()
+            try context.save()
+            return
         }
-        guard !listed.isEmpty else { return }
+
+        var listed = try await source.photos(id: activity.stravaID)
+        // Nothing came back from the undocumented endpoint, so fall back to the
+        // one documented photo — but only pay for it when it is worth paying
+        // for. A detail already in hand is free, whatever the count says. Going
+        // back to Strava for one is not, so that branch waits until the summary
+        // has actually claimed there are photos to find.
+        if listed.isEmpty {
+            if let primary = detail?.photos?.primary {
+                listed = [primary]
+            } else if (activity.photoCount ?? 0) > 0,
+                      let refetched = try? await source.activityDetail(
+                          id: activity.stravaID
+                      ),
+                      let primary = refetched.photos?.primary {
+                listed = [primary]
+            }
+        }
 
         let pending = mapper.upsert(photos: listed, on: activity)
+        // Set before the downloads, not after: the rows are what matters, and a
+        // CDN that refuses one image must not make the next sync ask Strava for
+        // the whole list again.
+        activity.photosFetchedAt = Date()
         try context.save()
 
         for photo in pending {

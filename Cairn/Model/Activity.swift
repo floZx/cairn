@@ -81,6 +81,15 @@ final class Activity {
     var deviceName: String?
     /// Non-nil once the detail endpoint has been fetched for this activity.
     var detailFetchedAt: Date?
+    /// Non-nil once photos have been looked for. Kept apart from
+    /// `detailFetchedAt` deliberately: photos arrived long after the detail
+    /// endpoint did, and sharing the marker would mean every activity synced
+    /// before they existed never looks for them at all.
+    var photosFetchedAt: Date?
+    /// How many photos Strava says the activity has, from the summary. Nil on
+    /// anything synced before this was read — which means "unknown", not zero,
+    /// and is why an unknown count still costs one lookup.
+    var photoCount: Int?
 
     /// Kept alongside the relationship: the summary endpoint gives us a gear id
     /// long before the gear itself is fetched, and without storing it there'd be

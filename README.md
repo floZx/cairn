@@ -132,6 +132,12 @@ URL de Strava sont signées et expirent, donc conserver le lien donnerait un
 journal de photos mortes en quelques mois. Le téléchargement passe par leur CDN
 et ne consomme pas le quota d'API.
 
+La recherche a lieu une fois par activité, à sa première ouverture, et suit son
+propre marqueur : les activités synchronisées avant l'arrivée des photos portent
+déjà une date de détail, et partager le marqueur aurait voulu dire qu'aucune
+d'elles n'irait jamais en chercher. Quand le résumé annonce zéro photo, aucune
+requête n'est faite du tout.
+
 **Import GPX (⌘I).** Un ou plusieurs fichiers à la fois. Distance, dénivelé et
 temps en mouvement sont recalculés depuis les points, puisque aucun fichier ne les
 porte : le dénivelé par hystérésis, pour qu'un baromètre qui oscille de deux mètres

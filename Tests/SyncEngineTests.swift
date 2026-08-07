@@ -94,7 +94,8 @@ private actor FakeSource: StravaSyncSource {
 }
 
 private func makeSummary(
-    id: Int64, epoch: Int, sport: String = "Ride", gearID: String? = nil
+    id: Int64, epoch: Int, sport: String = "Ride", gearID: String? = nil,
+    photoCount: Int? = nil
 ) -> SummaryActivityDTO {
     SummaryActivityDTO(
         id: id, name: "Activité \(id)", sport_type: sport,
@@ -105,7 +106,7 @@ private func makeSummary(
         average_heartrate: nil, max_heartrate: nil, average_watts: nil,
         weighted_average_watts: nil, kilojoules: nil, average_cadence: nil,
         commute: nil, trainer: nil, manual: nil, private: nil,
-        workout_type: nil,
+        workout_type: nil, total_photo_count: photoCount,
         kudos_count: nil, achievement_count: nil, pr_count: nil,
         athlete_count: nil, start_latlng: nil, end_latlng: nil, gear_id: gearID,
         map: MapDTO(summary_polyline: "_p~iF~ps|U_ulLnnqC_mqNvxq`@")
@@ -694,5 +695,77 @@ struct SyncPhotosTests {
         #expect(activity.photos.count == 1)
         #expect(activity.photos[0].data == nil)
         #expect(activity.detailFetchedAt != nil)
+    }
+}
+
+@Suite("SyncEngine — photos des activités déjà détaillées")
+@MainActor
+struct PhotosForAlreadyDetailedTests {
+    @Test("une activité dont le détail date d'hier cherche quand même ses photos")
+    func looksForPhotosOnAnOldActivity() async throws {
+        // The case that mattered: every activity synced before photos existed
+        // already carries a detail date. While both lived behind the same
+        // marker, opening one asked Strava nothing and no photo ever arrived.
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        let context = ModelContext(container)
+        let activity = try context.fetch(FetchDescriptor<Activity>())[0]
+        activity.detailFetchedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        try context.save()
+
+        await source.setListedPhotos([
+            PhotoDTO(
+                unique_id: "a", urls: ["1800": "https://cdn.test/a.jpg"],
+                caption: nil, created_at: nil, created_at_local: nil
+            )
+        ])
+        try await engine.fetchDetailIfNeeded(stravaID: 1)
+
+        let reread = ModelContext(container)
+        let after = try reread.fetch(FetchDescriptor<Activity>())[0]
+        #expect(after.photos.count == 1)
+        #expect(after.photos[0].data != nil)
+        // The detail itself must not be re-fetched: it was already there, and
+        // asking again would cost a request for nothing.
+        #expect(await source.detailRequests.isEmpty)
+    }
+
+    @Test("un compte de photos à zéro ne coûte aucune requête")
+    func aKnownZeroCostsNothing() async throws {
+        // Strava's own summary said there are none. Asking anyway would be one
+        // wasted request per activity opened, against a quota of 2000 a day.
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000, photoCount: 0)]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+        try await engine.fetchDetailIfNeeded(stravaID: 1)
+
+        #expect(await source.photoRequests.isEmpty)
+        let context = ModelContext(container)
+        // Marked as looked at all the same, so it is not reconsidered on every
+        // single open.
+        #expect(try context.fetch(FetchDescriptor<Activity>())[0].photosFetchedAt != nil)
+    }
+
+    @Test("la recherche de photos n'a lieu qu'une fois")
+    func onlyLooksOnce() async throws {
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000, photoCount: 2)]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        try await engine.fetchDetailIfNeeded(stravaID: 1)
+        try await engine.fetchDetailIfNeeded(stravaID: 1)
+
+        #expect(await source.photoRequests == [1])
     }
 }
