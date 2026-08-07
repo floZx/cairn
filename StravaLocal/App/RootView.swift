@@ -3,6 +3,7 @@ import SwiftData
 
 struct RootView: View {
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.modelContext) private var modelContext
     @State private var sidebarSelection: SidebarItem? = .all
     @State private var filter = ActivityFilter.none
     // See the comment on `ActivityListView.selection`: `Activity.ID` can't be
@@ -10,6 +11,12 @@ struct RootView: View {
     @State private var selectedActivities: Set<PersistentIdentifier> = []
     /// Which map, if any, is filling the window.
     @State private var expandedMap: ExpandedMap?
+    /// Which editor is open, if any. One state rather than two booleans: the two
+    /// modes are exclusive and a pair of flags would let both be true.
+    @State private var editor: ActivityEditorSheet.Mode?
+    /// The activity a confirmation dialog is about to delete. Introduced here
+    /// for the toolbar's Supprimer button; the confirmation itself is task 7's.
+    @State private var pendingDeletion: Activity?
     /// Shared with every map so the chosen background and colour carry over.
     @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
     @AppStorage(TrackColor.storageKey) private var expandedTrackColor: TrackColor = .accent
@@ -176,6 +183,18 @@ struct RootView: View {
         // Makes the list absorb a sidebar toggle instead of the detail pane.
         .background(SplitViewHoldingPriorities())
         .toolbar { syncToolbar }
+        .sheet(item: $editor) { mode in
+            ActivityEditorSheet(mode: mode) { draft in
+                // `Mode.apply` carries the switch that used to live here; kept
+                // out of this closure so a test can reach it directly.
+                let activity = mode.apply(draft)
+                if case .create = mode {
+                    modelContext.insert(activity)
+                    selectedActivities = [activity.id]
+                }
+                try? modelContext.save()
+            }
+        }
     }
 
     /// A floor for the detail pane whenever it actually has something to show.
@@ -265,6 +284,33 @@ struct RootView: View {
                 }
                 .disabled(selection.isEmpty)
                 .help("Fermer le panneau de droite et désélectionner")
+            }
+            // Grouped, not three loose buttons: the toolbar already carries three
+            // items, and six side by side is where it stops reading as a toolbar.
+            // These three act on the selected activity and belong together.
+            ToolbarItemGroup {
+                Button {
+                    editor = .create
+                } label: {
+                    Label("Nouvelle activité", systemImage: "plus")
+                }
+                .help("Ajouter une activité saisie à la main")
+
+                Button {
+                    if let selected { editor = .edit(selected) }
+                } label: {
+                    Label("Modifier", systemImage: "pencil")
+                }
+                .disabled(selected == nil)
+                .help("Modifier l'activité sélectionnée")
+
+                Button {
+                    pendingDeletion = selected
+                } label: {
+                    Label("Supprimer", systemImage: "trash")
+                }
+                .disabled(selected == nil)
+                .help("Supprimer l'activité sélectionnée")
             }
     }
 }

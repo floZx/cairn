@@ -70,6 +70,31 @@ struct ActivityDetailView: View {
             Text(Format.longDate(activity.startLocalDate))
                 .foregroundStyle(.secondary)
 
+            if activity.source != .strava || activity.editedAt != nil {
+                // Said outright: an activity the sync will not update is a
+                // different thing from one it will, and nothing else on screen
+                // would tell you which you are looking at.
+                HStack(spacing: 6) {
+                    if activity.source != .strava {
+                        Label(activity.source.displayName, systemImage: "pencil.and.list.clipboard")
+                    }
+                    if let editedAt = activity.editedAt {
+                        Label(
+                            "Modifiée le \(Format.dateOnly(editedAt))",
+                            systemImage: "pencil"
+                        )
+                        .help(
+                            "Champs protégés de la synchro : "
+                                + activity.editedFields
+                                    .map(\.displayName).sorted()
+                                    .joined(separator: ", ")
+                        )
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
             // Sits with the title rather than at the foot of the page: the note
             // is what the activity was about, and it arrives a moment after the
             // rest, once the detail endpoint has been fetched.

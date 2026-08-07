@@ -1,0 +1,147 @@
+import SwiftUI
+
+/// The one form for editing an activity and for creating one.
+///
+/// A modal sheet rather than inline fields, for a reason that is not cosmetic:
+/// an explicit Save is what tells us which fields the user actually meant to
+/// change, which is exactly what `editedFields` must contain. Inline editing
+/// would freeze a field on a stray keystroke.
+struct ActivityEditorSheet: View {
+    enum Mode {
+        case edit(Activity)
+        case create
+    }
+
+    let mode: Mode
+    let onSave: (ActivityDraft) -> Void
+
+    @State private var draft: ActivityDraft
+    @Environment(\.dismiss) private var dismiss
+
+    init(mode: Mode, onSave: @escaping (ActivityDraft) -> Void) {
+        self.mode = mode
+        self.onSave = onSave
+        switch mode {
+        case let .edit(activity):
+            _draft = State(initialValue: ActivityDraft(activity))
+        case .create:
+            _draft = State(initialValue: ActivityDraft(startingOn: Date()))
+        }
+    }
+
+    private var title: String {
+        switch mode {
+        case .edit: "Modifier l'activité"
+        case .create: "Nouvelle activité"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Form {
+                Section {
+                    TextField("Nom", text: $draft.name)
+                    Picker("Sport", selection: $draft.sport) {
+                        ForEach(SportType.allCases) { sport in
+                            Label(sport.displayName, systemImage: sport.symbolName)
+                                .tag(sport)
+                        }
+                    }
+                    DatePicker("Date", selection: $draft.startLocalDate)
+                }
+
+                Section("Chiffres") {
+                    OptionalNumberField(
+                        title: "Distance", unit: "km",
+                        value: Binding(
+                            get: { draft.distanceKm == 0 ? nil : draft.distanceKm },
+                            set: { draft.distanceKm = $0 ?? 0 }
+                        )
+                    )
+                    OptionalNumberField(
+                        title: "Durée", unit: "min",
+                        value: Binding(
+                            get: { draft.movingMinutes == 0 ? nil : draft.movingMinutes },
+                            set: { draft.movingMinutes = $0 ?? 0 }
+                        )
+                    )
+                    OptionalNumberField(
+                        title: "D+", unit: "m",
+                        value: Binding(
+                            get: { draft.elevationGain == 0 ? nil : draft.elevationGain },
+                            set: { draft.elevationGain = $0 ?? 0 }
+                        )
+                    )
+                }
+
+                Section("Notes") {
+                    // First `TextEditor` in the project, so no house style to
+                    // follow — and it arrives borderless, which reads as nothing
+                    // at all beside the bordered fields above it.
+                    TextEditor(text: $draft.notes)
+                        .font(.body)
+                        .frame(minHeight: 70)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color(nsColor: .separatorColor))
+                        )
+                }
+
+                Section {
+                    Toggle("Domicile-travail", isOn: $draft.isCommute)
+                    Toggle("Home-trainer", isOn: $draft.isTrainer)
+                }
+            }
+            .formStyle(.grouped)
+
+            Divider()
+            HStack {
+                // The reason rather than a greyed-out button with no explanation.
+                if let message = draft.validationMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Annuler") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Enregistrer") {
+                    onSave(draft)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(draft.validationMessage != nil)
+            }
+            .padding(12)
+        }
+        .frame(width: 460, height: 560)
+        .navigationTitle(title)
+    }
+}
+
+extension ActivityEditorSheet.Mode: Identifiable {
+    var id: String {
+        switch self {
+        case let .edit(activity): "edit-\(activity.uuid)"
+        case .create: "create"
+        }
+    }
+}
+
+extension ActivityEditorSheet.Mode {
+    /// Writes a saved draft onto the activity being edited, or turns it into a
+    /// freshly made one for the caller to insert.
+    ///
+    /// Pulled out of the sheet's `onSave` closure so this switch — the one
+    /// place that decides which of `ActivityDraft`'s two write paths runs — is
+    /// reachable from a test. A closure captured by `.sheet(item:)` is not.
+    func apply(_ draft: ActivityDraft) -> Activity {
+        switch self {
+        case let .edit(activity):
+            draft.apply(to: activity)
+            return activity
+        case .create:
+            return draft.makeActivity()
+        }
+    }
+}
