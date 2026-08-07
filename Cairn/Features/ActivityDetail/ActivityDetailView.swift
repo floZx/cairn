@@ -52,6 +52,13 @@ struct ActivityDetailView: View {
                     StreamChartsView(
                         series: trackModel.series, hoverDistanceKm: $hoverDistanceKm
                     )
+                } else if let message = Self.missingChartsMessage(
+                    hasStreams: activity.streams != nil,
+                    isSynced: activity.source.isSynced
+                ) {
+                    Label(message, systemImage: "chart.xyaxis.line")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
 
                 if !activity.laps.isEmpty {
@@ -64,6 +71,24 @@ struct ActivityDetailView: View {
         .task(id: activity.stravaID) {
             app.loadDetail(stravaID: activity.stravaID)
         }
+    }
+
+    /// Why there are no charts, or nil when there are.
+    ///
+    /// Said out loud because the two reasons look identical when the pane simply
+    /// omits them: an activity whose streams are still queued behind a thousand
+    /// others is indistinguishable from a ride that recorded neither altitude
+    /// nor heart rate. Phase B drains at 200 requests a quarter hour, so the
+    /// wait is measured in days on a first import.
+    static func missingChartsMessage(hasStreams: Bool, isSynced: Bool) -> String? {
+        if hasStreams {
+            // The streams arrived and carry nothing to plot: a pool swim, a gym
+            // session, a watch with no barometer and no strap.
+            return "Cette activité n'a pas de données d'altitude ni de fréquence cardiaque."
+        }
+        return isSynced
+            ? "Les courbes ne sont pas encore téléchargées. Elles arrivent — laissez cette activité ouverte un instant."
+            : "Cette activité n'a pas de courbes : elle ne vient pas de Strava."
     }
 
     private var header: some View {

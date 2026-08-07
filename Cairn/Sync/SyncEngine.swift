@@ -98,7 +98,14 @@ actor SyncEngine {
                 for dto in batch {
                     do {
                         let activity = try mapper.upsert(summary: dto)
-                        if activity.streams?.latlng == nil,
+                        // "Never fetched", not "has no track". The two differ for
+                        // every indoor ride, pool swim and gym session: Strava
+                        // returns their streams with no `latlng` at all, so the
+                        // old condition stayed true after a successful fetch and
+                        // put them straight back in the queue. Measured: 102 of
+                        // the 841 activities were queued while already holding
+                        // their streams, every one of them trackless.
+                        if activity.streams == nil,
                            !state.pendingStreamIDs.contains(dto.id) {
                             state.pendingStreamIDs.append(dto.id)
                         }
@@ -196,6 +203,15 @@ actor SyncEngine {
                 continue
             }
 
+            // Already held: drop it without spending a request. This is what
+            // clears a backlog queued under the old condition — otherwise those
+            // 102 trackless activities each cost a request to re-download
+            // streams already on disk.
+            if try mapper.activity(stravaID: stravaID)?.streams != nil {
+                try dequeue(stravaID)
+                continue
+            }
+
             // Ask before spending: the limiter would otherwise sleep inside the
             // HTTP client, leaving the UI on a frozen counter for up to fifteen
             // minutes and looking hung when it is merely waiting its turn.
@@ -248,6 +264,16 @@ actor SyncEngine {
         try context.save()
         await finish(quota: await source.rateLimitSnapshot(), at: finalState.lastRunAt)
         return fetched
+    }
+
+    /// Puts an identifier back in the queue, to reproduce a backlog left by an
+    /// earlier version. Exists for the test that proves such a backlog costs no
+    /// request; production never needs it.
+    func enqueueForTesting(stravaID: Int64) throws {
+        let state = try state()
+        guard !state.pendingStreamIDs.contains(stravaID) else { return }
+        state.pendingStreamIDs.append(stravaID)
+        try context.save()
     }
 
     private func dequeue(_ stravaID: Int64) throws {
@@ -347,6 +373,28 @@ actor SyncEngine {
             detail = fetched
         }
         try await fetchPhotosIfNeeded(activity, detail: detail)
+    }
+
+    /// Fetches an activity's streams now, ahead of the queue.
+    ///
+    /// Phase B drains thousands of identifiers over days at 200 requests per
+    /// quarter hour, so an activity recorded this morning sits far down the line
+    /// — and its detail pane shows a track with no elevation and no heart rate,
+    /// looking exactly like a ride that never recorded either. Opening one is a
+    /// clear statement of which activity matters right now, so it jumps the
+    /// queue.
+    ///
+    /// Dequeued on success so phase B does not spend a second request on it.
+    func fetchStreamsIfNeeded(stravaID: Int64) async throws {
+        guard let activity = try mapper.activity(stravaID: stravaID),
+              activity.source.isSynced,
+              activity.streams == nil
+        else { return }
+
+        let dto = try await source.streams(id: stravaID)
+        mapper.apply(streams: dto, to: activity)
+        try dequeue(stravaID)
+        try context.save()
     }
 
     /// Looks for an activity's photos once, whether or not its detail was

@@ -176,6 +176,10 @@ final class AppEnvironment {
     func loadDetail(stravaID: Int64) {
         Task { [engine] in
             try? await engine.fetchDetailIfNeeded(stravaID: stravaID)
+            // Separately, and after: a failure to fetch the detail must not cost
+            // the charts, and neither is worth surfacing as an error — the pane
+            // says what is missing on its own.
+            try? await engine.fetchStreamsIfNeeded(stravaID: stravaID)
         }
     }
 }

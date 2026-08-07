@@ -19,6 +19,7 @@ private actor FakeSource: StravaSyncSource {
     func setListedPhotos(_ photos: [PhotoDTO]) { listedPhotos = photos }
     func setPrimaryPhoto(_ summary: PhotosSummaryDTO?) { photosToReturn = summary }
     func setFailPhotoDownload(_ fail: Bool) { failPhotoDownload = fail }
+    func setStreams(_ streams: StreamSetDTO) { streamsToReturn = streams }
     private var notFoundIDs: Set<Int64> = []
     private var failWithServerError = false
     var streamsToReturn = StreamSetDTO(
@@ -767,5 +768,114 @@ struct PhotosForAlreadyDetailedTests {
         try await engine.fetchDetailIfNeeded(stravaID: 1)
 
         #expect(await source.photoRequests == [1])
+    }
+}
+
+@Suite("SyncEngine — courbes à la demande")
+@MainActor
+struct FetchStreamsOnDemandTests {
+    @Test("ouvrir une activité va chercher ses courbes sans attendre la file")
+    func fetchesStreamsAheadOfTheQueue() async throws {
+        // Phase B drains thousands of identifiers over days. Without this, an
+        // activity recorded this morning shows a track with no elevation and no
+        // heart rate for as long as the queue takes.
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        let context = ModelContext(container)
+        let before = try context.fetch(FetchDescriptor<Activity>())[0]
+        before.streams = nil
+        try context.save()
+
+        try await engine.fetchStreamsIfNeeded(stravaID: 1)
+
+        let after = try ModelContext(container).fetch(FetchDescriptor<Activity>())[0]
+        #expect(after.streams?.coordinates.isEmpty == false)
+        // Dequeued, so phase B does not spend a second request on it.
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.contains(1) == false)
+    }
+
+    @Test("des courbes déjà là ne sont pas redemandées")
+    func doesNotRefetch() async throws {
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+        try await engine.fetchStreamsIfNeeded(stravaID: 1)
+        let issued = await source.streamRequests.count
+
+        // Opening the same activity again must cost nothing: the pane is
+        // re-entered every time the selection changes.
+        try await engine.fetchStreamsIfNeeded(stravaID: 1)
+
+        #expect(await source.streamRequests.count == issued)
+    }
+}
+
+@Suite("SyncEngine — la file des courbes ne tourne pas en rond")
+@MainActor
+struct StreamQueueTests {
+    /// A trackless activity: an indoor ride, a pool swim, a gym session. Strava
+    /// answers with streams that carry no `latlng` at all.
+    private func tracklessSource() -> FakeSource {
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        return source
+    }
+
+    @Test("une activité sans tracé sort de la file une fois ses courbes reçues")
+    func aTracklessActivityLeavesTheQueue() async throws {
+        let source = tracklessSource()
+        await source.setStreams(
+            StreamSetDTO(
+                latlng: nil, distance: StreamDTO(data: [0, 131]),
+                altitude: nil, time: StreamDTO(data: [0, 10]),
+                heartrate: StreamDTO(data: [120, 130]), cadence: nil, watts: nil,
+                velocity_smooth: nil, temp: nil, grade_smooth: nil, moving: nil
+            )
+        )
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+
+        _ = try await engine.syncSummaries()
+        // Queued on the way in: its streams have never been fetched.
+        #expect(try await engine.stateSnapshot().pendingStreamIDs == [1])
+
+        _ = try await engine.syncStreams()
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
+
+        // The pass that used to undo it all. The old condition asked "has no
+        // track", which stays true forever for a trackless activity, so it came
+        // back queued and cost another request to re-download streams already
+        // on disk.
+        _ = try await engine.syncSummaries()
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
+    }
+
+    @Test("un identifiant déjà pourvu ne coûte pas de requête")
+    func anAlreadyHeldIDCostsNothing() async throws {
+        let source = tracklessSource()
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+        _ = try await engine.syncStreams()
+        let issued = await source.streamRequests.count
+
+        // What a backlog queued under the old condition looks like: an id whose
+        // streams are already on disk.
+        try await engine.enqueueForTesting(stravaID: 1)
+        _ = try await engine.syncStreams()
+
+        #expect(await source.streamRequests.count == issued)
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
     }
 }
