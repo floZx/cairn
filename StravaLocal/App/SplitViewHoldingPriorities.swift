@@ -31,8 +31,18 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         // its split view items as the columns change, which would otherwise undo
         // this. Each pass is a few comparisons, and writes only on a difference.
         DispatchQueue.main.async {
-            guard let controller = view.enclosingSplitViewController else { return }
-            Self.configure(controller)
+            guard let controller = view.enclosingSplitViewController else {
+                Diagnostics.splitView("no split view controller found")
+                return
+            }
+            let before = controller.splitViewItems.map(\.holdingPriority.rawValue)
+            let applied = Self.configure(controller)
+            let after = controller.splitViewItems.map(\.holdingPriority.rawValue)
+            Diagnostics.splitView(
+                "items=\(controller.splitViewItems.count) applied=\(applied) "
+                    + "before=\(before) after=\(after) "
+                    + "widths=\(controller.splitViewItems.map { Int($0.viewController.view.frame.width) })"
+            )
         }
     }
 
