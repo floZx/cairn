@@ -14,10 +14,21 @@ final class DiscardedActivity {
     var stravaID: Int64 = 0
     var name: String = ""
     var discardedAt: Date = Date.distantPast
+    /// The discarded activity's own start date, so `restore` can put the sync
+    /// cursor back behind it. Without this the promise made in the settings —
+    /// that reinstating an activity lets it come back on the next sync — holds
+    /// only for the most recent ones: the cursor has already moved past the rest,
+    /// and only a full resync would reach them, at the cost of re-fetching every
+    /// track.
+    var startDate: Date = Date.distantPast
 
-    init(stravaID: Int64, name: String, discardedAt: Date = Date()) {
+    init(
+        stravaID: Int64, name: String, discardedAt: Date = Date(),
+        startDate: Date = Date.distantPast
+    ) {
         self.stravaID = stravaID
         self.name = name
         self.discardedAt = discardedAt
+        self.startDate = startDate
     }
 }

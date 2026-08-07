@@ -104,6 +104,14 @@ actor SyncEngine {
                     } catch ImportSkip.discarded {
                         // Not queued for phase B either: a stream request for an
                         // activity the user deleted would just burn quota.
+                        //
+                        // The `continue` also skips advancing `newestEpoch`
+                        // below, and that is deliberate, not an oversight: the
+                        // cursor must stay short of a discarded activity's date,
+                        // because `restore` only pulls it back, never forward.
+                        // If this activity were the newest in the batch and the
+                        // cursor advanced past it anyway, reinstating it later
+                        // would leave no incremental sync able to reach it again.
                         continue
                     }
                     newestEpoch = max(newestEpoch, Int(dto.start_date.timeIntervalSince1970))
@@ -174,6 +182,17 @@ actor SyncEngine {
             if Task.isCancelled { break }
             let current = try state()
             guard let stravaID = current.pendingStreamIDs.first else { break }
+
+            // The initial import queues thousands of identifiers that phase B
+            // only drains over several days at 200 requests per quarter hour —
+            // deleting activities during that window is the normal case, not
+            // an edge case. Checked here, not in `discard`: `discard` runs from
+            // the timeline's own context, and having it reach into `SyncState`
+            // while this actor holds its own context is a race worth avoiding.
+            if try mapper.isDiscarded(stravaID: stravaID) {
+                try dequeue(stravaID)
+                continue
+            }
 
             // Ask before spending: the limiter would otherwise sleep inside the
             // HTTP client, leaving the UI on a frozen counter for up to fifteen

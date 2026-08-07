@@ -88,7 +88,8 @@ struct DiscardedActivityTests {
 
     @Test("une activité écartée n'est pas réimportée")
     func discardedStaysDiscarded() throws {
-        let context = ModelContext(try AppModelContainer.inMemory())
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
         let mapper = ImportMapper(context: context)
 
         let imported = try mapper.upsert(
@@ -98,44 +99,54 @@ struct DiscardedActivityTests {
         )
         try mapper.discard(imported)
 
-        #expect(try context.fetch(FetchDescriptor<Activity>()).isEmpty)
-        #expect(try mapper.isDiscarded(stravaID: 11))
+        // A fresh context, so this only passes if `discard` actually saved —
+        // not merely mutated the context this test already holds a live
+        // reference into, which would still read back the pending changes.
+        let reread = ModelContext(container)
+        let rereadMapper = ImportMapper(context: reread)
+        #expect(try reread.fetch(FetchDescriptor<Activity>()).isEmpty)
+        #expect(try rereadMapper.isDiscarded(stravaID: 11))
 
         // A full resync sends it again; it must not come back. `upsert` signals
         // the skip by throwing rather than silently returning, so SyncEngine's
         // phase A loop can tell "handled" apart from "row created".
         #expect(throws: ImportSkip.self) {
-            _ = try mapper.upsert(
+            _ = try rereadMapper.upsert(
                 summary: try Fixture.decode(
                     SummaryActivityDTO.self, from: "summary_activity", patching: ["id": 11]
                 )
             )
         }
-        #expect(try context.fetch(FetchDescriptor<Activity>()).isEmpty)
+        #expect(try reread.fetch(FetchDescriptor<Activity>()).isEmpty)
     }
 
     @Test("annuler l'écart la laisse revenir au passage suivant")
     func restoringLetsItBack() throws {
-        let context = ModelContext(try AppModelContainer.inMemory())
-        let mapper = ImportMapper(context: context)
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
         let stone = DiscardedActivity(stravaID: 12, name: "Sortie")
         context.insert(stone)
+        try context.save()
 
-        try mapper.restore(stone)
+        try ImportMapper(context: context).restore(stone)
 
-        #expect(try mapper.isDiscarded(stravaID: 12) == false)
-        _ = try mapper.upsert(
+        // A fresh context: proves `restore` saved rather than only mutating
+        // the context already held above.
+        let reread = ModelContext(container)
+        let rereadMapper = ImportMapper(context: reread)
+        #expect(try rereadMapper.isDiscarded(stravaID: 12) == false)
+        _ = try rereadMapper.upsert(
             summary: try Fixture.decode(
                 SummaryActivityDTO.self, from: "summary_activity", patching: ["id": 12]
             )
         )
-        #expect(try context.fetch(FetchDescriptor<Activity>()).count == 1)
+        #expect(try reread.fetch(FetchDescriptor<Activity>()).count == 1)
     }
 
     @Test("une activité d'identifiant zéro écartée ne laisse pas de pierre tombale")
     func discardingIdentifierZeroLeavesNoStone() throws {
-        let context = ModelContext(try AppModelContainer.inMemory())
-        let mapper = ImportMapper(context: context)
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
 
         // Source is left at its default (.strava, so isSynced is true): the
         // identifier alone, not the source flag, must be what stops the
@@ -144,15 +155,62 @@ struct DiscardedActivityTests {
         let activity = Activity(stravaID: 0, name: "Séance salle", sportType: .workout)
         context.insert(activity)
 
-        try mapper.discard(activity)
+        try ImportMapper(context: context).discard(activity)
 
-        #expect(try context.fetch(FetchDescriptor<DiscardedActivity>()).isEmpty)
-        #expect(try mapper.isDiscarded(stravaID: 0) == false)
-        _ = try mapper.upsert(
+        let reread = ModelContext(container)
+        let rereadMapper = ImportMapper(context: reread)
+        #expect(try reread.fetch(FetchDescriptor<DiscardedActivity>()).isEmpty)
+        #expect(try rereadMapper.isDiscarded(stravaID: 0) == false)
+        _ = try rereadMapper.upsert(
             summary: try Fixture.decode(
                 SummaryActivityDTO.self, from: "summary_activity", patching: ["id": 0]
             )
         )
-        #expect(try context.fetch(FetchDescriptor<Activity>()).count == 1)
+        #expect(try reread.fetch(FetchDescriptor<Activity>()).count == 1)
+    }
+
+    @Test("réintégrer une activité ancienne recule le curseur en deçà de sa date")
+    func restoringOldActivityRewindsCursor() throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let state = SyncState()
+        state.lastSummaryEpoch = 5000
+        context.insert(state)
+        let stone = DiscardedActivity(
+            stravaID: 20, name: "Sortie", startDate: Date(timeIntervalSince1970: 1000)
+        )
+        context.insert(stone)
+        try context.save()
+
+        try ImportMapper(context: context).restore(stone)
+
+        let reread = try ModelContext(container).fetch(FetchDescriptor<SyncState>()).first
+        // One second short of the activity's own epoch: `syncSummaries` asks
+        // for what came *after* the cursor, so landing exactly on it would
+        // still exclude the very activity being reinstated.
+        #expect(reread?.lastSummaryEpoch == 999)
+    }
+
+    @Test("réintégrer une activité déjà en deçà du curseur ne l'avance pas")
+    func restoringRecentActivityDoesNotAdvanceCursor() throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let state = SyncState()
+        state.lastSummaryEpoch = 500
+        context.insert(state)
+        // The activity's own date (epoch 1000) is ahead of the cursor
+        // (500): the cursor already reaches it without help, and `restore`
+        // must not push it forward to meet it — only `min`, never a plain
+        // assignment, guarantees that.
+        let stone = DiscardedActivity(
+            stravaID: 21, name: "Sortie", startDate: Date(timeIntervalSince1970: 1000)
+        )
+        context.insert(stone)
+        try context.save()
+
+        try ImportMapper(context: context).restore(stone)
+
+        let reread = try ModelContext(container).fetch(FetchDescriptor<SyncState>()).first
+        #expect(reread?.lastSummaryEpoch == 500)
     }
 }

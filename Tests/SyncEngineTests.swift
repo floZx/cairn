@@ -136,7 +136,32 @@ struct SyncSummariesTests {
         #expect(try after.fetch(FetchDescriptor<Activity>()).count == 1)
 
         let snapshot = try await engine.stateSnapshot()
-        #expect(snapshot.pendingStreamIDs.contains(5) == false)
+        // Proves both halves: not merely that 5 is missing (which a broken
+        // enqueue would also satisfy), but that 6 — the one activity actually
+        // imported — is exactly what got queued.
+        #expect(snapshot.pendingStreamIDs == [6])
+    }
+
+    @Test("le curseur retient la date de la conservée, pas de l'écartée la plus récente")
+    func cursorIgnoresDiscardedEvenWhenNewest() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        context.insert(DiscardedActivity(stravaID: 5, name: "Sortie supprimée"))
+        try context.save()
+
+        // 5 is discarded and the newer of the two; 6 is kept and older. A
+        // cursor that advances on the discarded one would leave `restore`
+        // powerless to bring 5 back on the next incremental sync.
+        let source = FakeSource(pages: [
+            [makeSummary(id: 6, epoch: 1000), makeSummary(id: 5, epoch: 3000)]
+        ])
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+
+        _ = try await engine.syncSummaries()
+
+        #expect(try await engine.stateSnapshot().lastSummaryEpoch == 1000)
     }
 
     @Test("la trace simplifiée et la bbox sont renseignées dès la phase A")
@@ -313,6 +338,32 @@ struct SyncStreamsTests {
         let activities = try context.fetch(FetchDescriptor<Activity>())
         #expect(activities.allSatisfy { $0.streams?.latlng != nil })
         #expect(activities.allSatisfy { $0.streams?.pointCount == 2 })
+    }
+
+    @Test("une activité écartée pendant que la phase B attend ne coûte pas de requête")
+    func discardedActivitySkippedDuringPhaseB() async throws {
+        let source = FakeSource(pages: [
+            [makeSummary(id: 1, epoch: 1000), makeSummary(id: 2, epoch: 2000)]
+        ])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+
+        let context = ModelContext(container)
+        let mapper = ImportMapper(context: context)
+        let activity = try #require(try mapper.activity(stravaID: 1))
+        try mapper.discard(activity)
+
+        let fetched = try await engine.syncStreams()
+
+        #expect(fetched == 1)
+        // Only 2's request should have gone out — spending one on 1 is exactly
+        // the quota waste the brief forbids, and the queue entry has to be
+        // gone too, or the next run would re-evaluate it every time.
+        #expect(await source.streamRequests == [2])
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
     }
 
     @Test("respecte la limite passée et laisse le reste en attente")

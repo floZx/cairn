@@ -34,6 +34,9 @@ struct ImportMapper {
     }
 
     func isDiscarded(stravaID: Int64) throws -> Bool {
+        // Same trap as in `discard`: a row keyed on identifier 0 would silently
+        // reject every local activity's placeholder identifier as if Strava had
+        // sent it and it had been deleted.
         guard stravaID != 0 else { return false }
         var descriptor = FetchDescriptor<DiscardedActivity>(
             predicate: #Predicate { $0.stravaID == stravaID }
@@ -49,14 +52,34 @@ struct ImportMapper {
     func discard(_ activity: Activity) throws {
         if activity.source.isSynced, activity.stravaID != 0 {
             context.insert(
-                DiscardedActivity(stravaID: activity.stravaID, name: activity.name)
+                DiscardedActivity(
+                    stravaID: activity.stravaID, name: activity.name,
+                    startDate: activity.startDate
+                )
             )
         }
         context.delete(activity)
         try context.save()
     }
 
+    /// Un-discards an activity, and pulls the sync cursor back if it had
+    /// already moved past it.
+    ///
+    /// Without this, the promise that reinstating an activity lets it come
+    /// back on the next sync would hold only for the most recent ones — the
+    /// cursor has already advanced past an older one, and only a full resync
+    /// would reach it, at the cost of re-fetching every track.
     func restore(_ stone: DiscardedActivity) throws {
+        if let state = try context.fetch(FetchDescriptor<SyncState>()).first {
+            // One second behind the activity's own epoch, not exactly on it:
+            // `syncSummaries` asks Strava for what came *after* the cursor, so
+            // landing exactly on the date would still exclude the activity
+            // that owns it. `min`, never a plain assignment — an activity
+            // older than the current cursor must pull it back, but one newer
+            // must not push it forward past work that has not run yet.
+            let epoch = Int(stone.startDate.timeIntervalSince1970) - 1
+            state.lastSummaryEpoch = min(state.lastSummaryEpoch, epoch)
+        }
         context.delete(stone)
         try context.save()
     }
