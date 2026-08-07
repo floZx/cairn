@@ -91,6 +91,24 @@ struct ActivityDraftTests {
         #expect(activity.name == "Sortie")
     }
 
+    @Test("le nom importé d'une activité Strava, jamais rogné à la source, ne se marque pas non plus")
+    func importedTrailingWhitespaceNameDoesNotMark() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        // `ImportMapper` builds `Activity(stravaID:name:sportType:)` straight
+        // from the Strava title, with no trimming — unlike `write(to:)`, which
+        // always trims. A one-sided fix (comparison trimmed, `activity.name`
+        // not) would just move the same defect to this exact activity: the
+        // very case the sync writes every day.
+        let activity = Activity(stravaID: 42, name: "Sortie du soir ", sportType: .run)
+        activity.distance = 10_000
+        activity.movingTime = 3_600
+        context.insert(activity)
+        var draft = ActivityDraft(activity)
+        draft.distanceKm = 12
+
+        #expect(draft.changedFields(comparedTo: activity) == [.distance])
+    }
+
     @Test("seuls les champs réellement modifiés sont marqués")
     func marksOnlyWhatChanged() throws {
         let context = ModelContext(try AppModelContainer.inMemory())

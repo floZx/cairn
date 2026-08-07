@@ -44,11 +44,15 @@ struct ActivityDraft: Equatable {
         isTrainer = false
     }
 
-    /// The name as it will actually be saved, computed once so `changedFields`
-    /// and `write(to:)` can never disagree about what counts as "the name".
-    /// Otherwise a name compared untrimmed but written trimmed would freeze
-    /// `.name` for ever the moment a trailing space made it through — with
-    /// nothing on screen to explain why. Newlines count as whitespace too: a
+    /// The name as it will actually be saved.
+    ///
+    /// A property of the draft, not a one-off call at a single call site, and
+    /// used on *both* operands wherever names are compared — `changedFields`
+    /// included, via `original.trimmedName`. Trimming one side only moves the
+    /// same defect instead of fixing it: an activity imported straight from
+    /// Strava's title is never trimmed at the source, so comparing a trimmed
+    /// draft to `activity.name` untouched would mark `.name` on a save that
+    /// only ever touched the distance. Newlines count as whitespace too: a
     /// name reduced to one would otherwise read as non-empty.
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -82,7 +86,7 @@ struct ActivityDraft: Equatable {
     func changedFields(comparedTo activity: Activity) -> Set<ActivityField> {
         var changed: Set<ActivityField> = []
         let original = ActivityDraft(activity)
-        if trimmedName != original.name { changed.insert(.name) }
+        if trimmedName != original.trimmedName { changed.insert(.name) }
         if sport != original.sport { changed.insert(.sportType) }
         if startLocalDate != original.startLocalDate { changed.insert(.startDate) }
         if distanceKm != original.distanceKm { changed.insert(.distance) }
