@@ -60,6 +60,12 @@ struct RootView: View {
                     activities: mapActivities,
                     region: regionBinding
                 )
+            case .comparison:
+                // Guarded because a selection can shrink under an expanded map:
+                // one activity is a detail pane's business, not this map's.
+                if selection.count > 1 {
+                    ComparisonMapView(activities: selection)
+                }
             case let .activity(id):
                 if let activity = allActivities.first(where: { $0.id == id }) {
                     ActivityMapView(
@@ -161,7 +167,10 @@ struct RootView: View {
                 onExpandMap: { expandedMap = .activity(selected.id) }
             )
         } else if selection.count > 1 {
-            ComparisonMapView(activities: selection)
+            ComparisonMapView(
+                activities: selection,
+                onExpand: { expandedMap = .comparison }
+            )
         } else {
             collapsedDetailColumn
         }
@@ -225,5 +234,6 @@ struct RootView: View {
 /// Which map is filling the window, if any.
 private enum ExpandedMap: Equatable {
     case global
+    case comparison
     case activity(PersistentIdentifier)
 }

@@ -9,6 +9,8 @@ import SwiftData
 /// a genuine question — how do these routes compare — and a map answers it.
 struct ComparisonMapView: View {
     let activities: [Activity]
+    /// Nil when the map already fills the window, which hides the button.
+    var onExpand: (() -> Void)?
 
     @AppStorage(MapStyle.storageKey) private var style: MapStyle = .standard
 
@@ -16,7 +18,11 @@ struct ComparisonMapView: View {
         let tracks = ComparedTrack.build(from: activities)
         VStack(spacing: 0) {
             MultiTrackMapRepresentable(tracks: tracks, style: style)
-                .mapChrome(style: $style)
+                .mapChrome(style: $style) {
+                    if let onExpand {
+                        MapExpandButton(action: onExpand)
+                    }
+                }
             Divider()
             legend(for: tracks)
         }
