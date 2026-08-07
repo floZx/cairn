@@ -19,6 +19,27 @@ open StravaLocal.xcodeproj
 ```
 
 Le projet Xcode est généré à partir de `project.yml` et n'est pas versionné.
+`xcodegen generate` est à relancer après l'ajout de tout fichier source.
+
+En ligne de commande, la sortie va dans `build/` :
+
+```bash
+xcodebuild build -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+```
+
+```bash
+xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+```
+
+L'application construite est alors à `build/Build/Products/Debug/StravaLocal.app`.
+Ce `-derivedDataPath` n'est pas cosmétique : sans lui, Xcode écrit dans son
+`DerivedData` global et deux bundles portant le même identifiant coexistent à
+deux chemins. LaunchServices s'y perd et le Dock finit par afficher une icône
+générique, alors que l'icône est bien dans les deux bundles.
+
+Vérifier une reconstruction se fait sur `StravaLocal.debug.dylib`, pas sur
+l'exécutable `StravaLocal` : ce dernier n'est qu'une amorce de 59 ko dont
+l'horodatage ne bouge pas toujours.
 
 ## Configuration Strava
 
