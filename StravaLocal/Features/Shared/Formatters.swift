@@ -22,6 +22,25 @@ enum Format {
         return String(format: "%d h %02d", seconds / 3600, (seconds % 3600) / 60)
     }
 
+    /// Minutes at the finest, for scanning a column of durations.
+    ///
+    /// Seconds are noise when comparing outings at a glance — they matter on a
+    /// lap, which is why `duration` keeps them. Rounded rather than truncated so
+    /// 1 h 29 min 45 s reads as 1 h 30 like everywhere else.
+    static func durationCompact(_ seconds: Int) -> String {
+        let minutes = Int((Double(seconds) / 60).rounded())
+        if minutes < 1 { return "< 1 min" }
+        if minutes < 60 { return "\(minutes) min" }
+        return String(format: "%d h %02d", minutes / 60, minutes % 60)
+    }
+
+    /// Average or maximum heart rate. Absent on activities recorded without a
+    /// monitor, which is common enough that an em dash beats a zero.
+    static func heartRate(_ beatsPerMinute: Double?) -> String {
+        guard let beatsPerMinute, beatsPerMinute > 0 else { return "—" }
+        return "\(Int(beatsPerMinute.rounded())) bpm"
+    }
+
     static func elevation(_ metres: Double) -> String {
         "\(Int(metres.rounded())) m"
     }

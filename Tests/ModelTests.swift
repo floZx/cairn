@@ -58,6 +58,17 @@ struct ModelTests {
         #expect(SportType(stravaValue: "Kitesurf") == .other)
     }
 
+    @Test("la FC moyenne devient triable sans fréquence enregistrée")
+    func exposesSortableHeartRate() {
+        let activity = Activity(stravaID: 1, name: "Sortie", sportType: .ride)
+
+        // `Optional` is not `Comparable`, so the column needs a value; zero puts
+        // the monitor-less activities at one end rather than scattering them.
+        #expect(activity.averageHeartrateOrZero == 0)
+        activity.averageHeartrate = 148
+        #expect(activity.averageHeartrateOrZero == 148)
+    }
+
     @Test("l'état de synchro persiste sa file d'attente")
     func persistsSyncState() throws {
         let container = try AppModelContainer.inMemory()

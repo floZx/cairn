@@ -120,6 +120,13 @@ final class Activity {
         distance > 0 ? totalElevationGain / (distance / 1000) : 0
     }
 
+    /// Average heart rate as a sortable value, zero when none was recorded.
+    ///
+    /// `Optional` is not `Comparable`, so a table column cannot sort on
+    /// `averageHeartrate` directly. Zero puts the monitor-less activities at one
+    /// end of the sort rather than scattering them.
+    var averageHeartrateOrZero: Double { averageHeartrate ?? 0 }
+
     /// The best track available for display: the full-resolution stream once it
     /// has been synced, the simplified track until then.
     var displayCoordinates: [Coordinate] {

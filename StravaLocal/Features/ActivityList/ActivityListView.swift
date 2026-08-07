@@ -18,6 +18,13 @@ struct ActivityListView: View {
         KeyPathComparator(\Activity.startDate, order: .reverse)
     ]
 
+    /// Which columns are shown, in which order, at which width — right-click the
+    /// header to choose, drag to reorder, exactly as in the Finder. Persisted in
+    /// `AppStorage` rather than `SceneStorage` so it survives a relaunch and not
+    /// merely a window restore.
+    @AppStorage("activityColumns")
+    private var columnCustomization = TableColumnCustomization<Activity>()
+
     init(filter: ActivityFilter, selection: Binding<PersistentIdentifier?>) {
         self.filter = filter
         self._selection = selection
@@ -32,37 +39,62 @@ struct ActivityListView: View {
     }
 
     var body: some View {
-        Table(rows, selection: $selection, sortOrder: $sortOrder) {
-            TableColumn("Date", value: \.startLocalDate) { activity in
-                Text(Format.dateOnly(activity.startLocalDate))
-            }
-            // "12 déc. 2025" is the widest this gets, now the time is gone.
-            .width(min: 90, ideal: 105)
-
+        Table(
+            rows,
+            selection: $selection,
+            sortOrder: $sortOrder,
+            columnCustomization: $columnCustomization
+        ) {
+            // No `customizationID`, which is what makes this column permanent:
+            // the Finder's Name column cannot be hidden or moved either, and it
+            // carries the sport icon, so hiding it would leave rows unreadable.
             TableColumn("Nom", value: \.name) { activity in
                 Label(activity.name, systemImage: activity.sportType.symbolName)
             }
             .width(min: 180, ideal: 280)
 
-            TableColumn("Sport", value: \.sportTypeRaw) { activity in
-                Text(activity.sportType.displayName)
+            TableColumn("Date", value: \.startLocalDate) { activity in
+                Text(Format.dateOnly(activity.startLocalDate))
             }
-            .width(min: 90, ideal: 110)
+            // "12 déc. 2025" is the widest this gets, now the time is gone.
+            .width(min: 90, ideal: 105)
+            .customizationID("date")
 
             TableColumn("Distance", value: \.distance) { activity in
                 Text(Format.distance(activity.distance))
             }
             .width(min: 80, ideal: 90)
+            .customizationID("distance")
 
             TableColumn("Durée", value: \.movingTime) { activity in
-                Text(Format.duration(activity.movingTime))
+                Text(Format.durationCompact(activity.movingTime))
             }
             .width(min: 80, ideal: 90)
+            .customizationID("duration")
 
             TableColumn("D+", value: \.totalElevationGain) { activity in
                 Text(Format.elevation(activity.totalElevationGain))
             }
             .width(min: 70, ideal: 80)
+            .customizationID("elevation")
+
+            TableColumn("D+/km", value: \.elevationPerKilometre) { activity in
+                Text(Format.elevationPerKilometre(activity.elevationPerKilometre))
+            }
+            .width(min: 80, ideal: 90)
+            .customizationID("elevationPerKilometre")
+
+            TableColumn("Vitesse", value: \.averageSpeed) { activity in
+                Text(Format.speed(activity.averageSpeed, sport: activity.sportType))
+            }
+            .width(min: 90, ideal: 100)
+            .customizationID("speed")
+
+            TableColumn("FC moy.", value: \.averageHeartrateOrZero) { activity in
+                Text(Format.heartRate(activity.averageHeartrate))
+            }
+            .width(min: 80, ideal: 90)
+            .customizationID("averageHeartRate")
 
             TableColumn("Étiquettes") { activity in
                 HStack(spacing: 4) {
@@ -74,16 +106,7 @@ struct ActivityListView: View {
                 .help(activity.labels.map(\.displayName).joined(separator: ", "))
             }
             .width(min: 60, ideal: 80)
-
-            TableColumn("D+/km", value: \.elevationPerKilometre) { activity in
-                Text(Format.elevationPerKilometre(activity.elevationPerKilometre))
-            }
-            .width(min: 80, ideal: 90)
-
-            TableColumn("Vitesse", value: \.averageSpeed) { activity in
-                Text(Format.speed(activity.averageSpeed, sport: activity.sportType))
-            }
-            .width(min: 90, ideal: 100)
+            .customizationID("labels")
         }
         .navigationTitle(
             rows.count == 1 ? "1 activité" : "\(rows.count) activités"

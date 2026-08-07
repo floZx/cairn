@@ -21,6 +21,25 @@ struct FormattersTests {
         #expect(Format.duration(5412) == "1 h 30")
     }
 
+    @Test("la durée compacte s'arrête à la minute, arrondie")
+    func formatsCompactDuration() {
+        #expect(Format.durationCompact(90) == "2 min")
+        #expect(Format.durationCompact(5385) == "1 h 30")
+        // A carry across the hour must not produce "0 h 60".
+        #expect(Format.durationCompact(3599) == "1 h 00")
+        // Never zero minutes, which would read as an activity of no length.
+        #expect(Format.durationCompact(0) == "< 1 min")
+        #expect(Format.durationCompact(20) == "< 1 min")
+    }
+
+    @Test("la fréquence cardiaque absente donne un tiret")
+    func formatsHeartRate() {
+        #expect(Format.heartRate(142.6) == "143 bpm")
+        #expect(Format.heartRate(nil) == "—")
+        // Strava sends 0 for some manual entries; that is "no monitor" too.
+        #expect(Format.heartRate(0) == "—")
+    }
+
     @Test("le dénivelé est arrondi au mètre")
     func formatsElevation() {
         #expect(Format.elevation(612.4) == "612 m")
