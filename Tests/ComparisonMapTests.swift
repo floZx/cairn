@@ -3,7 +3,7 @@ import SwiftData
 import AppKit
 import MapKit
 import Foundation
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("Carte de comparaison")
 @MainActor

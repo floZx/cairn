@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import StravaLocal
+@testable import Cairn
 
 /// Reads JSON fixtures from the test bundle. `project.yml` copies everything
 /// under `Tests/` into the bundle, so fixtures need no extra build phase.

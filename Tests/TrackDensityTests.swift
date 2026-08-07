@@ -1,5 +1,5 @@
 import Testing
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("TrackDensity")
 struct TrackDensityTests {

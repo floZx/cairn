@@ -1,7 +1,7 @@
 import Testing
 import SwiftData
 import Foundation
-@testable import StravaLocal
+@testable import Cairn
 
 /// Serves pages of canned summaries and records what was asked for.
 private actor FakeSource: StravaSyncSource {

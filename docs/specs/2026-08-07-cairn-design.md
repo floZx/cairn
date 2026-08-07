@@ -1,10 +1,10 @@
 # Cairn — le journal devient la référence
 
-Conception validée le 7 août 2026. Remplace la prémisse d'origine de StravaLocal.
+Conception validée le 7 août 2026. Remplace la prémisse d'origine de Cairn.
 
 ## L'intention
 
-StravaLocal était une copie locale de Strava. Cairn est un **journal d'activités
+Cairn était une copie locale de Strava. Cairn est un **journal d'activités
 physiques dont Strava n'est qu'une source d'alimentation**. La différence n'est pas
 cosmétique : elle décide qui gagne en cas de désaccord, ce qu'on peut créer sans
 Strava, et ce qui reste si le service ferme.
@@ -169,15 +169,15 @@ Trois points de conception assumés :
 ### Portée
 
 Cible et nom de produit, identifiant de bundle `com.florianmaisonnial.Cairn`,
-dossier source `StravaLocal/` → `Cairn/`, icône, textes visibles, README, dépôt.
+dossier source `Cairn/` → `Cairn/`, icône, textes visibles, README, dépôt.
 
 Strava garde son nom là où il s'agit bien de Strava : la connexion, les
 identifiants, la synchro.
 
 ### Migration des données
 
-Le dossier `Application Support/StravaLocal` est déplacé vers `Cairn`, **en gardant
-le nom du fichier** `StravaLocal.store` à l'intérieur.
+Le dossier `Application Support/Cairn` est déplacé vers `Cairn`, **en gardant
+le nom du fichier** `Cairn.store` à l'intérieur.
 
 C'est délibéré. Les streams sont en `@Attribute(.externalStorage)`, donc hors de la
 base, dans un dossier annexe dont SwiftData dérive le nom de celui du fichier.
@@ -191,7 +191,7 @@ Idempotent, et sans effet sur une installation neuve.
 ### Trousseau
 
 Au lancement, si rien n'existe sous `…Cairn` et que des identifiants existent sous
-`…StravaLocal`, ils sont recopiés puis l'ancien est supprimé. Sinon il faudrait
+`…Cairn`, ils sont recopiés puis l'ancien est supprimé. Sinon il faudrait
 recoller Client ID et secret à la main.
 
 ### Réglages

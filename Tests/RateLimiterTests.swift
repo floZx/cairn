@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("RateLimiter")
 struct RateLimiterTests {

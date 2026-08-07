@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import StravaLocal
+@testable import Cairn
 
 /// Records requests and replays canned responses in order.
 private final class StubTransport: HTTPTransport, @unchecked Sendable {

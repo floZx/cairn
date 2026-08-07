@@ -240,8 +240,8 @@ private final class LoopbackListener: @unchecked Sendable {
 
             let isOAuthCallback = callback != nil
             let body = isOAuthCallback
-                ? "<h2>Connexion réussie</h2><p>Vous pouvez fermer cet onglet et revenir à StravaLocal.</p>"
-                : "<h2>StravaLocal</h2><p>En attente de l'autorisation Strava…</p>"
+                ? "<h2>Connexion réussie</h2><p>Vous pouvez fermer cet onglet et revenir à Cairn.</p>"
+                : "<h2>Cairn</h2><p>En attente de l'autorisation Strava…</p>"
             // no-store keeps the URL bearing the authorization code out of history.
             let response = """
                 HTTP/1.1 200 OK\r

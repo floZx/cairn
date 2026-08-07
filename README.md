@@ -1,4 +1,4 @@
-# StravaLocal
+# Cairn
 
 Journal local de vos activités physiques sur macOS. Vos données vous appartiennent
 et vivent sur votre disque : Strava n'est qu'une des façons de l'alimenter, aux
@@ -18,7 +18,7 @@ côtés de la saisie manuelle.
 
 ```bash
 xcodegen generate
-open StravaLocal.xcodeproj
+open Cairn.xcodeproj
 ```
 
 Le projet Xcode est généré à partir de `project.yml` et n'est pas versionné.
@@ -27,11 +27,11 @@ Le projet Xcode est généré à partir de `project.yml` et n'est pas versionné
 En ligne de commande, la sortie va dans `build/` :
 
 ```bash
-xcodebuild build -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+xcodebuild build -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build
 ```
 
 ```bash
-xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build
 ```
 
 Lancer cette suite ne touche jamais votre bibliothèque : un bundle de test macOS
@@ -41,14 +41,14 @@ effet de bord de son lancement. Le nom du fichier de base est décidé en un seu
 endroit, `AppModelContainer.storeFileName(isTesting:isDemo:)`, et sous test c'est
 toujours un fichier jetable.
 
-L'application construite est alors à `build/Build/Products/Debug/StravaLocal.app`.
+L'application construite est alors à `build/Build/Products/Debug/Cairn.app`.
 Ce `-derivedDataPath` n'est pas cosmétique : sans lui, Xcode écrit dans son
 `DerivedData` global et deux bundles portant le même identifiant coexistent à
 deux chemins. LaunchServices s'y perd et le Dock finit par afficher une icône
 générique, alors que l'icône est bien dans les deux bundles.
 
-Vérifier une reconstruction se fait sur `StravaLocal.debug.dylib`, pas sur
-l'exécutable `StravaLocal` : ce dernier n'est qu'une amorce de 59 ko dont
+Vérifier une reconstruction se fait sur `Cairn.debug.dylib`, pas sur
+l'exécutable `Cairn` : ce dernier n'est qu'une amorce de 59 ko dont
 l'horodatage ne bouge pas toujours.
 
 ## Jeu de démonstration
@@ -57,7 +57,7 @@ Pour essayer l'application, ou produire des captures, sans compte Strava et sans
 exposer de données réelles :
 
 ```bash
-STRAVALOCAL_DEMO=1 build/Build/Products/Debug/StravaLocal.app/Contents/MacOS/StravaLocal
+STRAVALOCAL_DEMO=1 build/Build/Products/Debug/Cairn.app/Contents/MacOS/Cairn
 ```
 
 Dix-huit mois d'entraînement inventés apparaissent : trail, course, vélo,
@@ -69,7 +69,7 @@ des parcours entièrement fictifs.
 Deux garde-fous, parce qu'il ne s'agirait pas d'écrire de fausses activités dans
 une vraie base : le jeu ne se génère que si `STRAVALOCAL_DEMO` est défini, et dans
 ce cas l'application ouvre un **fichier de base distinct**
-(`StravaLocal-demo.store`). La bibliothèque réelle n'est jamais ouverte. Chaque
+(`Cairn-demo.store`). La bibliothèque réelle n'est jamais ouverte. Chaque
 activité générée se déclare en outre « Fichier importé » plutôt que « Strava »,
 ce qui la met aussi hors de portée d'une synchronisation, au cas où un compte
 serait connecté dans la même session de démonstration.
@@ -84,7 +84,7 @@ transite par un service tiers.
 
 1. Ouvrez <https://www.strava.com/settings/api> et créez une application.
 2. Renseignez `localhost` comme **Authorization Callback Domain**.
-3. Lancez StravaLocal, ouvrez les réglages (⌘,) et collez le **Client ID** et le
+3. Lancez Cairn, ouvrez les réglages (⌘,) et collez le **Client ID** et le
    **Client Secret**.
 4. Cliquez « Se connecter à Strava » : l'autorisation s'ouvre dans votre
    navigateur, puis l'application récupère ses jetons.
@@ -194,7 +194,7 @@ attribution est affichée dès qu'ils sont actifs, comme leurs licences l'exigen
   (CC-BY-SA)
 
 Les tuiles sont conservées dans un cache disque d'un gigaoctet sous
-`~/Library/Caches/StravaLocal/Tiles`, et une tuile déjà présente est utilisée
+`~/Library/Caches/Cairn/Tiles`, et une tuile déjà présente est utilisée
 quel que soit son âge : une zone consultée une fois ne se retélécharge pas, même
 après un redémarrage. Les réglages affichent la taille occupée et permettent de
 la vider.
@@ -238,7 +238,7 @@ qui fausserait la conversion en filtre géographique.
 
 ## Emplacement des données
 
-`~/Library/Application Support/StravaLocal/StravaLocal.store`
+`~/Library/Application Support/Cairn/Cairn.store`
 
 ## Licence
 

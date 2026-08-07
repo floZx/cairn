@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("TokenStore")
 struct TokenStoreTests {
@@ -56,10 +56,45 @@ struct TokenStoreTests {
         #expect(store.credentials() == nil)
     }
 
+    @Test("les secrets de l'ancien nom sont repris puis relus sans lui")
+    func adoptsSecretsFromTheFormerService() throws {
+        let legacyService = "com.florianmaisonnial.Cairn.tests.ancien"
+        let service = "com.florianmaisonnial.Cairn.tests.nouveau"
+        let legacy = KeychainStore(service: legacyService, legacyService: nil)
+        let store = KeychainStore(service: service, legacyService: legacyService)
+        try legacy.clearAll()
+        try store.clearAll()
+
+        let credentials = StravaCredentials(clientID: "42", clientSecret: "shh")
+        let tokens = StravaTokens(
+            accessToken: "at", refreshToken: "rt",
+            expiresAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        try legacy.save(credentials)
+        try legacy.save(tokens)
+
+        #expect(store.credentials() == credentials)
+        #expect(store.tokens() == tokens)
+
+        // The point of the fallback is that it runs once: after the first read
+        // the secrets live under the new service, so deleting the old one — or
+        // shipping a build without the fallback — changes nothing.
+        try legacy.clearAll()
+        let withoutFallback = KeychainStore(service: service, legacyService: nil)
+        #expect(withoutFallback.credentials() == credentials)
+        #expect(withoutFallback.tokens() == tokens)
+
+        try store.clearAll()
+    }
+
     @Test("le Keychain respecte le même contrat")
     func keychainStoreRoundTrips() throws {
-        // Dedicated service name so the app's real credentials are never touched.
-        let store = KeychainStore(service: "com.florianmaisonnial.StravaLocal.tests")
+        // Dedicated service name so the app's real credentials are never touched
+        // — including through the legacy fallback, which would otherwise read
+        // the user's actual StravaLocal item and copy it here.
+        let store = KeychainStore(
+            service: "com.florianmaisonnial.Cairn.tests", legacyService: nil
+        )
         try store.clearAll()
 
         let credentials = StravaCredentials(clientID: "42", clientSecret: "shh")

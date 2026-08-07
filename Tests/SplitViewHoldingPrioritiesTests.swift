@@ -1,6 +1,6 @@
 import Testing
 import AppKit
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("SplitViewHoldingPriorities")
 @MainActor

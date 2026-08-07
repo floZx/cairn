@@ -1,6 +1,6 @@
 import Testing
 import CoreLocation
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("Polyline")
 struct PolylineTests {

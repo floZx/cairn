@@ -9,7 +9,7 @@ import Foundation
 /// adds the cache and nothing else: no connection limit, no retries.
 enum TileCache {
     private static let directory = URL.cachesDirectory
-        .appending(path: "StravaLocal/Tiles")
+        .appending(path: "Cairn/Tiles")
 
     static let session: URLSession = {
         try? FileManager.default.createDirectory(
@@ -27,7 +27,7 @@ enum TileCache {
         configuration.requestCachePolicy = .returnCacheDataElseLoad
         // OpenStreetMap-family services ask that clients identify themselves.
         configuration.httpAdditionalHeaders = [
-            "User-Agent": "StravaLocal (personal use)"
+            "User-Agent": "Cairn (personal use)"
         ]
         return URLSession(configuration: configuration)
     }()

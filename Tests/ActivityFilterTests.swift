@@ -1,7 +1,7 @@
 import Testing
 import SwiftData
 import Foundation
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("ActivityFilter")
 struct ActivityFilterTests {

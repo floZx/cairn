@@ -1,17 +1,17 @@
 import Testing
 import SwiftData
 import Foundation
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("Model")
 struct ModelTests {
     @Test(
         "le nom du store choisi ne dépend que de isTesting et isDemo, testing prioritaire",
         arguments: [
-            (isTesting: true, isDemo: true, expected: "StravaLocal-tests.store"),
-            (isTesting: true, isDemo: false, expected: "StravaLocal-tests.store"),
-            (isTesting: false, isDemo: true, expected: "StravaLocal-demo.store"),
-            (isTesting: false, isDemo: false, expected: "StravaLocal.store"),
+            (isTesting: true, isDemo: true, expected: "Cairn-tests.store"),
+            (isTesting: true, isDemo: false, expected: "Cairn-tests.store"),
+            (isTesting: false, isDemo: true, expected: "Cairn-demo.store"),
+            (isTesting: false, isDemo: false, expected: "Cairn.store"),
         ]
     )
     func storeFileNameChoosesTheRightFile(
@@ -23,7 +23,7 @@ struct ModelTests {
         // The one property that matters above the rest: under test, this can
         // never be the production file name — that is what keeps the suite from
         // opening the user's real 132 MB store, as it once did.
-        if testCase.isTesting { #expect(name != "StravaLocal.store") }
+        if testCase.isTesting { #expect(name != "Cairn.store") }
         #expect(name == testCase.expected)
     }
 

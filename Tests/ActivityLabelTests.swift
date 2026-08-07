@@ -1,6 +1,6 @@
 import Testing
 import SwiftData
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("ActivityLabel")
 struct ActivityLabelTests {

@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct StravaLocalApp: App {
+struct CairnApp: App {
     private let container: ModelContainer
     @State private var app: AppEnvironment
 

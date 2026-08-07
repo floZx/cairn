@@ -1,7 +1,7 @@
 import Testing
 import SwiftData
 import Foundation
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("Édition locale et pierres tombales")
 @MainActor

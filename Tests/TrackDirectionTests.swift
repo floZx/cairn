@@ -1,6 +1,6 @@
 import Testing
 import MapKit
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("TrackDirection")
 struct TrackDirectionTests {

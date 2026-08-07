@@ -35,15 +35,24 @@ enum SecretStoreError: Error {
 /// Values are JSON so adding a field later doesn't need a migration.
 final class KeychainStore: SecretStore, Sendable {
     private let service: String
+    /// The service the app used under its former name. Items are copied across on
+    /// first read rather than at launch, so an install that never had a
+    /// StravaLocal keychain pays nothing and a rename doesn't ask the user to sign
+    /// in to Strava all over again.
+    private let legacyService: String?
     private static let credentialsAccount = "credentials"
     private static let tokensAccount = "tokens"
 
-    init(service: String = "com.florianmaisonnial.StravaLocal") {
+    init(
+        service: String = "com.florianmaisonnial.Cairn",
+        legacyService: String? = "com.florianmaisonnial.StravaLocal"
+    ) {
         self.service = service
+        self.legacyService = legacyService
     }
 
     func credentials() -> StravaCredentials? {
-        read(StravaCredentials.self, account: Self.credentialsAccount)
+        adopting(StravaCredentials.self, account: Self.credentialsAccount)
     }
 
     func save(_ credentials: StravaCredentials) throws {
@@ -51,7 +60,20 @@ final class KeychainStore: SecretStore, Sendable {
     }
 
     func tokens() -> StravaTokens? {
-        read(StravaTokens.self, account: Self.tokensAccount)
+        adopting(StravaTokens.self, account: Self.tokensAccount)
+    }
+
+    /// Reads under the current service, falling back to the former one and
+    /// copying what it finds so the next read no longer needs the fallback.
+    private func adopting<T: Codable>(_ type: T.Type, account: String) -> T? {
+        if let value = read(type, account: account) { return value }
+        guard let legacyService,
+              let value = read(type, account: account, service: legacyService)
+        else { return nil }
+        // A failed copy is not worth surfacing: the value was still read, and the
+        // fallback will simply run again next time.
+        try? write(value, account: account)
+        return value
     }
 
     func save(_ tokens: StravaTokens) throws {
@@ -67,16 +89,18 @@ final class KeychainStore: SecretStore, Sendable {
         try delete(account: Self.credentialsAccount)
     }
 
-    private func baseQuery(account: String) -> [String: Any] {
+    private func baseQuery(account: String, service: String? = nil) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
+            kSecAttrService as String: service ?? self.service,
             kSecAttrAccount as String: account,
         ]
     }
 
-    private func read<T: Decodable>(_ type: T.Type, account: String) -> T? {
-        var query = baseQuery(account: account)
+    private func read<T: Decodable>(
+        _ type: T.Type, account: String, service: String? = nil
+    ) -> T? {
+        var query = baseQuery(account: account, service: service)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 

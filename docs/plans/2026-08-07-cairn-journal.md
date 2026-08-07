@@ -18,7 +18,7 @@ Ce plan couvre les **lots 1 et 2** du spec. L'import GPX (lot 3) et le renommage
 - Tests avec **Swift Testing** (`import Testing`, `@Test`, `#expect`). Jamais XCTest.
 - Identifiants et commentaires en **anglais**. Chaînes affichées à l'utilisateur en **français**.
 - `xcodegen generate` après l'ajout de tout fichier source, sans quoi la compilation échoue sur un fichier introuvable.
-- Compilation et tests : `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build`. Le `-derivedDataPath build` n'est pas cosmétique : sans lui deux bundles de même identifiant coexistent et LaunchServices sert une icône générique.
+- Compilation et tests : `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build`. Le `-derivedDataPath build` n'est pas cosmétique : sans lui deux bundles de même identifiant coexistent et LaunchServices sert une icône générique.
 - Ne jamais lancer l'application ni prendre de capture d'écran. La vérification se fait par la compilation et les tests.
 - Aucune écriture vers Strava, sous aucune forme.
 - Les commentaires expliquent **pourquoi**, pas quoi. Densité et style de ceux du dépôt.
@@ -35,12 +35,12 @@ Modifier une contrainte d'unicité est ce qui fait basculer une migration SwiftD
 
 | Fichier | Responsabilité |
 |---|---|
-| `StravaLocal/Model/ActivityField.swift` | Les clés des champs éditables. Un enum plutôt que des chaînes : une faute de frappe passerait en silence et le seul symptôme serait une édition écrasée. |
-| `StravaLocal/Model/ActivitySource.swift` | D'où vient une activité : Strava, saisie, fichier. |
-| `StravaLocal/Model/DiscardedActivity.swift` | La pierre tombale d'une activité Strava supprimée. |
-| `StravaLocal/Features/ActivityEditor/ActivityDraft.swift` | Le cœur pur de l'édition : valeurs saisies, validation, champs réellement modifiés, application au modèle. Aucune vue, donc entièrement testable. |
-| `StravaLocal/Features/ActivityEditor/ActivityEditorSheet.swift` | La feuille modale, pour l'édition comme pour l'ajout. |
-| `StravaLocal/Features/Settings/DiscardedActivitiesSection.swift` | La liste des activités écartées, et leur retour. Une section des réglages de synchronisation, pas un onglet : on l'ouvre deux fois par an, et elle parle de ce dont parle cet onglet — ce que la synchro ne doit pas ramener. |
+| `Cairn/Model/ActivityField.swift` | Les clés des champs éditables. Un enum plutôt que des chaînes : une faute de frappe passerait en silence et le seul symptôme serait une édition écrasée. |
+| `Cairn/Model/ActivitySource.swift` | D'où vient une activité : Strava, saisie, fichier. |
+| `Cairn/Model/DiscardedActivity.swift` | La pierre tombale d'une activité Strava supprimée. |
+| `Cairn/Features/ActivityEditor/ActivityDraft.swift` | Le cœur pur de l'édition : valeurs saisies, validation, champs réellement modifiés, application au modèle. Aucune vue, donc entièrement testable. |
+| `Cairn/Features/ActivityEditor/ActivityEditorSheet.swift` | La feuille modale, pour l'édition comme pour l'ajout. |
+| `Cairn/Features/Settings/DiscardedActivitiesSection.swift` | La liste des activités écartées, et leur retour. Une section des réglages de synchronisation, pas un onglet : on l'ouvre deux fois par an, et elle parle de ce dont parle cet onglet — ce que la synchro ne doit pas ramener. |
 | `Tests/ActivityDraftTests.swift` | |
 | `Tests/EditProtectionTests.swift` | |
 | `Tests/DiscardedActivityTests.swift` | |
@@ -49,22 +49,22 @@ Modifier une contrainte d'unicité est ce qui fait basculer une migration SwiftD
 
 | Fichier | Changement |
 |---|---|
-| `StravaLocal/Model/Activity.swift:6-9` | `#Unique` retiré, `uuid` indexé, quatre champs ajoutés. |
-| `StravaLocal/Model/ModelContainer+App.swift:5-8` | `DiscardedActivity` au schéma. |
-| `StravaLocal/Sync/ImportMapper.swift:22-90` | Point de contrôle `assign`, garde sur la source, garde sur les écartées. |
-| `StravaLocal/Sync/SyncEngine.swift` | Les identifiants écartés ne sont pas mis en file. |
-| `StravaLocal/App/RootView.swift` | Barre d'outils : ajouter, éditer, supprimer. Feuille et confirmation. |
-| `StravaLocal/App/StravaLocalApp.swift` | Commandes ⌘N, ⌘E, ⌘⌫. Passage de renseignement des `uuid` au lancement. |
-| `StravaLocal/Features/Settings/SyncSettingsView.swift` | Accueille la section des activités écartées. |
-| `StravaLocal/Features/ActivityDetail/ActivityDetailView.swift` | Mention de la source et de la date d'édition. |
+| `Cairn/Model/Activity.swift:6-9` | `#Unique` retiré, `uuid` indexé, quatre champs ajoutés. |
+| `Cairn/Model/ModelContainer+App.swift:5-8` | `DiscardedActivity` au schéma. |
+| `Cairn/Sync/ImportMapper.swift:22-90` | Point de contrôle `assign`, garde sur la source, garde sur les écartées. |
+| `Cairn/Sync/SyncEngine.swift` | Les identifiants écartés ne sont pas mis en file. |
+| `Cairn/App/RootView.swift` | Barre d'outils : ajouter, éditer, supprimer. Feuille et confirmation. |
+| `Cairn/App/CairnApp.swift` | Commandes ⌘N, ⌘E, ⌘⌫. Passage de renseignement des `uuid` au lancement. |
+| `Cairn/Features/Settings/SyncSettingsView.swift` | Accueille la section des activités écartées. |
+| `Cairn/Features/ActivityDetail/ActivityDetailView.swift` | Mention de la source et de la date d'édition. |
 
 ---
 
 ### Task 1: Les clés de champ et la source
 
 **Files:**
-- Create: `StravaLocal/Model/ActivityField.swift`
-- Create: `StravaLocal/Model/ActivitySource.swift`
+- Create: `Cairn/Model/ActivityField.swift`
+- Create: `Cairn/Model/ActivitySource.swift`
 - Test: `Tests/ActivityDraftTests.swift`
 
 **Interfaces:**
@@ -77,7 +77,7 @@ Dans `Tests/ActivityDraftTests.swift` :
 
 ```swift
 import Testing
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("ActivityField et ActivitySource")
 struct ActivityFieldTests {
@@ -107,12 +107,12 @@ struct ActivityFieldTests {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:StravaLocalTests/ActivityFieldTests`
+Run: `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:CairnTests/ActivityFieldTests`
 Expected: FAIL, `cannot find 'ActivityField' in scope`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-`StravaLocal/Model/ActivityField.swift` :
+`Cairn/Model/ActivityField.swift` :
 
 ```swift
 import Foundation
@@ -149,7 +149,7 @@ enum ActivityField: String, CaseIterable, Sendable {
 }
 ```
 
-`StravaLocal/Model/ActivitySource.swift` :
+`Cairn/Model/ActivitySource.swift` :
 
 ```swift
 import Foundation
@@ -185,7 +185,7 @@ Expected: PASS, 2 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add StravaLocal/Model/ActivityField.swift StravaLocal/Model/ActivitySource.swift Tests/ActivityDraftTests.swift
+git add Cairn/Model/ActivityField.swift Cairn/Model/ActivitySource.swift Tests/ActivityDraftTests.swift
 git commit -m "feat(model): clés de champ éditable et source d'activité
 
 Les clés sont persistées dans editedFields, d'où un enum plutôt que des
@@ -198,9 +198,9 @@ ne se verrait qu'à une édition écrasée par la synchro suivante."
 ### Task 2: Le schéma accueille l'édition locale
 
 **Files:**
-- Modify: `StravaLocal/Model/Activity.swift:6-9` (macros) et la liste des propriétés
-- Modify: `StravaLocal/Model/ModelContainer+App.swift:5-8`
-- Create: `StravaLocal/Model/DiscardedActivity.swift`
+- Modify: `Cairn/Model/Activity.swift:6-9` (macros) et la liste des propriétés
+- Modify: `Cairn/Model/ModelContainer+App.swift:5-8`
+- Create: `Cairn/Model/DiscardedActivity.swift`
 - Test: `Tests/DiscardedActivityTests.swift`
 
 **Interfaces:**
@@ -215,7 +215,7 @@ ne se verrait qu'à une édition écrasée par la synchro suivante."
 import Testing
 import SwiftData
 import Foundation
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("Édition locale et pierres tombales")
 @MainActor
@@ -278,12 +278,12 @@ struct DiscardedActivityTests {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:StravaLocalTests/DiscardedActivityTests`
+Run: `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:CairnTests/DiscardedActivityTests`
 Expected: FAIL, `value of type 'Activity' has no member 'uuid'`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Dans `StravaLocal/Model/Activity.swift`, remplacer les deux macros :
+Dans `Cairn/Model/Activity.swift`, remplacer les deux macros :
 
 ```swift
     #Index<Activity>([\.startDate], [\.stravaID], [\.uuid], [\.minLat], [\.maxLat], [\.minLon], [\.maxLon])
@@ -339,7 +339,7 @@ Et, près de `var sportType`, les accès :
     }
 ```
 
-`StravaLocal/Model/DiscardedActivity.swift` :
+`Cairn/Model/DiscardedActivity.swift` :
 
 ```swift
 import Foundation
@@ -367,7 +367,7 @@ final class DiscardedActivity {
 }
 ```
 
-Dans `StravaLocal/Model/ModelContainer+App.swift`, ajouter au schéma :
+Dans `Cairn/Model/ModelContainer+App.swift`, ajouter au schéma :
 
 ```swift
     static let schema = Schema([
@@ -378,13 +378,13 @@ Dans `StravaLocal/Model/ModelContainer+App.swift`, ajouter au schéma :
 
 - [ ] **Step 4: Run the whole suite to verify nothing regressed**
 
-Run: `xcodegen generate` puis `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
+Run: `xcodegen generate` puis `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
 Expected: PASS, tous les tests existants compris. Zéro avertissement.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add StravaLocal/Model Tests/DiscardedActivityTests.swift project.yml
+git add Cairn/Model Tests/DiscardedActivityTests.swift project.yml
 git commit -m "feat(model): identité locale, source, champs édités, pierres tombales
 
 La contrainte d'unicité sur stravaID est retirée sans remplacement : une
@@ -399,7 +399,7 @@ l'était réellement, dans le fetch-or-create du mapper."
 ### Task 3: La synchro n'écrase plus ce qui a été édité
 
 **Files:**
-- Modify: `StravaLocal/Sync/ImportMapper.swift:22-90`
+- Modify: `Cairn/Sync/ImportMapper.swift:22-90`
 - Test: `Tests/EditProtectionTests.swift`
 
 **Interfaces:**
@@ -414,7 +414,7 @@ l'était réellement, dans le fetch-or-create du mapper."
 import Testing
 import SwiftData
 import Foundation
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("Protection des champs édités")
 @MainActor
@@ -502,7 +502,7 @@ Si `FixtureLoader.decode(_:from:patching:)` n'existe pas, l'ajouter dans `Tests/
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:StravaLocalTests/EditProtectionTests`
+Run: `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:CairnTests/EditProtectionTests`
 Expected: FAIL sur `again.name == "Mon nom"` — la valeur observée est `"Nom de Strava v2"`.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -565,13 +565,13 @@ Et la même garde de source en tête de `upsert(detail:)`.
 
 - [ ] **Step 4: Run the whole suite**
 
-Run: `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
+Run: `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
 Expected: PASS. Les tests existants de `ImportMapperTests` doivent passer sans modification — une régression là signifierait que la garde de source est trop large.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add StravaLocal/Sync/ImportMapper.swift Tests/EditProtectionTests.swift Tests/FixtureLoader.swift
+git add Cairn/Sync/ImportMapper.swift Tests/EditProtectionTests.swift Tests/FixtureLoader.swift
 git commit -m "feat(sync): ne plus écraser un champ édité localement
 
 Un point de contrôle unique par lequel passent les affectations éditables :
@@ -588,8 +588,8 @@ arrêterait toute correction ultérieure."
 ### Task 4: Une activité supprimée ne revient pas
 
 **Files:**
-- Modify: `StravaLocal/Sync/ImportMapper.swift`
-- Modify: `StravaLocal/Sync/SyncEngine.swift`
+- Modify: `Cairn/Sync/ImportMapper.swift`
+- Modify: `Cairn/Sync/SyncEngine.swift`
 - Test: `Tests/DiscardedActivityTests.swift` (ajouts)
 
 **Interfaces:**
@@ -646,7 +646,7 @@ Ajouter dans `Tests/DiscardedActivityTests.swift` :
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:StravaLocalTests/DiscardedActivityTests`
+Run: `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:CairnTests/DiscardedActivityTests`
 Expected: FAIL, `value of type 'ImportMapper' has no member 'discard'`.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -715,13 +715,13 @@ Dans `SyncEngine`, la boucle de la phase A attrape ce cas sans le compter comme 
 
 - [ ] **Step 4: Run the whole suite**
 
-Run: `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
+Run: `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add StravaLocal/Sync Tests/DiscardedActivityTests.swift
+git add Cairn/Sync Tests/DiscardedActivityTests.swift
 git commit -m "feat(sync): une activité supprimée ne revient pas à la resynchro
 
 La vérification a lieu avant toute création, donc une activité écartée ne
@@ -737,7 +737,7 @@ serait un piège."
 ### Task 5: Le cœur de l'édition, sans interface
 
 **Files:**
-- Create: `StravaLocal/Features/ActivityEditor/ActivityDraft.swift`
+- Create: `Cairn/Features/ActivityEditor/ActivityDraft.swift`
 - Test: `Tests/ActivityDraftTests.swift` (ajouts)
 
 **Interfaces:**
@@ -860,12 +860,12 @@ struct ActivityDraftTests {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:StravaLocalTests/ActivityDraftTests`
+Run: `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:CairnTests/ActivityDraftTests`
 Expected: FAIL, `cannot find 'ActivityDraft' in scope`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-`StravaLocal/Features/ActivityEditor/ActivityDraft.swift` :
+`Cairn/Features/ActivityEditor/ActivityDraft.swift` :
 
 ```swift
 import Foundation
@@ -993,13 +993,13 @@ struct ActivityDraft: Equatable {
 
 - [ ] **Step 4: Run the whole suite**
 
-Run: `xcodegen generate` puis `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
+Run: `xcodegen generate` puis `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add StravaLocal/Features/ActivityEditor Tests/ActivityDraftTests.swift project.yml
+git add Cairn/Features/ActivityEditor Tests/ActivityDraftTests.swift project.yml
 git commit -m "feat(edition): ActivityDraft, le cœur testable de l'édition
 
 Un type valeur sans vue : c'est ce qui rend testable la partie
@@ -1015,9 +1015,9 @@ touché : saisir puis annuler ne doit pas compter comme une édition."
 ### Task 6: La feuille d'édition
 
 **Files:**
-- Create: `StravaLocal/Features/ActivityEditor/ActivityEditorSheet.swift`
-- Modify: `StravaLocal/App/RootView.swift`
-- Modify: `StravaLocal/Features/ActivityDetail/ActivityDetailView.swift`
+- Create: `Cairn/Features/ActivityEditor/ActivityEditorSheet.swift`
+- Modify: `Cairn/App/RootView.swift`
+- Modify: `Cairn/Features/ActivityDetail/ActivityDetailView.swift`
 
 **Interfaces:**
 - Consumes: `ActivityDraft` (tâche 5).
@@ -1025,7 +1025,7 @@ touché : saisir puis annuler ne doit pas compter comme une édition."
 
 - [ ] **Step 1: Write the sheet**
 
-`StravaLocal/Features/ActivityEditor/ActivityEditorSheet.swift` :
+`Cairn/Features/ActivityEditor/ActivityEditorSheet.swift` :
 
 ```swift
 import SwiftUI
@@ -1258,13 +1258,13 @@ Dans `ActivityDetailView`, sous la date, ajouter :
 
 - [ ] **Step 4: Build and run the whole suite**
 
-Run: `xcodegen generate` puis `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
+Run: `xcodegen generate` puis `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
 Expected: PASS, zéro avertissement.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add StravaLocal/Features/ActivityEditor StravaLocal/App/RootView.swift StravaLocal/Features/ActivityDetail/ActivityDetailView.swift project.yml
+git add Cairn/Features/ActivityEditor Cairn/App/RootView.swift Cairn/Features/ActivityDetail/ActivityDetailView.swift project.yml
 git commit -m "feat(edition): feuille d'édition et d'ajout
 
 Une feuille modale et non des champs en ligne, pour une raison qui n'est
@@ -1281,9 +1281,9 @@ rien d'autre à l'écran ne le dirait."
 ### Task 7: La suppression, et son écran de rattrapage
 
 **Files:**
-- Modify: `StravaLocal/App/RootView.swift`
-- Create: `StravaLocal/Features/Settings/DiscardedActivitiesSection.swift`
-- Modify: `StravaLocal/Features/Settings/SyncSettingsView.swift`
+- Modify: `Cairn/App/RootView.swift`
+- Create: `Cairn/Features/Settings/DiscardedActivitiesSection.swift`
+- Modify: `Cairn/Features/Settings/SyncSettingsView.swift`
 
 **Interfaces:**
 - Consumes: `ImportMapper.discard(_:)`, `ImportMapper.restore(_:)` (tâche 4).
@@ -1345,7 +1345,7 @@ actions sur l'activité — il n'y a rien à ajouter ici.
 
 - [ ] **Step 2: The settings screen**
 
-`StravaLocal/Features/Settings/DiscardedActivitiesSection.swift`. C'est une
+`Cairn/Features/Settings/DiscardedActivitiesSection.swift`. C'est une
 `Section`, pas un écran : elle s'insère dans le `Form` de `SyncSettingsView`, à la
 suite des réglages de synchronisation.
 
@@ -1433,7 +1433,7 @@ Dans `RootView`, sur `splitView` :
         }
 ```
 
-Dans `StravaLocalApp`, un groupe de commandes après « Nouveau » :
+Dans `CairnApp`, un groupe de commandes après « Nouveau » :
 
 ```swift
             CommandGroup(after: .newItem) {
@@ -1454,13 +1454,13 @@ courant de la vue et non celui du premier lancement.
 
 - [ ] **Step 4: Build and run the whole suite**
 
-Run: `xcodegen generate` puis `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
+Run: `xcodegen generate` puis `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
 Expected: PASS, zéro avertissement.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add StravaLocal/App StravaLocal/Features/Settings project.yml
+git add Cairn/App Cairn/Features/Settings project.yml
 git commit -m "feat(journal): suppression avec pierre tombale et écran de rattrapage
 
 La confirmation dit laquelle des deux suppressions elle est : une activité
@@ -1477,8 +1477,8 @@ resynchro de défaire la décision, pas empêcher de la revoir."
 ### Task 8: Les uuid des lignes existantes
 
 **Files:**
-- Modify: `StravaLocal/App/StravaLocalApp.swift`
-- Create: `StravaLocal/Model/StoreMaintenance.swift`
+- Modify: `Cairn/App/CairnApp.swift`
+- Create: `Cairn/Model/StoreMaintenance.swift`
 - Test: `Tests/StoreMaintenanceTests.swift`
 
 **Interfaces:**
@@ -1492,7 +1492,7 @@ resynchro de défaire la décision, pas empêcher de la revoir."
 ```swift
 import Testing
 import SwiftData
-@testable import StravaLocal
+@testable import Cairn
 
 @Suite("StoreMaintenance")
 @MainActor
@@ -1554,12 +1554,12 @@ struct StoreMaintenanceTests {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:StravaLocalTests/StoreMaintenanceTests`
+Run: `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build -only-testing:CairnTests/StoreMaintenanceTests`
 Expected: FAIL, `cannot find 'StoreMaintenance' in scope`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-`StravaLocal/Model/StoreMaintenance.swift` :
+`Cairn/Model/StoreMaintenance.swift` :
 
 ```swift
 import Foundation
@@ -1607,7 +1607,7 @@ enum StoreMaintenance {
 
 - [ ] **Step 4: Call it at launch**
 
-Dans `StravaLocalApp.init`, à côté de l'appel existant à `DemoData.populateIfNeeded` :
+Dans `CairnApp.init`, à côté de l'appel existant à `DemoData.populateIfNeeded` :
 
 ```swift
         // Before any view reads an activity. Failing is not worth a crash: the
@@ -1617,11 +1617,11 @@ Dans `StravaLocalApp.init`, à côté de l'appel existant à `DemoData.populateI
 
 - [ ] **Step 5: Run the whole suite and commit**
 
-Run: `xcodegen generate` puis `xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
+Run: `xcodegen generate` puis `xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build`
 Expected: PASS.
 
 ```bash
-git add StravaLocal/Model/StoreMaintenance.swift StravaLocal/App/StravaLocalApp.swift Tests/StoreMaintenanceTests.swift project.yml
+git add Cairn/Model/StoreMaintenance.swift Cairn/App/CairnApp.swift Tests/StoreMaintenanceTests.swift project.yml
 git commit -m "feat(model): compléter les uuid des lignes existantes au lancement
 
 SwiftData donne à une nouvelle propriété sa valeur par défaut pour chaque
