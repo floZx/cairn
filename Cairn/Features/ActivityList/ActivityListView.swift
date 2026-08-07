@@ -146,6 +146,7 @@ struct ActivityListView: View {
         // The window subtitle, so the count is never read as the whole library
         // when it is in fact a filtered slice of it.
         .navigationSubtitle(filter.summary ?? "")
+        .background(FixedTableRowHeight())
         .onAppear {
             if let first = Self.initialSelection(
                 rows: rows, current: selection, hasAutoSelected: hasAutoSelected
