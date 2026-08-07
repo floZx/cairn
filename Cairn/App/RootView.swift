@@ -29,6 +29,12 @@ struct RootView: View {
     @State private var writeFailureMessage: String?
     /// Whether the keyboard map is on screen, opened with `?`.
     @State private var showsKeyboardHelp = false
+    /// Focus of the search field, so `/` can reach it.
+    ///
+    /// Held here rather than in the list: `.searchable` is applied to the list
+    /// from this view, and `.searchFocused` only binds the field of the
+    /// `searchable` in its own chain.
+    @FocusState private var searchFieldFocused: Bool
     /// Kept apart from `writeFailureMessage`: a GPX that would not parse is not
     /// a failed save, and telling the user their work was lost when it was not
     /// is its own kind of wrong.
@@ -286,6 +292,7 @@ struct RootView: View {
                             text: $filter.searchText,
                             prompt: "Rechercher une activité"
                         )
+                        .searchFocused($searchFieldFocused)
                 }
             }
             .frame(minWidth: 480)
@@ -348,9 +355,13 @@ struct RootView: View {
             } else {
                 selectedActivities = []
             }
-        case .openSearch, .move, .first, .last, .halfPage:
-            // Motions never reach here, and the search field is the list's own
-            // `.searchable`, which only it can focus.
+            // Focus comes back to the list either way, so the very next key is
+            // a motion again rather than a character typed into the field.
+            searchFieldFocused = false
+        case .openSearch:
+            searchFieldFocused = true
+        case .move, .first, .last, .halfPage:
+            // Motions are carried out by the list, which has the sorted rows.
             break
         }
     }
