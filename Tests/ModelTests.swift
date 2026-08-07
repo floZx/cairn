@@ -27,6 +27,16 @@ struct ModelTests {
         #expect(name == testCase.expected)
     }
 
+    @Test("XCTestConfigurationFilePath est bien présente pendant la suite")
+    func detectsTestEnvironment() {
+        // The entire 132 MB store guard rests on this one line reading true.
+        // `storeFileNameChoosesTheRightFile` only proves the pure function is
+        // correct for whatever `isTesting` it is handed — nothing until now
+        // asserted that the real detection, running right now, actually
+        // produces `true`.
+        #expect(ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil)
+    }
+
     @Test("une activité survit à un aller-retour en base")
     func persistsActivity() throws {
         let container = try AppModelContainer.inMemory()
