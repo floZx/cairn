@@ -82,48 +82,4 @@ struct TrackDirectionTests {
         #expect(abs(markers[0].angle) < 0.001)
         #expect(abs(markers[1].angle - .pi / 2) < 0.001)
     }
-
-    @Test("le chevron choisit la couleur qui contraste le plus, pas la plus claire")
-    @MainActor
-    func picksTheMoreContrastingChevronColor() {
-        // Every colour the user can actually pick, rather than examples chosen to
-        // agree with me: a previous version of this test used orange, which
-        // happened to satisfy a wrong threshold while red — the colour in use —
-        // did not, and the chevrons stayed white on a red track.
-        for choice in TrackColor.allCases {
-            let chosen = DirectedPolylineRenderer.chevronColor(on: choice.nsColor)
-            let luminance = DirectedPolylineRenderer.relativeLuminance(
-                of: choice.nsColor
-            )
-
-            // The contract, computed from the definition rather than restated: of
-            // the two candidates, keep the one with the higher WCAG ratio.
-            let againstWhite = 1.05 / (luminance + 0.05)
-            let againstBlack = (luminance + 0.05) / 0.05
-            #expect(chosen == (againstBlack > againstWhite ? .black : .white))
-        }
-
-        // And the two cases worth naming outright.
-        #expect(DirectedPolylineRenderer.chevronColor(on: .systemRed) == .black)
-        #expect(DirectedPolylineRenderer.chevronColor(on: .black) == .white)
-    }
-
-    @Test("la luminance est décodée en gamma, pas prise sur les composantes brutes")
-    func decodesGamma() {
-        let grey = NSColor(srgbRed: 0.5, green: 0.5, blue: 0.5, alpha: 1)
-
-        // Raw components would put mid-grey at 0.5; decoded it sits near 0.21,
-        // which is where the eye finds it. Reading it raw is part of how red ended
-        // up on the wrong side of the crossover.
-        let luminance = DirectedPolylineRenderer.relativeLuminance(of: grey)
-        #expect(luminance > 0.18 && luminance < 0.25)
-
-        // Generic Gray, where reading redComponent raises: the conversion has to
-        // happen inside, since black is one of the track colours on offer.
-        #expect(DirectedPolylineRenderer.relativeLuminance(of: .black) == 0)
-        let white = DirectedPolylineRenderer.relativeLuminance(
-            of: NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 1)
-        )
-        #expect(abs(white - 1) < 0.001)
-    }
 }

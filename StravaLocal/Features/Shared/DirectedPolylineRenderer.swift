@@ -60,72 +60,32 @@ enum TrackDirection {
     }
 }
 
-/// A track drawn with chevrons showing which way it was travelled.
+/// A track drawn with arrowheads showing which way it was travelled.
 ///
-/// Chevrons rather than annotation views: an `MKAnnotationView` keeps its
-/// orientation when the map is rotated, so its arrows would end up pointing the
-/// wrong way the moment the user turns the map. Drawing inside the renderer means
+/// Drawn inside the renderer rather than as annotation views: an
+/// `MKAnnotationView` keeps its orientation when the map is rotated, so its
+/// arrows would point the wrong way the moment the user turns the map. Here
 /// MapKit's own transform handles rotation and pitch.
+///
+/// Modelled on how Strava draws the same thing, after two versions of mine were
+/// rightly called ugly. The arrowheads are *filled and in the track's own colour*,
+/// a little wider than the line: what makes them legible is the silhouette
+/// against the map, not a contrasting colour against the line. A first version
+/// stroked them in black or white, which read as debris scattered along the route.
+/// And there are four of them, not fourteen — the point is to answer "which way",
+/// which four do as well as forty and without crowding the trace.
 final class DirectedPolylineRenderer: MKPolylineRenderer {
-    /// Fixed along the whole route, so a zoomed-out view shows them all. Zoom far
-    /// enough in and you may sit between two, which is the acceptable half of the
-    /// trade: spacing them by screen distance instead would make them shuffle
-    /// along the track at every zoom.
-    private static let chevronCount = 14
+    private static let arrowCount = 4
 
-    /// On-screen size, in points, kept deliberately close to the 3-point track:
-    /// a chevron much wider than the line it sits on reads as a blob rather than
-    /// an arrow, which is what a first version at more than twice this did.
-    private static let chevronLength: CGFloat = 6
-    private static let chevronStroke: CGFloat = 1.4
-
-    /// Black or white, whichever actually contrasts more with the track.
-    ///
-    /// Not "is the track light or dark", which is the question a first version
-    /// asked with a threshold picked by eye at 0.55. A saturated red sits at a
-    /// relative luminance near 0.25 and so counted as dark, keeping the chevrons
-    /// white on the very colour where they disappeared. Worse, the test that was
-    /// meant to catch it used orange, which happened to land the other side of
-    /// that threshold — it confirmed the assumption instead of checking the
-    /// requirement.
-    ///
-    /// The crossover is not a matter of taste. WCAG contrast against white is
-    /// `1.05 / (L + 0.05)` and against black `(L + 0.05) / 0.05`; they cross at
-    /// `L ≈ 0.179`. Above it black wins, below it white does. Which means black on
-    /// nearly every track colour, and white only on the genuinely dark ones —
-    /// black being one of the options, that case is real.
-    static func chevronColor(on stroke: NSColor) -> NSColor {
-        relativeLuminance(of: stroke) > 0.179 ? .black : .white
-    }
-
-    /// WCAG relative luminance, gamma-decoded.
-    ///
-    /// Converts before reading, and that is not defensive padding: `NSColor.black`
-    /// lives in Generic Gray, where `redComponent` raises rather than returning
-    /// zero. Black is one of the track colours on offer, so an API that trapped on
-    /// it would be a loaded gun.
-    ///
-    /// The gamma decoding matters too. On raw sRGB components a mid-tone reads far
-    /// brighter than the eye finds it, and that is part of how red ended up on the
-    /// wrong side of the crossover.
-    static func relativeLuminance(of color: NSColor) -> CGFloat {
-        guard let rgb = color.usingColorSpace(.sRGB) else { return 0 }
-        func linear(_ component: CGFloat) -> CGFloat {
-            component <= 0.03928
-                ? component / 12.92
-                : pow((component + 0.055) / 1.055, 2.4)
-        }
-        return 0.2126 * linear(rgb.redComponent)
-            + 0.7152 * linear(rgb.greenComponent)
-            + 0.0722 * linear(rgb.blueComponent)
-    }
+    /// On-screen points. Wider than the 3-point line so the barb shows, short
+    /// enough not to read as a second stroke.
+    private static let arrowLength: CGFloat = 8
+    private static let arrowHalfWidth: CGFloat = 3
 
     private lazy var markers: [DirectionMarker] = {
         let line = polyline
         let buffer = UnsafeBufferPointer(start: line.points(), count: line.pointCount)
-        return TrackDirection.markers(
-            along: Array(buffer), count: Self.chevronCount
-        )
+        return TrackDirection.markers(along: Array(buffer), count: Self.arrowCount)
     }()
 
     override func draw(
@@ -135,29 +95,27 @@ final class DirectedPolylineRenderer: MKPolylineRenderer {
 
         // Divided by the zoom scale, which is what turns a size in screen points
         // into this context's units — the same conversion MapKit applies to
-        // `lineWidth`. So a chevron stays six points wide at every zoom.
-        let size = Self.chevronLength / zoomScale
-        // Widened by one chevron so a mark straddling the tile edge is drawn by
+        // `lineWidth`. So an arrowhead keeps its size at every zoom.
+        let length = Self.arrowLength / zoomScale
+        let halfWidth = Self.arrowHalfWidth / zoomScale
+        // Widened by one arrowhead so a mark straddling the tile edge is drawn by
         // both tiles rather than sliced in half by whichever gets there first.
-        let margin = Double(size)
-        let visible = mapRect.insetBy(dx: -margin, dy: -margin)
+        let visible = mapRect.insetBy(dx: -Double(length), dy: -Double(length))
 
-        let colour = Self.chevronColor(on: strokeColor ?? .controlAccentColor)
-        context.setStrokeColor(colour.cgColor)
-        context.setLineWidth(Self.chevronStroke / zoomScale)
-        context.setLineCap(.round)
-        context.setLineJoin(.round)
+        context.setFillColor((strokeColor ?? .controlAccentColor).cgColor)
 
         for marker in markers where visible.contains(marker.point) {
             let origin = point(for: marker.point)
             context.saveGState()
             context.translateBy(x: origin.x, y: origin.y)
             context.rotate(by: marker.angle)
-            // A "greater than" sign pointing along the direction of travel.
-            context.move(to: CGPoint(x: -size * 0.45, y: -size * 0.4))
-            context.addLine(to: CGPoint(x: size * 0.45, y: 0))
-            context.addLine(to: CGPoint(x: -size * 0.45, y: size * 0.4))
-            context.strokePath()
+            // A solid barb pointing along the direction of travel, its base set
+            // back over the line so the tip is what stands out.
+            context.move(to: CGPoint(x: length * 0.5, y: 0))
+            context.addLine(to: CGPoint(x: -length * 0.35, y: -halfWidth))
+            context.addLine(to: CGPoint(x: -length * 0.35, y: halfWidth))
+            context.closePath()
+            context.fillPath()
             context.restoreGState()
         }
     }
