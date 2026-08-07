@@ -52,8 +52,12 @@ struct ComparisonMapView: View {
             }
         }
         .listStyle(.inset)
-        .frame(maxHeight: 220)
+        .frame(maxHeight: Self.legendRowHeight * 3)
     }
+
+    /// A legend row: a name over a caption, plus the inset style's own padding.
+    /// Three of them, then it scrolls — the map deserves the rest of the pane.
+    private static let legendRowHeight: CGFloat = 40
 }
 
 /// One selected activity, ready to draw and to list.
