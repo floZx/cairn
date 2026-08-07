@@ -1,29 +1,36 @@
 import MapKit
 
 extension MKMapView {
-    /// How far the camera leans over the terrain on a track map.
+    /// How far the camera leans over the terrain on an activity's map.
     ///
-    /// High on purpose — the relief is the point. MapKit clamps this according
-    /// to the altitude and the configuration, so the effective tilt is gentler
-    /// when zoomed far out; that is its own doing, not a second rule here.
-    static let terrainPitch: CGFloat = 70
-
-    /// Leaning back raises the far edge of the frame towards the horizon, which
-    /// would otherwise crop the top of the track. Pulling the camera back keeps
-    /// the whole route inside the view.
-    private static let pitchedDistanceFactor = 1.35
+    /// A frank tilt, but not the maximum: the steeper the angle, the further the
+    /// camera has to pull back to keep the whole route in frame, and past roughly
+    /// 50° the track is so small that the relief it was meant to show is lost
+    /// with it. MapKit clamps this further according to the altitude, so the
+    /// effective tilt is gentler when zoomed far out.
+    static let terrainPitch: CGFloat = 45
 
     /// Tilts the camera into a terrain view, keeping what is already framed.
     ///
     /// Call it straight after setting the visible map rect, and only there: on
     /// every update it would snap the camera back each time the view refreshed,
-    /// undoing any tilt or rotation the user had set with option-drag. Note that
-    /// it pulls the camera back each time, so repeated calls would keep zooming
-    /// out.
+    /// undoing any tilt or rotation the user had set with option-drag. It pulls
+    /// the camera back each time, so repeated calls would keep zooming out.
     func tiltForTerrain() {
+        let distance = camera.centerCoordinateDistance
+        // A camera can be degenerate before the view has been laid out, and
+        // scaling zero or a negative distance would send the map elsewhere
+        // entirely rather than merely mis-framing it.
+        guard distance > 0 else { return }
+
         let camera = self.camera
         camera.pitch = Self.terrainPitch
-        camera.centerCoordinateDistance *= Self.pitchedDistanceFactor
+        // Leaning back stretches what has to fit vertically by 1/cos(pitch).
+        // Pull back by less than that and the near half of the track slides off
+        // the bottom edge — at 70° with a flat 1.35 factor the route vanished
+        // from the view altogether.
+        camera.centerCoordinateDistance =
+            distance / cos(Self.terrainPitch * .pi / 180)
         self.camera = camera
     }
 }
