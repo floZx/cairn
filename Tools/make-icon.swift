@@ -11,42 +11,18 @@ let outputPath = CommandLine.arguments.count > 1
     : "Cairn/Assets.xcassets/AppIcon.appiconset"
 let output = URL(filePath: outputPath)
 
-// A pebble: points sampled around an ellipse, each nudged by a fixed offset, then
-// joined through their midpoints so every corner comes out rounded. Fixed
-// offsets rather than random ones keep two runs of the script identical.
-func pebble(center: CGPoint, width: CGFloat, height: CGFloat, wobble: [CGFloat]) -> NSBezierPath {
-    let count = wobble.count
-    let points = (0..<count).map { i -> CGPoint in
-        let angle = 2 * .pi * CGFloat(i) / CGFloat(count)
-        // Joining through midpoints pulls the outline inside the sampled points,
-        // so the samples are pushed out to land back on the requested size.
-        let scale = 1.12 * (1 + wobble[i])
-        return CGPoint(
-            x: center.x + cos(angle) * width / 2 * scale,
-            y: center.y + sin(angle) * height / 2 * scale
-        )
-    }
-    func midpoint(_ a: CGPoint, _ b: CGPoint) -> CGPoint {
-        CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
-    }
-    let path = NSBezierPath()
-    path.move(to: midpoint(points[count - 1], points[0]))
-    for i in 0..<count {
-        let next = points[(i + 1) % count]
-        path.curve(to: midpoint(points[i], next), controlPoint: points[i])
-    }
-    path.close()
-    return path
-}
-
-/// Stones bottom-up: centre and size in the content box, plus the wobble that
-/// makes each one a different stone instead of the same ellipse four times.
-let stones: [(y: CGFloat, w: CGFloat, h: CGFloat, dx: CGFloat, wobble: [CGFloat])] = [
-    (0.115, 0.86, 0.22, 0.000, [0.03, -0.05, 0.04, 0.02, -0.04, 0.05, -0.03, 0.02]),
-    (0.335, 0.66, 0.20, 0.020, [-0.04, 0.05, -0.02, 0.04, 0.03, -0.05, 0.02, -0.03]),
-    (0.545, 0.48, 0.18, -0.030, [0.05, 0.02, -0.04, 0.03, -0.03, 0.04, 0.02, -0.05]),
-    (0.730, 0.33, 0.16, 0.015, [-0.03, 0.04, 0.02, -0.05, 0.04, -0.02, 0.05, -0.04]),
-    (0.885, 0.18, 0.12, -0.010, [0.04, -0.03, 0.05, 0.02, -0.04, 0.03, -0.05, 0.02]),
+/// The four slabs, traced off the reference image and normalised to its ink box.
+///
+/// Corners are sharp and no two edges are parallel: these are split rocks, not
+/// river pebbles. The stack is deliberately off-axis — each slab is nudged left
+/// or right of the one below and tilted a degree or two — which is what makes it
+/// read as balanced rather than as a stack of bricks. Origin is bottom-left, so
+/// the first entry is the slab on the ground.
+let slabs: [[(x: CGFloat, y: CGFloat)]] = [
+    [(0.002, 0.220), (0.792, 0.185), (0.766, 0.009), (0.006, 0.000)],
+    [(0.296, 0.466), (0.969, 0.489), (1.000, 0.265), (0.302, 0.278)],
+    [(0.121, 0.759), (0.720, 0.749), (0.712, 0.551), (0.099, 0.554)],
+    [(0.457, 1.000), (0.633, 0.992), (0.646, 0.821), (0.457, 0.816)],
 ]
 
 /// Draws into a bitmap of exactly `size` pixels.
@@ -69,41 +45,39 @@ func drawIcon(size: CGFloat) -> NSBitmapImageRep {
         fatalError("pas de contexte graphique")
     }
     NSGraphicsContext.current = graphicsContext
-    let context = graphicsContext.cgContext
-    context.setShouldAntialias(true)
+    graphicsContext.cgContext.setShouldAntialias(true)
 
     // macOS icons leave a margin: the artwork is a rounded square filling about
-    // 80 % of the canvas, not the canvas itself.
+    // 80 % of the canvas, not the canvas itself. The reference is a transparent
+    // silhouette, but an icon without a plate reads as a broken image in the Dock.
     let inset = size * 0.0977
     let box = CGRect(x: inset, y: inset, width: size - 2 * inset, height: size - 2 * inset)
     let radius = box.width * 0.225
 
     let plate = NSBezierPath(roundedRect: box, xRadius: radius, yRadius: radius)
-    context.saveGState()
+    NSGraphicsContext.saveGraphicsState()
     plate.addClip()
-    let gradient = NSGradient(
+    NSGradient(
         colors: [
             NSColor(srgbRed: 0.965, green: 0.945, blue: 0.910, alpha: 1),
             NSColor(srgbRed: 0.831, green: 0.796, blue: 0.737, alpha: 1),
         ]
-    )
-    gradient?.draw(in: box, angle: -90)
-    context.restoreGState()
+    )?.draw(in: box, angle: -90)
+    NSGraphicsContext.restoreGraphicsState()
 
-    // The stones sit in the lower-middle of the plate, leaving air above the top
-    // pebble so the stack reads as a cairn rather than a filled column.
-    let field = box.insetBy(dx: box.width * 0.11, dy: box.height * 0.08)
-    NSColor(srgbRed: 0.129, green: 0.145, blue: 0.157, alpha: 1).setFill()
-    for stone in stones {
-        pebble(
-            center: CGPoint(
-                x: field.midX + field.width * stone.dx,
-                y: field.minY + field.height * stone.y
-            ),
-            width: field.width * stone.w,
-            height: field.height * stone.h,
-            wobble: stone.wobble
-        ).fill()
+    let field = box.insetBy(dx: box.width * 0.13, dy: box.height * 0.13)
+    NSColor(srgbRed: 0.075, green: 0.082, blue: 0.090, alpha: 1).setFill()
+    for slab in slabs {
+        let path = NSBezierPath()
+        for (index, corner) in slab.enumerated() {
+            let point = CGPoint(
+                x: field.minX + field.width * corner.x,
+                y: field.minY + field.height * corner.y
+            )
+            if index == 0 { path.move(to: point) } else { path.line(to: point) }
+        }
+        path.close()
+        path.fill()
     }
 
     return rep
