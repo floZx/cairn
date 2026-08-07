@@ -73,6 +73,27 @@ final class DirectedPolylineRenderer: MKPolylineRenderer {
     /// along the track at every zoom.
     private static let chevronCount = 14
 
+    /// On-screen size, in points, kept deliberately close to the 3-point track:
+    /// a chevron much wider than the line it sits on reads as a blob rather than
+    /// an arrow, which is what a first version at more than twice this did.
+    private static let chevronLength: CGFloat = 6
+    private static let chevronStroke: CGFloat = 1.4
+
+    /// Black or white, whichever stands out against the track it is drawn on.
+    ///
+    /// White alone was the first choice and it was a poor one: on the orange and
+    /// red tracks it barely separated from the line. Picked from the stroke's
+    /// luminance rather than fixed, since the track colour is the user's to set —
+    /// and one of the options is black, where white is the only readable answer.
+    static func chevronColor(on stroke: NSColor) -> NSColor {
+        guard let rgb = stroke.usingColorSpace(.sRGB) else { return .white }
+        // Rec. 709 luminance: green carries most of the perceived brightness.
+        let luminance = 0.2126 * rgb.redComponent
+            + 0.7152 * rgb.greenComponent
+            + 0.0722 * rgb.blueComponent
+        return luminance > 0.55 ? .black : .white
+    }
+
     private lazy var markers: [DirectionMarker] = {
         let line = polyline
         let buffer = UnsafeBufferPointer(start: line.points(), count: line.pointCount)
@@ -86,16 +107,18 @@ final class DirectedPolylineRenderer: MKPolylineRenderer {
     ) {
         super.draw(mapRect, zoomScale: zoomScale, in: context)
 
-        // Scaled off MapKit's own road width so the chevrons keep their apparent
-        // size at every zoom, as the line does.
-        let size = max(7, MKRoadWidthAtZoomScale(zoomScale) * 2.2)
+        // Divided by the zoom scale, which is what turns a size in screen points
+        // into this context's units — the same conversion MapKit applies to
+        // `lineWidth`. So a chevron stays six points wide at every zoom.
+        let size = Self.chevronLength / zoomScale
         // Widened by one chevron so a mark straddling the tile edge is drawn by
         // both tiles rather than sliced in half by whichever gets there first.
-        let margin = Double(size) / Double(zoomScale)
+        let margin = Double(size)
         let visible = mapRect.insetBy(dx: -margin, dy: -margin)
 
-        context.setStrokeColor(NSColor.white.cgColor)
-        context.setLineWidth(max(1, size * 0.2))
+        let colour = Self.chevronColor(on: strokeColor ?? .controlAccentColor)
+        context.setStrokeColor(colour.cgColor)
+        context.setLineWidth(Self.chevronStroke / zoomScale)
         context.setLineCap(.round)
         context.setLineJoin(.round)
 

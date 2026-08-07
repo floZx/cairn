@@ -82,4 +82,18 @@ struct TrackDirectionTests {
         #expect(abs(markers[0].angle) < 0.001)
         #expect(abs(markers[1].angle - .pi / 2) < 0.001)
     }
+
+    @Test("le chevron prend la couleur qui ressort sur la trace")
+    func picksAReadableChevronColor() {
+        // White on orange or red barely separated from the line, which is what
+        // the first version did on every track.
+        #expect(DirectedPolylineRenderer.chevronColor(on: .systemOrange) == .black)
+        #expect(DirectedPolylineRenderer.chevronColor(on: .white) == .black)
+
+        // And on a dark track white is the only readable answer — black is one of
+        // the colours the user can pick.
+        #expect(DirectedPolylineRenderer.chevronColor(on: .black) == .white)
+        #expect(DirectedPolylineRenderer.chevronColor(on: .systemBlue) == .white)
+        #expect(DirectedPolylineRenderer.chevronColor(on: .systemPurple) == .white)
+    }
 }
