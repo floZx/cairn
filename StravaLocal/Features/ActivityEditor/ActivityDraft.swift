@@ -101,6 +101,11 @@ struct ActivityDraft: Equatable {
     }
 
     /// Writes the values, and claims only the fields that moved.
+    ///
+    /// Mutates `activity` in place and returns nothing: the caller still owns
+    /// `context.save()`. Skipping it leaves the screen showing the edit with
+    /// nothing written to disk — the exact silent loss this project exists to
+    /// prevent, just triggered from the other write path.
     func apply(to activity: Activity) {
         let changed = changedFields(comparedTo: activity)
         write(to: activity)
@@ -111,7 +116,9 @@ struct ActivityDraft: Equatable {
         }
     }
 
-    /// A brand-new local activity.
+    /// A brand-new local activity, not yet inserted into any context: the
+    /// caller must both `context.insert` it and `context.save()`, since only
+    /// the caller holds the `ModelContext`.
     func makeActivity() -> Activity {
         let activity = Activity(stravaID: 0, name: name, sportType: sport)
         activity.source = .manual
