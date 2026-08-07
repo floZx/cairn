@@ -148,22 +148,18 @@ struct RootView: View {
 
     @ViewBuilder
     private var detailColumn: some View {
-        if showsGlobalMap {
-            // Nothing to show beside a map, so the column is squeezed shut and
-            // the map takes the width. Collapsing it this way keeps the split
-            // view's identity — and therefore the widths the user chose.
-            Color.clear
-                .navigationSplitViewColumnWidth(0)
-        } else if let selected {
+        if let selected, !showsGlobalMap {
             ActivityDetailView(
                 activity: selected,
                 onExpandMap: { expandedMap = .activity(selected.id) }
             )
         } else {
-            ContentUnavailableView(
-                "Aucune activité sélectionnée", systemImage: "figure.run",
-                description: Text("Choisissez une activité dans la liste.")
-            )
+            // Nothing worth a pane: beside the global map, or with no activity
+            // selected. Squeezing the column shut gives the width back to the
+            // list, and doing it this way keeps the split view's identity — and
+            // therefore the widths the user chose.
+            Color.clear
+                .navigationSplitViewColumnWidth(0)
         }
     }
 
@@ -197,6 +193,18 @@ struct RootView: View {
                     Label("Synchroniser", systemImage: "arrow.triangle.2.circlepath")
                 }
                 .disabled(!app.isAuthenticated || app.progress.isRunning)
+            }
+            // Kept in place and merely disabled rather than appearing with the
+            // selection: a toolbar whose buttons come and go is unsettling, and
+            // this way the affordance is visible before it is needed.
+            ToolbarItem {
+                Button {
+                    selectedActivity = nil
+                } label: {
+                    Label("Fermer le détail", systemImage: "sidebar.trailing")
+                }
+                .disabled(selected == nil || showsGlobalMap)
+                .help("Fermer le panneau de détail")
             }
     }
 }
