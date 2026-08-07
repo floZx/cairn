@@ -7,7 +7,7 @@ struct RootView: View {
     @State private var filter = ActivityFilter.none
     // See the comment on `ActivityListView.selection`: `Activity.ID` can't be
     // named from this file, so `PersistentIdentifier` is used directly.
-    @State private var selectedActivity: PersistentIdentifier?
+    @State private var selectedActivities: Set<PersistentIdentifier> = []
     /// Which map, if any, is filling the window.
     @State private var expandedMap: ExpandedMap?
     /// Shared with every map so the chosen background and colour carry over.
@@ -15,8 +15,15 @@ struct RootView: View {
     @AppStorage(TrackColor.storageKey) private var expandedTrackColor: TrackColor = .accent
     @Query private var allActivities: [Activity]
 
+    /// The selected activities, whatever their number.
+    private var selection: [Activity] {
+        allActivities.filter { selectedActivities.contains($0.id) }
+    }
+
+    /// The one selected activity, or nil as soon as there are several: the
+    /// detail pane shows figures for one outing and a comparison map for more.
     private var selected: Activity? {
-        allActivities.first { $0.id == selectedActivity }
+        selection.count == 1 ? selection.first : nil
     }
 
     /// The global map honours the same filters as the list — picking a sport in
@@ -51,7 +58,6 @@ struct RootView: View {
             case .global:
                 GlobalMapView(
                     activities: mapActivities,
-                    selection: $selectedActivity,
                     region: regionBinding
                 )
             case let .activity(id):
@@ -124,12 +130,11 @@ struct RootView: View {
                 if showsGlobalMap {
                     GlobalMapView(
                         activities: mapActivities,
-                        selection: $selectedActivity,
                         region: regionBinding,
                         onExpand: { expandedMap = .global }
                     )
                 } else {
-                    ActivityListView(filter: filter, selection: $selectedActivity)
+                    ActivityListView(filter: filter, selection: $selectedActivities)
                         .id(filter)
                         .searchable(
                             text: $filter.searchText,
@@ -148,19 +153,27 @@ struct RootView: View {
 
     @ViewBuilder
     private var detailColumn: some View {
-        if let selected, !showsGlobalMap {
+        if showsGlobalMap {
+            collapsedDetailColumn
+        } else if let selected {
             ActivityDetailView(
                 activity: selected,
                 onExpandMap: { expandedMap = .activity(selected.id) }
             )
+        } else if selection.count > 1 {
+            ComparisonMapView(activities: selection)
         } else {
-            // Nothing worth a pane: beside the global map, or with no activity
-            // selected. Squeezing the column shut gives the width back to the
-            // list, and doing it this way keeps the split view's identity — and
-            // therefore the widths the user chose.
-            Color.clear
-                .navigationSplitViewColumnWidth(0)
+            collapsedDetailColumn
         }
+    }
+
+    /// Nothing worth a pane: beside the global map, or with nothing selected.
+    ///
+    /// Squeezing the column shut gives the width back to the list, and doing it
+    /// this way keeps the split view's identity — and therefore the widths the
+    /// user chose.
+    private var collapsedDetailColumn: some View {
+        Color.clear.navigationSplitViewColumnWidth(0)
     }
 
     private var sidebar: some View {
@@ -199,12 +212,12 @@ struct RootView: View {
             // this way the affordance is visible before it is needed.
             ToolbarItem {
                 Button {
-                    selectedActivity = nil
+                    selectedActivities = []
                 } label: {
-                    Label("Fermer le détail", systemImage: "sidebar.trailing")
+                    Label("Fermer le panneau", systemImage: "sidebar.trailing")
                 }
-                .disabled(selected == nil || showsGlobalMap)
-                .help("Fermer le panneau de détail")
+                .disabled(selection.isEmpty || showsGlobalMap)
+                .help("Fermer le panneau de droite et désélectionner")
             }
     }
 }

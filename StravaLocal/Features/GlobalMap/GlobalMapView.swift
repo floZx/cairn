@@ -4,12 +4,6 @@ import SwiftData
 
 struct GlobalMapView: View {
     let activities: [Activity]
-    // `Activity.ID` (the macro-synthesized `PersistentModel` typealias) isn't
-    // nameable via dot-syntax outside the file that declares `Activity`, even
-    // within the same module — a known SwiftData/macro limitation (see
-    // `ActivityListView.selection`). `PersistentIdentifier` is used directly
-    // here instead.
-    @Binding var selection: PersistentIdentifier?
     @Binding var region: BoundingBox?
     /// Nil when the map is already filling the window, which hides the button.
     var onExpand: (() -> Void)?

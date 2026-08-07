@@ -7,7 +7,9 @@ struct ActivityListView: View {
     // nameable via dot-syntax outside the file that declares `Activity`, even
     // within the same module — a known SwiftData/macro limitation. It aliases
     // to `PersistentIdentifier`, which is used directly here instead.
-    @Binding var selection: PersistentIdentifier?
+    /// A set, so several activities can be compared on one map. One selection
+    /// still opens the usual detail pane.
+    @Binding var selection: Set<PersistentIdentifier>
 
     /// Built in `init` from the incoming filter. The parent applies
     /// `.id(filter)` so a filter change re-instantiates the view, which is what
@@ -29,7 +31,7 @@ struct ActivityListView: View {
     @AppStorage("activityColumns.v2")
     private var columnCustomization = TableColumnCustomization<Activity>()
 
-    init(filter: ActivityFilter, selection: Binding<PersistentIdentifier?>) {
+    init(filter: ActivityFilter, selection: Binding<Set<PersistentIdentifier>>) {
         self.filter = filter
         self._selection = selection
         _query = Query(
