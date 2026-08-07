@@ -68,6 +68,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
 
             guard let root = probe.window?.contentView else { continue }
             for splitView in root.descendantSplitViews() where apply(to: splitView) {
+                (probe as? ProbeView)?.keepCursorRectsFresh(for: splitView)
                 return
             }
         }
@@ -106,7 +107,8 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
     }
 }
 
-/// A zero-size, non-drawing view that reports when it joins a window.
+/// A zero-size, non-drawing view that reports when it joins a window, and keeps
+/// the split view's cursor rects from going stale.
 private final class ProbeView: NSView {
     var onAttachToWindow: (() -> Void)?
 
@@ -114,6 +116,33 @@ private final class ProbeView: NSView {
         super.viewDidMoveToWindow()
         guard window != nil else { return }
         onAttachToWindow?()
+    }
+
+    /// Invalidates cursor rects whenever the columns are rearranged.
+    ///
+    /// AppKit only recomputes them when the window is asked to, and the detail
+    /// column here collapses to a zero width rather than being removed — so a
+    /// divider appears and vanishes under the pointer every time the selection
+    /// changes. Left alone, the resize cursor stays applied over ground that is no
+    /// longer a divider, which is the double-arrow that sticks for a while.
+    ///
+    /// Cheap and idempotent: worst case it invalidates rects that were fine.
+    func keepCursorRectsFresh(for splitView: NSSplitView) {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(splitViewDidResizeSubviews(_:)),
+            name: NSSplitView.didResizeSubviewsNotification,
+            object: splitView
+        )
+    }
+
+    @objc private func splitViewDidResizeSubviews(_ notification: Notification) {
+        guard let splitView = notification.object as? NSSplitView else { return }
+        splitView.window?.invalidateCursorRects(for: splitView)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 }
 

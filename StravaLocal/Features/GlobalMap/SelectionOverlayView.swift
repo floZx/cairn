@@ -10,6 +10,10 @@ final class SelectionOverlayView: NSView {
         didSet {
             if !isEnabled { currentRect = nil }
             needsDisplay = true
+            // AppKit only recomputes cursor rects when the window is told to, so
+            // without this the crosshair arrived late on entering selection mode
+            // and outstayed its welcome on leaving it.
+            window?.invalidateCursorRects(for: self)
         }
     }
     var onSelection: ((NSRect) -> Void)?
