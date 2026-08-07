@@ -48,7 +48,6 @@ struct ActivityEditorSheetModeTests {
 
     @Test("le mode création renvoie une nouvelle activité locale portant les valeurs du brouillon")
     func createModeReturnsFreshActivity() throws {
-        let context = ModelContext(try AppModelContainer.inMemory())
         var draft = ActivityDraft(startingOn: Date(timeIntervalSince1970: 1_700_000_000))
         draft.name = "Renforcement"
         draft.sport = .workout
@@ -61,9 +60,10 @@ struct ActivityEditorSheetModeTests {
         #expect(result.source == .manual)
         #expect(result.stravaID == 0)
         // Not inserted by `apply` itself — that stays the caller's job, since
-        // only the caller holds the `ModelContext`. Asserted by actually
-        // fetching, rather than by a field insertion would not have changed
-        // either way.
-        #expect(try context.fetch(FetchDescriptor<Activity>()).isEmpty)
+        // only the caller holds the `ModelContext`. An activity nobody has
+        // inserted belongs to no context, which a fetch could not have
+        // falsified — it would come back empty from an empty context whether
+        // or not `apply` inserted into some *other* context.
+        #expect(result.modelContext == nil)
     }
 }
