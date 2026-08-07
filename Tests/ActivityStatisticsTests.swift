@@ -6,9 +6,17 @@ import Foundation
 @Suite("ActivityStatistics")
 @MainActor
 struct ActivityStatisticsTests {
-    /// 15 March 2026, so every expected month is a fixed offset from it.
+    /// Sunday 15 March 2026. A Sunday on purpose: with Monday-first weeks it is
+    /// the *last* day of its week, which is where an off-by-one would show.
     private let reference = Date(timeIntervalSince1970: 1_773_600_000)
-    private let calendar = Calendar(identifier: .gregorian)
+
+    /// Monday-first, matching the production calendar. A Sunday-first calendar
+    /// here would compute different expectations and hide a real disagreement.
+    private let calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2
+        return calendar
+    }()
 
     private func makeActivity(
         in context: ModelContext,
@@ -18,32 +26,47 @@ struct ActivityStatisticsTests {
         movingTime: Int = 3600,
         elevation: Double = 200,
         monthsBack: Int = 0,
+        daysBack: Int = 0,
         name: String = "Sortie"
     ) -> Activity {
         let activity = Activity(stravaID: id, name: name, sportType: sport)
         activity.distance = distance
         activity.movingTime = movingTime
         activity.totalElevationGain = elevation
-        let date = calendar.date(byAdding: .month, value: -monthsBack, to: reference)!
+        let shifted = calendar.date(byAdding: .month, value: -monthsBack, to: reference)!
+        let date = calendar.date(byAdding: .day, value: -daysBack, to: shifted)!
         activity.startDate = date
         activity.startLocalDate = date
         context.insert(activity)
         return activity
     }
 
+    private func stats(
+        _ activities: [Activity], _ period: StatsPeriod = .twelveMonths
+    ) -> ActivityStatistics {
+        ActivityStatistics.compute(for: activities, period: period, now: reference)
+    }
+
+    private func startOfWeek(daysBack: Int = 0) -> Date? {
+        let date = calendar.date(byAdding: .day, value: -daysBack, to: reference)!
+        return calendar.dateInterval(of: .weekOfYear, for: date)?.start
+    }
+
+    // MARK: - Totals
+
     @Test("sans activité, tout est à zéro et rien n'est inventé")
     func handlesAnEmptySet() {
-        let stats = ActivityStatistics.compute(for: [], period: .twelveMonths, now: reference)
+        let result = stats([])
 
-        #expect(stats.count == 0)
-        #expect(stats.movingTime == 0)
-        #expect(stats.elevationGain == 0)
-        #expect(stats.sports.isEmpty)
-        #expect(stats.records.isEmpty)
-        // The months are still laid out: the period is a stated range, so an
-        // empty one is twelve empty slots rather than nothing at all.
-        #expect(stats.months.count == 12)
-        #expect(stats.months.allSatisfy { $0.distance == 0 && $0.comparisonDistance == 0 })
+        #expect(result.count == 0)
+        #expect(result.movingTime == 0)
+        #expect(result.elevationGain == 0)
+        #expect(result.sports.isEmpty)
+        #expect(result.records.isEmpty)
+        // The slots are still laid out: a period is a stated range, so an empty
+        // one is twelve empty bars rather than nothing at all.
+        #expect(result.slots.count == 12)
+        #expect(result.slots.allSatisfy { $0.distance == 0 && $0.comparisonDistance == 0 })
     }
 
     @Test("les cumuls portent sur le temps, le dénivelé et le nombre")
@@ -54,11 +77,11 @@ struct ActivityStatisticsTests {
             makeActivity(in: context, id: 2, movingTime: 1800, elevation: 350),
         ]
 
-        let stats = ActivityStatistics.compute(for: activities, period: .twelveMonths, now: reference)
+        let result = stats(activities)
 
-        #expect(stats.count == 2)
-        #expect(stats.movingTime == 5400)
-        #expect(stats.elevationGain == 550)
+        #expect(result.count == 2)
+        #expect(result.movingTime == 5400)
+        #expect(result.elevationGain == 550)
     }
 
     @Test("la distance est ventilée par sport, jamais additionnée entre sports")
@@ -70,16 +93,16 @@ struct ActivityStatisticsTests {
             makeActivity(in: context, id: 3, sport: .swim, distance: 2_000, movingTime: 2_000),
         ]
 
-        let stats = ActivityStatistics.compute(for: activities, period: .twelveMonths, now: reference)
+        let result = stats(activities)
 
-        #expect(stats.sports.count == 2)
+        #expect(result.sports.count == 2)
         // Ordered by time, the one measure that compares across sports.
-        #expect(stats.sports.map(\.sport) == [.ride, .swim])
-        let ride = stats.sports.first { $0.sport == .ride }
+        #expect(result.sports.map(\.sport) == [.ride, .swim])
+        let ride = result.sports.first { $0.sport == .ride }
         #expect(ride?.count == 2)
         #expect(ride?.distance == 100_000)
         #expect(ride?.movingTime == 13_000)
-        #expect(stats.sports.first { $0.sport == .swim }?.distance == 2_000)
+        #expect(result.sports.first { $0.sport == .swim }?.distance == 2_000)
     }
 
     @Test("l'ordre par sport est stable quand les temps sont égaux")
@@ -90,12 +113,13 @@ struct ActivityStatisticsTests {
             makeActivity(in: context, id: 2, sport: .ride, movingTime: 3600),
         ]
 
-        // "Natation" before "Vélo": without the tie-break the order would follow
-        // the dictionary's, and change between runs.
-        let first = ActivityStatistics.compute(for: activities, period: .twelveMonths, now: reference).sports.map(\.sport)
-        let second = ActivityStatistics.compute(for: activities.reversed(), period: .twelveMonths, now: reference).sports.map(\.sport)
-        #expect(first == second)
+        // Without the tie-break the order would follow the dictionary's, and
+        // change between runs.
+        #expect(stats(activities).sports.map(\.sport)
+            == stats(activities.reversed()).sports.map(\.sport))
     }
+
+    // MARK: - Records
 
     @Test("chaque record désigne l'activité qui le détient")
     func findsRecordHolders() throws {
@@ -111,8 +135,9 @@ struct ActivityStatisticsTests {
             ),
         ]
 
-        let stats = ActivityStatistics.compute(for: activities, period: .twelveMonths, now: reference)
-        let byKind = Dictionary(uniqueKeysWithValues: stats.records.map { ($0.kind, $0) })
+        let byKind = Dictionary(
+            uniqueKeysWithValues: stats(activities).records.map { ($0.kind, $0) }
+        )
 
         #expect(byKind[.distance]?.activityName == "La plus longue")
         #expect(byKind[.distance]?.formattedValue.contains("42") == true)
@@ -129,13 +154,51 @@ struct ActivityStatisticsTests {
             in: context, id: 1, sport: .workout, distance: 0, elevation: 0
         )
 
-        let stats = ActivityStatistics.compute(for: [indoors], period: .twelveMonths, now: reference)
-
-        #expect(stats.records.map(\.kind) == [.duration])
+        #expect(stats([indoors]).records.map(\.kind) == [.duration])
     }
 
-    @Test("les mois de la période sont contigus, mois vides compris")
-    func buildsContiguousMonths() throws {
+    // MARK: - Granularity
+
+    @Test("les fenêtres courtes se comptent en semaines, les longues en mois")
+    func choosesGranularityFromThePeriod() {
+        #expect(StatsPeriod.threeMonths.granularity == .week)
+        #expect(StatsPeriod.sixMonths.granularity == .week)
+        #expect(StatsPeriod.twelveMonths.granularity == .month)
+        #expect(StatsPeriod.currentYear.granularity == .month)
+    }
+
+    @Test("chaque période a le bon nombre de créneaux")
+    func sizesTheWindowPerPeriod() {
+        // Weeks for the short windows: three bars is not a chart.
+        #expect(StatsPeriod.threeMonths.slotCount(now: reference, calendar: calendar) == 13)
+        #expect(StatsPeriod.sixMonths.slotCount(now: reference, calendar: calendar) == 26)
+        #expect(StatsPeriod.twelveMonths.slotCount(now: reference, calendar: calendar) == 12)
+        // March, so the calendar year runs January through March.
+        #expect(StatsPeriod.currentYear.slotCount(now: reference, calendar: calendar) == 3)
+    }
+
+    @Test("les semaines commencent le lundi, dimanche compris")
+    func bucketsWeeksFromMonday() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let activities = [
+            // The reference Sunday, and the Wednesday before it: same week.
+            makeActivity(in: context, id: 1, distance: 12_000, daysBack: 0),
+            makeActivity(in: context, id: 2, distance: 8_000, daysBack: 4),
+            // The Sunday before that closes the *previous* week, which a
+            // Sunday-first calendar would have opened instead.
+            makeActivity(in: context, id: 3, distance: 5_000, daysBack: 7),
+        ]
+
+        let result = stats(activities, .threeMonths)
+
+        #expect(result.slots.count == 13)
+        #expect(result.slots.last?.start == startOfWeek())
+        #expect(result.slots.last?.distance == 20_000)
+        #expect(result.slots.dropLast().last?.distance == 5_000)
+    }
+
+    @Test("les créneaux sont contigus, créneaux vides compris")
+    func buildsContiguousSlots() throws {
         let context = ModelContext(try AppModelContainer.inMemory())
         let activities = [
             makeActivity(in: context, id: 1, distance: 30_000, monthsBack: 0),
@@ -144,50 +207,39 @@ struct ActivityStatisticsTests {
             makeActivity(in: context, id: 2, distance: 10_000, monthsBack: 11),
         ]
 
-        let months = ActivityStatistics
-            .compute(for: activities, period: .twelveMonths, now: reference)
-            .months
+        let slots = stats(activities).slots
 
-        #expect(months.count == 12)
-        #expect(months.map(\.month) == months.map(\.month).sorted())
-        #expect(months.first?.distance == 10_000)
-        #expect(months.last?.distance == 30_000)
-        #expect(months.dropFirst().dropLast().allSatisfy { $0.distance == 0 })
+        #expect(slots.count == 12)
+        #expect(slots.map(\.start) == slots.map(\.start).sorted())
+        #expect(slots.first?.distance == 10_000)
+        #expect(slots.last?.distance == 30_000)
+        #expect(slots.dropFirst().dropLast().allSatisfy { $0.distance == 0 })
     }
 
-    @Test("la fenêtre se termine sur le mois courant, pas sur la donnée")
-    func endsOnTheCurrentMonth() throws {
+    @Test("la fenêtre se termine sur le créneau courant, pas sur la donnée")
+    func endsOnTheCurrentSlot() throws {
         let context = ModelContext(try AppModelContainer.inMemory())
         // Old data and a short window: the period is a stated range, so it stays
         // put and simply comes back empty rather than chasing the activities.
         let old = makeActivity(in: context, id: 1, monthsBack: 30)
 
-        let stats = ActivityStatistics
-            .compute(for: [old], period: .threeMonths, now: reference)
+        let result = stats([old], .threeMonths)
 
-        #expect(stats.count == 0)
-        #expect(stats.months.count == 3)
-        #expect(stats.months.last?.month == calendar.date(
-            from: calendar.dateComponents([.year, .month], from: reference)
-        ))
+        #expect(result.count == 0)
+        #expect(result.slots.count == 13)
+        #expect(result.slots.last?.start == startOfWeek())
     }
 
-    @Test("chaque période a le bon nombre de mois")
-    func sizesTheWindowPerPeriod() {
-        // March 2026, so the calendar year runs January through March.
-        #expect(StatsPeriod.threeMonths.monthCount(now: reference, calendar: calendar) == 3)
-        #expect(StatsPeriod.sixMonths.monthCount(now: reference, calendar: calendar) == 6)
-        #expect(StatsPeriod.twelveMonths.monthCount(now: reference, calendar: calendar) == 12)
-        #expect(StatsPeriod.currentYear.monthCount(now: reference, calendar: calendar) == 3)
-    }
+    // MARK: - Comparison
 
     @Test("l'année en cours se compare à l'année précédente, pas au trimestre")
     func comparesTheCalendarYearAgainstTheYearBefore() {
-        // A rolling window compares against the span just before it; a calendar
-        // year has to shift by twelve months or the comparison would cover a
-        // different season entirely.
-        #expect(StatsPeriod.threeMonths.comparisonShift(now: reference, calendar: calendar) == 3)
-        #expect(StatsPeriod.sixMonths.comparisonShift(now: reference, calendar: calendar) == 6)
+        // A rolling window compares against the span just before it, counted in
+        // its own unit; a calendar year has to shift by twelve months or the
+        // comparison would cover a different season entirely.
+        #expect(StatsPeriod.threeMonths.comparisonShift(now: reference, calendar: calendar) == 13)
+        #expect(StatsPeriod.sixMonths.comparisonShift(now: reference, calendar: calendar) == 26)
+        #expect(StatsPeriod.twelveMonths.comparisonShift(now: reference, calendar: calendar) == 12)
         #expect(StatsPeriod.currentYear.comparisonShift(now: reference, calendar: calendar) == 12)
     }
 
@@ -195,39 +247,57 @@ struct ActivityStatisticsTests {
     func readsThePrecedingPeriod() throws {
         let context = ModelContext(try AppModelContainer.inMemory())
         let activities = [
-            // This month, and the same month one quarter earlier.
+            // This month, and the same month a year earlier.
             makeActivity(in: context, id: 1, distance: 30_000, monthsBack: 0),
-            makeActivity(in: context, id: 2, distance: 12_000, monthsBack: 3),
+            makeActivity(in: context, id: 2, distance: 12_000, monthsBack: 12),
         ]
 
-        let stats = ActivityStatistics
-            .compute(for: activities, period: .threeMonths, now: reference)
+        let result = stats(activities, .twelveMonths)
 
         // The period itself counts only the recent one...
-        #expect(stats.count == 1)
+        #expect(result.count == 1)
         // ...while the older one still shows up as the comparison for its slot,
-        // which the period filter would otherwise have removed outright.
-        #expect(stats.months.last?.distance == 30_000)
-        #expect(stats.months.last?.comparisonDistance == 12_000)
-        #expect(stats.months.last?.comparisonMonth == calendar.date(
-            byAdding: .month, value: -3,
-            to: calendar.date(from: calendar.dateComponents([.year, .month], from: reference))!
-        ))
+        // which the sidebar's period filter would have removed outright.
+        #expect(result.slots.last?.distance == 30_000)
+        #expect(result.slots.last?.comparisonDistance == 12_000)
+    }
+
+    @Test("la comparaison hebdomadaire lit la même semaine, un cycle plus tôt")
+    func readsThePrecedingWeeks() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let activities = [
+            makeActivity(in: context, id: 1, distance: 30_000, daysBack: 0),
+            // Thirteen weeks earlier, the shift a three-month window uses.
+            makeActivity(in: context, id: 2, distance: 9_000, daysBack: 13 * 7),
+        ]
+
+        let result = stats(activities, .threeMonths)
+
+        #expect(result.count == 1)
+        #expect(result.slots.last?.distance == 30_000)
+        #expect(result.slots.last?.comparisonDistance == 9_000)
+        #expect(result.slots.last?.comparisonStart == startOfWeek(daysBack: 13 * 7))
     }
 
     @Test("les cumuls et records ne portent que sur la période")
     func restrictsTotalsToThePeriod() throws {
         let context = ModelContext(try AppModelContainer.inMemory())
         let activities = [
-            makeActivity(in: context, id: 1, distance: 10_000, monthsBack: 1, name: "Dans la période"),
-            makeActivity(in: context, id: 2, distance: 90_000, monthsBack: 8, name: "Hors période"),
+            makeActivity(
+                in: context, id: 1, distance: 10_000, daysBack: 14,
+                name: "Dans la période"
+            ),
+            makeActivity(
+                in: context, id: 2, distance: 90_000, monthsBack: 8,
+                name: "Hors période"
+            ),
         ]
 
-        let stats = ActivityStatistics
-            .compute(for: activities, period: .threeMonths, now: reference)
+        let result = stats(activities, .threeMonths)
 
-        #expect(stats.count == 1)
-        #expect(stats.sports.first?.distance == 10_000)
-        #expect(stats.records.first { $0.kind == .distance }?.activityName == "Dans la période")
+        #expect(result.count == 1)
+        #expect(result.sports.first?.distance == 10_000)
+        #expect(result.records.first { $0.kind == .distance }?.activityName
+            == "Dans la période")
     }
 }

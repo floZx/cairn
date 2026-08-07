@@ -18,15 +18,15 @@ struct ActivityStatistics: Equatable {
     /// Per sport, so distances are never added across sports.
     let sports: [SportTotals]
     let records: [Record]
-    /// One entry per month of the period, each carrying its counterpart from the
-    /// preceding period.
-    let months: [MonthTotals]
+    /// One entry per slot of the period — a week or a month, per its granularity
+    /// — each carrying its counterpart from the preceding period.
+    let slots: [SlotTotals]
 
     /// Nothing at all, for a window that could not be built. Not the same as an
     /// empty period, which still lays its months out as zeros.
     static let empty = ActivityStatistics(
         count: 0, movingTime: 0, elevationGain: 0,
-        sports: [], records: [], months: []
+        sports: [], records: [], slots: []
     )
 
     struct SportTotals: Identifiable, Equatable {
@@ -84,44 +84,55 @@ struct ActivityStatistics: Equatable {
         var formattedValue: String { kind.formatted(value) }
     }
 
-    /// One month of the period, beside the matching month of the one before.
-    struct MonthTotals: Identifiable, Equatable {
-        let month: Date
+    /// One slot of the period, beside its counterpart in the one before.
+    struct SlotTotals: Identifiable, Equatable {
+        /// The first day of the week or month this covers.
+        let start: Date
         let distance: Double
         let elevationGain: Double
-        /// The month this is compared against — a period or a year earlier.
-        let comparisonMonth: Date
+        /// The slot this is compared against — a period or a year earlier.
+        let comparisonStart: Date
         let comparisonDistance: Double
         let comparisonElevationGain: Double
 
-        var id: Date { month }
+        var id: Date { start }
     }
 
-    private static let calendar = Calendar(identifier: .gregorian)
+    /// Monday-first, per French usage: a training week that began on Sunday would
+    /// split every weekend across two bars.
+    private static let calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2
+        return calendar
+    }()
 
     static func compute(
         for activities: [Activity],
         period: StatsPeriod,
         now: Date = Date()
     ) -> ActivityStatistics {
-        let count = period.monthCount(now: now, calendar: calendar)
+        let unit = period.granularity.component
+        let count = period.slotCount(now: now, calendar: calendar)
         let shift = period.comparisonShift(now: now, calendar: calendar)
-        guard count > 0, let currentMonth = startOfMonth(of: now) else {
+        // A calendar year is measured in months whatever its granularity, so the
+        // comparison shifts by months even when the slots are months too.
+        let shiftUnit: Calendar.Component =
+            period == .currentYear ? .month : unit
+        guard count > 0, let currentSlot = startOfSlot(of: now, unit: unit) else {
             return .empty
         }
 
-        // Chronological, ending on the current month.
-        let months: [Date] = (0..<count).reversed().compactMap {
-            calendar.date(byAdding: .month, value: -$0, to: currentMonth)
+        // Chronological, ending on the current slot.
+        let slots: [Date] = (0..<count).reversed().compactMap {
+            calendar.date(byAdding: unit, value: -$0, to: currentSlot)
         }
-        guard let firstMonth = months.first else { return .empty }
+        guard let firstSlot = slots.first else { return .empty }
 
-        let byMonth = totalsByMonth(for: activities)
+        let bySlot = totals(for: activities, unit: unit)
         let inPeriod = activities.filter { activity in
-            guard let month = startOfMonth(of: activity.startLocalDate) else {
-                return false
-            }
-            return month >= firstMonth && month <= currentMonth
+            guard let slot = startOfSlot(of: activity.startLocalDate, unit: unit)
+            else { return false }
+            return slot >= firstSlot && slot <= currentSlot
         }
 
         return ActivityStatistics(
@@ -130,17 +141,20 @@ struct ActivityStatistics: Equatable {
             elevationGain: inPeriod.reduce(0) { $0 + $1.totalElevationGain },
             sports: sportTotals(for: inPeriod),
             records: records(for: inPeriod),
-            months: months.compactMap { month in
-                guard let comparisonMonth = calendar.date(
-                    byAdding: .month, value: -shift, to: month
+            slots: slots.compactMap { slot in
+                guard let comparisonStart = calendar.date(
+                    byAdding: shiftUnit, value: -shift, to: slot
                 ) else { return nil }
-                let current = byMonth[month] ?? .zero
-                let previous = byMonth[comparisonMonth] ?? .zero
-                return MonthTotals(
-                    month: month,
+                let current = bySlot[slot] ?? .zero
+                // Aligned on the comparison slot's own start, so a shift that
+                // lands mid-week still reads the right bucket.
+                let previousKey = startOfSlot(of: comparisonStart, unit: unit)
+                let previous = previousKey.flatMap { bySlot[$0] } ?? .zero
+                return SlotTotals(
+                    start: slot,
                     distance: current.distance,
                     elevationGain: current.elevation,
-                    comparisonMonth: comparisonMonth,
+                    comparisonStart: comparisonStart,
                     comparisonDistance: previous.distance,
                     comparisonElevationGain: previous.elevation
                 )
@@ -148,25 +162,24 @@ struct ActivityStatistics: Equatable {
         )
     }
 
-    private struct MonthSums {
+    private struct SlotSums {
         var distance: Double = 0
         var elevation: Double = 0
 
-        static let zero = MonthSums()
+        static let zero = SlotSums()
     }
 
-    /// Every month at once, including those outside the period: the comparison
-    /// series reads months the period itself does not cover.
-    private static func totalsByMonth(
-        for activities: [Activity]
-    ) -> [Date: MonthSums] {
-        var totals: [Date: MonthSums] = [:]
+    /// Every slot at once, including those outside the period: the comparison
+    /// series reads slots the period itself does not cover.
+    private static func totals(
+        for activities: [Activity], unit: Calendar.Component
+    ) -> [Date: SlotSums] {
+        var totals: [Date: SlotSums] = [:]
         for activity in activities {
-            guard let month = startOfMonth(of: activity.startLocalDate) else {
-                continue
-            }
-            totals[month, default: .zero].distance += activity.distance
-            totals[month, default: .zero].elevation += activity.totalElevationGain
+            guard let slot = startOfSlot(of: activity.startLocalDate, unit: unit)
+            else { continue }
+            totals[slot, default: .zero].distance += activity.distance
+            totals[slot, default: .zero].elevation += activity.totalElevationGain
         }
         return totals
     }
@@ -209,7 +222,10 @@ struct ActivityStatistics: Equatable {
         }
     }
 
-    private static func startOfMonth(of date: Date) -> Date? {
-        calendar.date(from: calendar.dateComponents([.year, .month], from: date))
+    /// The first instant of the week or month a date falls in.
+    private static func startOfSlot(
+        of date: Date, unit: Calendar.Component
+    ) -> Date? {
+        calendar.dateInterval(of: unit, for: date)?.start
     }
 }

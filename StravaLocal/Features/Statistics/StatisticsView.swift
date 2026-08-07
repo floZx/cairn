@@ -15,11 +15,11 @@ struct StatisticsView: View {
 
     @AppStorage(StatsPeriod.storageKey) private var period: StatsPeriod = .twelveMonths
 
-    /// Which measure the monthly chart plots. Distance and climbing tell very
-    /// different stories about the same months.
-    @State private var monthlyMeasure: MonthlyMeasure = .distance
+    /// Which measure the volume chart plots. Distance and climbing tell very
+    /// different stories about the same weeks.
+    @State private var measure: ChartMeasure = .distance
 
-    enum MonthlyMeasure: String, CaseIterable, Identifiable {
+    enum ChartMeasure: String, CaseIterable, Identifiable {
         case distance
         case elevation
 
@@ -48,7 +48,7 @@ struct StatisticsView: View {
                 } else {
                     totals(stats)
                     Divider()
-                    monthly(stats)
+                    volumeChart(stats)
                     Divider()
                     bySport(stats)
                     Divider()
@@ -98,15 +98,15 @@ struct StatisticsView: View {
         }
     }
 
-    // MARK: - Monthly
+    // MARK: - Volume
 
-    private func monthly(_ stats: ActivityStatistics) -> some View {
+    private func volumeChart(_ stats: ActivityStatistics) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                sectionTitle("Par mois")
+                sectionTitle(period.granularity.sectionTitle)
                 Spacer()
-                Picker("Mesure", selection: $monthlyMeasure) {
-                    ForEach(MonthlyMeasure.allCases) { measure in
+                Picker("Mesure", selection: $measure) {
+                    ForEach(ChartMeasure.allCases) { measure in
                         Text(measure.label).tag(measure)
                     }
                 }
@@ -115,19 +115,19 @@ struct StatisticsView: View {
                 .fixedSize()
             }
 
-            Chart(stats.months) { month in
+            Chart(stats.slots) { slot in
                 BarMark(
-                    x: .value("Mois", month.month, unit: .month),
-                    y: .value(monthlyMeasure.label, current(month))
+                    x: .value("Début", slot.start, unit: period.granularity.component),
+                    y: .value(measure.label, current(slot))
                 )
                 .foregroundStyle(by: .value("Série", "Période"))
 
-                // A line over the bars rather than a second set of bars: at
-                // twelve months, twenty-four bars in one pane are unreadable,
-                // and the shape of the line is what makes the two comparable.
+                // A line over the bars rather than a second set of bars: doubling
+                // the count in one pane is unreadable, and the shape of the line
+                // is what makes the two comparable at a glance.
                 LineMark(
-                    x: .value("Mois", month.month, unit: .month),
-                    y: .value(monthlyMeasure.label, comparison(month))
+                    x: .value("Début", slot.start, unit: period.granularity.component),
+                    y: .value(measure.label, comparison(slot))
                 )
                 .foregroundStyle(by: .value("Série", period.comparisonName))
                 .symbol(.circle)
@@ -138,10 +138,11 @@ struct StatisticsView: View {
                 period.comparisonName: Color.secondary,
             ])
             .chartXAxis {
+                // Labelled by month even when the bars are weeks: thirteen week
+                // numbers do not fit a pane, and a month tells you where you are
+                // just as well. The year is redundant on a rolling window.
                 AxisMarks(values: .stride(by: .month)) { _ in
                     AxisGridLine()
-                    // Initial only: twelve three-letter labels do not fit the
-                    // pane, and the year is redundant on a rolling window.
                     AxisValueLabel(format: .dateTime.month(.narrow))
                 }
             }
@@ -159,22 +160,22 @@ struct StatisticsView: View {
         }
     }
 
-    private func current(_ month: ActivityStatistics.MonthTotals) -> Double {
-        switch monthlyMeasure {
-        case .distance: month.distance / 1000
-        case .elevation: month.elevationGain
+    private func current(_ slot: ActivityStatistics.SlotTotals) -> Double {
+        switch measure {
+        case .distance: slot.distance / 1000
+        case .elevation: slot.elevationGain
         }
     }
 
-    private func comparison(_ month: ActivityStatistics.MonthTotals) -> Double {
-        switch monthlyMeasure {
-        case .distance: month.comparisonDistance / 1000
-        case .elevation: month.comparisonElevationGain
+    private func comparison(_ slot: ActivityStatistics.SlotTotals) -> Double {
+        switch measure {
+        case .distance: slot.comparisonDistance / 1000
+        case .elevation: slot.comparisonElevationGain
         }
     }
 
     private func axisLabel(for value: Double) -> String {
-        switch monthlyMeasure {
+        switch measure {
         case .distance: "\(Int(value)) km"
         case .elevation: "\(Int(value)) m"
         }

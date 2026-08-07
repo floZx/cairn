@@ -71,8 +71,8 @@ Les synchronisations suivantes sont incrémentales.
 
 ## Statistiques
 
-La vue Statistiques donne les cumuls, un histogramme mensuel, une ventilation par
-sport et les records.
+La vue Statistiques donne les cumuls, un histogramme du volume, une ventilation
+par sport et les records.
 
 La période — 3 mois, 6 mois, 12 mois ou année en cours — se règle **dans la vue
 elle-même**, et non par le filtre « Période » de la barre latérale. Ce n'est pas
@@ -84,6 +84,12 @@ latérale, et c'est ce qui fait l'intérêt de l'ensemble : « mes trails de plu
 
 Une année en cours se compare à l'année précédente, non au semestre qui précède :
 sans quoi la comparaison porterait sur une autre saison.
+
+La granularité de l'histogramme suit la période plutôt que d'être un réglage de
+plus : **semaines** sur 3 et 6 mois, **mois** sur 12 mois et année en cours. Trois
+barres mensuelles ne forment pas un graphique, et cinquante-deux barres
+hebdomadaires forment un peigne dont l'axe n'est plus étiquetable. Les semaines
+commencent le lundi, sans quoi chaque week-end serait coupé en deux.
 
 Un choix de fond : aucune distance totale n'est affichée globalement. Additionner
 une natation, une sortie en vélo électrique et un trail donne un nombre qui
