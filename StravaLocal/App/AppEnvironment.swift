@@ -21,6 +21,14 @@ final class AppEnvironment {
     private var runningTask: Task<Void, Never>?
     private let defaults = UserDefaults.standard
 
+    /// Installed by `RootView` so the menu bar can reach the window's own state.
+    ///
+    /// Nil until a window exists, which is exactly what disables the menu items:
+    /// there is nothing to add an activity to before then.
+    var requestNewActivity: (() -> Void)?
+    var requestEditSelection: (() -> Void)?
+    var requestDeleteSelection: (() -> Void)?
+
     init(container: ModelContainer) {
         let store = KeychainStore()
         let progress = SyncProgress()

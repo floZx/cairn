@@ -53,6 +53,8 @@ struct SyncSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
+
+            DiscardedActivitiesSection()
         }
         .formStyle(.grouped)
     }

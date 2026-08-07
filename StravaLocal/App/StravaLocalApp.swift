@@ -35,6 +35,17 @@ struct StravaLocalApp: App {
         .modelContainer(container)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .newItem) {
+                Button("Nouvelle activité") { app.requestNewActivity?() }
+                    .keyboardShortcut("n")
+                    .disabled(app.requestNewActivity == nil)
+                Button("Modifier l'activité") { app.requestEditSelection?() }
+                    .keyboardShortcut("e")
+                    .disabled(app.requestEditSelection == nil)
+                Button("Supprimer l'activité") { app.requestDeleteSelection?() }
+                    .keyboardShortcut(.delete, modifiers: .command)
+                    .disabled(app.requestDeleteSelection == nil)
+            }
             CommandMenu("Strava") {
                 Button("Synchroniser") { app.syncNow() }
                     .keyboardShortcut("r")

@@ -26,6 +26,27 @@ struct ActivityFieldTests {
         // An unknown raw value must not crash a store written by a later version.
         #expect(ActivitySource(rawValue: "healthkit") == nil)
     }
+
+    @Test("le texte de confirmation de suppression dit laquelle des deux suppressions elle est")
+    func deleteConfirmationMessageMatchesTheConsequence() {
+        // A Strava deletion leaves a tombstone a resync cannot cross; a local
+        // one just loses the activity. Different consequences, so the two
+        // messages must actually differ — a refactor collapsing them into one
+        // text would be a half-truth, and this is what would catch it.
+        #expect(ActivitySource.strava.deleteConfirmationMessage.contains("resynchronisation"))
+        #expect(ActivitySource.manual.deleteConfirmationMessage.contains("perdue"))
+        #expect(ActivitySource.file.deleteConfirmationMessage.contains("perdue"))
+        #expect(
+            ActivitySource.strava.deleteConfirmationMessage
+                != ActivitySource.manual.deleteConfirmationMessage
+        )
+        // Manual and file share the same fate — nothing they wrote for a
+        // sync-only guarantee applies to either — so they share the text too.
+        #expect(
+            ActivitySource.manual.deleteConfirmationMessage
+                == ActivitySource.file.deleteConfirmationMessage
+        )
+    }
 }
 
 @Suite("ActivityDraft")

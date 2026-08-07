@@ -195,6 +195,40 @@ struct RootView: View {
                 try? modelContext.save()
             }
         }
+        .confirmationDialog(
+            pendingDeletion.map { "Supprimer « \($0.name) » ?" } ?? "",
+            isPresented: Binding(
+                get: { pendingDeletion != nil },
+                set: { if !$0 { pendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Supprimer", role: .destructive) {
+                if let pendingDeletion {
+                    delete(pendingDeletion)
+                }
+                pendingDeletion = nil
+            }
+            Button("Annuler", role: .cancel) { pendingDeletion = nil }
+        } message: {
+            // `ActivitySource.deleteConfirmationMessage` carries the branch
+            // that used to live here, tested on its own: see its doc comment
+            // for why the two sources cannot share one text.
+            Text(pendingDeletion?.source.deleteConfirmationMessage ?? "")
+        }
+        .onAppear {
+            app.requestNewActivity = { editor = .create }
+            app.requestEditSelection = { if let selected { editor = .edit(selected) } }
+            app.requestDeleteSelection = { pendingDeletion = selected }
+        }
+    }
+
+    /// Removes an activity from the journal: from the current selection so the
+    /// detail pane never keeps a live reference to a deleted object, then from
+    /// the store — leaving a tombstone behind when it came from Strava.
+    private func delete(_ activity: Activity) {
+        selectedActivities.remove(activity.id)
+        try? ImportMapper(context: modelContext).discard(activity)
     }
 
     /// A floor for the detail pane whenever it actually has something to show.
