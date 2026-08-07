@@ -18,6 +18,13 @@ enum Diagnostics {
         log(topic: "splitview", message())
     }
 
+    /// Set `STRAVALOCAL_DEBUG=camera` to see what the map camera actually does
+    /// with a requested tilt. MapKit clamps pitch by altitude and configuration
+    /// without saying so, which is not something reading the code will tell you.
+    static func camera(_ message: @autoclosure () -> String) {
+        log(topic: "camera", message())
+    }
+
     private static func log(topic: String, _ message: String) {
         guard enabled.contains(topic) else { return }
         FileHandle.standardError.write(Data("[\(topic)] \(message)\n".utf8))

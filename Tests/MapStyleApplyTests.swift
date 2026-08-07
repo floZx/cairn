@@ -104,7 +104,7 @@ struct MapStyleApplyTests {
 
     /// Only the single-activity map tilts: the global map and the comparison map
     /// are read from above, where a tilt would distort what they exist to show.
-    @Test("la caméra s'incline sur le terrain et recule pour ne rien couper")
+    @Test("la caméra s'incline sur le terrain et recule un peu")
     func tiltsTheCamera() {
         let mapView = MKMapView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
         mapView.setVisibleMapRect(
@@ -115,7 +115,8 @@ struct MapStyleApplyTests {
 
         mapView.tiltForTerrain()
 
-        // MapKit clamps the pitch by altitude, so the exact angle is its call.
+        // MapKit clamps the pitch by altitude and says nothing about it, so the
+        // angle obtained is its call — what matters is that it is no longer flat.
         #expect(mapView.camera.pitch > 0)
         // The pull-back stays a margin, not a zoom-out: a 1/cos(pitch) factor
         // framed the route so far off it had to be zoomed back in by hand.
@@ -124,6 +125,34 @@ struct MapStyleApplyTests {
         #expect(distance < distanceBefore * 1.5)
     }
 
+    @Test("une inclinaison réglée à la main n'est pas écrasée")
+    func leavesAManualTiltAlone() {
+        let mapView = MKMapView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        mapView.setVisibleMapRect(
+            MKMapRect(x: 130_000_000, y: 90_000_000, width: 40_000, height: 40_000),
+            animated: false
+        )
+        // As option-drag would leave it. Read back rather than assumed: MapKit
+        // clamps, so the starting point is whatever it granted.
+        mapView.setCamera(
+            MKMapCamera(
+                lookingAtCenter: mapView.camera.centerCoordinate,
+                fromDistance: mapView.camera.centerCoordinateDistance,
+                pitch: 20,
+                heading: 0
+            ),
+            animated: false
+        )
+        let manual = mapView.camera.pitch
+        let distance = mapView.camera.centerCoordinateDistance
+        #expect(manual > 0)
+
+        mapView.tiltForTerrain()
+
+        // Changing activity must not undo the gesture the user just made.
+        #expect(mapView.camera.pitch == manual)
+        #expect(mapView.camera.centerCoordinateDistance == distance)
+    }
     @Test("la trace se dessine au-dessus des tuiles, jamais dessous")
     func tracksDrawAboveTheRasterLayer() {
         let mapView = MKMapView()
