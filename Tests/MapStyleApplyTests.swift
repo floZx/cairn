@@ -125,6 +125,23 @@ struct MapStyleApplyTests {
         #expect(distance < distanceBefore * 1.5)
     }
 
+    @Test("sans géométrie, l'inclinaison est différée et non abandonnée")
+    func reportsWhenItCannotTiltYet() {
+        // A view with no size is exactly the state updateNSView runs in, and the
+        // camera then reports a zero distance. Returning false is what tells the
+        // caller to ask again from the delegate instead of giving up — the log
+        // read "skipped: distance=0.0", once, and the map stayed flat for good.
+        let unlaidOut = MKMapView()
+        #expect(unlaidOut.tiltForTerrain() == false)
+
+        let laidOut = MKMapView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        laidOut.setVisibleMapRect(
+            MKMapRect(x: 130_000_000, y: 90_000_000, width: 40_000, height: 40_000),
+            animated: false
+        )
+        #expect(laidOut.tiltForTerrain())
+    }
+
     @Test("une inclinaison réglée à la main n'est pas écrasée")
     func leavesAManualTiltAlone() {
         let mapView = MKMapView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))

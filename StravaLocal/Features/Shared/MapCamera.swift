@@ -21,29 +21,36 @@ extension MKMapView {
 
     /// Leans the camera over the terrain, keeping what is already framed.
     ///
-    /// Call it straight after setting the visible map rect, and only there: on
-    /// every update it would snap the camera back each time the view refreshed.
+    /// Returns whether it applied, because it often cannot yet: called from
+    /// `updateNSView` the map view has no size, `centerCoordinateDistance` reads
+    /// zero and there is nothing to lean. Diagnostics caught that as
+    /// `skipped: distance=0.0` — a single line, since the caller had already
+    /// recorded the track as drawn and never came back. Callers therefore keep
+    /// asking until it returns true; `mapViewDidChangeVisibleRegion` is when the
+    /// geometry finally exists.
     ///
-    /// Two things this gets right that an earlier version did not. It builds a
-    /// *new* `MKMapCamera` — the `camera` getter hands back the view's live
-    /// object, so mutating that and assigning it back is asking MapKit to replace
-    /// a camera with itself. And it leaves an already-tilted camera alone, so a
-    /// tilt set by hand with option-drag survives changing activity.
-    func tiltForTerrain() {
+    /// Two further things this gets right that an earlier version did not. It
+    /// builds a *new* `MKMapCamera` — the `camera` getter hands back the view's
+    /// live object, so mutating that and assigning it back is asking MapKit to
+    /// replace a camera with itself. And it leaves an already-tilted camera alone,
+    /// so a tilt set by hand with option-drag survives changing activity.
+    @discardableResult
+    func tiltForTerrain() -> Bool {
         let current = camera
         let distance = current.centerCoordinateDistance
-        // A camera can be degenerate before the view has been laid out, and
-        // scaling zero or a negative distance would send the map elsewhere
-        // entirely rather than merely mis-framing it.
-        guard distance > 0 else {
-            Diagnostics.camera("skipped: distance=\(distance)")
-            return
+        // Both matter: a view with no size reports a zero distance, and scaling
+        // zero would send the map elsewhere rather than merely mis-frame it.
+        guard frame.width > 0, distance > 0 else {
+            Diagnostics.camera(
+                "not yet: distance=\(distance) frame=\(Int(frame.width))x\(Int(frame.height))"
+            )
+            return false
         }
         // Already leaning — by hand, most likely. Left as it is: overruling it on
         // every activity change would undo the gesture the user just made.
         guard current.pitch < 1 else {
             Diagnostics.camera("kept manual pitch=\(current.pitch)")
-            return
+            return true
         }
 
         setCamera(
@@ -60,5 +67,6 @@ extension MKMapView {
                 + "-> got pitch=\(camera.pitch) distance=\(Int(camera.centerCoordinateDistance)) "
                 + "frame=\(Int(frame.width))x\(Int(frame.height))"
         )
+        return true
     }
 }
