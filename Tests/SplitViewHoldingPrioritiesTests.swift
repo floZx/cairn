@@ -110,29 +110,30 @@ struct SplitViewHoldingPrioritiesTests {
         #expect(SplitViewHoldingPriorities.apply(to: makeBareSplitView(panes: 2)) == false)
     }
 
-    @Test("la sonde retrouve le split view depuis une colonne")
-    func findsSplitViewFromInsideAColumn() {
+    @Test("le split view est trouvé même s'il n'est pas un ancêtre de la sonde")
+    func findsSplitViewAmongDescendants() {
+        // The real shape: the probe is a sibling of the split view, both under
+        // the window's content view. An ancestor walk finds nothing here.
+        let contentView = NSView()
         let splitView = makeBareSplitView()
-        let probe = NSView()
-        // Nested two levels deep, as a `.background()` probe would be.
-        let container = NSView()
-        container.addSubview(probe)
-        splitView.arrangedSubviews[1].addSubview(container)
+        let wrapper = NSView()
+        wrapper.addSubview(splitView)
+        contentView.addSubview(wrapper)
+        contentView.addSubview(NSView())
 
-        #expect(probe.enclosingSplitView === splitView)
-        #expect(NSView().enclosingSplitView == nil)
+        #expect(contentView.descendantSplitViews() == [splitView])
+        #expect(NSView().descendantSplitViews().isEmpty)
     }
 
-    @Test("la description de la hiérarchie nomme les ancêtres")
-    func describesAncestors() {
-        let splitView = makeBareSplitView()
-        let probe = NSView()
-        splitView.arrangedSubviews[0].addSubview(probe)
+    @Test("l'arbre de vues est décrit jusqu'à la profondeur demandée")
+    func describesViewTree() {
+        let root = NSView()
+        let middle = NSView()
+        middle.addSubview(makeBareSplitView())
+        root.addSubview(middle)
 
-        let description = probe.ancestorDescription
-        #expect(description.contains("NSSplitView"))
-        // No window in a test, so the controller slot is reported as absent
-        // rather than silently omitted.
-        #expect(description.contains("vc=nil"))
+        #expect(root.treeDescription(depth: 3).contains("NSSplitView"))
+        // Bounded so a deep SwiftUI hierarchy cannot flood the log.
+        #expect(root.treeDescription(depth: 1).contains("NSSplitView") == false)
     }
 }

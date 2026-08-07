@@ -8,16 +8,23 @@ import SwiftUI
 /// that: the lowest-priority pane is the first to take on, or give up, width.
 ///
 /// SwiftUI exposes none of this, so a probe reaches into the `NSSplitView` that
-/// `NavigationSplitView` is built on. Two earlier attempts set the priorities
-/// from `updateNSView`, deferred by one main-queue hop; diagnostics showed that
-/// runs while the probe is still detached from any window, so neither ever
-/// reached a split view at all. Hence `viewDidMoveToWindow`, which fires exactly
-/// when there is a hierarchy to walk.
+/// `NavigationSplitView` may be built on. Getting there took two corrections
+/// worth recording, both found by the diagnostics rather than by reasoning:
 ///
-/// Both shapes are handled because which one SwiftUI uses is not contractual: a
-/// split view owned by an `NSSplitViewController` takes priorities on its items,
-/// a bare one takes them per subview. The probe stays forgiving — finding
-/// neither sets nothing, and the layout behaves as it did before.
+/// - The work ran from `updateNSView`, deferred by one main-queue hop. SwiftUI
+///   calls that exactly once, while the probe is still detached from any window,
+///   so nothing was ever found. Hence `viewDidMoveToWindow`, plus retries: a
+///   window is assigned before its columns exist.
+/// - The search walked *up* from the probe. But `.background()` places the probe
+///   behind the split view, making it a sibling — an ancestor walk could never
+///   reach the columns. Hence a sweep of the window's descendants.
+///
+/// Both AppKit shapes are handled because which one SwiftUI uses is not
+/// contractual: a split view owned by an `NSSplitViewController` takes
+/// priorities on its items, a bare one takes them per subview. And if
+/// `NavigationSplitView` turns out to draw its columns in SwiftUI with no
+/// `NSSplitView` at all, nothing is found, nothing is set, and the layout
+/// behaves exactly as it did before.
 struct SplitViewHoldingPriorities: NSViewRepresentable {
     /// The list absorbs, the detail pane resists. The sidebar sits between the
     /// two so its own toggle does not come out of the detail pane either.
@@ -52,13 +59,19 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         for delay in Self.retryDelays {
             if delay != .zero { try? await Task.sleep(for: delay) }
 
-            guard let splitView = probe.enclosingSplitView else {
-                Diagnostics.splitView("\(delay): no ancestor split view yet")
+            guard let root = probe.window?.contentView else { continue }
+            let candidates = root.descendantSplitViews()
+            guard !candidates.isEmpty else {
+                Diagnostics.splitView("\(delay): no split view in the window")
                 continue
             }
-            if apply(to: splitView) { return }
+            Diagnostics.splitView(
+                "\(delay): \(candidates.count) split view(s) — "
+                    + candidates.map(\.splitViewDescription).joined(separator: ", ")
+            )
+            if candidates.contains(where: { apply(to: $0) }) { return }
         }
-        Diagnostics.splitView("gave up — hierarchy: \(probe.ancestorDescription)")
+        Diagnostics.splitView("gave up — window tree: \(probe.window?.contentView?.treeDescription() ?? "no window")")
     }
 
     /// Sets the priorities on a split view, whichever shape it has.
@@ -118,26 +131,36 @@ private final class ProbeView: NSView {
 }
 
 extension NSView {
-    /// The nearest ancestor split view, if any.
-    var enclosingSplitView: NSSplitView? {
-        var candidate = superview
-        while let view = candidate {
-            if let splitView = view as? NSSplitView { return splitView }
-            candidate = view.superview
+    /// Every split view in this view's subtree, outermost first.
+    ///
+    /// Descendants rather than ancestors: `.background()` places the probe
+    /// *behind* the split view, making it a sibling, so walking up from it could
+    /// never reach the columns — which is exactly how the first three attempts
+    /// silently did nothing.
+    func descendantSplitViews() -> [NSSplitView] {
+        var found: [NSSplitView] = []
+        if let splitView = self as? NSSplitView { found.append(splitView) }
+        for subview in subviews {
+            found.append(contentsOf: subview.descendantSplitViews())
         }
-        return nil
+        return found
     }
 
-    /// The chain of ancestor class names, for diagnostics only.
-    var ancestorDescription: String {
-        var names: [String] = []
-        var candidate: NSView? = self
-        while let view = candidate {
-            names.append(String(describing: type(of: view)))
-            candidate = view.superview
-        }
-        let root = window?.contentViewController
-        names.append("vc=" + (root.map { String(describing: type(of: $0)) } ?? "nil"))
-        return names.joined(separator: " < ")
+    /// Class names down to `depth`, for diagnostics only.
+    func treeDescription(depth: Int = 4) -> String {
+        let name = String(describing: type(of: self))
+        guard depth > 0, !subviews.isEmpty else { return name }
+        let children = subviews
+            .map { $0.treeDescription(depth: depth - 1) }
+            .joined(separator: " ")
+        return "\(name)[\(children)]"
+    }
+}
+
+extension NSSplitView {
+    /// Shape and ownership, for diagnostics only.
+    var splitViewDescription: String {
+        let owner = delegate.map { String(describing: type(of: $0)) } ?? "nil"
+        return "\(type(of: self))(panes=\(arrangedSubviews.count) delegate=\(owner))"
     }
 }
