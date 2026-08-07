@@ -5,11 +5,18 @@ import SwiftUI
 /// Collapsing the sidebar frees its width, and AppKit hands that space to
 /// whichever pane resists least — by default the detail pane, so the width the
 /// user had dragged never survived a sidebar toggle. Holding priorities invert
-/// that: the lowest-priority pane is the first to take on, or give up, width.
+/// that: "the view with the lowest priority will be the first to take on
+/// additional width if the split view grows or shrinks".
 ///
-/// SwiftUI exposes none of this, so a probe reaches into the `NSSplitView` that
-/// `NavigationSplitView` may be built on. Getting there took two corrections
-/// worth recording, both found by the diagnostics rather than by reasoning:
+/// SwiftUI exposes none of this, so a probe reaches into the AppKit hierarchy.
+/// Measured on macOS 15: `NavigationSplitView` is a plain `NSSplitView` with
+/// three panes whose delegate is a private `NavigationSplitViewController`, so
+/// the priorities go on that controller's items. Nothing about that is
+/// contractual, hence the diagnostics below rather than a silent assumption —
+/// if the shape ever changes, the log names the tree and nothing is set.
+///
+/// Three corrections were needed to get here, each found by measuring rather
+/// than by reasoning:
 ///
 /// - The work ran from `updateNSView`, deferred by one main-queue hop. SwiftUI
 ///   calls that exactly once, while the probe is still detached from any window,
@@ -18,22 +25,22 @@ import SwiftUI
 /// - The search walked *up* from the probe. But `.background()` places the probe
 ///   behind the split view, making it a sibling — an ancestor walk could never
 ///   reach the columns. Hence a sweep of the window's descendants.
-///
-/// Both AppKit shapes are handled because which one SwiftUI uses is not
-/// contractual: a split view owned by an `NSSplitViewController` takes
-/// priorities on its items, a bare one takes them per subview. And if
-/// `NavigationSplitView` turns out to draw its columns in SwiftUI with no
-/// `NSSplitView` at all, nothing is found, nothing is set, and the layout
-/// behaves exactly as it did before.
+/// - The detail pane was given `.defaultHigh`. Since a holding priority *is* the
+///   priority of a width constraint, that outranked the constraint AppKit
+///   installs while dragging a divider, and the pane became unresizable. Only
+///   the ordering matters, so the values stay a hair apart.
 struct SplitViewHoldingPriorities: NSViewRepresentable {
-    /// The list absorbs, the detail pane resists. The sidebar sits between the
-    /// two so its own toggle does not come out of the detail pane either.
-    static let sidebarPriority = NSLayoutConstraint.Priority.defaultLow + 10
+    /// The list absorbs, the detail pane resists — by ten points, deliberately.
+    /// `holdingPriority` defaults to `.defaultLow` (250) on every item, so the
+    /// list keeps that default and only the detail pane is nudged above it. The
+    /// sidebar is left alone: it is the pane being collapsed, never a candidate
+    /// for the width it frees.
     static let listPriority = NSLayoutConstraint.Priority.defaultLow
-    static let detailPriority = NSLayoutConstraint.Priority.defaultHigh
+    static let detailPriority = NSLayoutConstraint.Priority.defaultLow + 10
 
     /// Spread over half a second: a window is assigned before its split view is
-    /// populated, and AppKit posts no "the columns are ready" notification.
+    /// populated, and AppKit posts no "the columns are ready" notification. In
+    /// practice the first attempt succeeds; the rest are insurance.
     private static let retryDelays: [Duration] = [
         .zero, .milliseconds(50), .milliseconds(250), .milliseconds(750),
     ]
@@ -60,62 +67,49 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
             if delay != .zero { try? await Task.sleep(for: delay) }
 
             guard let root = probe.window?.contentView else { continue }
-            let candidates = root.descendantSplitViews()
-            guard !candidates.isEmpty else {
-                Diagnostics.splitView("\(delay): no split view in the window")
-                continue
+            for splitView in root.descendantSplitViews() where apply(to: splitView) {
+                return
             }
-            Diagnostics.splitView(
-                "\(delay): \(candidates.count) split view(s) — "
-                    + candidates.map(\.splitViewDescription).joined(separator: ", ")
-            )
-            if candidates.contains(where: { apply(to: $0) }) { return }
         }
-        Diagnostics.splitView("gave up — window tree: \(probe.window?.contentView?.treeDescription() ?? "no window")")
+        Diagnostics.splitView(
+            "gave up — window tree: "
+                + (probe.window?.contentView?.treeDescription() ?? "no window")
+        )
     }
 
-    /// Sets the priorities on a split view, whichever shape it has.
+    /// Sets the priorities on a split view's items.
     ///
-    /// Returns false when there are not yet three columns, which is the state
-    /// during setup rather than a failure — the caller retries.
+    /// Returns false when there is no controller behind it or it has fewer than
+    /// three columns — the state during setup rather than a failure, so the
+    /// caller retries.
     @discardableResult
     @MainActor
     static func apply(to splitView: NSSplitView) -> Bool {
-        let priorities = [sidebarPriority, listPriority, detailPriority]
-
-        if let controller = splitView.delegate as? NSSplitViewController {
-            let items = controller.splitViewItems
-            guard items.count >= 3 else {
-                Diagnostics.splitView("controller has \(items.count) items")
-                return false
-            }
-            for (item, priority) in zip(items, priorities) where
-                item.holdingPriority != priority {
-                item.holdingPriority = priority
-            }
-            // Keeps the window's width fixed and resizes the panes instead;
-            // otherwise AppKit answers a sidebar toggle by resizing the window.
-            items[0].collapseBehavior = .preferResizingSiblingsWithFixedSplitView
-            Diagnostics.splitView(
-                "set on \(items.count) items: "
-                    + "\(items.map(\.holdingPriority.rawValue))"
-            )
-            return true
-        }
-
-        let panes = splitView.arrangedSubviews.count
-        guard panes >= 3 else {
-            Diagnostics.splitView("bare split view has \(panes) panes")
+        guard let controller = splitView.delegate as? NSSplitViewController else {
             return false
         }
-        for (index, priority) in priorities.enumerated() {
-            splitView.setHoldingPriority(priority, forSubviewAt: index)
-        }
+        let items = controller.splitViewItems
+        guard items.count >= 3 else { return false }
+
+        let before = items.map(\.holdingPriority.rawValue)
+        set(listPriority, on: items[1])
+        set(detailPriority, on: items[2])
+
+        // Keeps the window's width fixed and resizes the panes instead;
+        // otherwise AppKit answers a sidebar toggle by resizing the window.
+        items[0].collapseBehavior = .preferResizingSiblingsWithFixedSplitView
+
         Diagnostics.splitView(
-            "set on \(panes) bare panes, delegate="
-                + "\(splitView.delegate.map { String(describing: type(of: $0)) } ?? "nil")"
+            "priorities \(before) -> \(items.map(\.holdingPriority.rawValue))"
         )
         return true
+    }
+
+    private static func set(
+        _ priority: NSLayoutConstraint.Priority, on item: NSSplitViewItem
+    ) {
+        guard item.holdingPriority != priority else { return }
+        item.holdingPriority = priority
     }
 }
 
@@ -132,11 +126,6 @@ private final class ProbeView: NSView {
 
 extension NSView {
     /// Every split view in this view's subtree, outermost first.
-    ///
-    /// Descendants rather than ancestors: `.background()` places the probe
-    /// *behind* the split view, making it a sibling, so walking up from it could
-    /// never reach the columns — which is exactly how the first three attempts
-    /// silently did nothing.
     func descendantSplitViews() -> [NSSplitView] {
         var found: [NSSplitView] = []
         if let splitView = self as? NSSplitView { found.append(splitView) }
@@ -154,13 +143,5 @@ extension NSView {
             .map { $0.treeDescription(depth: depth - 1) }
             .joined(separator: " ")
         return "\(name)[\(children)]"
-    }
-}
-
-extension NSSplitView {
-    /// Shape and ownership, for diagnostics only.
-    var splitViewDescription: String {
-        let owner = delegate.map { String(describing: type(of: $0)) } ?? "nil"
-        return "\(type(of: self))(panes=\(arrangedSubviews.count) delegate=\(owner))"
     }
 }

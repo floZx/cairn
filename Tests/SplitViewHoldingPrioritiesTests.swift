@@ -17,8 +17,7 @@ struct SplitViewHoldingPrioritiesTests {
         return controller
     }
 
-    /// A split view with three panes and no controller behind it — the other
-    /// shape SwiftUI might present.
+    /// A split view with three panes and no controller behind it.
     private func makeBareSplitView(panes: Int = 3) -> NSSplitView {
         let splitView = NSSplitView(
             frame: NSRect(x: 0, y: 0, width: 600, height: 400)
@@ -32,8 +31,8 @@ struct SplitViewHoldingPrioritiesTests {
         return splitView
     }
 
-    @Test("sur un contrôleur : la liste absorbe, le détail résiste")
-    func listAbsorbsAndDetailResistsOnController() {
+    @Test("la liste absorbe, le détail résiste")
+    func listAbsorbsAndDetailResists() {
         let controller = makeController()
 
         #expect(SplitViewHoldingPriorities.apply(to: controller.splitView))
@@ -41,32 +40,35 @@ struct SplitViewHoldingPrioritiesTests {
         let priorities = controller.splitViewItems.map(\.holdingPriority)
         // The lowest priority takes on width first — that has to be the list.
         #expect(priorities[1] == priorities.min())
-        // And the detail pane must resist more than either neighbour.
-        #expect(priorities[2] > priorities[0])
         #expect(priorities[2] > priorities[1])
     }
 
-    @Test("un split view nu est traité aussi, sans contrôleur derrière")
-    func handlesBareSplitView() {
-        let splitView = makeBareSplitView()
-
-        // AppKit exposes only the setter, so the values cannot be read back;
-        // what matters here is that this shape is recognised and served.
-        #expect(SplitViewHoldingPriorities.apply(to: splitView))
-    }
-
-    @Test("l'ordre des priorités : la liste absorbe, le détail résiste")
-    func priorityOrderIsCorrect() {
-        // The lowest priority takes on width first, so it must be the list; the
-        // detail pane resists more than either neighbour.
+    @Test("l'écart de priorité reste faible pour ne pas bloquer le séparateur")
+    func prioritiesStayGentle() {
+        // A holding priority *is* the priority of a width constraint. Set high
+        // enough, it outranks the constraint AppKit installs while dragging a
+        // divider and the pane stops being resizable — which is what
+        // `.defaultHigh` did. Only the ordering matters.
         #expect(
             SplitViewHoldingPriorities.listPriority
-                < SplitViewHoldingPriorities.sidebarPriority
-        )
-        #expect(
-            SplitViewHoldingPriorities.sidebarPriority
                 < SplitViewHoldingPriorities.detailPriority
         )
+        #expect(
+            SplitViewHoldingPriorities.detailPriority
+                < NSLayoutConstraint.Priority.defaultHigh
+        )
+    }
+
+    @Test("la sidebar garde sa priorité par défaut")
+    func leavesTheSidebarAlone() {
+        let controller = makeController()
+        let before = controller.splitViewItems[0].holdingPriority
+
+        SplitViewHoldingPriorities.apply(to: controller.splitView)
+
+        // It is the pane being collapsed, never a candidate for the width it
+        // frees, so there is nothing to gain by touching it.
+        #expect(controller.splitViewItems[0].holdingPriority == before)
     }
 
     @Test("plier la sidebar redimensionne les panneaux, pas la fenêtre")
@@ -105,9 +107,9 @@ struct SplitViewHoldingPrioritiesTests {
         #expect(SplitViewHoldingPriorities.apply(to: controller.splitView) == false)
         #expect(controller.splitViewItems.map(\.holdingPriority) == before)
 
-        // A bare split view that is not yet populated is left alone too, so the
-        // probe retries rather than settling for a two-pane arrangement.
-        #expect(SplitViewHoldingPriorities.apply(to: makeBareSplitView(panes: 2)) == false)
+        // A split view with no controller behind it is left alone too, rather
+        // than guessed at: the shape SwiftUI really uses has one.
+        #expect(SplitViewHoldingPriorities.apply(to: makeBareSplitView()) == false)
     }
 
     @Test("le split view est trouvé même s'il n'est pas un ancêtre de la sonde")
