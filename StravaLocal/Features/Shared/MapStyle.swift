@@ -45,23 +45,26 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
 
     var configuration: MKMapConfiguration {
         switch self {
+        // Flat everywhere, and that is a considered retreat. Realistic elevation
+        // drapes overlays onto a terrain mesh, which resamples them: the track
+        // came out thick and smeared and the direction chevrons no longer landed
+        // squarely on it. The camera still leans over — perspective does not
+        // require terrain — and on the topographic backgrounds the relief is
+        // still plainly there, drawn into the tiles themselves as contour lines
+        // and hillshading.
         case .standard:
-            // Realistic rather than flat, and no separate "with relief" entry:
-            // every style now renders terrain, so the two would have been the
-            // same map under two names.
-            MKStandardMapConfiguration(elevationStyle: .realistic)
+            MKStandardMapConfiguration(elevationStyle: .flat)
         case .satellite:
-            MKImageryMapConfiguration(elevationStyle: .realistic)
+            MKImageryMapConfiguration(elevationStyle: .flat)
         case .hybrid:
-            MKHybridMapConfiguration(elevationStyle: .realistic)
+            MKHybridMapConfiguration(elevationStyle: .flat)
         case .ignTopo, .openTopo:
             // Drawn under the tile layer and hidden once it lands, but it is
             // what shows during a zoom before the new level's tiles are ready —
             // see `RasterTileOverlay`. Muted keeps Apple's labels discreet in
-            // that moment. Realistic elevation is kept on so a pitched camera
-            // has terrain to drape the raster over.
+            // that moment.
             MKStandardMapConfiguration(
-                elevationStyle: .realistic, emphasisStyle: .muted
+                elevationStyle: .flat, emphasisStyle: .muted
             )
         }
     }

@@ -87,10 +87,12 @@ struct MapStyleApplyTests {
         }
     }
 
-    @Test("tous les fonds rendent le relief, il n'y a plus de doublon")
-    func everyStyleRendersTerrain() {
-        // "Plan avec relief" is gone: with the plain plan now realistic too, the
-        // two would have been the same map under two names.
+    @Test("aucun fond ne demande le relief 3D, qui rend la trace baveuse")
+    func keepsEveryStyleFlat() {
+        // "Plan avec relief" is gone and stays gone: realistic elevation drapes
+        // overlays onto a terrain mesh, which resamples them — the track came out
+        // thick and smeared and the chevrons no longer landed on it. The tilt
+        // survives without it, and the topographic tiles show relief themselves.
         #expect(MapStyle.allCases.count == 5)
         #expect(MapStyle(rawValue: "relief") == nil)
         for style in MapStyle.allCases {
@@ -98,7 +100,7 @@ struct MapStyleApplyTests {
                 .elevationStyle
                 ?? (style.configuration as? MKImageryMapConfiguration)?.elevationStyle
                 ?? (style.configuration as? MKHybridMapConfiguration)?.elevationStyle
-            #expect(elevation == .realistic)
+            #expect(elevation == .flat)
         }
     }
 
@@ -107,6 +109,10 @@ struct MapStyleApplyTests {
     @Test("la caméra s'incline sur le terrain et recule un peu")
     func tiltsTheCamera() {
         let mapView = MKMapView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        // With the style actually shipped, not a bare map view: perspective has to
+        // survive the retreat to flat elevation, which is the whole premise of it.
+        var state = MapStyleState()
+        mapView.apply(.ignTopo, state: &state)
         mapView.setVisibleMapRect(
             MKMapRect(x: 130_000_000, y: 90_000_000, width: 40_000, height: 40_000),
             animated: false
