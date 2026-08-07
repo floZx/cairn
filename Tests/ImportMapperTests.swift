@@ -215,7 +215,7 @@ struct ImportMapperTests {
         try context.save()
 
         #expect(try context.fetch(FetchDescriptor<Athlete>()).count == 1)
-        #expect(second.fullName == "Florian Maisonnial")
+        #expect(second.fullName == "Camille Durand")
         #expect(second.city == "Lyon")
     }
 

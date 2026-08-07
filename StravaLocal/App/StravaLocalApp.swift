@@ -14,6 +14,10 @@ struct StravaLocalApp: App {
             fatalError("Impossible d'ouvrir la base locale : \(error)")
         }
         self.container = container
+        // No-op unless STRAVALOCAL_DEMO is set, in which case the container above
+        // has already opened a separate store file — the real library is never
+        // touched. Failing here is not worth a crash: the app simply starts empty.
+        try? DemoData.populateIfNeeded(ModelContext(container))
         _app = State(initialValue: AppEnvironment(container: container))
     }
 

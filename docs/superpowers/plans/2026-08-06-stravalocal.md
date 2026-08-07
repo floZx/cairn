@@ -1518,8 +1518,8 @@ Les DTOs conservent volontairement le nommage `snake_case` de Strava : aucune st
 ```json
 {
   "id": 1234567,
-  "firstname": "Florian",
-  "lastname": "Maisonnial",
+  "firstname": "Camille",
+  "lastname": "Durand",
   "city": "Lyon",
   "country": "France",
   "profile": "https://example.invalid/large.jpg",
@@ -1610,7 +1610,7 @@ struct StravaDTOTests {
     func decodesAthlete() throws {
         let dto = try Fixture.decode(AthleteDTO.self, "athlete")
         #expect(dto.id == 1_234_567)
-        #expect(dto.firstname == "Florian")
+        #expect(dto.firstname == "Camille")
         #expect(dto.city == "Lyon")
         #expect(dto.weight == 72.5)
     }
@@ -3235,7 +3235,7 @@ struct ImportMapperTests {
         try context.save()
 
         #expect(try context.fetch(FetchDescriptor<Athlete>()).count == 1)
-        #expect(second.fullName == "Florian Maisonnial")
+        #expect(second.fullName == "Camille Durand")
         #expect(second.city == "Lyon")
     }
 

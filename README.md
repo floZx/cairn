@@ -5,6 +5,10 @@ permet de les consulter hors ligne : liste filtrable, détail d'activité avec
 trace et courbes, carte de toutes vos traces, recherche d'activités par zone
 géographique et statistiques.
 
+## Captures
+
+<!-- Les images arrivent dans docs/screenshots/ ; voir « Jeu de démonstration ». -->
+
 ## Prérequis
 
 - macOS 15 ou plus récent
@@ -40,6 +44,29 @@ générique, alors que l'icône est bien dans les deux bundles.
 Vérifier une reconstruction se fait sur `StravaLocal.debug.dylib`, pas sur
 l'exécutable `StravaLocal` : ce dernier n'est qu'une amorce de 59 ko dont
 l'horodatage ne bouge pas toujours.
+
+## Jeu de démonstration
+
+Pour essayer l'application, ou produire des captures, sans compte Strava et sans
+exposer de données réelles :
+
+```bash
+STRAVALOCAL_DEMO=1 build/Build/Products/Debug/StravaLocal.app/Contents/MacOS/StravaLocal
+```
+
+Dix-huit mois d'entraînement inventés apparaissent : trail, course, vélo,
+randonnée et séances en salle, avec traces, profils d'altitude et cardio. Les
+boucles sont générées au-dessus des Monts du Forez — un vrai relief, pour que les
+fonds topographiques et les profils d'altitude ressemblent à quelque chose, mais
+des parcours entièrement fictifs.
+
+Deux garde-fous, parce qu'il ne s'agirait pas d'écrire de fausses activités dans
+une vraie base : le jeu ne se génère que si `STRAVALOCAL_DEMO` est défini, et dans
+ce cas l'application ouvre un **fichier de base distinct**
+(`StravaLocal-demo.store`). La bibliothèque réelle n'est jamais ouverte.
+
+La génération est déterministe — graine fixe plutôt que hasard système —, donc une
+capture peut être refaite à l'identique.
 
 ## Configuration Strava
 

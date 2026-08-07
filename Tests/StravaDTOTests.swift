@@ -47,7 +47,7 @@ struct StravaDTOTests {
     func decodesAthlete() throws {
         let dto = try Fixture.decode(AthleteDTO.self, "athlete")
         #expect(dto.id == 1_234_567)
-        #expect(dto.firstname == "Florian")
+        #expect(dto.firstname == "Camille")
         #expect(dto.city == "Lyon")
         #expect(dto.weight == 72.5)
     }
