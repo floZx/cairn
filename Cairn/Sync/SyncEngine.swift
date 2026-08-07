@@ -302,6 +302,7 @@ actor SyncEngine {
         try await syncSummaries()
         try await syncGear()
         try await syncStreams()
+        try await syncBackfill()
     }
 
     /// Fetches the gear referenced by imported activities and links it up. Only
@@ -388,6 +389,70 @@ actor SyncEngine {
             detail = fetched
         }
         try await fetchPhotosIfNeeded(activity, detail: detail)
+    }
+
+    /// Activities still missing their detail or their photos.
+    ///
+    /// No second persisted queue: the store already knows. `detailFetchedAt` and
+    /// `photosFetchedAt` are the record of what has been done, so a descriptor
+    /// over them survives quitting, needs no seeding, and cannot drift out of
+    /// step with reality the way a parallel list would.
+    static func backfillDescriptor(limit: Int? = nil) -> FetchDescriptor<Activity> {
+        let strava = ActivitySource.strava.rawValue
+        var descriptor = FetchDescriptor<Activity>(
+            predicate: #Predicate {
+                $0.sourceRaw == strava
+                    && ($0.detailFetchedAt == nil || $0.photosFetchedAt == nil)
+            },
+            // Newest first: the activities someone is most likely to open.
+            sortBy: [SortDescriptor(\Activity.startDate, order: .reverse)]
+        )
+        descriptor.fetchLimit = limit
+        return descriptor
+    }
+
+    func backfillRemaining() throws -> Int {
+        try context.fetchCount(Self.backfillDescriptor())
+    }
+
+    /// Completes activities imported before Cairn fetched details and photos.
+    ///
+    /// Two requests each, so a library of 840 is roughly 1 500 — under the daily
+    /// allowance but spread over hours at 200 a quarter hour. Hence the same
+    /// courtesy as phase B: ask the limiter before spending, so the window shows
+    /// "waiting for quota" instead of freezing on a stalled counter.
+    ///
+    /// Nothing here can fail the run: these are extras on top of activities
+    /// already saved and usable.
+    @discardableResult
+    func syncBackfill(limit: Int? = nil) async throws -> Int {
+        let total = try backfillRemaining()
+        guard total > 0 else { return 0 }
+
+        let targets = try context.fetch(Self.backfillDescriptor(limit: limit))
+        var done = 0
+        for activity in targets {
+            if Task.isCancelled { break }
+            await setPhase(.completing(done: done, total: targets.count))
+
+            let wait = await source.delayBeforeNextRequest()
+            if wait > 0 {
+                await setPhase(.waitingForQuota(until: Date().addingTimeInterval(wait)))
+                do {
+                    try await Task.sleep(for: .seconds(wait))
+                } catch {
+                    break
+                }
+            }
+
+            let stravaID = activity.stravaID
+            try? await fetchDetailIfNeeded(stravaID: stravaID)
+            try? await fetchPhotosIfNeeded(activity)
+            done += 1
+        }
+
+        await finish(quota: await source.rateLimitSnapshot(), at: try? state().lastRunAt)
+        return done
     }
 
     /// Above this, a pass is a backfill rather than "new activities arrived".
@@ -506,11 +571,13 @@ actor SyncEngine {
 
     private func finish(quota: RateLimitSnapshot?, at date: Date?) async {
         let pending = (try? state().pendingStreamIDs.count) ?? 0
+        let backfill = (try? backfillRemaining()) ?? 0
         await MainActor.run {
             progress.phase = .idle
             progress.quota = quota
             progress.lastRunAt = date
             progress.pendingStreams = pending
+            progress.pendingBackfill = backfill
         }
     }
 }

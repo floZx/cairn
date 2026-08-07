@@ -99,8 +99,16 @@ final class AppEnvironment {
         runSync { [engine] in
             try await engine.syncAthlete()
             try await engine.syncSummaries()
+            // A small bite of the backlog on every launch, so it empties without
+            // anyone having to think about it. Bounded so opening the app stays
+            // a couple of dozen requests rather than an hour of downloading.
+            try await engine.syncBackfill(limit: Self.backfillPerLaunch)
         }
     }
+
+    /// Ten activities, twenty requests. Enough to finish a year's library in a
+    /// few weeks of ordinary use without ever being felt.
+    static let backfillPerLaunch = 10
 
     /// Re-reads every summary from Strava, picking up anything edited there
     /// after the fact. Streams are left as they are.
@@ -138,6 +146,7 @@ final class AppEnvironment {
             // Set whatever the date turns out to be: a backlog is worth showing
             // on an app that has not synced this launch.
             progress.pendingStreams = snapshot.pendingStreamIDs.count
+            progress.pendingBackfill = (try? await engine.backfillRemaining()) ?? 0
             guard let date = snapshot.lastRunAt else { return }
             // Only while still empty: the launch sync starts immediately after
             // this and may well finish first, and an awaited read must not put

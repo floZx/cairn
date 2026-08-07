@@ -16,6 +16,11 @@ struct SyncSettingsView: View {
                     value: app.progress.pendingStreams == 0
                         ? "aucune" : "\(app.progress.pendingStreams) activités"
                 )
+                LabeledContent(
+                    "À compléter",
+                    value: app.progress.pendingBackfill == 0
+                        ? "aucune" : "\(app.progress.pendingBackfill) activités"
+                )
                 if let quota = app.progress.quota {
                     LabeledContent(
                         "Quota Strava",

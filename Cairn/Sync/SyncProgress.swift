@@ -24,6 +24,26 @@ final class SyncProgress {
     /// works from a persisted queue that survives quits, so an idle app with a
     /// backlog and an idle app with nothing left to do looked identical.
     var pendingStreams: Int = 0
+    /// Activities still missing their detail or their photos, from before Cairn
+    /// fetched either. Drains a little at each launch and fully on ⌘R.
+    var pendingBackfill: Int = 0
+
+    /// What is left to fetch, in words, or that nothing is.
+    ///
+    /// Never silent: an app with a backlog and an app with nothing left to do
+    /// read identically when the phrase is simply omitted, which is the whole
+    /// reason this exists.
+    static func remainingText(streams: Int, backfill: Int) -> String {
+        var parts: [String] = []
+        if streams > 0 {
+            let noun = streams > 1 ? "activités" : "activité"
+            parts.append("\(streams) \(noun) en attente de leurs courbes")
+        }
+        if backfill > 0 {
+            parts.append("\(backfill) à compléter (détail et photos)")
+        }
+        return parts.isEmpty ? "tout est à jour" : parts.joined(separator: ", ")
+    }
 
     var isRunning: Bool {
         switch phase {
@@ -38,10 +58,9 @@ final class SyncProgress {
             [
                 lastRunAt.map { "Dernière synchro \(Format.shortDate($0))" }
                     ?? "Jamais synchronisé",
-                pendingStreams > 0
-                    ? "\(pendingStreams) activité\(pendingStreams > 1 ? "s" : "") "
-                        + "en attente de leurs courbes"
-                    : "tout est à jour",
+                Self.remainingText(
+                    streams: pendingStreams, backfill: pendingBackfill
+                ),
             ].joined(separator: " · ")
         case let .summaries(page):
             "Import des activités… (page \(page))"

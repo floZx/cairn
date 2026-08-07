@@ -972,3 +972,35 @@ struct EagerCompletionTests {
         )
     }
 }
+
+@Suite("SyncEngine — le rattrapage avance")
+@MainActor
+struct BackfillRunTests {
+    @Test("le rattrapage complète les activités et fait baisser le reste")
+    func drainsTheBacklog() async throws {
+        let source = FakeSource(pages: [[
+            makeSummary(id: 1, epoch: 1000), makeSummary(id: 2, epoch: 2000),
+        ]])
+        let container = try AppModelContainer.inMemory()
+        // Zero, to build exactly the state a library imported before details and
+        // photos existed was left in.
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
+        )
+        _ = try await engine.syncSummaries()
+        #expect(try await engine.backfillRemaining() == 2)
+
+        // Bounded: one activity at a time, exactly as a launch does it.
+        #expect(try await engine.syncBackfill(limit: 1) == 1)
+        #expect(try await engine.backfillRemaining() == 1)
+
+        #expect(try await engine.syncBackfill() == 1)
+        #expect(try await engine.backfillRemaining() == 0)
+
+        // And nothing left to do costs no request at all.
+        let issued = await source.detailRequests.count
+        #expect(try await engine.syncBackfill() == 0)
+        #expect(await source.detailRequests.count == issued)
+    }
+}
