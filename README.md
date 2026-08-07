@@ -180,7 +180,16 @@ des réessais : les tuiles cessaient d'arriver. La cause s'est révélée être
 ailleurs — des propriétés de `MKMapView` réécrites à chaque mise à jour de vue —
 mais la leçon vaut d'être retenue : ne changer qu'une chose à la fois.
 
-Le choix du fond est mémorisé et partagé par les trois cartes.
+Le choix du fond est mémorisé et partagé par les trois cartes. La couleur des
+traces, elle, ne concerne que la carte d'une activité : la carte globale alterne
+les couleurs d'une palette pour distinguer les tracés qui se superposent, et la
+carte de comparaison en attribue une par activité sélectionnée.
+
+Sur la carte globale, un clic sur une trace ouvre l'activité correspondante dans
+le volet de droite. MapKit ne teste pas les clics sur les calques dessinés, donc
+la recherche est faite à la main : le segment le plus proche du clic, à douze
+points d'écran près, en écartant d'abord les tracés dont la boîte englobante est
+loin.
 
 Sur la carte d'une activité, la caméra est inclinée au chargement — la
 perspective ne réclame pas de relief 3D, elle fonctionne sur une carte plate. Les deux autres restent à plat : elles se lisent d'au-dessus, et

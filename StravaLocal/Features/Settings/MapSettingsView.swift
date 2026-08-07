@@ -9,7 +9,7 @@ struct MapSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Traces") {
+            Section {
                 Picker("Couleur des traces", selection: $trackColor) {
                     ForEach(TrackColor.allCases) { choice in
                         Label {
@@ -20,6 +20,20 @@ struct MapSettingsView: View {
                         .tag(choice)
                     }
                 }
+            } header: {
+                Text("Traces")
+            } footer: {
+                // Said outright, because this setting no longer reaches every map:
+                // the other two assign their own colours, and a preference that
+                // silently applies to one place out of three is a puzzle.
+                Text(
+                    "S'applique à la carte d'une activité. La carte globale alterne "
+                        + "les couleurs pour distinguer les tracés qui se "
+                        + "superposent, et la carte de comparaison en attribue une "
+                        + "par activité sélectionnée."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
 
             Section {
