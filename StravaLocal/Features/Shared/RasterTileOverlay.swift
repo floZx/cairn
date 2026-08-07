@@ -44,6 +44,24 @@ struct MapStyleState {
 }
 
 extension MKMapView {
+    /// Where the raster basemap sits, and therefore where tracks must sit too.
+    ///
+    /// Above Apple's labels, because those draw above roads: at `.aboveRoads`
+    /// the tiles left every village named twice, once by the raster and once by
+    /// the basemap showing through underneath.
+    static let rasterLevel: MKOverlayLevel = .aboveLabels
+
+    /// Adds track overlays above the raster layer.
+    ///
+    /// Not `addOverlay(_:)`: the MapKit header states that it "operates
+    /// implicitly on overlays in MKOverlayLevelAboveRoads", a level *below* the
+    /// raster tiles. A track added that way is drawn first and then painted over
+    /// the instant the tiles arrive — it flashed into view with Apple's basemap
+    /// and disappeared under the topographic layer.
+    func addTrackOverlays(_ overlays: [any MKOverlay]) {
+        addOverlays(overlays, level: Self.rasterLevel)
+    }
+
     /// Applies a style, adding, swapping or removing the raster layer as needed.
     ///
     /// Everything is gated on a real style change: reassigning
@@ -77,12 +95,8 @@ extension MKMapView {
         }
         if let source = style.tileSource {
             let tiles = RasterTileOverlay(source: source)
-            // Above the labels, not merely above the roads: Apple's place names
-            // draw above roads too, so at `.aboveRoads` every village appeared
-            // twice — once from the raster tile, once from Apple underneath.
-            // Harmless while the basemap was suppressed, visible the moment it
-            // was restored to cover zoom transitions.
-            insertOverlay(tiles, at: 0, level: .aboveLabels)
+            // At index 0 of the level, so the tracks added after it stay on top.
+            insertOverlay(tiles, at: 0, level: Self.rasterLevel)
             state.topoOverlay = tiles
         }
     }

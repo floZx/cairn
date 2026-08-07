@@ -123,4 +123,29 @@ struct MapStyleApplyTests {
         let needed = distanceBefore / cos(MKMapView.terrainPitch * .pi / 180)
         #expect(mapView.camera.centerCoordinateDistance >= needed - 1)
     }
+
+    @Test("la trace se dessine au-dessus des tuiles, jamais dessous")
+    func tracksDrawAboveTheRasterLayer() {
+        let mapView = MKMapView()
+        var state = MapStyleState()
+        mapView.apply(.ignTopo, state: &state)
+
+        let track = MKPolyline(
+            coordinates: [
+                CLLocationCoordinate2D(latitude: 45.75, longitude: 4.83),
+                CLLocationCoordinate2D(latitude: 45.76, longitude: 4.84),
+            ],
+            count: 2
+        )
+        mapView.addTrackOverlays([track])
+
+        // addOverlay(_:) implicitly uses .aboveRoads, a level *below* the tiles,
+        // which had the raster paint straight over the track the moment it
+        // landed. Both must share the level, with the track added after.
+        let layered = mapView.overlays(in: MKMapView.rasterLevel)
+        #expect(layered.count == 2)
+        #expect(layered.first is MKTileOverlay)
+        #expect(layered.last === track)
+        #expect(mapView.overlays(in: .aboveRoads).isEmpty)
+    }
 }

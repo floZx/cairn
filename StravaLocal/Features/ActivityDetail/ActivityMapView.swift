@@ -51,7 +51,7 @@ struct ActivityMapView: NSViewRepresentable {
             let polyline = MKPolyline(
                 coordinates: coordinates.map(\.clLocation), count: coordinates.count
             )
-            mapView.addOverlay(polyline)
+            mapView.addTrackOverlays([polyline])
             mapView.setVisibleMapRect(
                 polyline.boundingMapRect,
                 edgePadding: NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24),

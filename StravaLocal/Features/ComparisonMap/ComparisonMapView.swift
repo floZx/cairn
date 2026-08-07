@@ -145,7 +145,7 @@ struct MultiTrackMapRepresentable: NSViewRepresentable {
             return line
         }
         guard !polylines.isEmpty else { return }
-        mapView.addOverlays(polylines)
+        mapView.addTrackOverlays(polylines)
 
         // The union of every track, unlike the global map's density heuristic:
         // here the user picked these activities deliberately, so all of them

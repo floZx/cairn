@@ -146,7 +146,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
             MKPolyline(coordinates: $0.map(\.clLocation), count: $0.count)
         }
         let multi = MKMultiPolyline(polylines)
-        mapView.addOverlay(multi)
+        mapView.addTrackOverlays([multi])
 
         // Opens where the user actually trains rather than framing every track:
         // one ride abroad would otherwise zoom out to a continent. Falls back to
