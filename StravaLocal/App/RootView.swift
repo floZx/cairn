@@ -260,6 +260,16 @@ struct RootView: View {
     /// the store — leaving a tombstone behind when it came from Strava.
     private func delete(_ activity: Activity) {
         selectedActivities.remove(activity.id)
+        // The full-window map can only reach a deleted activity by identity
+        // (`.activity(id)`), and ⌘⌫ is reachable while it fills the window
+        // now that the toolbar and its shortcut live on the outer `Group`.
+        // Without this, deleting from there leaves `expandedMap` pointing at
+        // an id nothing renders for — no crash, but an empty window with no
+        // way out of the full-window view except the still-live "Réduire"
+        // button or Échap.
+        if case let .activity(id) = expandedMap, id == activity.id {
+            expandedMap = nil
+        }
         // The selection is cleared above, before the write is attempted: a
         // failure here would otherwise leave the activity in place but
         // deselected, with nothing on screen to say the deletion did not
