@@ -102,48 +102,66 @@ struct RootView: View {
         )
     }
 
-    @ViewBuilder
+    private var showsGlobalMap: Bool { sidebarSelection == .globalMap }
+
+    /// One three-column split view for the whole app life, never two.
+    ///
+    /// An earlier version swapped between a two- and a three-column
+    /// `NavigationSplitView` so the map could span the detail pane. That reset
+    /// every column width on each switch: macOS restores widths per split-view
+    /// identity, and changing the column count is a different identity. The
+    /// structure is now fixed, and the map claims the space by collapsing the
+    /// detail column instead.
     private var splitView: some View {
-        // Two columns for the map, three for the list. A map has no companion
-        // pane to fill, and leaving an empty detail column beside it wasted half
-        // the window.
-        if sidebarSelection == .globalMap {
-            NavigationSplitView {
-                sidebar
-            } detail: {
-                GlobalMapView(
-                    activities: mapActivities,
-                    selection: $selectedActivity,
-                    region: regionBinding,
-                    onExpand: { expandedMap = .global }
-                )
-                .frame(minWidth: 520)
-            }
-            .toolbar { syncToolbar }
-        } else {
-            NavigationSplitView {
-                sidebar
-            } content: {
-                ActivityListView(filter: filter, selection: $selectedActivity)
-                    .id(filter)
-                    .frame(minWidth: 520)
-                    .searchable(
-                        text: $filter.searchText, prompt: "Rechercher une activité"
-                    )
-            } detail: {
-                if let selected {
-                    ActivityDetailView(
-                        activity: selected,
-                        onExpandMap: { expandedMap = .activity(selected.id) }
+        NavigationSplitView {
+            sidebar
+        } content: {
+            // A plain frame rather than `navigationSplitViewColumnWidth`: that
+            // modifier's ideal width applies whenever the column is first
+            // shown, and swapping list for map may well count as that — which
+            // would silently reset the width the user dragged.
+            Group {
+                if showsGlobalMap {
+                    GlobalMapView(
+                        activities: mapActivities,
+                        selection: $selectedActivity,
+                        region: regionBinding,
+                        onExpand: { expandedMap = .global }
                     )
                 } else {
-                    ContentUnavailableView(
-                        "Aucune activité sélectionnée", systemImage: "figure.run",
-                        description: Text("Choisissez une activité dans la liste.")
-                    )
+                    ActivityListView(filter: filter, selection: $selectedActivity)
+                        .id(filter)
+                        .searchable(
+                            text: $filter.searchText,
+                            prompt: "Rechercher une activité"
+                        )
                 }
             }
-            .toolbar { syncToolbar }
+            .frame(minWidth: 480)
+        } detail: {
+            detailColumn
+        }
+        .toolbar { syncToolbar }
+    }
+
+    @ViewBuilder
+    private var detailColumn: some View {
+        if showsGlobalMap {
+            // Nothing to show beside a map, so the column is squeezed shut and
+            // the map takes the width. Collapsing it this way keeps the split
+            // view's identity — and therefore the widths the user chose.
+            Color.clear
+                .navigationSplitViewColumnWidth(0)
+        } else if let selected {
+            ActivityDetailView(
+                activity: selected,
+                onExpandMap: { expandedMap = .activity(selected.id) }
+            )
+        } else {
+            ContentUnavailableView(
+                "Aucune activité sélectionnée", systemImage: "figure.run",
+                description: Text("Choisissez une activité dans la liste.")
+            )
         }
     }
 
