@@ -77,10 +77,12 @@ enum TrackDirection {
 final class DirectedPolylineRenderer: MKPolylineRenderer {
     private static let arrowCount = 4
 
-    /// On-screen points. Wider than the 3-point line so the barb shows, short
-    /// enough not to read as a second stroke.
-    private static let arrowLength: CGFloat = 8
-    private static let arrowHalfWidth: CGFloat = 3
+    /// On-screen points, and the ratio to the line is what matters: the arrowhead
+    /// spans about three times the 2-point stroke, as Strava's does. At twice the
+    /// width it read as a bulge in the line rather than a barb, which is why the
+    /// same-colour version came out too discreet to see.
+    private static let arrowLength: CGFloat = 9
+    private static let arrowHalfWidth: CGFloat = 3.5
 
     private lazy var markers: [DirectionMarker] = {
         let line = polyline

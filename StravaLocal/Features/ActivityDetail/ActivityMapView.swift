@@ -124,9 +124,10 @@ struct ActivityMapView: NSViewRepresentable {
             // Directed: chevrons along the line show which way it was run.
             let renderer = DirectedPolylineRenderer(overlay: overlay)
             renderer.strokeColor = trackColor.nsColor
-            // Thin enough that the route's own shape stays readable: at 4 the
+            // Thin enough that the route's own shape stays readable, and that the
+            // direction arrowheads stand out as barbs rather than bulges: at 4 the
             // stroke swallowed the switchbacks it was meant to show.
-            renderer.lineWidth = 3
+            renderer.lineWidth = 2
             return renderer
         }
 

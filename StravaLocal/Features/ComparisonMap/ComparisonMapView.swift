@@ -209,7 +209,7 @@ struct MultiTrackMapRepresentable: NSViewRepresentable {
             let renderer = DirectedPolylineRenderer(overlay: overlay)
             renderer.strokeColor = (overlay as? ColoredPolyline)?.color
                 ?? TrackPalette.colors[0]
-            renderer.lineWidth = 3
+            renderer.lineWidth = 2
             return renderer
         }
     }
