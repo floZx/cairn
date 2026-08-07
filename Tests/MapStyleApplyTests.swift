@@ -115,13 +115,13 @@ struct MapStyleApplyTests {
 
         mapView.tiltForTerrain()
 
-        // MapKit clamps the pitch by altitude, so the exact angle is its call —
-        // what matters is that the camera is no longer flat and has pulled back
-        // by at least 1/cos(pitch), the factor by which leaning stretches what
-        // must fit vertically. Falling short of it is what lost the track.
+        // MapKit clamps the pitch by altitude, so the exact angle is its call.
         #expect(mapView.camera.pitch > 0)
-        let needed = distanceBefore / cos(MKMapView.terrainPitch * .pi / 180)
-        #expect(mapView.camera.centerCoordinateDistance >= needed - 1)
+        // The pull-back stays a margin, not a zoom-out: a 1/cos(pitch) factor
+        // framed the route so far off it had to be zoomed back in by hand.
+        let distance = mapView.camera.centerCoordinateDistance
+        #expect(distance > distanceBefore)
+        #expect(distance < distanceBefore * 1.5)
     }
 
     @Test("la trace se dessine au-dessus des tuiles, jamais dessous")

@@ -3,12 +3,21 @@ import MapKit
 extension MKMapView {
     /// How far the camera leans over the terrain on an activity's map.
     ///
-    /// Deliberately steep. The cost is paid in the pull-back below — leaning to
-    /// 70° means backing off by nearly three times — so the track is smaller
-    /// than it would be flat. That trade is the point of the view. MapKit clamps
-    /// the angle further according to the altitude, so the effective tilt is
-    /// gentler when zoomed far out.
+    /// Deliberately steep — the relief is the point. MapKit clamps the angle
+    /// further according to the altitude, so the effective tilt is gentler when
+    /// zoomed far out.
     static let terrainPitch: CGFloat = 70
+
+    /// A small margin so the near end of the track does not sit against the
+    /// bottom edge once the camera leans over.
+    ///
+    /// Empirical, and modest on purpose. A first version derived it as
+    /// 1/cos(pitch) — nearly three times the distance at 70° — which framed the
+    /// route so far off that it had to be zoomed back in by hand. That
+    /// derivation had the effect backwards: a tilted camera sees *more* ground,
+    /// not less, because everything beyond the centre compresses towards the
+    /// horizon. Only the near half needs any room at all.
+    private static let pitchedDistanceFactor = 1.15
 
     /// Tilts the camera into a terrain view, keeping what is already framed.
     ///
@@ -25,11 +34,7 @@ extension MKMapView {
 
         let camera = self.camera
         camera.pitch = Self.terrainPitch
-        // Leaning back stretches what has to fit vertically by 1/cos(pitch),
-        // which at 70° is nearly three times. Pull back by less and the near
-        // half of the track slides off the bottom edge.
-        camera.centerCoordinateDistance =
-            distance / cos(Self.terrainPitch * .pi / 180)
+        camera.centerCoordinateDistance = distance * Self.pitchedDistanceFactor
         self.camera = camera
     }
 }
