@@ -128,6 +128,10 @@ extension MKMapView {
             // At index 0 of the level, so the tracks added after it stay on top.
             insertOverlay(tiles, at: 0, level: Self.rasterLevel)
             state.topoOverlay = tiles
+            // Switching to a raster layer straightens the camera, including a
+            // tilt set by hand: see `flattenCamera` for why the two cannot share
+            // a view.
+            flattenCamera()
         }
     }
 }

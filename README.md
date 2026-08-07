@@ -126,13 +126,18 @@ cumulés globalement ; la distance se lit par sport.
 ## Fonds de carte
 
 Trois fonds proviennent d'Apple et ne sollicitent aucun service tiers : Plan,
-Satellite, Satellite et noms. Aucun ne demande le relief 3D de MapKit, et
-l'entrée « Plan avec relief » a disparu avec lui : ce relief fait draper les
-tracés sur un maillage de terrain, ce qui les rééchantillonne — la trace en
-ressortait épaisse et baveuse, et les chevrons de sens ne tombaient plus
-franchement dessus. Sur les fonds topographiques le relief reste bien lisible : ce
-sont les tuiles elles-mêmes qui le dessinent, courbes de niveau et ombrage
-compris.
+Satellite, Satellite et noms. Ce sont les seuls dessinés **en 3D** — relief du
+terrain et caméra inclinée sur la carte d'une activité. L'entrée « Plan avec
+relief » a disparu : le Plan porte désormais ce relief lui-même.
+
+Les fonds topographiques restent à plat, pour deux raisons mesurées. MapKit
+n'attribue qu'un seul niveau de zoom à un calque raster tiers pour toute la vue,
+et une caméra inclinée l'étire : des tuiles IGN de deux échelles se retrouvaient
+dans la même image, avec des noms de lieux démesurés au loin. Et le relief 3D fait
+draper les tracés sur un maillage de terrain, ce qui les rééchantillonne — la
+trace en ressortait épaisse et baveuse. Rien n'est perdu pour autant : sur ces
+fonds, le relief est dessiné dans les tuiles elles-mêmes, courbes de niveau et
+ombrage compris.
 
 Deux fonds topographiques apportent les courbes de niveau et les sentiers, que
 MapKit n'offre sous aucune forme. Ce sont les seuls à contacter un serveur

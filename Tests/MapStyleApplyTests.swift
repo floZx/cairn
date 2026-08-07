@@ -87,21 +87,80 @@ struct MapStyleApplyTests {
         }
     }
 
-    @Test("aucun fond ne demande le relief 3D, qui rend la trace baveuse")
-    func keepsEveryStyleFlat() {
-        // "Plan avec relief" is gone and stays gone: realistic elevation drapes
-        // overlays onto a terrain mesh, which resamples them — the track came out
-        // thick and smeared and the chevrons no longer landed on it. The tilt
-        // survives without it, and the topographic tiles show relief themselves.
+    @Test("la 3D est réservée aux fonds d'Apple, jamais aux fonds raster")
+    func keepsThreeDimensionsForAppleStylesOnly() {
+        // "Plan avec relief" is gone and stays gone: the plain plan carries the
+        // relief now.
         #expect(MapStyle.allCases.count == 5)
         #expect(MapStyle(rawValue: "relief") == nil)
+
         for style in MapStyle.allCases {
             let elevation = (style.configuration as? MKStandardMapConfiguration)?
                 .elevationStyle
                 ?? (style.configuration as? MKImageryMapConfiguration)?.elevationStyle
                 ?? (style.configuration as? MKHybridMapConfiguration)?.elevationStyle
-            #expect(elevation == .flat)
+            // The two go together: a style either gets terrain and a leaning
+            // camera, or neither.
+            #expect(style.rendersInThreeDimensions == (style.tileSource == nil))
+            #expect(elevation == (style.rendersInThreeDimensions ? .realistic : .flat))
         }
+
+        #expect(MapStyle.standard.rendersInThreeDimensions)
+        #expect(MapStyle.satellite.rendersInThreeDimensions)
+        // MapKit gives a raster layer one zoom level for the whole view, so a
+        // leaning camera stretched IGN tiles of two scales into one image.
+        #expect(MapStyle.ignTopo.rendersInThreeDimensions == false)
+        #expect(MapStyle.openTopo.rendersInThreeDimensions == false)
+    }
+
+    @Test("passer sur un fond raster redresse la caméra, même inclinée à la main")
+    func flattensTheCameraForRasterStyles() {
+        let mapView = MKMapView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        var state = MapStyleState()
+        mapView.apply(.standard, state: &state)
+        mapView.setVisibleMapRect(
+            MKMapRect(x: 130_000_000, y: 90_000_000, width: 40_000, height: 40_000),
+            animated: false
+        )
+        mapView.tiltForTerrain()
+        #expect(mapView.camera.pitch > 0)
+
+        mapView.apply(.ignTopo, state: &state)
+
+        // Straightened, and deliberately overruling a manual tilt: the two cannot
+        // share a view without the tiles going wrong.
+        #expect(mapView.camera.pitch == 0)
+    }
+
+    @Test("la caméra s'incline sur un fond d'Apple et recule un peu")
+    func tiltsTheCamera() {
+        let mapView = MKMapView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        var state = MapStyleState()
+        mapView.apply(.standard, state: &state)
+        mapView.setVisibleMapRect(
+            MKMapRect(x: 130_000_000, y: 90_000_000, width: 40_000, height: 40_000),
+            animated: false
+        )
+        let distanceBefore = mapView.camera.centerCoordinateDistance
+
+        #expect(mapView.tiltForTerrain())
+
+        // MapKit clamps the pitch by altitude and says nothing about it, so the
+        // angle obtained is its call — what matters is that it is no longer flat.
+        #expect(mapView.camera.pitch > 0)
+        // The pull-back stays a margin, not a zoom-out: a 1/cos(pitch) factor
+        // framed the route so far off it had to be zoomed back in by hand.
+        let distance = mapView.camera.centerCoordinateDistance
+        #expect(distance > distanceBefore)
+        #expect(distance < distanceBefore * 1.5)
+    }
+
+    @Test("sans géométrie, l'inclinaison est différée et non abandonnée")
+    func reportsWhenItCannotTiltYet() {
+        // A view with no size is exactly the state updateNSView runs in, and the
+        // camera then reports a zero distance. Returning false is what tells the
+        // caller to ask again from the delegate instead of giving up.
+        #expect(MKMapView().tiltForTerrain() == false)
     }
 
     @Test("la trace se dessine au-dessus des tuiles, jamais dessous")

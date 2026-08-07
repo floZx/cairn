@@ -63,6 +63,10 @@ struct ActivityMapView: NSViewRepresentable {
                 edgePadding: NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24),
                 animated: false
             )
+            // Apple's backgrounds only. Asked for now and, if the view has no
+            // geometry yet, again from the delegate below.
+            coordinator.wantsTilt = style.rendersInThreeDimensions
+                && !mapView.tiltForTerrain()
         }
 
         // The marker is an annotation whose coordinate is moved in place, not an
@@ -93,8 +97,23 @@ struct ActivityMapView: NSViewRepresentable {
         var marker: HoverAnnotation?
         var mapStyleState = MapStyleState()
         var trackColor: TrackColor = .accent
+        /// A tilt still owed, because the view had no geometry when it was framed.
+        var wantsTilt = false
 
         private static let markerIdentifier = "hover"
+
+        /// Where a deferred tilt finally lands.
+        ///
+        /// `updateNSView` runs before SwiftUI has laid the map out, so the camera
+        /// reports a zero distance and cannot be leaned. This fires once the
+        /// region is real — the layout pass included. The flag is cleared before
+        /// tilting, so the region change tilting itself causes is a no-op rather
+        /// than a loop.
+        func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+            guard wantsTilt, mapView.frame.width > 0 else { return }
+            wantsTilt = false
+            if !mapView.tiltForTerrain() { wantsTilt = true }
+        }
 
         func mapView(
             _ mapView: MKMapView, rendererFor overlay: any MKOverlay

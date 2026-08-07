@@ -43,28 +43,37 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Whether this background is drawn in three dimensions — terrain relief, and
+    /// a camera that leans over it.
+    ///
+    /// Apple's own basemaps only, and for two measured reasons. MapKit gives a
+    /// third-party raster layer a single zoom level for the whole visible rect, so
+    /// a leaning camera stretches it: IGN tiles from two zoom levels ended up in
+    /// one image, place names outsized in the distance. And realistic elevation
+    /// drapes overlays onto a terrain mesh, which resamples them — the track came
+    /// out thick and smeared, the direction chevrons no longer squarely on it.
+    ///
+    /// Nothing is lost on the topographic backgrounds: the relief is drawn into
+    /// the tiles themselves, as contour lines and hillshading.
+    var rendersInThreeDimensions: Bool { tileSource == nil }
+
     var configuration: MKMapConfiguration {
+        let elevation: MKMapConfiguration.ElevationStyle =
+            rendersInThreeDimensions ? .realistic : .flat
         switch self {
-        // Flat everywhere, and that is a considered retreat. Realistic elevation
-        // drapes overlays onto a terrain mesh, which resamples them: the track
-        // came out thick and smeared and the direction chevrons no longer landed
-        // squarely on it. The camera still leans over — perspective does not
-        // require terrain — and on the topographic backgrounds the relief is
-        // still plainly there, drawn into the tiles themselves as contour lines
-        // and hillshading.
         case .standard:
-            MKStandardMapConfiguration(elevationStyle: .flat)
+            return MKStandardMapConfiguration(elevationStyle: elevation)
         case .satellite:
-            MKImageryMapConfiguration(elevationStyle: .flat)
+            return MKImageryMapConfiguration(elevationStyle: elevation)
         case .hybrid:
-            MKHybridMapConfiguration(elevationStyle: .flat)
+            return MKHybridMapConfiguration(elevationStyle: elevation)
         case .ignTopo, .openTopo:
             // Drawn under the tile layer and hidden once it lands, but it is
             // what shows during a zoom before the new level's tiles are ready —
             // see `RasterTileOverlay`. Muted keeps Apple's labels discreet in
             // that moment.
-            MKStandardMapConfiguration(
-                elevationStyle: .flat, emphasisStyle: .muted
+            return MKStandardMapConfiguration(
+                elevationStyle: elevation, emphasisStyle: .muted
             )
         }
     }
