@@ -5,6 +5,7 @@ enum SyncPhase: Sendable, Equatable {
     case idle
     case summaries(page: Int)
     case streams(done: Int, total: Int)
+    case completing(done: Int, total: Int)
     case waitingForQuota(until: Date)
     case failed(String)
 }
@@ -27,7 +28,7 @@ final class SyncProgress {
     var isRunning: Bool {
         switch phase {
         case .idle, .failed: false
-        case .summaries, .streams, .waitingForQuota: true
+        case .summaries, .streams, .completing, .waitingForQuota: true
         }
     }
 
@@ -46,6 +47,8 @@ final class SyncProgress {
             "Import des activités… (page \(page))"
         case let .streams(done, total):
             "Import des traces… \(done)/\(total)"
+        case let .completing(done, total):
+            "Récupération des nouvelles activités… \(done)/\(total)"
         case let .waitingForQuota(until):
             "Quota Strava atteint, reprise à \(Format.time(until))"
         case let .failed(message):
@@ -64,6 +67,8 @@ final class SyncProgress {
             "Activités \(page)"
         case let .streams(done, total):
             "Traces \(done)/\(total)"
+        case let .completing(done, total):
+            "Nouvelles \(done)/\(total)"
         case .waitingForQuota:
             "Quota atteint"
         case .failed:
@@ -72,7 +77,12 @@ final class SyncProgress {
     }
 
     var fractionCompleted: Double? {
-        guard case let .streams(done, total) = phase, total > 0 else { return nil }
-        return Double(done) / Double(total)
+        switch phase {
+        case let .streams(done, total) where total > 0,
+             let .completing(done, total) where total > 0:
+            Double(done) / Double(total)
+        default:
+            nil
+        }
     }
 }

@@ -158,11 +158,14 @@ struct SyncSummariesTests {
         let after = ModelContext(container)
         #expect(try after.fetch(FetchDescriptor<Activity>()).count == 1)
 
-        let snapshot = try await engine.stateSnapshot()
         // Proves both halves: not merely that 5 is missing (which a broken
         // enqueue would also satisfy), but that 6 — the one activity actually
-        // imported — is exactly what got queued.
-        #expect(snapshot.pendingStreamIDs == [6])
+        // imported — is exactly what got its streams. Read off the streams
+        // rather than the queue: a small pass now completes what it finds, so
+        // the queue is empty by the time it returns.
+        #expect(try after.fetch(FetchDescriptor<Activity>())[0].stravaID == 6)
+        #expect(try after.fetch(FetchDescriptor<Activity>())[0].streams != nil)
+        #expect(await source.streamRequests == [6])
     }
 
     @Test("le curseur retient la date de la conservée, pas de l'écartée la plus récente")
@@ -202,8 +205,8 @@ struct SyncSummariesTests {
         #expect(!activity.simplifiedCoordinates.isEmpty)
     }
 
-    @Test("les activités importées entrent dans la file d'attente des streams")
-    func queuesStreams() async throws {
+    @Test("les activités importées repartent avec leurs traces")
+    func importedActivitiesGetTheirStreams() async throws {
         let source = FakeSource(pages: [
             [makeSummary(id: 1, epoch: 1000), makeSummary(id: 2, epoch: 2000)]
         ])
@@ -213,8 +216,10 @@ struct SyncSummariesTests {
         )
         _ = try await engine.syncSummaries()
 
-        let state = try await engine.stateSnapshot()
-        #expect(Set(state.pendingStreamIDs) == [1, 2])
+        // A small pass completes what it finds rather than merely queueing it,
+        // so both are served and nothing is left pending.
+        #expect(Set(await source.streamRequests) == [1, 2])
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
     }
 
     @Test("le curseur retient la date la plus récente")
@@ -347,7 +352,8 @@ struct SyncStreamsTests {
         ])
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -370,7 +376,8 @@ struct SyncStreamsTests {
         ])
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -399,7 +406,8 @@ struct SyncStreamsTests {
         ])
         let engine = SyncEngine(
             source: source, container: try AppModelContainer.inMemory(),
-            progress: SyncProgress()
+            progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -419,7 +427,8 @@ struct SyncStreamsTests {
         ])
         let engine = SyncEngine(
             source: source, container: try AppModelContainer.inMemory(),
-            progress: SyncProgress()
+            progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -436,7 +445,8 @@ struct SyncStreamsTests {
         let source = FakeSource(pages: [[]])
         let engine = SyncEngine(
             source: source, container: try AppModelContainer.inMemory(),
-            progress: SyncProgress()
+            progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -449,7 +459,8 @@ struct SyncStreamsTests {
         let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -469,7 +480,8 @@ struct SyncStreamsTests {
         let source = FakeSource(pages: [[]])
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         let context = ModelContext(container)
         let manual = Activity(stravaID: 99, name: "Séance salle", sportType: .workout)
@@ -494,7 +506,8 @@ struct SyncStreamsTests {
         ])
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -519,7 +532,8 @@ struct SyncStreamsTests {
         ])
         let engine = SyncEngine(
             source: source, container: try AppModelContainer.inMemory(),
-            progress: SyncProgress()
+            progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -557,7 +571,8 @@ struct SyncStreamsTests {
         ])
         let engine = SyncEngine(
             source: source, container: try AppModelContainer.inMemory(),
-            progress: SyncProgress()
+            progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -584,7 +599,8 @@ struct SyncStreamsTests {
         ])
         let engine = SyncEngine(
             source: source, container: try AppModelContainer.inMemory(),
-            progress: SyncProgress()
+            progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
         await source.setNotFound([1, 2])
@@ -603,7 +619,7 @@ struct SyncStreamsTests {
         let progress = SyncProgress()
         let engine = SyncEngine(
             source: source, container: try AppModelContainer.inMemory(),
-            progress: progress
+            progress: progress, maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
         await source.setFailWithServerError(true)
@@ -710,7 +726,7 @@ struct PhotosForAlreadyDetailedTests {
         let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(), maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -743,7 +759,7 @@ struct PhotosForAlreadyDetailedTests {
         let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000, photoCount: 0)]])
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(), maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
         try await engine.fetchDetailIfNeeded(stravaID: 1)
@@ -760,7 +776,7 @@ struct PhotosForAlreadyDetailedTests {
         let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000, photoCount: 2)]])
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(), maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -782,7 +798,8 @@ struct FetchStreamsOnDemandTests {
         let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
 
@@ -804,7 +821,8 @@ struct FetchStreamsOnDemandTests {
         let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
         try await engine.fetchStreamsIfNeeded(stravaID: 1)
@@ -841,7 +859,8 @@ struct StreamQueueTests {
         )
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
 
         _ = try await engine.syncSummaries()
@@ -864,7 +883,8 @@ struct StreamQueueTests {
         let source = tracklessSource()
         let container = try AppModelContainer.inMemory()
         let engine = SyncEngine(
-            source: source, container: container, progress: SyncProgress()
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
         )
         _ = try await engine.syncSummaries()
         _ = try await engine.syncStreams()
@@ -877,5 +897,78 @@ struct StreamQueueTests {
 
         #expect(await source.streamRequests.count == issued)
         #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
+    }
+}
+
+@Suite("SyncEngine — une nouvelle activité arrive complète")
+@MainActor
+struct EagerCompletionTests {
+    private func photo(id: String) -> PhotoDTO {
+        PhotoDTO(
+            unique_id: id, urls: ["1800": "https://cdn.test/\(id).jpg"],
+            caption: nil, created_at: nil, created_at_local: nil
+        )
+    }
+
+    @Test("détecter une activité suffit à tout télécharger")
+    func fetchesEverythingForANewActivity() async throws {
+        // Noticing an activity and leaving it half-imported puts the work on the
+        // user: they open it, and only then does anything arrive.
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        await source.setListedPhotos([photo(id: "a")])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+
+        _ = try await engine.syncSummaries()
+
+        let activity = try ModelContext(container)
+            .fetch(FetchDescriptor<Activity>())[0]
+        #expect(activity.detailFetchedAt != nil)
+        #expect(activity.streams?.coordinates.isEmpty == false)
+        #expect(activity.photos.count == 1)
+        #expect(activity.photos[0].data != nil)
+        // Fetched here, so phase B has nothing left to spend a request on.
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
+    }
+
+    @Test("une activité déjà connue n'est pas retéléchargée")
+    func doesNotRefetchAKnownActivity() async throws {
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        _ = try await engine.syncSummaries()
+        let issued = await source.detailRequests.count
+
+        // The same summary comes back on every incremental pass; only the pass
+        // that *created* the activity is allowed to spend requests on it.
+        _ = try await engine.syncSummaries()
+
+        #expect(await source.detailRequests.count == issued)
+    }
+
+    @Test("un premier import massif ne déclenche pas la finalisation")
+    func aBulkImportIsLeftToTheQueue() async throws {
+        // Three requests each — detail, photos, streams — so 840 activities
+        // would want 2 520 against a daily allowance of 2 000. Past the
+        // threshold the queue and the on-open fetches do the work at their pace.
+        let many = (1...(SyncEngine.defaultMaxEagerCompletions + 1)).map {
+            makeSummary(id: Int64($0), epoch: 1000 + $0)
+        }
+        let source = FakeSource(pages: [many])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+
+        _ = try await engine.syncSummaries()
+
+        #expect(await source.detailRequests.isEmpty)
+        #expect(
+            try await engine.stateSnapshot().pendingStreamIDs.count == many.count
+        )
     }
 }

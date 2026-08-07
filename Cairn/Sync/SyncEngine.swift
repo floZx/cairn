@@ -38,13 +38,20 @@ struct SyncStateSnapshot: Sendable, Equatable {
 actor SyncEngine {
     private let source: StravaSyncSource
     private let container: ModelContainer
+    /// Zero disables the eager completion entirely, which is how the phase B
+    /// suite still gets a queue to drain.
+    private let maxEagerCompletions: Int
     private let progress: SyncProgress
     private let context: ModelContext
     private let mapper: ImportMapper
 
     private static let pageSize = 200
 
-    init(source: StravaSyncSource, container: ModelContainer, progress: SyncProgress) {
+    init(
+        source: StravaSyncSource, container: ModelContainer, progress: SyncProgress,
+        maxEagerCompletions: Int = SyncEngine.defaultMaxEagerCompletions
+    ) {
+        self.maxEagerCompletions = maxEagerCompletions
         self.source = source
         self.container = container
         self.progress = progress
@@ -86,6 +93,8 @@ actor SyncEngine {
         var page = 1
         var imported = 0
         var newestEpoch = after
+        /// The activities this pass actually created, as opposed to refreshed.
+        var created: [Int64] = []
 
         do {
             while true {
@@ -97,7 +106,11 @@ actor SyncEngine {
 
                 for dto in batch {
                     do {
+                        // Asked before the upsert, which is the only moment the
+                        // answer still exists.
+                        let isNew = try mapper.activity(stravaID: dto.id) == nil
                         let activity = try mapper.upsert(summary: dto)
+                        if isNew { created.append(dto.id) }
                         // "Never fetched", not "has no track". The two differ for
                         // every indoor ride, pool swim and gym session: Strava
                         // returns their streams with no `latlng` at all, so the
@@ -134,6 +147,8 @@ actor SyncEngine {
             state.lastRunAt = Date()
             state.lastErrorMessage = nil
             try context.save()
+
+            try await completeNewActivities(created)
 
             let snapshot = await source.rateLimitSnapshot()
             await finish(quota: snapshot, at: state.lastRunAt)
@@ -373,6 +388,37 @@ actor SyncEngine {
             detail = fetched
         }
         try await fetchPhotosIfNeeded(activity, detail: detail)
+    }
+
+    /// Above this, a pass is a backfill rather than "new activities arrived".
+    ///
+    /// Completing an activity costs three requests — detail, photos, streams —
+    /// so a first import of 840 would want 2 520 against a daily allowance of
+    /// 2 000. Beyond this many, the streams queue and the on-open fetches do the
+    /// work at their own pace, as they always have.
+    static let defaultMaxEagerCompletions = 25
+
+    /// Downloads everything an activity has, for the ones this pass just found.
+    ///
+    /// Noticing a new activity and leaving it half-imported puts the work on the
+    /// user: they open it, and only then does anything arrive. A sync that says
+    /// it found an activity should have fetched it.
+    ///
+    /// No single failure stops the pass. These are extras on top of a summary
+    /// already saved, and losing the whole run over one unreachable photo would
+    /// be the wrong trade.
+    private func completeNewActivities(_ ids: [Int64]) async throws {
+        guard !ids.isEmpty, ids.count <= maxEagerCompletions else { return }
+
+        for (index, stravaID) in ids.enumerated() {
+            if Task.isCancelled { return }
+            await setPhase(.completing(done: index, total: ids.count))
+            // Detail first: it carries the photo summary the fallback needs, so
+            // this order saves a request whenever the undocumented endpoint is
+            // unavailable.
+            try? await fetchDetailIfNeeded(stravaID: stravaID)
+            try? await fetchStreamsIfNeeded(stravaID: stravaID)
+        }
     }
 
     /// Fetches an activity's streams now, ahead of the queue.
