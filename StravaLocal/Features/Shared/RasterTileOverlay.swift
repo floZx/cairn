@@ -77,7 +77,12 @@ extension MKMapView {
         }
         if let source = style.tileSource {
             let tiles = RasterTileOverlay(source: source)
-            insertOverlay(tiles, at: 0, level: .aboveRoads)
+            // Above the labels, not merely above the roads: Apple's place names
+            // draw above roads too, so at `.aboveRoads` every village appeared
+            // twice — once from the raster tile, once from Apple underneath.
+            // Harmless while the basemap was suppressed, visible the moment it
+            // was restored to cover zoom transitions.
+            insertOverlay(tiles, at: 0, level: .aboveLabels)
             state.topoOverlay = tiles
         }
     }
