@@ -3,10 +3,21 @@ import SwiftData
 
 @Model
 final class Activity {
-    #Index<Activity>([\.startDate], [\.stravaID], [\.minLat], [\.maxLat], [\.minLon], [\.maxLon])
-    #Unique<Activity>([\.stravaID])
+    // No uniqueness constraint any more. An activity created here has no Strava
+    // identifier, and several zeroes would violate one — while *changing* a
+    // constraint is exactly what turns a lightweight SwiftData migration into a
+    // store that will not open. Removing one is safe; adding one is not.
+    // Uniqueness of `stravaID` is guaranteed where it always really was: the
+    // fetch-or-create in `ImportMapper`, covered by a re-import test.
+    #Index<Activity>([\.startDate], [\.stravaID], [\.uuid], [\.minLat], [\.maxLat], [\.minLon], [\.maxLon])
 
     var stravaID: Int64 = 0
+    /// Stable local identity, independent of Strava. Assigned once, at creation.
+    var uuid: String = UUID().uuidString
+    var sourceRaw: String = ActivitySource.strava.rawValue
+    /// Raw keys of `ActivityField`, persisted. See `editedFields`.
+    var editedFieldsRaw: [String] = []
+    var editedAt: Date?
     var name: String = ""
     var sportTypeRaw: String = SportType.other.rawValue
     var startDate: Date = Date.distantPast
@@ -84,6 +95,30 @@ final class Activity {
     var sportType: SportType {
         get { SportType(rawValue: sportTypeRaw) ?? .other }
         set { sportTypeRaw = newValue.rawValue }
+    }
+
+    var source: ActivitySource {
+        get { ActivitySource(rawValue: sourceRaw) ?? .strava }
+        set { sourceRaw = newValue.rawValue }
+    }
+
+    /// The fields the user has edited, which the sync must leave alone.
+    ///
+    /// Unknown raw values are dropped rather than trapped on: a store written by
+    /// a later version must still open in an older build.
+    var editedFields: Set<ActivityField> {
+        get { Set(editedFieldsRaw.compactMap(ActivityField.init(rawValue:))) }
+        set { editedFieldsRaw = newValue.map(\.rawValue).sorted() }
+    }
+
+    func isEdited(_ field: ActivityField) -> Bool { editedFields.contains(field) }
+
+    /// Adds to what the user has already claimed rather than replacing it: two
+    /// successive edits of different fields must both stay protected.
+    func markEdited(_ fields: Set<ActivityField>) {
+        guard !fields.isEmpty else { return }
+        editedFields = editedFields.union(fields)
+        editedAt = Date()
     }
 
     var boundingBox: BoundingBox? {

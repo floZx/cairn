@@ -4,7 +4,7 @@ import SwiftData
 enum AppModelContainer {
     static let schema = Schema([
         Activity.self, ActivityStreams.self, Athlete.self,
-        Lap.self, Gear.self, SyncState.self,
+        Lap.self, Gear.self, SyncState.self, DiscardedActivity.self,
     ])
 
     static func make() throws -> ModelContainer {
