@@ -292,6 +292,48 @@ struct ImportMapperTests {
         #expect(!shoes.isBike)
     }
 
+    @Test("elapsedTime dérivé n'écrase pas une durée protégée")
+    func elapsedTimeFollowsMovingTimeProtection() throws {
+        let context = try makeContext()
+        let mapper = ImportMapper(context: context)
+        let activity = try mapper.upsert(
+            summary: try Fixture.decode(SummaryActivityDTO.self, "summary_activity")
+        )
+        let editedElapsed = activity.elapsedTime
+        activity.movingTime = 90 * 60
+        activity.markEdited([.movingTime])
+
+        // Strava still thinks the outing lasted the original, shorter time.
+        let corrected = try Fixture.decode(
+            SummaryActivityDTO.self, from: "summary_activity",
+            patching: ["id": activity.stravaID, "elapsed_time": 65 * 60]
+        )
+        let again = try mapper.upsert(summary: corrected)
+
+        #expect(again.elapsedTime == editedElapsed)
+    }
+
+    @Test("averageSpeed dérivée n'écrase pas une distance ou une durée protégée")
+    func averageSpeedFollowsDistanceOrMovingTimeProtection() throws {
+        let context = try makeContext()
+        let mapper = ImportMapper(context: context)
+        let activity = try mapper.upsert(
+            summary: try Fixture.decode(SummaryActivityDTO.self, "summary_activity")
+        )
+        activity.distance = 12_000
+        activity.markEdited([.distance])
+        let editedAverageSpeed = activity.averageSpeed
+
+        // Strava recomputed average speed from its own, uncorrected distance.
+        let corrected = try Fixture.decode(
+            SummaryActivityDTO.self, from: "summary_activity",
+            patching: ["id": activity.stravaID, "average_speed": 99.0]
+        )
+        let again = try mapper.upsert(summary: corrected)
+
+        #expect(again.averageSpeed == editedAverageSpeed)
+    }
+
     @Test("les streams sans position comptent quand même leurs points")
     func pointCountFromNonPositionStreams() throws {
         let context = try makeContext()

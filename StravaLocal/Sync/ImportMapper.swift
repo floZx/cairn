@@ -118,10 +118,23 @@ struct ImportMapper {
 
         assign(.distance, on: activity, \.distance, dto.distance)
         assign(.movingTime, on: activity, \.movingTime, dto.moving_time)
-        activity.elapsedTime = dto.elapsed_time
+        // Neither field has its own `ActivityField` case, yet both are derived
+        // from the two above — `ActivityDraft.write` maintains them the same
+        // way for a local edit, raising `elapsedTime` to at least the moving
+        // time and recomputing `averageSpeed` from distance and moving time.
+        // Writing them unconditionally here would let a plain resync undo a
+        // distance or duration correction the moment it runs again, without
+        // either protected field itself being touched. `maxSpeed` stays
+        // unconditional: it is an instantaneous reading from the device, not
+        // something `ActivityDraft` ever recomputes.
+        if !activity.isEdited(.movingTime) {
+            activity.elapsedTime = dto.elapsed_time
+        }
         assign(.totalElevationGain, on: activity, \.totalElevationGain,
                dto.total_elevation_gain)
-        activity.averageSpeed = dto.average_speed
+        if !activity.isEdited(.distance) && !activity.isEdited(.movingTime) {
+            activity.averageSpeed = dto.average_speed
+        }
         activity.maxSpeed = dto.max_speed
         activity.averageHeartrate = dto.average_heartrate
         activity.maxHeartrate = dto.max_heartrate
