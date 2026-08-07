@@ -60,6 +60,14 @@ extension MKMapView {
 
         preferredConfiguration = style.configuration
 
+        // Both topographic providers serve paper-toned tiles whatever the system
+        // appearance — there is no night PLAN IGN, the Géoplateforme
+        // capabilities list none — so in dark mode Apple's dark basemap showed
+        // through as a dark hole during a zoom. Pinning this map view to a light
+        // appearance makes that moment match the tiles. Back to inheriting for
+        // Apple's own styles, which do have a proper dark map.
+        appearance = style.tileSource == nil ? nil : NSAppearance(named: .aqua)
+
         // The old layer goes first even when the new style is also tiled: IGN
         // and OpenTopoMap are different sources, and keeping whichever was
         // there would silently ignore the switch.

@@ -58,6 +58,24 @@ struct MapStyleApplyTests {
         }
     }
 
+    @Test("les fonds topo forcent l'apparence claire, les fonds Apple héritent")
+    func pinsAppearanceForRasterStyles() {
+        let mapView = MKMapView()
+        var state = MapStyleState()
+
+        // Paper-toned tiles with no dark variant: a dark basemap under them
+        // shows as a dark hole while a zoom settles.
+        mapView.apply(.ignTopo, state: &state)
+        #expect(mapView.appearance?.name == .aqua)
+
+        // Apple's own styles have a real dark map, so they follow the system.
+        mapView.apply(.satellite, state: &state)
+        #expect(mapView.appearance == nil)
+
+        mapView.apply(.openTopo, state: &state)
+        #expect(mapView.appearance?.name == .aqua)
+    }
+
     @Test("le calque laisse le fond d'Apple dessous, sinon les zooms flashent")
     func keepsAppleBasemapUnderneath() {
         for style in [MapStyle.ignTopo, .openTopo] {

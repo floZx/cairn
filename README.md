@@ -81,6 +81,13 @@ entre le moment où MapKit réclame une tuile et celui où il la dessine. Les de
 fournisseurs servant des tuiles opaques, ce fond est invisible dès qu'elles
 arrivent.
 
+En mode sombre, ce fond est en outre épinglé en apparence claire quand un calque
+topographique est actif. Les deux fournisseurs ne servent que des tuiles claires
+— les capacités WMTS de la Géoplateforme ne déclarent aucune déclinaison nuit de
+PLAN IGN — donc un fond sombre en dessous ressortait comme un trou noir le temps
+qu'un zoom se stabilise. Les fonds d'Apple, eux, ont un vrai mode sombre et
+continuent de suivre le système.
+
 Rien de plus n'est ajouté autour du chargement. Une version antérieure avait
 introduit, en même temps que ce cache, un plafond de connexions simultanées et
 des réessais : les tuiles cessaient d'arriver. La cause s'est révélée être
