@@ -23,11 +23,13 @@ struct AmbientGlow: ViewModifier {
     /// near-black, where a colour has nothing to lighten and only greys the
     /// surface. Dark mode gets more of it, and the numbers are separated so the
     /// difference is a decision rather than an accident.
-    /// Both were dialled down after a first pass read as tinted panels rather
-    /// than as light: the ratio between the two schemes is what mattered, not
-    /// the absolute values, so both moved together.
+    /// Dialled down twice against Apple Music, which is the reference here and
+    /// is far fainter than it looks from memory: the colour registers as a
+    /// change of mood, and you cannot point at where it starts. Both schemes
+    /// moved together each time — what holds the effect up is the ratio between
+    /// them, not the absolute values.
     static func opacity(for scheme: ColorScheme) -> Double {
-        scheme == .dark ? 0.17 : 0.09
+        scheme == .dark ? 0.075 : 0.04
     }
 
     func body(content: Content) -> some View {
@@ -48,7 +50,7 @@ extension View {
     /// - Parameter blurRadius: wide relative to the view, or the wash reads as
     ///   a coloured box rather than as light.
     func ambientGlow(
-        _ color: Color, cornerRadius: CGFloat = 12, blurRadius: CGFloat = 34
+        _ color: Color, cornerRadius: CGFloat = 12, blurRadius: CGFloat = 55
     ) -> some View {
         modifier(
             AmbientGlow(

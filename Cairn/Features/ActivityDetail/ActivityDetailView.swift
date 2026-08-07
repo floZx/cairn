@@ -28,7 +28,7 @@ struct ActivityDetailView: View {
                 header
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .ambientGlow(
-                        activity.sportType.color, cornerRadius: 16, blurRadius: 52
+                        activity.sportType.color, cornerRadius: 16, blurRadius: 80
                     )
 
                 // No placeholder when there is no track: a pool swim or a gym
