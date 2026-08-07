@@ -29,12 +29,42 @@ final class RasterTileOverlay: MKTileOverlay {
 
     /// Routed through the cached session; MapKit's own loader keeps nothing on
     /// disk, so panning back over the same ground re-fetched every tile.
+    ///
+    /// The response is checked rather than trusted. A WMTS service answers a
+    /// refused or malformed request with `200 OK` and an XML exception in the
+    /// body, and handing that to MapKit as a tile leaves a hole it papers over by
+    /// stretching the parent zoom level across it. Worse, the session's policy is
+    /// `returnCacheDataElseLoad` — a cached answer is reused whatever its age — so
+    /// one such response would keep that patch of map wrong for good, whichever
+    /// way you panned. Hence the eviction before throwing: MapKit asks again
+    /// later, and next time it may well work.
     override func loadTile(at path: MKTileOverlayPath) async throws -> Data {
-        let (data, _) = try await TileCache.session.data(
-            for: URLRequest(url: url(forTilePath: path))
-        )
+        let request = URLRequest(url: url(forTilePath: path))
+        let (data, response) = try await TileCache.session.data(for: request)
+
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200, Self.looksLikeAnImage(data) else {
+            TileCache.session.configuration.urlCache?
+                .removeCachedResponse(for: request)
+            throw TileLoadError.notAnImage(status: status, bytes: data.count)
+        }
         return data
     }
+
+    /// Whether a payload starts like an image both providers actually serve.
+    ///
+    /// Magic bytes rather than the `Content-Type` header, which is exactly what
+    /// lies in this situation: a WMTS exception is served as `image/png` by more
+    /// than one implementation.
+    static func looksLikeAnImage(_ data: Data) -> Bool {
+        let png: [UInt8] = [0x89, 0x50, 0x4E, 0x47]
+        let jpeg: [UInt8] = [0xFF, 0xD8, 0xFF]
+        return data.starts(with: png) || data.starts(with: jpeg)
+    }
+}
+
+enum TileLoadError: Error {
+    case notAnImage(status: Int, bytes: Int)
 }
 
 /// What a map view has already been told, so it is not told again.

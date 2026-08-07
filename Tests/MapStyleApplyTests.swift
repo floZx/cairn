@@ -170,6 +170,7 @@ struct MapStyleApplyTests {
         #expect(mapView.camera.pitch == manual)
         #expect(mapView.camera.centerCoordinateDistance == distance)
     }
+
     @Test("la trace se dessine au-dessus des tuiles, jamais dessous")
     func tracksDrawAboveTheRasterLayer() {
         let mapView = MKMapView()
@@ -193,5 +194,26 @@ struct MapStyleApplyTests {
         #expect(layered.first is MKTileOverlay)
         #expect(layered.last === track)
         #expect(mapView.overlays(in: .aboveRoads).isEmpty)
+    }
+
+    @Test("une réponse qui n'est pas une image est rejetée")
+    func rejectsPayloadsThatAreNotImages() {
+        // A WMTS service answers a refused request with 200 OK and an XML
+        // exception. Trusted as a tile, it leaves a hole MapKit papers over by
+        // stretching the parent zoom level — and the cache policy keeps that patch
+        // of map wrong for good, whichever way you pan.
+        let exception = Data("""
+            <?xml version="1.0"?><ExceptionReport><Exception/></ExceptionReport>
+            """.utf8)
+        #expect(RasterTileOverlay.looksLikeAnImage(exception) == false)
+        #expect(RasterTileOverlay.looksLikeAnImage(Data()) == false)
+        // An HTML error page, the other thing a proxy hands back.
+        #expect(RasterTileOverlay.looksLikeAnImage(Data("<html>".utf8)) == false)
+
+        #expect(RasterTileOverlay.looksLikeAnImage(Data([0x89, 0x50, 0x4E, 0x47, 0x0D])))
+        #expect(RasterTileOverlay.looksLikeAnImage(Data([0xFF, 0xD8, 0xFF, 0xE0])))
+        // Checked on the bytes, not on Content-Type: that header is what lies
+        // here, several WMTS implementations labelling their exception image/png.
+        #expect(RasterTileOverlay.looksLikeAnImage(Data([0x00, 0x89, 0x50, 0x4E, 0x47])) == false)
     }
 }
