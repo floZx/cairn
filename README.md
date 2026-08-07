@@ -73,6 +73,14 @@ quel que soit son âge : une zone consultée une fois ne se retélécharge pas, 
 après un redémarrage. Les réglages affichent la taille occupée et permettent de
 la vider.
 
+Le fond d'Apple continue d'être dessiné sous les tuiles topographiques. C'est
+volontaire : en le supprimant, toute tuile pas encore dessinée laissait du noir,
+et chaque changement de niveau de zoom faisait donc flasher la carte — même
+au-dessus d'un terrain déjà en cache, puisqu'il s'écoule toujours un instant
+entre le moment où MapKit réclame une tuile et celui où il la dessine. Les deux
+fournisseurs servant des tuiles opaques, ce fond est invisible dès qu'elles
+arrivent.
+
 Rien de plus n'est ajouté autour du chargement. Une version antérieure avait
 introduit, en même temps que ce cache, un plafond de connexions simultanées et
 des réessais : les tuiles cessaient d'arriver. La cause s'est révélée être

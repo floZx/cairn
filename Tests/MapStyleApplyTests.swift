@@ -57,4 +57,16 @@ struct MapStyleApplyTests {
             #expect(template.contains("{y}"))
         }
     }
+
+    @Test("le calque laisse le fond d'Apple dessous, sinon les zooms flashent")
+    func keepsAppleBasemapUnderneath() {
+        for style in [MapStyle.ignTopo, .openTopo] {
+            let overlay = RasterTileOverlay(source: style.tileSource!)
+            // Suppressing Apple's basemap left bare black wherever a tile was
+            // not yet drawn, which meant a black flash on every zoom level
+            // change — even over cached ground.
+            #expect(overlay.canReplaceMapContent == false)
+            #expect(overlay.maximumZ == style.tileSource!.maximumZ)
+        }
+    }
 }

@@ -8,13 +8,21 @@ import MapKit
 /// connection cap and retries on top and tiles stopped arriving, while the
 /// actual culprit was MapKit properties being rewritten on every view update.
 ///
-/// `canReplaceMapContent` keeps Apple's basemap from being drawn — and
-/// flashing through — underneath. The cost is that a tile still in flight
-/// leaves blank ground rather than a fallback map.
+/// Apple's basemap is deliberately left drawing underneath
+/// (`canReplaceMapContent` stays false). With it suppressed, any tile not yet
+/// on screen showed as bare black, and zooming flashed black across the map on
+/// every level change — even over ground already cached, because there is
+/// always a moment between MapKit asking for a tile and drawing it. Apple's
+/// muted plan underneath turns that moment into a brief glimpse of a map
+/// instead of a hole.
+///
+/// Both providers serve opaque tiles, so the basemap is invisible once they
+/// land; the cost is only that MapKit keeps rendering a layer that is then
+/// covered.
 final class RasterTileOverlay: MKTileOverlay {
     init(source: TileSource) {
         super.init(urlTemplate: source.urlTemplate)
-        canReplaceMapContent = true
+        canReplaceMapContent = false
         minimumZ = 2
         maximumZ = source.maximumZ
     }

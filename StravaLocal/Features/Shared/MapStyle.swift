@@ -57,10 +57,11 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
         case .hybrid:
             MKHybridMapConfiguration(elevationStyle: .realistic)
         case .ignTopo, .openTopo:
-            // Drawn under the tile layer and mostly hidden; muted keeps Apple's
-            // labels discreet where a tile has yet to arrive. Realistic
-            // elevation is kept on so a pitched camera has terrain to drape the
-            // raster over.
+            // Drawn under the tile layer and hidden once it lands, but it is
+            // what shows during a zoom before the new level's tiles are ready —
+            // see `RasterTileOverlay`. Muted keeps Apple's labels discreet in
+            // that moment. Realistic elevation is kept on so a pitched camera
+            // has terrain to drape the raster over.
             MKStandardMapConfiguration(
                 elevationStyle: .realistic, emphasisStyle: .muted
             )
