@@ -181,3 +181,10 @@ qui fausserait la conversion en filtre géographique.
 ## Emplacement des données
 
 `~/Library/Application Support/StravaLocal/StravaLocal.store`
+
+## Licence
+
+[MIT](LICENSE).
+
+Les fonds de carte tiers restent soumis à leurs propres licences, rappelées dans
+« Fonds de carte » et affichées dans l'application dès qu'ils sont actifs.
