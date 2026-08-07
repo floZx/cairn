@@ -28,7 +28,7 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selection) {
             Section {
-                Label("Toutes les activités", systemImage: "list.bullet")
+                Label("Mes activités", systemImage: "list.bullet")
                     .badge(activities.count)
                     .tag(SidebarItem.all)
                 Label("Carte globale", systemImage: "map")
