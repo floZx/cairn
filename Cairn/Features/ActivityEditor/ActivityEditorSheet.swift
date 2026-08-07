@@ -98,6 +98,13 @@ struct ActivityEditorSheet: View {
                 }
 
                 Section {
+                    Picker("Type de séance", selection: $draft.workoutLabel) {
+                        Text("Aucun").tag(ActivityLabel?.none)
+                        ForEach(ActivityLabel.workoutTypes) { label in
+                            Label(label.displayName, systemImage: label.symbolName)
+                                .tag(ActivityLabel?.some(label))
+                        }
+                    }
                     Toggle("Domicile-travail", isOn: $draft.isCommute)
                     Toggle("Home-trainer", isOn: $draft.isTrainer)
                 }

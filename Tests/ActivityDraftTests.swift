@@ -13,7 +13,7 @@ struct ActivityFieldTests {
         #expect(ActivityField.name.rawValue == "name")
         #expect(ActivityField.startDate.rawValue == "startDate")
         #expect(ActivityField.totalElevationGain.rawValue == "totalElevationGain")
-        #expect(ActivityField.allCases.count == 9)
+        #expect(ActivityField.allCases.count == 10)
         #expect(ActivityField.allCases.allSatisfy { !$0.displayName.isEmpty })
     }
 
@@ -213,7 +213,7 @@ struct ActivityDraftTests {
         #expect(draft.validationMessage != nil)
     }
 
-    @Test("changedFields détecte les neuf champs, pas seulement ceux exercés ailleurs")
+    @Test("changedFields détecte les dix champs, pas seulement ceux exercés ailleurs")
     func changedFieldsCoversEveryField() throws {
         let context = ModelContext(try AppModelContainer.inMemory())
         let activity = makeActivity(in: context)
@@ -227,6 +227,7 @@ struct ActivityDraftTests {
         draft.notes = "Une note"
         draft.isCommute = !activity.isCommute
         draft.isTrainer = !activity.isTrainer
+        draft.workoutLabel = .race
 
         // Every other test in this file exercises a handful of fields.
         // Removing any one case from `changedFields` would leave those

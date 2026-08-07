@@ -15,6 +15,7 @@ enum ActivityField: String, CaseIterable, Sendable {
     case notes
     case isCommute
     case isTrainer
+    case workoutLabel
 
     var displayName: String {
         switch self {
@@ -27,6 +28,7 @@ enum ActivityField: String, CaseIterable, Sendable {
         case .notes: "Notes"
         case .isCommute: "Domicile-travail"
         case .isTrainer: "Home-trainer"
+        case .workoutLabel: "Type de séance"
         }
     }
 }

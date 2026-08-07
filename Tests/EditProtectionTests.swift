@@ -235,6 +235,21 @@ struct EditProtectionTests {
             )
             let again = try mapper.upsert(summary: dto)
             #expect(again.isTrainer == true)
+
+        case .workoutLabel:
+            // The odd one out: nothing on the model is frozen here. The sync
+            // keeps refreshing Strava's `workout_type`, and the claim is what
+            // stops it from deciding — so what must survive the reimport is the
+            // label, not the code underneath it.
+            activity.workoutLabel = .longRun
+            activity.markEdited([.workoutLabel])
+            let dto = try Fixture.decode(
+                SummaryActivityDTO.self, from: "summary_activity",
+                patching: ["id": 60, "workout_type": 1]
+            )
+            let again = try mapper.upsert(summary: dto)
+            #expect(again.workoutType == 1)
+            #expect(again.workoutLabel == .longRun)
         }
     }
 

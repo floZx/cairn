@@ -18,6 +18,13 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
 
     var id: String { rawValue }
 
+    /// The three the user can actually choose between.
+    ///
+    /// `commute` and `trainer` are plain toggles in the editor, and `manual` and
+    /// `isPrivate` describe where an activity came from rather than what it was
+    /// — nothing the user should be able to claim by hand.
+    static let workoutTypes: [ActivityLabel] = [.race, .longRun, .workout]
+
     var displayName: String {
         switch self {
         case .race: "Compétition"

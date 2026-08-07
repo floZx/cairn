@@ -18,6 +18,9 @@ struct ActivityDraft: Equatable {
     var notes: String
     var isCommute: Bool
     var isTrainer: Bool
+    /// Nil means "no particular type", which is a value the user can choose —
+    /// not merely the absence of one.
+    var workoutLabel: ActivityLabel?
 
     init(_ activity: Activity) {
         name = activity.name
@@ -29,6 +32,7 @@ struct ActivityDraft: Equatable {
         notes = activity.activityDescription ?? ""
         isCommute = activity.isCommute
         isTrainer = activity.isTrainer
+        workoutLabel = activity.workoutLabel
     }
 
     /// An empty draft for a session that never went through a watch.
@@ -42,6 +46,7 @@ struct ActivityDraft: Equatable {
         notes = ""
         isCommute = false
         isTrainer = false
+        workoutLabel = nil
     }
 
     /// The name as it will actually be saved.
@@ -97,6 +102,7 @@ struct ActivityDraft: Equatable {
         if notes != original.notes { changed.insert(.notes) }
         if isCommute != original.isCommute { changed.insert(.isCommute) }
         if isTrainer != original.isTrainer { changed.insert(.isTrainer) }
+        if workoutLabel != original.workoutLabel { changed.insert(.workoutLabel) }
         return changed
     }
 
@@ -170,5 +176,6 @@ struct ActivityDraft: Equatable {
         activity.activityDescription = notes.isEmpty ? nil : notes
         activity.isCommute = isCommute
         activity.isTrainer = isTrainer
+        activity.workoutLabel = workoutLabel
     }
 }

@@ -45,6 +45,9 @@ final class Activity {
     /// Strava's `workout_type`. Kept raw because its meaning depends on the
     /// sport; `ActivityLabel.fromWorkoutType` does the interpretation.
     var workoutType: Int?
+    /// The workout type chosen in Cairn, when one has been. See `workoutLabel`,
+    /// which is what everything else reads.
+    var workoutLabelRaw: String?
 
     var kudosCount: Int = 0
     var achievementCount: Int = 0
@@ -137,10 +140,35 @@ final class Activity {
         hasTrack = true
     }
 
+    /// The workout type — race, long run, training session — from whichever
+    /// source is authoritative for this activity.
+    ///
+    /// Strava sends a sport-dependent `workout_type` code, and Cairn lets the
+    /// user override it. Which one wins is the whole point: the local value
+    /// takes over as soon as `.workoutLabel` is claimed in `editedFields`, and
+    /// that claim is also what makes "no type at all" a deliberate choice rather
+    /// than an absent one. On an activity that never came from Strava there is
+    /// nothing to fall back to, so the local value always wins — otherwise a
+    /// hand-entered race could never be marked as one, since `apply` only claims
+    /// fields on synced activities.
+    ///
+    /// Strava's code is still kept up to date by the sync even once overridden:
+    /// it costs nothing, and dropping it would make the override impossible to
+    /// undo.
+    var workoutLabel: ActivityLabel? {
+        get {
+            guard source.isSynced, !isEdited(.workoutLabel) else {
+                return workoutLabelRaw.flatMap(ActivityLabel.init(rawValue:))
+            }
+            return ActivityLabel.fromWorkoutType(workoutType)
+        }
+        set { workoutLabelRaw = newValue?.rawValue }
+    }
+
     /// The markers set on this activity, in a stable order for display.
     var labels: [ActivityLabel] {
         var found: [ActivityLabel] = []
-        if let fromType = ActivityLabel.fromWorkoutType(workoutType) {
+        if let fromType = workoutLabel {
             found.append(fromType)
         }
         if isCommute { found.append(.commute) }
