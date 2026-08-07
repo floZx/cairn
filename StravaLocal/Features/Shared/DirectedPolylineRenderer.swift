@@ -79,19 +79,45 @@ final class DirectedPolylineRenderer: MKPolylineRenderer {
     private static let chevronLength: CGFloat = 6
     private static let chevronStroke: CGFloat = 1.4
 
-    /// Black or white, whichever stands out against the track it is drawn on.
+    /// Black or white, whichever actually contrasts more with the track.
     ///
-    /// White alone was the first choice and it was a poor one: on the orange and
-    /// red tracks it barely separated from the line. Picked from the stroke's
-    /// luminance rather than fixed, since the track colour is the user's to set —
-    /// and one of the options is black, where white is the only readable answer.
+    /// Not "is the track light or dark", which is the question a first version
+    /// asked with a threshold picked by eye at 0.55. A saturated red sits at a
+    /// relative luminance near 0.25 and so counted as dark, keeping the chevrons
+    /// white on the very colour where they disappeared. Worse, the test that was
+    /// meant to catch it used orange, which happened to land the other side of
+    /// that threshold — it confirmed the assumption instead of checking the
+    /// requirement.
+    ///
+    /// The crossover is not a matter of taste. WCAG contrast against white is
+    /// `1.05 / (L + 0.05)` and against black `(L + 0.05) / 0.05`; they cross at
+    /// `L ≈ 0.179`. Above it black wins, below it white does. Which means black on
+    /// nearly every track colour, and white only on the genuinely dark ones —
+    /// black being one of the options, that case is real.
     static func chevronColor(on stroke: NSColor) -> NSColor {
-        guard let rgb = stroke.usingColorSpace(.sRGB) else { return .white }
-        // Rec. 709 luminance: green carries most of the perceived brightness.
-        let luminance = 0.2126 * rgb.redComponent
-            + 0.7152 * rgb.greenComponent
-            + 0.0722 * rgb.blueComponent
-        return luminance > 0.55 ? .black : .white
+        relativeLuminance(of: stroke) > 0.179 ? .black : .white
+    }
+
+    /// WCAG relative luminance, gamma-decoded.
+    ///
+    /// Converts before reading, and that is not defensive padding: `NSColor.black`
+    /// lives in Generic Gray, where `redComponent` raises rather than returning
+    /// zero. Black is one of the track colours on offer, so an API that trapped on
+    /// it would be a loaded gun.
+    ///
+    /// The gamma decoding matters too. On raw sRGB components a mid-tone reads far
+    /// brighter than the eye finds it, and that is part of how red ended up on the
+    /// wrong side of the crossover.
+    static func relativeLuminance(of color: NSColor) -> CGFloat {
+        guard let rgb = color.usingColorSpace(.sRGB) else { return 0 }
+        func linear(_ component: CGFloat) -> CGFloat {
+            component <= 0.03928
+                ? component / 12.92
+                : pow((component + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linear(rgb.redComponent)
+            + 0.7152 * linear(rgb.greenComponent)
+            + 0.0722 * linear(rgb.blueComponent)
     }
 
     private lazy var markers: [DirectionMarker] = {
