@@ -141,6 +141,12 @@ struct ImportMapper {
     }
 
     func apply(streams dto: StreamSetDTO, to activity: Activity) {
+        // Same guard as `upsert(summary:)` and `apply(detail:)`: no track or
+        // bounding box belongs to an activity a sync did not bring, even though
+        // neither is in `ActivityField` — an identifier collision would still
+        // overwrite a local activity's geometry with someone else's outing.
+        guard activity.source.isSynced else { return }
+
         let streams = activity.streams ?? {
             let new = ActivityStreams()
             new.activity = activity

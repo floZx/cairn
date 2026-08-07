@@ -165,6 +165,9 @@ enum DemoData {
             name: template.names[generator.int(in: 0...(template.names.count - 1))],
             sportType: template.sport
         )
+        // Invented, not synced: leaving `source` at its `.strava` default would
+        // make these fair game for a real sync to overwrite.
+        activity.source = .file
         activity.startDate = date
         activity.startLocalDate = date
 

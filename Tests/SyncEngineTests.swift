@@ -9,6 +9,7 @@ private actor FakeSource: StravaSyncSource {
     private(set) var requestedAfter: [Int] = []
     private(set) var streamRequests: [Int64] = []
     private(set) var gearRequests: [String] = []
+    private(set) var detailRequests: [Int64] = []
     private var notFoundIDs: Set<Int64> = []
     private var failWithServerError = false
     var streamsToReturn = StreamSetDTO(
@@ -45,7 +46,8 @@ private actor FakeSource: StravaSyncSource {
     }
 
     func activityDetail(id: Int64) async throws -> DetailActivityDTO {
-        DetailActivityDTO(
+        detailRequests.append(id)
+        return DetailActivityDTO(
             id: id, description: nil, calories: nil, device_name: nil, laps: nil
         )
     }
@@ -331,6 +333,25 @@ struct SyncStreamsTests {
         let second = try ModelContext(container)
             .fetch(FetchDescriptor<Activity>())[0].detailFetchedAt
         #expect(second == first)
+    }
+
+    @Test("une activité locale ne provoque aucune requête de détail")
+    func skipsDetailForLocalActivities() async throws {
+        let source = FakeSource(pages: [[]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress()
+        )
+        let context = ModelContext(container)
+        let manual = Activity(stravaID: 99, name: "Séance salle", sportType: .workout)
+        manual.source = .manual
+        context.insert(manual)
+        try context.save()
+
+        try await engine.fetchDetailIfNeeded(stravaID: 99)
+
+        #expect(await source.detailRequests.isEmpty)
+        #expect(manual.detailFetchedAt == nil)
     }
 
     @Test("le matériel référencé est récupéré une fois et rattaché")

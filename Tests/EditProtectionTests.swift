@@ -49,9 +49,13 @@ struct EditProtectionTests {
         // A Strava activity that happens to carry id 0 must not capture it.
         _ = try mapper.upsert(summary: summary(id: 0, name: "Autre", distance: 5_000))
 
+        // `source` is deliberately not asserted here: the mapper never writes
+        // it in any branch, so that assertion could not fail and would just be
+        // noise. `sportType` can: it comes from a stored raw value the guard
+        // must also leave untouched.
         #expect(manual.name == "Séance salle")
         #expect(manual.distance == 0)
-        #expect(manual.source == .manual)
+        #expect(manual.sportType == .workout)
     }
 
     @Test("réimporter deux fois ne duplique pas, sans contrainte d'unicité")
@@ -64,5 +68,82 @@ struct EditProtectionTests {
 
         // This is the guarantee that replaces the dropped #Unique constraint.
         #expect(try context.fetch(FetchDescriptor<Activity>()).count == 1)
+    }
+
+    @Test("markEdited(.startDate) protège les deux propriétés de date ensemble")
+    func protectsBothDateProperties() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let mapper = ImportMapper(context: context)
+
+        let activity = try mapper.upsert(
+            summary: summary(id: 40, name: "Sortie", distance: 5_000)
+        )
+        let originalStart = activity.startDate
+        let originalLocal = activity.startLocalDate
+        activity.markEdited([.startDate])
+
+        let corrected = try Fixture.decode(
+            SummaryActivityDTO.self, from: "summary_activity",
+            patching: [
+                "id": 40, "start_date": "2025-07-01T10:00:00Z",
+                "start_date_local": "2025-07-01T12:00:00Z",
+            ]
+        )
+        let again = try mapper.upsert(summary: corrected)
+
+        // A single "Date" field protects two stored properties: missing either
+        // one would leave sorting or filtering reading a value the sync just
+        // put back behind the user's edit.
+        #expect(again.startDate == originalStart)
+        #expect(again.startLocalDate == originalLocal)
+    }
+
+    @Test("des notes éditées survivent à apply(detail:)")
+    func protectsEditedNotes() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let mapper = ImportMapper(context: context)
+
+        let activity = try mapper.upsert(
+            summary: summary(id: 50, name: "Sortie", distance: 5_000)
+        )
+        activity.activityDescription = "Ma note perso"
+        activity.markEdited([.notes])
+
+        try mapper.apply(
+            detail: DetailActivityDTO(
+                id: 50, description: "Description Strava", calories: 812,
+                device_name: "Garmin Edge 840", laps: nil
+            ),
+            to: activity
+        )
+
+        // The description is protected; calories is not editable and must
+        // still land, or this would just be re-testing the source guard below.
+        #expect(activity.activityDescription == "Ma note perso")
+        #expect(activity.calories == 812)
+    }
+
+    @Test("une activité locale n'est pas touchée par apply(detail:)")
+    func detailLeavesLocalActivitiesAlone() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let mapper = ImportMapper(context: context)
+
+        let manual = Activity(stravaID: 51, name: "Séance salle", sportType: .workout)
+        manual.source = .manual
+        manual.activityDescription = "Note locale"
+        context.insert(manual)
+
+        // A Strava detail that happens to carry the same identifier must not
+        // capture it, same as the summary guard above.
+        try mapper.apply(
+            detail: DetailActivityDTO(
+                id: 51, description: "Description Strava", calories: 812,
+                device_name: "Garmin Edge 840", laps: nil
+            ),
+            to: manual
+        )
+
+        #expect(manual.activityDescription == "Note locale")
+        #expect(manual.calories == nil)
     }
 }

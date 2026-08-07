@@ -281,7 +281,10 @@ actor SyncEngine {
     func resyncEverything() async throws {
         let state = try state()
         state.lastSummaryEpoch = 0
-        for activity in try context.fetch(FetchDescriptor<Activity>()) {
+        // Only Strava's own activities have a detail worth re-fetching; clearing
+        // it on a local one would just make `fetchDetailIfNeeded` retry forever.
+        for activity in try context.fetch(FetchDescriptor<Activity>())
+        where activity.source.isSynced {
             activity.detailFetchedAt = nil
         }
         try context.save()
@@ -301,6 +304,7 @@ actor SyncEngine {
     /// the cost of the initial sync compared to fetching it up front.
     func fetchDetailIfNeeded(stravaID: Int64) async throws {
         guard let activity = try mapper.activity(stravaID: stravaID),
+              activity.source.isSynced,
               activity.detailFetchedAt == nil
         else { return }
         let detail = try await source.activityDetail(id: stravaID)
