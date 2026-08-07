@@ -111,7 +111,10 @@ final class Activity {
         set { editedFieldsRaw = newValue.map(\.rawValue).sorted() }
     }
 
-    func isEdited(_ field: ActivityField) -> Bool { editedFields.contains(field) }
+    /// Same answer as `editedFields.contains(field)`, without building a `Set`
+    /// for it: a render pass checks this once per field per row, and a table of
+    /// activities makes that add up.
+    func isEdited(_ field: ActivityField) -> Bool { editedFieldsRaw.contains(field.rawValue) }
 
     /// Adds to what the user has already claimed rather than replacing it: two
     /// successive edits of different fields must both stay protected.

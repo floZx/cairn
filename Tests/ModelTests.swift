@@ -5,6 +5,28 @@ import Foundation
 
 @Suite("Model")
 struct ModelTests {
+    @Test(
+        "le nom du store choisi ne dépend que de isTesting et isDemo, testing prioritaire",
+        arguments: [
+            (isTesting: true, isDemo: true, expected: "StravaLocal-tests.store"),
+            (isTesting: true, isDemo: false, expected: "StravaLocal-tests.store"),
+            (isTesting: false, isDemo: true, expected: "StravaLocal-demo.store"),
+            (isTesting: false, isDemo: false, expected: "StravaLocal.store"),
+        ]
+    )
+    func storeFileNameChoosesTheRightFile(
+        case testCase: (isTesting: Bool, isDemo: Bool, expected: String)
+    ) {
+        let name = AppModelContainer.storeFileName(
+            isTesting: testCase.isTesting, isDemo: testCase.isDemo
+        )
+        // The one property that matters above the rest: under test, this can
+        // never be the production file name — that is what keeps the suite from
+        // opening the user's real 132 MB store, as it once did.
+        if testCase.isTesting { #expect(name != "StravaLocal.store") }
+        #expect(name == testCase.expected)
+    }
+
     @Test("une activité survit à un aller-retour en base")
     func persistsActivity() throws {
         let container = try AppModelContainer.inMemory()

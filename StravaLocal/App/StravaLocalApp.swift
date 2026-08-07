@@ -18,6 +18,11 @@ struct StravaLocalApp: App {
         // has already opened a separate store file — the real library is never
         // touched. Failing here is not worth a crash: the app simply starts empty.
         try? DemoData.populateIfNeeded(ModelContext(container))
+        // Before any view reads an activity. Failing is not worth a crash: the
+        // rows keep their identity and the next launch tries again. The count is
+        // discardable by design, but `try?` wraps it in its own `Optional` that
+        // `@discardableResult` does not cover — hence the explicit `_ =`.
+        _ = try? StoreMaintenance.run(ModelContext(container))
         _app = State(initialValue: AppEnvironment(container: container))
     }
 
