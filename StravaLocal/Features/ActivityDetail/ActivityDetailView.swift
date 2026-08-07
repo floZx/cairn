@@ -128,20 +128,3 @@ struct ActivityDetailView: View {
         }
     }
 }
-
-private struct StatTile: View {
-    let title: String
-    let value: String
-
-    init(_ title: String, _ value: String) {
-        self.title = title
-        self.value = value
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.monospacedDigit())
-        }
-    }
-}

@@ -123,6 +123,11 @@ struct RootView: View {
 
     private var showsGlobalMap: Bool { sidebarSelection == .globalMap }
 
+    /// Both take the whole width, the detail pane included: neither has anything
+    /// to show beside them.
+    private var fillsTheWindow: Bool { showsGlobalMap || showsStatistics }
+    private var showsStatistics: Bool { sidebarSelection == .statistics }
+
     /// One three-column split view for the whole app life, never two.
     ///
     /// An earlier version swapped between a two- and a three-column
@@ -146,6 +151,8 @@ struct RootView: View {
                         region: regionBinding,
                         onExpand: { expandedMap = .global }
                     )
+                } else if showsStatistics {
+                    StatisticsView(activities: mapActivities)
                 } else {
                     ActivityListView(filter: filter, selection: $selectedActivities)
                         .id(filter)
@@ -174,7 +181,7 @@ struct RootView: View {
 
     @ViewBuilder
     private var detailColumn: some View {
-        if showsGlobalMap {
+        if fillsTheWindow {
             collapsedDetailColumn
         } else if let selected {
             ActivityDetailView(
@@ -193,7 +200,7 @@ struct RootView: View {
         }
     }
 
-    /// Nothing worth a pane: beside the global map, or with nothing selected.
+    /// Nothing worth a pane: beside a full-width view, or with nothing selected.
     ///
     /// Squeezing the column shut gives the width back to the list, and doing it
     /// this way keeps the split view's identity — and therefore the widths the
@@ -246,7 +253,7 @@ struct RootView: View {
                 } label: {
                     Label("Fermer le panneau", systemImage: "sidebar.trailing")
                 }
-                .disabled(selection.isEmpty || showsGlobalMap)
+                .disabled(selection.isEmpty || fillsTheWindow)
                 .help("Fermer le panneau de droite et désélectionner")
             }
     }

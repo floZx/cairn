@@ -2,8 +2,8 @@
 
 Application macOS native qui conserve une copie locale de vos données Strava et
 permet de les consulter hors ligne : liste filtrable, détail d'activité avec
-trace et courbes, carte de toutes vos traces, et recherche d'activités par zone
-géographique.
+trace et courbes, carte de toutes vos traces, recherche d'activités par zone
+géographique et statistiques.
 
 ## Prérequis
 
@@ -69,10 +69,24 @@ La synchronisation se déroule en deux temps :
 
 Les synchronisations suivantes sont incrémentales.
 
+## Statistiques
+
+La vue Statistiques porte sur les activités **que les filtres laissent**, jamais
+sur la bibliothèque entière : le sous-titre de la fenêtre rappelle toujours ce
+qui est inclus. Elle donne les cumuls, un histogramme des douze derniers mois,
+une ventilation par sport et les records.
+
+Un choix de fond : aucune distance totale n'est affichée globalement. Additionner
+une natation, une sortie en vélo électrique et un trail donne un nombre qui
+n'informe sur rien. Seuls le nombre d'activités, le temps et le dénivelé sont
+cumulés globalement ; la distance se lit par sport.
+
 ## Fonds de carte
 
-Quatre fonds proviennent d'Apple et ne sollicitent aucun service tiers : Plan,
-Plan avec relief, Satellite, Satellite et noms.
+Trois fonds proviennent d'Apple et ne sollicitent aucun service tiers : Plan,
+Satellite, Satellite et noms. Tous rendent le relief du terrain, ce qui a fait
+disparaître l'entrée « Plan avec relief » : elle aurait été la même carte sous un
+second nom.
 
 Deux fonds topographiques apportent les courbes de niveau et les sentiers, que
 MapKit n'offre sous aucune forme. Ce sont les seuls à contacter un serveur
@@ -115,8 +129,12 @@ des réessais : les tuiles cessaient d'arriver. La cause s'est révélée être
 ailleurs — des propriétés de `MKMapView` réécrites à chaque mise à jour de vue —
 mais la leçon vaut d'être retenue : ne changer qu'une chose à la fois.
 
-Le choix du fond est mémorisé et partagé par la carte d'activité et la carte
-globale.
+Le choix du fond est mémorisé et partagé par les trois cartes.
+
+Sur la carte d'une activité, la caméra est inclinée au chargement pour donner le
+relief à voir. Les deux autres restent à plat : elles se lisent d'au-dessus, et
+sur la carte globale une zone tracée à l'écran couvrirait un trapèze au sol, ce
+qui fausserait la conversion en filtre géographique.
 
 ## Emplacement des données
 

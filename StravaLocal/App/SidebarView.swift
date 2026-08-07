@@ -4,6 +4,7 @@ import SwiftData
 enum SidebarItem: Hashable {
     case all
     case globalMap
+    case statistics
 }
 
 /// Navigation and every filter in one pane.
@@ -32,6 +33,8 @@ struct SidebarView: View {
                     .tag(SidebarItem.all)
                 Label("Carte globale", systemImage: "map")
                     .tag(SidebarItem.globalMap)
+                Label("Statistiques", systemImage: "chart.bar")
+                    .tag(SidebarItem.statistics)
 
                 // Sits with the map rather than among the filters: it undoes a
                 // rectangle drawn there, and that is where it will be looked for.
