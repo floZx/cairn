@@ -5,15 +5,15 @@ import AppKit
 /// Drawing the rectangle here rather than in MKMapView keeps map gestures and
 /// selection gestures from fighting over the same drag: when disabled, the view
 /// declines every hit test and the map behaves exactly as if it weren't there.
+///
+/// The cursor is not its business — `CursorAssertingMapView` owns that, and this
+/// covering the map is precisely why: two views claiming a cursor over the same
+/// pixels is how the resize double-arrow got to linger here and nowhere else.
 final class SelectionOverlayView: NSView {
     var isEnabled = false {
         didSet {
             if !isEnabled { currentRect = nil }
             needsDisplay = true
-            // AppKit only recomputes cursor rects when the window is told to, so
-            // without this the crosshair arrived late on entering selection mode
-            // and outstayed its welcome on leaving it.
-            window?.invalidateCursorRects(for: self)
         }
     }
     var onSelection: ((NSRect) -> Void)?
@@ -52,14 +52,6 @@ final class SelectionOverlayView: NSView {
         anchor = nil
         currentRect = nil
         onSelection?(rect)
-    }
-
-    override func resetCursorRects() {
-        // Only the crosshair, and only in selection mode: asserting the plain
-        // arrow the rest of the time is `CursorAssertingMapView`'s job, for every
-        // map rather than this one alone.
-        guard isEnabled else { return }
-        addCursorRect(bounds, cursor: .crosshair)
     }
 
     override func draw(_ dirtyRect: NSRect) {

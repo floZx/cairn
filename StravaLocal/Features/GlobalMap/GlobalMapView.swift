@@ -155,6 +155,8 @@ struct TrackMapRepresentable: NSViewRepresentable {
             context.coordinator.selectionOverlay?.isEnabled = isSelectingRegion
             // Panning must stop while drawing, otherwise the drag moves the map.
             mapView.isScrollEnabled = !isSelectingRegion
+            (mapView as? CursorAssertingMapView)?.claimedCursor =
+                isSelectingRegion ? .crosshair : .arrow
         }
 
         context.coordinator.onSelect = onSelect
