@@ -55,6 +55,9 @@ final class SelectionOverlayView: NSView {
     }
 
     override func resetCursorRects() {
+        // Only the crosshair, and only in selection mode: asserting the plain
+        // arrow the rest of the time is `CursorAssertingMapView`'s job, for every
+        // map rather than this one alone.
         guard isEnabled else { return }
         addCursorRect(bounds, cursor: .crosshair)
     }

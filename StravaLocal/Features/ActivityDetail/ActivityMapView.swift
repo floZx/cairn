@@ -15,7 +15,7 @@ struct ActivityMapView: NSViewRepresentable {
     var trackColor: TrackColor = .accent
 
     func makeNSView(context: Context) -> MKMapView {
-        let mapView = MKMapView()
+        let mapView = CursorAssertingMapView()
         mapView.delegate = context.coordinator
         mapView.showsCompass = true
         mapView.showsZoomControls = true
