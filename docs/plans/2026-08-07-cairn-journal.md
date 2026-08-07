@@ -1509,6 +1509,30 @@ struct StoreMaintenanceTests {
         #expect(recent.uuid == keptUUID)
     }
 
+    @Test("des uuid dupliqués sont départagés, un seul étant conservé")
+    func breaksTiesBetweenDuplicates() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        // The case that matters, and the reason this does not merely look for
+        // empty strings: a SwiftData property default is a single value in the
+        // managed model, so a lightweight migration may well give every existing
+        // row the *same* generated uuid. None would be empty, and a backfill
+        // looking only for empties would leave 840 activities sharing an identity
+        // that views use as a key.
+        let first = Activity(stravaID: 1, name: "Une", sportType: .run)
+        let second = Activity(stravaID: 2, name: "Deux", sportType: .run)
+        let third = Activity(stravaID: 3, name: "Trois", sportType: .run)
+        for activity in [first, second, third] {
+            activity.uuid = "same-for-every-migrated-row"
+            context.insert(activity)
+        }
+
+        #expect(try StoreMaintenance.run(context) == 2)
+
+        let uuids = [first, second, third].map(\.uuid)
+        #expect(Set(uuids).count == 3)
+        #expect(uuids.allSatisfy { !$0.isEmpty })
+    }
+
     @Test("relancer la maintenance ne fait rien de plus")
     func isIdempotent() throws {
         let context = ModelContext(try AppModelContainer.inMemory())
@@ -1542,23 +1566,36 @@ import SwiftData
 /// will want somewhere obvious to live, and two of them scattered across the
 /// launch path would be two to find.
 enum StoreMaintenance {
-    /// Fills in what a lightweight schema migration could not.
+    /// Gives every activity an identity of its own.
     ///
-    /// SwiftData gives a new property its default for every existing row, and a
-    /// default cannot be a fresh UUID per row — every migrated activity would
-    /// share one. Returns how many rows were completed, which is what makes it
-    /// testable and its idempotence checkable.
+    /// Two cases, and the second is why this does not merely look for empty
+    /// strings. A SwiftData property default is a single value in the managed
+    /// model, so a lightweight migration may give every existing row the *same*
+    /// generated uuid — none empty, all identical, and views keying off it would
+    /// treat hundreds of activities as one. Rather than bet on which of the two
+    /// SwiftData does, handle both.
+    ///
+    /// Returns how many rows were changed, which is what makes it testable and
+    /// its idempotence checkable.
     @discardableResult
     static func run(_ context: ModelContext) throws -> Int {
-        let activities = try context.fetch(
-            FetchDescriptor<Activity>(predicate: #Predicate { $0.uuid.isEmpty })
-        )
+        let activities = try context.fetch(FetchDescriptor<Activity>())
+        var seen: Set<String> = []
+        var changed = 0
+
         for activity in activities {
-            activity.uuid = UUID().uuidString
+            // First claimant of a duplicated uuid keeps it; the rest are reissued.
+            // Reassigning them all would churn identities that are already fine.
+            if activity.uuid.isEmpty || seen.contains(activity.uuid) {
+                activity.uuid = UUID().uuidString
+                changed += 1
+            }
+            seen.insert(activity.uuid)
         }
-        guard !activities.isEmpty else { return 0 }
+
+        guard changed > 0 else { return 0 }
         try context.save()
-        return activities.count
+        return changed
     }
 }
 ```
