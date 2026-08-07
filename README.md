@@ -122,6 +122,24 @@ main n'aurait de sens.
 **Ajout (⌘N).** Une séance sans montre s'ajoute à la main. Elle n'a pas
 d'identifiant Strava et la synchronisation l'ignore entièrement.
 
+**Import GPX (⌘I).** Un ou plusieurs fichiers à la fois. Distance, dénivelé et
+temps en mouvement sont recalculés depuis les points, puisque aucun fichier ne les
+porte : le dénivelé par hystérésis, pour qu'un baromètre qui oscille de deux mètres
+à l'arrêt ne devienne pas trois cents mètres de montée, et le temps en mouvement en
+écartant ce qui est parcouru sous 0,5 m/s. Un fichier illisible n'annule pas les
+autres ; ceux qui échouent sont listés à la fin. Ces activités ont la source
+`fichier` et la synchronisation les ignore entièrement.
+
+**Export GPX (⇧⌘E).** La sélection, vers un fichier ou vers un dossier si elle en
+compte plusieurs. C'est la contrepartie de tout le reste : des données ne sont
+vraiment à vous que si vous pouvez les ressortir. L'export utilise la trace
+complète quand les détails ont été récupérés, la trace simplifiée sinon — moins
+riche, mais préférable à un refus.
+
+**Favoris (⌘D).** Purement local ; Strava n'a pas d'équivalent, donc rien à
+protéger d'une resynchronisation. L'étoile apparaît dans la colonne Étiquettes et
+la barre latérale sait filtrer dessus, comme pour les autres marqueurs.
+
 **Suppression (⌘⌫).** Une activité Strava supprimée laisse une trace discrète —
 une pierre tombale — qui l'empêche de revenir à la resynchronisation suivante. La
 réintégrer recule le curseur de synchronisation en deçà de la date de départ de

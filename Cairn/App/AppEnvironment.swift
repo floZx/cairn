@@ -28,6 +28,9 @@ final class AppEnvironment {
     var requestNewActivity: (() -> Void)?
     var requestEditSelection: (() -> Void)?
     var requestDeleteSelection: (() -> Void)?
+    var requestToggleFavorite: (() -> Void)?
+    var requestImportGPX: (() -> Void)?
+    var requestExportGPX: (() -> Void)?
 
     init(container: ModelContainer) {
         let store = KeychainStore()

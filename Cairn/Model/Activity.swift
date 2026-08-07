@@ -38,6 +38,9 @@ final class Activity {
     var averageCadence: Double?
     var calories: Double?
 
+    /// Marked by hand in Cairn and nowhere else: Strava has no equivalent, so
+    /// there is nothing for a sync to overwrite and nothing to protect.
+    var isFavorite: Bool = false
     var isCommute: Bool = false
     var isTrainer: Bool = false
     var isManual: Bool = false
@@ -168,6 +171,7 @@ final class Activity {
     /// The markers set on this activity, in a stable order for display.
     var labels: [ActivityLabel] {
         var found: [ActivityLabel] = []
+        if isFavorite { found.append(.favorite) }
         if let fromType = workoutLabel {
             found.append(fromType)
         }

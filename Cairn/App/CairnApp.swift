@@ -45,6 +45,19 @@ struct CairnApp: App {
                 Button("Supprimer l'activité") { app.requestDeleteSelection?() }
                     .keyboardShortcut(.delete, modifiers: .command)
                     .disabled(app.requestDeleteSelection == nil)
+                Button("Favori") { app.requestToggleFavorite?() }
+                    .keyboardShortcut("d")
+                    .disabled(app.requestToggleFavorite == nil)
+            }
+            // The standard placement, so Import and Export land where macOS
+            // users already look for them rather than under a menu of our own.
+            CommandGroup(replacing: .importExport) {
+                Button("Importer des fichiers GPX…") { app.requestImportGPX?() }
+                    .keyboardShortcut("i")
+                    .disabled(app.requestImportGPX == nil)
+                Button("Exporter la sélection en GPX…") { app.requestExportGPX?() }
+                    .keyboardShortcut("e", modifiers: [.command, .shift])
+                    .disabled(app.requestExportGPX == nil)
             }
             CommandMenu("Strava") {
                 Button("Synchroniser") { app.syncNow() }

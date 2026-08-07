@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct RootView: View {
     @Environment(AppEnvironment.self) private var app
@@ -26,6 +27,10 @@ struct RootView: View {
     /// clears, the sheet dismisses) before `try?` used to hide a failed
     /// `context.save()` behind a screen that already looks correct.
     @State private var writeFailureMessage: String?
+    /// Kept apart from `writeFailureMessage`: a GPX that would not parse is not
+    /// a failed save, and telling the user their work was lost when it was not
+    /// is its own kind of wrong.
+    @State private var fileMessage: String?
     /// Shared with every map so the chosen background and colour carry over.
     @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
     @AppStorage(TrackColor.storageKey) private var expandedTrackColor: TrackColor = .accent
@@ -143,10 +148,24 @@ struct RootView: View {
         } message: {
             Text(writeFailureMessage ?? "")
         }
+        .alert(
+            "Fichiers GPX",
+            isPresented: Binding(
+                get: { fileMessage != nil },
+                set: { if !$0 { fileMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { fileMessage = nil }
+        } message: {
+            Text(fileMessage ?? "")
+        }
         .onAppear {
             app.requestNewActivity = { editor = .create }
             app.requestEditSelection = { if let selected { editor = .edit(selected) } }
             app.requestDeleteSelection = { pendingDeletion = selected }
+            app.requestToggleFavorite = { toggleFavorite() }
+            app.requestImportGPX = { chooseGPXFilesToImport() }
+            app.requestExportGPX = { exportGPX(selection) }
         }
     }
 
@@ -299,6 +318,124 @@ struct RootView: View {
         }
     }
 
+    /// Stars, or unstars, every selected activity.
+    ///
+    /// One shared new value rather than a per-activity flip: toggling a mixed
+    /// selection item by item would leave it just as mixed, which is not what
+    /// pressing a button once means.
+    private func toggleFavorite() {
+        let activities = selection
+        guard !activities.isEmpty else { return }
+        let starred = !activities.allSatisfy(\.isFavorite)
+        for activity in activities { activity.isFavorite = starred }
+        do {
+            try modelContext.save()
+        } catch {
+            writeFailureMessage =
+                "Le favori n'a pas pu être enregistré. \(error.localizedDescription)"
+        }
+    }
+
+    private func chooseGPXFilesToImport() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [Self.gpxType]
+        panel.prompt = "Importer"
+        panel.message = "Choisissez un ou plusieurs fichiers GPX à ajouter au journal"
+        guard panel.runModal() == .OK else { return }
+        importGPX(from: panel.urls)
+    }
+
+    /// Imports every chosen file, keeping the ones that worked.
+    ///
+    /// One bad file among ten does not cancel the other nine: the failures are
+    /// listed by name at the end instead. Selecting what came in is what makes
+    /// an import visible — otherwise the rows land somewhere in 840 others.
+    private func importGPX(from urls: [URL]) {
+        let importer = GPXImporter(context: modelContext)
+        var imported: [Activity] = []
+        var failures: [String] = []
+
+        for url in urls {
+            do {
+                let track = try GPXParser.parse(data: try Data(contentsOf: url))
+                imported.append(
+                    try importer.import(
+                        track,
+                        fallbackName: url.deletingPathExtension().lastPathComponent
+                    )
+                )
+            } catch {
+                failures.append("\(url.lastPathComponent) : \(error.localizedDescription)")
+            }
+        }
+
+        if !imported.isEmpty {
+            do {
+                try modelContext.save()
+                selectedActivities = Set(imported.map(\.id))
+                hasAutoSelected = true
+            } catch {
+                failures.append(
+                    "L'enregistrement a échoué : \(error.localizedDescription)"
+                )
+            }
+        }
+        fileMessage = Self.importReport(imported: imported.count, failures: failures)
+    }
+
+    /// What to tell the user afterwards, or nil when everything worked and the
+    /// new rows on screen already say so.
+    static func importReport(imported: Int, failures: [String]) -> String? {
+        guard !failures.isEmpty else { return nil }
+        let head = imported == 0
+            ? "Aucun fichier n'a pu être importé."
+            : "\(imported) activité\(imported > 1 ? "s importées" : " importée"), les autres non :"
+        return ([head] + failures).joined(separator: "\n")
+    }
+
+    private func exportGPX(_ activities: [Activity]) {
+        guard !activities.isEmpty else { return }
+        if let single = activities.count == 1 ? activities.first : nil {
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [Self.gpxType]
+            panel.nameFieldStringValue = GPXWriter.fileName(for: single)
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            write([single], into: url.deletingLastPathComponent(), names: [url.lastPathComponent])
+            return
+        }
+        // Several at once go to a folder: a save panel per activity would mean
+        // twenty dialogs for twenty rows.
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.prompt = "Exporter"
+        panel.message = "Choisissez le dossier où écrire les \(activities.count) fichiers GPX"
+        guard panel.runModal() == .OK, let directory = panel.url else { return }
+        write(activities, into: directory, names: activities.map(GPXWriter.fileName(for:)))
+    }
+
+    private func write(_ activities: [Activity], into directory: URL, names: [String]) {
+        var failures: [String] = []
+        for (activity, name) in zip(activities, names) {
+            do {
+                try GPXWriter.document(for: activity)
+                    .write(to: directory.appending(path: name), atomically: true, encoding: .utf8)
+            } catch {
+                failures.append("\(name) : \(error.localizedDescription)")
+            }
+        }
+        if !failures.isEmpty {
+            fileMessage = (["Certains fichiers n'ont pas pu être écrits :"] + failures)
+                .joined(separator: "\n")
+        }
+    }
+
+    /// `.gpx` is not a system-declared type, so it is built from the extension;
+    /// `.xml` is the honest fallback, since a GPX is one.
+    private static let gpxType = UTType(filenameExtension: "gpx") ?? .xml
+
     /// A floor for the detail pane whenever it actually has something to show.
     ///
     /// Not decoration: the collapse below sets the column's width to zero, and
@@ -397,6 +534,20 @@ struct RootView: View {
                     Label("Nouvelle activité", systemImage: "plus")
                 }
                 .help("Ajouter une activité saisie à la main")
+
+                Button {
+                    toggleFavorite()
+                } label: {
+                    // Filled when every selected activity is already a favourite,
+                    // so the icon says what the button is about to do.
+                    Label(
+                        "Favori",
+                        systemImage: selection.allSatisfy(\.isFavorite) && !selection.isEmpty
+                            ? "star.fill" : "star"
+                    )
+                }
+                .disabled(selection.isEmpty)
+                .help("Marquer ou retirer des favoris")
 
                 Button {
                     if let selected { editor = .edit(selected) }

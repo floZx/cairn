@@ -8,6 +8,10 @@ import Foundation
 /// workout. Reading a ride's `1` as "race" would be wrong, hence the explicit
 /// mapping rather than arithmetic.
 enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
+    /// Purely local, and the only label that is neither Strava's nor derived
+    /// from it. Being one of these gets it the badge in the list and the filter
+    /// toggle in the sidebar for free.
+    case favorite
     case race
     case longRun
     case workout
@@ -27,6 +31,7 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
 
     var displayName: String {
         switch self {
+        case .favorite: "Favori"
         case .race: "Compétition"
         case .longRun: "Sortie longue"
         case .workout: "Entraînement"
@@ -40,6 +45,7 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
     /// Short enough for a narrow table column.
     var shortName: String {
         switch self {
+        case .favorite: "Favori"
         case .race: "Compét."
         case .longRun: "Longue"
         case .workout: "Entraîn."
@@ -52,6 +58,7 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
 
     var symbolName: String {
         switch self {
+        case .favorite: "star.fill"
         case .race: "flag.checkered"
         case .longRun: "arrow.right.to.line"
         case .workout: "stopwatch"
