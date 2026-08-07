@@ -15,9 +15,16 @@ struct RootView: View {
     @AppStorage(TrackColor.storageKey) private var expandedTrackColor: TrackColor = .accent
     @Query private var allActivities: [Activity]
 
-    /// The selected activities, whatever their number.
+    /// The selected activities, restricted to those the list actually shows.
+    ///
+    /// Resolved against the filtered set rather than the whole library: a filter
+    /// can hide a selected activity, and a detail pane for a row that is no
+    /// longer in the list is a pane the list offers no way to close. The stored
+    /// ids are deliberately left alone, so lifting the filter brings the
+    /// selection back rather than silently discarding it.
     private var selection: [Activity] {
-        allActivities.filter { selectedActivities.contains($0.id) }
+        guard !selectedActivities.isEmpty else { return [] }
+        return mapActivities.filter { selectedActivities.contains($0.id) }
     }
 
     /// The one selected activity, or nil as soon as there are several: the
