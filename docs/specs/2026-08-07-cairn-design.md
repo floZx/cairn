@@ -103,8 +103,10 @@ Trois champs avec valeurs par défaut et un modèle supplémentaire : SwiftData
 migre légèrement, sans code. Aucun champ existant n'est renommé ni supprimé, ce qui
 est précisément la condition pour que ce soit vrai.
 
-`uuid` doit être renseigné pour les lignes existantes. Un passage unique au premier
-lancement le fait pour les activités dont l'`uuid` est vide.
+`uuid` doit être renseigné pour les lignes existantes. Un passage unique au
+lancement le fait pour les activités dont l'`uuid` est vide, au même endroit que le
+déplacement du dossier de données — un seul point d'entrée pour tout ce qui doit
+arriver une fois, plutôt que deux mécanismes à retrouver plus tard.
 
 ## Les gestes
 
@@ -156,8 +158,11 @@ Trois points de conception assumés :
   vitesse. `movingTime = elapsedTime`, et le champ est modifiable. Mieux vaut un
   chiffre visiblement approximatif qu'un chiffre qui aurait l'air mesuré.
 - **Le doublon est le cas réel** : importer le GPX d'une sortie déjà synchronisée.
-  Même heure de départ à quelques minutes près et distance voisine ⇒ l'import le
-  signale et laisse choisir, plutôt que de créer un jumeau silencieux.
+  Seuils explicites plutôt que « proche » : départ à moins de **15 minutes** et
+  distance à moins de **5 %** ⇒ l'import le signale et laisse choisir, plutôt que de
+  créer un jumeau silencieux. Quinze minutes parce qu'une montre et Strava peuvent
+  diverger sur l'instant de départ ; 5 % parce que la distance d'un même parcours
+  varie avec l'algorithme qui l'a calculée.
 
 ## Le renommage
 
@@ -200,6 +205,22 @@ où on le cherche.
 Un cairn géométrique — trois ou quatre pierres empilées, à plat — généré par script
 dans les dix tailles du catalogue. Point de départ remplaçable, pas une œuvre.
 
+## Ordre de mise en œuvre
+
+Six chantiers, trop pour un seul lot. L'ordre n'est pas indifférent :
+
+1. **Le modèle et la protection.** `uuid`, `source`, `editedFields`, le point de
+   contrôle dans `ImportMapper`, `DiscardedActivity`. Rien de visible, mais tout le
+   reste en dépend, et c'est là qu'est le risque sur les données.
+2. **Les gestes.** Feuille d'édition, ajout manuel, suppression avec confirmation,
+   écran des activités écartées. Rend le lot 1 utilisable.
+3. **L'import GPX.** Indépendant des deux précédents : un lecteur isolé, ses
+   fixtures, la détection de doublon, le panneau d'import.
+4. **Le renommage et la migration.** En dernier, délibérément : renommer d'abord
+   obligerait à réécrire chaque fichier touché par les lots précédents, et mélanger
+   un renommage massif avec des changements de comportement rend toute régression
+   indémêlable.
+
 ## Tests
 
 Ce qui doit être couvert, et pourquoi :
@@ -215,8 +236,9 @@ Ce qui doit être couvert, et pourquoi :
 - **`GPXImporter`** sur fixtures : trace nominale, fichier sans altitude, fichier
   sans horodatage, XML malformé, fichier vide. Un GPX mal formé ne doit pas faire
   tomber l'application.
-- **Détection de doublon** : même départ et distance voisine ⇒ signalé ; départ
-  éloigné ⇒ importé sans question.
+- **Détection de doublon** aux deux bornes : dans les seuils ⇒ signalé ; juste
+  au-delà de l'un des deux ⇒ importé sans question. Un seuil ne se teste qu'en le
+  franchissant.
 - **Migration** : dossier ancien présent et nouveau absent ⇒ déplacé ; les deux
   présents ⇒ intact ; aucun des deux ⇒ sans effet.
 
