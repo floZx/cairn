@@ -12,8 +12,8 @@ import SwiftUI
 /// Measured on macOS 15: `NavigationSplitView` is a plain `NSSplitView` with
 /// three panes whose delegate is a private `NavigationSplitViewController`, so
 /// the priorities go on that controller's items. Nothing about that is
-/// contractual, hence the diagnostics below rather than a silent assumption —
-/// if the shape ever changes, the log names the tree and nothing is set.
+/// contractual, so finding nothing is treated as normal: no priorities are set
+/// and the layout behaves exactly as it did before.
 ///
 /// Three corrections were needed to get here, each found by measuring rather
 /// than by reasoning:
@@ -71,10 +71,8 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
                 return
             }
         }
-        Diagnostics.splitView(
-            "gave up — window tree: "
-                + (probe.window?.contentView?.treeDescription() ?? "no window")
-        )
+        // Nothing found after every retry: the layout simply behaves as it did
+        // before. Silent on purpose — this is polish, not a broken feature.
     }
 
     /// Sets the priorities on a split view's items.
@@ -91,17 +89,12 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         let items = controller.splitViewItems
         guard items.count >= 3 else { return false }
 
-        let before = items.map(\.holdingPriority.rawValue)
         set(listPriority, on: items[1])
         set(detailPriority, on: items[2])
 
         // Keeps the window's width fixed and resizes the panes instead;
         // otherwise AppKit answers a sidebar toggle by resizing the window.
         items[0].collapseBehavior = .preferResizingSiblingsWithFixedSplitView
-
-        Diagnostics.splitView(
-            "priorities \(before) -> \(items.map(\.holdingPriority.rawValue))"
-        )
         return true
     }
 
@@ -133,15 +126,5 @@ extension NSView {
             found.append(contentsOf: subview.descendantSplitViews())
         }
         return found
-    }
-
-    /// Class names down to `depth`, for diagnostics only.
-    func treeDescription(depth: Int = 4) -> String {
-        let name = String(describing: type(of: self))
-        guard depth > 0, !subviews.isEmpty else { return name }
-        let children = subviews
-            .map { $0.treeDescription(depth: depth - 1) }
-            .joined(separator: " ")
-        return "\(name)[\(children)]"
     }
 }

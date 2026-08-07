@@ -126,16 +126,4 @@ struct SplitViewHoldingPrioritiesTests {
         #expect(contentView.descendantSplitViews() == [splitView])
         #expect(NSView().descendantSplitViews().isEmpty)
     }
-
-    @Test("l'arbre de vues est décrit jusqu'à la profondeur demandée")
-    func describesViewTree() {
-        let root = NSView()
-        let middle = NSView()
-        middle.addSubview(makeBareSplitView())
-        root.addSubview(middle)
-
-        #expect(root.treeDescription(depth: 3).contains("NSSplitView"))
-        // Bounded so a deep SwiftUI hierarchy cannot flood the log.
-        #expect(root.treeDescription(depth: 1).contains("NSSplitView") == false)
-    }
 }
