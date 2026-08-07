@@ -141,6 +141,8 @@ struct RootView: View {
         } detail: {
             detailColumn
         }
+        // Makes the list absorb a sidebar toggle instead of the detail pane.
+        .background(SplitViewHoldingPriorities())
         .toolbar { syncToolbar }
     }
 
