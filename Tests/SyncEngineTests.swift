@@ -4,7 +4,7 @@ import Foundation
 @testable import StravaLocal
 
 /// Serves pages of canned summaries and records what was asked for.
-private actor FakeSource: ActivitySource {
+private actor FakeSource: StravaSyncSource {
     private let pages: [[SummaryActivityDTO]]
     private(set) var requestedAfter: [Int] = []
     private(set) var streamRequests: [Int64] = []

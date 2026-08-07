@@ -3,7 +3,11 @@ import SwiftData
 
 /// Abstracts the network away from the engine so a sync can be tested end to
 /// end without HTTP.
-protocol ActivitySource: Sendable {
+///
+/// Named for Strava specifically, not just `ActivitySource`, because that name
+/// now belongs to the domain enum recording where an `Activity` came from —
+/// this protocol is an implementation detail of syncing with one such source.
+protocol StravaSyncSource: Sendable {
     func activities(after: Int, page: Int, perPage: Int) async throws -> [SummaryActivityDTO]
     func streams(id: Int64) async throws -> StreamSetDTO
     func activityDetail(id: Int64) async throws -> DetailActivityDTO
@@ -15,7 +19,7 @@ protocol ActivitySource: Sendable {
 
 /// `StravaClient` already has every one of these signatures, so the conformance
 /// needs no bridging methods — adding one here would just recurse.
-extension StravaClient: ActivitySource {}
+extension StravaClient: StravaSyncSource {}
 
 /// An immutable copy of the sync progress, safe to hand outside the engine.
 ///
@@ -30,7 +34,7 @@ struct SyncStateSnapshot: Sendable, Equatable {
 }
 
 actor SyncEngine {
-    private let source: ActivitySource
+    private let source: StravaSyncSource
     private let container: ModelContainer
     private let progress: SyncProgress
     private let context: ModelContext
@@ -38,7 +42,7 @@ actor SyncEngine {
 
     private static let pageSize = 200
 
-    init(source: ActivitySource, container: ModelContainer, progress: SyncProgress) {
+    init(source: StravaSyncSource, container: ModelContainer, progress: SyncProgress) {
         self.source = source
         self.container = container
         self.progress = progress
