@@ -9,6 +9,9 @@ struct RootView: View {
     // See the comment on `ActivityListView.selection`: `Activity.ID` can't be
     // named from this file, so `PersistentIdentifier` is used directly.
     @State private var selectedActivities: Set<PersistentIdentifier> = []
+    /// Whether the list has already picked its opening row. Held here rather than
+    /// in the list, which `.id(filter)` re-instantiates on every filter change.
+    @State private var hasAutoSelected = false
     /// Which map, if any, is filling the window.
     @State private var expandedMap: ExpandedMap?
     /// Which editor is open, if any. One state rather than two booleans: the two
@@ -35,9 +38,19 @@ struct RootView: View {
     /// longer in the list is a pane the list offers no way to close. The stored
     /// ids are deliberately left alone, so lifting the filter brings the
     /// selection back rather than silently discarding it.
+    ///
+    /// Narrowed to the selected ids *before* the filter runs, not after. The set
+    /// it yields is the same either way, but this property is read four
+    /// or five times per pass of `body` — for the detail pane, the comparison
+    /// map, and every toolbar button's `disabled` — and the old order ran the
+    /// filter over the whole library each time. Running it over the one or two
+    /// activities actually selected turns each of those passes from 840
+    /// predicate evaluations into one.
     private var selection: [Activity] {
         guard !selectedActivities.isEmpty else { return [] }
-        return mapActivities.filter { selectedActivities.contains($0.id) }
+        return filter.apply(
+            to: allActivities.filter { selectedActivities.contains($0.id) }
+        )
     }
 
     /// The one selected activity, or nil as soon as there are several: the
@@ -238,8 +251,12 @@ struct RootView: View {
                 } else if showsStatistics {
                     StatisticsView(activities: statisticsActivities)
                 } else {
-                    ActivityListView(filter: filter, selection: $selectedActivities)
-                        .id(filter)
+                    ActivityListView(
+                        filter: filter,
+                        selection: $selectedActivities,
+                        hasAutoSelected: $hasAutoSelected
+                    )
+                    .id(filter)
                         .searchable(
                             text: $filter.searchText,
                             prompt: "Rechercher une activité"

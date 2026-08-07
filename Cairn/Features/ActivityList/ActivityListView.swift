@@ -11,6 +11,11 @@ struct ActivityListView: View {
     /// still opens the usual detail pane.
     @Binding var selection: Set<PersistentIdentifier>
 
+    /// Owned by the parent so it survives this view's `.id(filter)`: the first
+    /// row is picked once per launch, not again every time a filter changes and
+    /// re-instantiates the list under the user.
+    @Binding var hasAutoSelected: Bool
+
     /// Built in `init` from the incoming filter. The parent applies
     /// `.id(filter)` so a filter change re-instantiates the view, which is what
     /// rebuilds this query — `@Query` can't be mutated in place.
@@ -31,9 +36,14 @@ struct ActivityListView: View {
     @AppStorage("activityColumns.v2")
     private var columnCustomization = TableColumnCustomization<Activity>()
 
-    init(filter: ActivityFilter, selection: Binding<Set<PersistentIdentifier>>) {
+    init(
+        filter: ActivityFilter,
+        selection: Binding<Set<PersistentIdentifier>>,
+        hasAutoSelected: Binding<Bool>
+    ) {
         self.filter = filter
         self._selection = selection
+        self._hasAutoSelected = hasAutoSelected
         _query = Query(
             filter: filter.predicate(),
             sort: [SortDescriptor(\Activity.startDate, order: .reverse)]
@@ -44,8 +54,24 @@ struct ActivityListView: View {
         query.filter(filter.matchesPrecisely).sorted(using: sortOrder)
     }
 
+    /// The row to select when the list first appears, or nil to leave the
+    /// selection alone.
+    ///
+    /// Only ever the newest activity, and only when the user has chosen nothing:
+    /// opening on an empty pane wastes the window, but overriding a selection the
+    /// user made — or made a point of clearing — would be worse.
+    static func initialSelection(
+        rows: [Activity], current: Set<PersistentIdentifier>, hasAutoSelected: Bool
+    ) -> PersistentIdentifier? {
+        guard !hasAutoSelected, current.isEmpty else { return nil }
+        return rows.first?.id
+    }
+
     var body: some View {
-        Table(
+        // Bound once: `rows` filters and sorts the whole query, and it used to be
+        // recomputed for the table and again for each half of the title.
+        let rows = rows
+        return Table(
             rows,
             selection: $selection,
             sortOrder: $sortOrder,
@@ -120,5 +146,15 @@ struct ActivityListView: View {
         // The window subtitle, so the count is never read as the whole library
         // when it is in fact a filtered slice of it.
         .navigationSubtitle(filter.summary ?? "")
+        .onAppear {
+            if let first = Self.initialSelection(
+                rows: rows, current: selection, hasAutoSelected: hasAutoSelected
+            ) {
+                selection = [first]
+            }
+            // Set even when nothing was selected — an empty library on first
+            // launch must not arm the auto-selection for the next filter change.
+            hasAutoSelected = true
+        }
     }
 }
