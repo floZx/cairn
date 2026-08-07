@@ -34,13 +34,6 @@ enum Format {
         return String(format: "%d h %02d", minutes / 60, minutes % 60)
     }
 
-    /// Average or maximum heart rate. Absent on activities recorded without a
-    /// monitor, which is common enough that an em dash beats a zero.
-    static func heartRate(_ beatsPerMinute: Double?) -> String {
-        guard let beatsPerMinute, beatsPerMinute > 0 else { return "—" }
-        return "\(Int(beatsPerMinute.rounded())) bpm"
-    }
-
     static func elevation(_ metres: Double) -> String {
         "\(Int(metres.rounded())) m"
     }
@@ -130,8 +123,11 @@ enum Format {
         timeFormatter.string(from: date)
     }
 
+    /// Absent on activities recorded without a monitor — and Strava sends zero
+    /// for some manual entries, which means the same thing.
     static func heartrate(_ bpm: Double?) -> String {
-        bpm.map { "\(Int($0.rounded())) bpm" } ?? "—"
+        guard let bpm, bpm > 0 else { return "—" }
+        return "\(Int(bpm.rounded())) bpm"
     }
 
     static func power(_ watts: Double?) -> String {

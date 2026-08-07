@@ -97,7 +97,7 @@ struct ActivityListView: View {
             .customizationID("speed")
 
             TableColumn("FC moy.", value: \.averageHeartrateOrZero) { activity in
-                Text(Format.heartRate(activity.averageHeartrate))
+                Text(Format.heartrate(activity.averageHeartrate))
             }
             .width(min: 80, ideal: 90)
             .customizationID("averageHeartRate")

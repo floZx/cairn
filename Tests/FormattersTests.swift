@@ -34,10 +34,10 @@ struct FormattersTests {
 
     @Test("la fréquence cardiaque absente donne un tiret")
     func formatsHeartRate() {
-        #expect(Format.heartRate(142.6) == "143 bpm")
-        #expect(Format.heartRate(nil) == "—")
+        #expect(Format.heartrate(142.6) == "143 bpm")
+        #expect(Format.heartrate(nil) == "—")
         // Strava sends 0 for some manual entries; that is "no monitor" too.
-        #expect(Format.heartRate(0) == "—")
+        #expect(Format.heartrate(0) == "—")
     }
 
     @Test("le dénivelé est arrondi au mètre")

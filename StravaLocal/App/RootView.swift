@@ -222,6 +222,10 @@ struct RootView: View {
                     Label("Synchroniser", systemImage: "arrow.triangle.2.circlepath")
                 }
                 .disabled(!app.isAuthenticated || app.progress.isRunning)
+                // Already worded for every phase: the last run's date and time
+                // when idle, "Jamais synchronisé" before the first one, and what
+                // is happening while a sync is in flight.
+                .help(app.progress.statusText)
             }
             // Kept in place and merely disabled rather than appearing with the
             // selection: a toolbar whose buttons come and go is unsettling, and

@@ -110,8 +110,26 @@ final class AppEnvironment {
     private static let syncOnLaunchKey = "syncsOnLaunch"
 
     func syncOnLaunch() {
+        restoreLastSyncDate()
         guard syncsOnLaunch, isAuthenticated else { return }
         syncSummariesOnly()
+    }
+
+    /// Reads the last successful run back out of the store.
+    ///
+    /// `SyncProgress` is session state: the engine only sets `lastRunAt` when a
+    /// run finishes, so without this the app claimed it had never synced after
+    /// every launch. Unconditional — the date is worth showing whether or not
+    /// this launch goes on to sync, and whether or not anyone is signed in.
+    func restoreLastSyncDate() {
+        Task {
+            guard let date = try? await engine.stateSnapshot().lastRunAt else { return }
+            // Only while still empty: the launch sync starts immediately after
+            // this and may well finish first, and an awaited read must not put
+            // the older date back over it.
+            guard progress.lastRunAt == nil else { return }
+            progress.lastRunAt = date
+        }
     }
 
     /// Runs one sync operation with the guarantees every entry point needs:
