@@ -1,18 +1,38 @@
 import SwiftUI
+import SwiftData
 
 /// The activity's photos, in a row, each opening full size.
 ///
 /// A strip rather than a grid: the count is usually one to five, and a grid of
 /// three would leave two empty cells on every activity that has any.
 struct ActivityPhotosStrip: View {
-    let photos: [ActivityPhoto]
+    /// Queried rather than read off `activity.photos`.
+    ///
+    /// The sync writes them from another `ModelContext`, and the relationship on
+    /// an activity the interface already holds does not come back refreshed: the
+    /// photos reached the disk and the pane stayed empty until the next launch.
+    /// A `@Query` re-runs on a store change, so they appear as they arrive.
+    @Query private var photos: [ActivityPhoto]
     @State private var opened: ActivityPhoto?
+
+    init(activityUUID: String) {
+        _photos = Query(
+            filter: #Predicate<ActivityPhoto> { $0.activityUUID == activityUUID },
+            sort: [SortDescriptor(\ActivityPhoto.sortIndex)]
+        )
+    }
 
     /// Tall enough to recognise a summit or a finish line, short enough that the
     /// figures below stay on screen with it.
     private static let thumbnailHeight: CGFloat = 140
 
     var body: some View {
+        // Its own emptiness is its business: the caller cannot know how many
+        // photos there are without running the same query.
+        if !photos.isEmpty { strip }
+    }
+
+    private var strip: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Photos")
                 .font(.headline)

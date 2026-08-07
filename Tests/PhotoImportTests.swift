@@ -89,6 +89,39 @@ struct PhotoImportTests {
         #expect(activity.photos[0].sourceURL == "url-a-signée-à-nouveau")
     }
 
+    @Test("chaque photo porte l'identité de son activité")
+    func carriesItsActivityIdentity() throws {
+        // The pane finds photos by this field rather than through the
+        // relationship: the sync writes them from its own `ModelContext`, and a
+        // to-many relationship on an activity the interface already holds does
+        // not come back refreshed — the photos reached the disk and the pane
+        // stayed empty until the next launch.
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let activity = makeActivity(in: context)
+        let mapper = ImportMapper(context: context)
+
+        _ = mapper.upsert(photos: [photo(id: "a", urls: ["600": "url-a"])], on: activity)
+        #expect(activity.photos[0].activityUUID == activity.uuid)
+    }
+
+    @Test("une photo enregistrée avant ce champ est rattachée par la maintenance")
+    func maintenanceLinksOldPhotos() throws {
+        // Those photos would be invisible for good otherwise: the sync will not
+        // fetch them again, `photosFetchedAt` being already set on their activity.
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let activity = makeActivity(in: context)
+        let orphan = ActivityPhoto(uniqueID: "ancienne")
+        orphan.activity = activity
+        context.insert(orphan)
+        activity.photos.append(orphan)
+        try context.save()
+
+        #expect(try StoreMaintenance.run(context) > 0)
+        #expect(orphan.activityUUID == activity.uuid)
+        // Idempotent: a second pass has nothing left to repair.
+        #expect(try StoreMaintenance.run(context) == 0)
+    }
+
     @Test("une photo sans identifiant est reconnue par son adresse")
     func identifiesByURLWhenNoUniqueID() throws {
         // The undocumented endpoint owes us no field in particular. Without a

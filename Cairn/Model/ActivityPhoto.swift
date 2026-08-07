@@ -24,6 +24,15 @@ final class ActivityPhoto {
     @Attribute(.externalStorage) var data: Data?
 
     var activity: Activity?
+    /// The owning activity's `uuid`, kept alongside the relationship.
+    ///
+    /// Not redundancy for its own sake: the sync writes photos from its own
+    /// `ModelContext`, and a to-many relationship on an activity already
+    /// materialised in the interface's context does not come back refreshed —
+    /// the photos landed on disk and the pane stayed empty until relaunch. A
+    /// `@Query` keyed on this field re-runs on any store change, which the
+    /// relationship does not.
+    var activityUUID: String = ""
 
     init(uniqueID: String) {
         self.uniqueID = uniqueID

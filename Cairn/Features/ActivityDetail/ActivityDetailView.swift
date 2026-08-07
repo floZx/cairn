@@ -44,9 +44,7 @@ struct ActivityDetailView: View {
 
                 // Above the figures: a photo says what an outing was in a way no
                 // number does, and it arrives with the detail fetch anyway.
-                if !activity.photos.isEmpty {
-                    ActivityPhotosStrip(photos: activity.orderedPhotos)
-                }
+                ActivityPhotosStrip(activityUUID: activity.uuid)
 
                 statistics
 

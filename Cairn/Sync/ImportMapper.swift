@@ -306,6 +306,9 @@ struct ImportMapper {
                 return new
             }()
 
+            // Set every time, not only on creation: it is also what repairs a
+            // photo stored before this field existed.
+            photo.activityUUID = activity.uuid
             photo.sortIndex = index
             photo.caption = dto.caption
             photo.takenAt = dto.created_at_local ?? dto.created_at

@@ -29,8 +29,34 @@ enum StoreMaintenance {
             seen.insert(activity.uuid)
         }
 
+        changed += try linkPhotosToTheirActivity(context)
+
         guard changed > 0 else { return 0 }
         try context.save()
+        return changed
+    }
+
+    /// Fills in `ActivityPhoto.activityUUID` for photos stored before it existed.
+    ///
+    /// Without it those photos are invisible: the pane finds them by that field
+    /// rather than through the relationship, and the sync will not fetch them
+    /// again — `photosFetchedAt` is already set on their activity.
+    private static func linkPhotosToTheirActivity(_ context: ModelContext) throws -> Int {
+        // Compared to the empty string rather than asked `isEmpty`: the
+        // predicate engine translates the comparison and silently matches
+        // nothing for the property access, which is how this repair first ran
+        // and repaired zero rows.
+        let orphans = try context.fetch(
+            FetchDescriptor<ActivityPhoto>(
+                predicate: #Predicate { $0.activityUUID == "" }
+            )
+        )
+        var changed = 0
+        for photo in orphans {
+            guard let uuid = photo.activity?.uuid, !uuid.isEmpty else { continue }
+            photo.activityUUID = uuid
+            changed += 1
+        }
         return changed
     }
 }
