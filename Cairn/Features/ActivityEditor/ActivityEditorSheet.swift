@@ -101,7 +101,7 @@ struct ActivityEditorSheet: View {
                     Picker("Type de séance", selection: $draft.workoutLabel) {
                         Text("Aucun").tag(ActivityLabel?.none)
                         ForEach(ActivityLabel.workoutTypes) { label in
-                            Label(label.displayName, systemImage: label.symbolName)
+                            GutteredLabel(label.displayName, systemImage: label.symbolName)
                                 .tag(ActivityLabel?.some(label))
                         }
                     }

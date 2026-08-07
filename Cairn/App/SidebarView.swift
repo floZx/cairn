@@ -90,7 +90,7 @@ struct SidebarView: View {
             Section("Étiquettes") {
                 ForEach(ActivityLabel.allCases) { label in
                     Toggle(isOn: binding(for: label)) {
-                        Label(label.displayName, systemImage: label.symbolName)
+                        GutteredLabel(label.displayName, systemImage: label.symbolName)
                     }
                     .toggleStyle(.checkbox)
                 }

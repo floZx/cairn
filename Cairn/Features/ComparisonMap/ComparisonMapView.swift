@@ -39,7 +39,7 @@ struct ComparisonMapView: View {
                     .foregroundStyle(Color(nsColor: track.color))
                     .font(.caption)
                 VStack(alignment: .leading, spacing: 1) {
-                    Label(track.name, systemImage: track.sportSymbol)
+                    SportLabel(track.name, sport: track.sport)
                         .lineLimit(1)
                     Text(
                         track.isDrawable
@@ -66,7 +66,7 @@ struct ComparedTrack: Identifiable {
     let name: String
     let date: Date
     let distance: Double
-    let sportSymbol: String
+    let sport: SportType
     let coordinates: [Coordinate]
     let color: NSColor
 
@@ -90,7 +90,7 @@ struct ComparedTrack: Identifiable {
                     name: activity.name,
                     date: activity.startLocalDate,
                     distance: activity.distance,
-                    sportSymbol: activity.sportType.symbolName,
+                    sport: activity.sportType,
                     // The simplified track, as on the global map: at pane size
                     // the full stream is indistinguishable and would cost a much
                     // larger decode for every selected activity.

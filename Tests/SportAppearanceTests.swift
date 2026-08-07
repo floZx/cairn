@@ -1,9 +1,30 @@
 import Testing
 import SwiftUI
+import AppKit
 @testable import Cairn
 
 @Suite("Apparence des sports")
+@MainActor
 struct SportAppearanceTests {
+    @Test("la gouttière est assez large pour le plus large des symboles")
+    func theGutterFitsTheWidestSymbol() throws {
+        // The reason this exists: SF Symbols are not monospaced, so `Label`
+        // started each title wherever its symbol happened to end. Measured at a
+        // 13 pt body font, `bicycle` is 24 pt against 12 for `figure.walk`.
+        // A gutter narrower than the widest symbol would clip it.
+        let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        let widest = (SportType.allCases.map(\.symbolName)
+            + ActivityLabel.allCases.map(\.symbolName))
+            .compactMap {
+                NSImage(systemSymbolName: $0, accessibilityDescription: nil)?
+                    .withSymbolConfiguration(configuration)?.size.width
+            }
+            .max() ?? 0
+
+        #expect(widest > 0)
+        #expect(widest <= GutteredLabel("x", systemImage: "bicycle").gutterWidthForTesting)
+    }
+
     @Test("chaque sport a un symbole et une couleur")
     func everySportIsCovered() {
         // Both are exhaustive `switch`es, so a new case cannot compile without

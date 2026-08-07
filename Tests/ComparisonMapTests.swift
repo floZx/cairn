@@ -82,7 +82,7 @@ struct ComparisonMapTests {
         let recoloured = [
             ComparedTrack(
                 id: tracks[0].id, name: tracks[0].name, date: tracks[0].date,
-                distance: tracks[0].distance, sportSymbol: tracks[0].sportSymbol,
+                distance: tracks[0].distance, sport: tracks[0].sport,
                 coordinates: tracks[0].coordinates, color: tracks[1].color
             ),
             tracks[1],
