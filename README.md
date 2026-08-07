@@ -1,9 +1,8 @@
 # StravaLocal
 
-Application macOS native qui conserve une copie locale de vos données Strava et
-permet de les consulter hors ligne : liste filtrable, détail d'activité avec
-trace et courbes, carte de toutes vos traces, recherche d'activités par zone
-géographique et statistiques.
+Journal local de vos activités physiques sur macOS. Vos données vous appartiennent
+et vivent sur votre disque : Strava n'est qu'une des façons de l'alimenter, aux
+côtés de la saisie manuelle.
 
 ## Captures
 
@@ -35,6 +34,13 @@ xcodebuild build -project StravaLocal.xcodeproj -scheme StravaLocal -destination
 xcodebuild test -project StravaLocal.xcodeproj -scheme StravaLocal -destination 'platform=macOS,arch=arm64' -derivedDataPath build
 ```
 
+Lancer cette suite ne touche jamais votre bibliothèque : un bundle de test macOS
+s'exécute à l'intérieur de l'application hôte, et sans précaution chaque
+`xcodebuild test` ouvrirait — et migrerait — vos données réelles comme simple
+effet de bord de son lancement. Le nom du fichier de base est décidé en un seul
+endroit, `AppModelContainer.storeFileName(isTesting:isDemo:)`, et sous test c'est
+toujours un fichier jetable.
+
 L'application construite est alors à `build/Build/Products/Debug/StravaLocal.app`.
 Ce `-derivedDataPath` n'est pas cosmétique : sans lui, Xcode écrit dans son
 `DerivedData` global et deux bundles portant le même identifiant coexistent à
@@ -63,7 +69,10 @@ des parcours entièrement fictifs.
 Deux garde-fous, parce qu'il ne s'agirait pas d'écrire de fausses activités dans
 une vraie base : le jeu ne se génère que si `STRAVALOCAL_DEMO` est défini, et dans
 ce cas l'application ouvre un **fichier de base distinct**
-(`StravaLocal-demo.store`). La bibliothèque réelle n'est jamais ouverte.
+(`StravaLocal-demo.store`). La bibliothèque réelle n'est jamais ouverte. Chaque
+activité générée se déclare en outre « Fichier importé » plutôt que « Strava »,
+ce qui la met aussi hors de portée d'une synchronisation, au cas où un compte
+serait connecté dans la même session de démonstration.
 
 La génération est déterministe — graine fixe plutôt que hasard système —, donc une
 capture peut être refaite à l'identique.
@@ -95,6 +104,37 @@ La synchronisation se déroule en deux temps :
    où il s'est arrêté.
 
 Les synchronisations suivantes sont incrémentales.
+
+## Le journal est la référence
+
+Une activité peut naître ici, être corrigée ici, et disparaître ici. La
+synchronisation Strava alimente le journal ; elle ne le commande pas.
+
+**Édition (⌘E).** Nom, sport, date, distance, durée, dénivelé, notes et marqueurs
+sont modifiables. Un champ que vous modifiez est **protégé champ par champ** : une
+resynchronisation continuera d'apporter les corrections de Strava sur les autres,
+mais ne touchera plus celui-là. Le détail de l'activité indique ce qui est protégé.
+
+Les séries mesurées — cardio, puissance, cadence, altitude — et la trace ne sont
+pas modifiables : elles viennent de l'appareil, et aucune valeur unique saisie à la
+main n'aurait de sens.
+
+**Ajout (⌘N).** Une séance sans montre s'ajoute à la main. Elle n'a pas
+d'identifiant Strava et la synchronisation l'ignore entièrement.
+
+**Suppression (⌘⌫).** Une activité Strava supprimée laisse une trace discrète —
+une pierre tombale — qui l'empêche de revenir à la resynchronisation suivante. La
+réintégrer recule le curseur de synchronisation en deçà de la date de départ de
+l'activité, pour qu'elle revienne au passage suivant : sans ce recul, la promesse
+ne tiendrait que pour les activités les plus récentes, le curseur étant déjà passé
+au-delà des autres. Les réglages, section « Activités écartées » de l'onglet
+Synchronisation — c'est exactement ce dont cet onglet parle —, les listent et
+permettent de les réintégrer.
+
+Rien n'est jamais écrit chez Strava. L'API le permettrait — `PUT /activities/{id}`
+accepte le nom, la description, le sport et le matériel — mais c'est un choix :
+aucune autorisation d'écriture n'est demandée, aucun quota n'est consommé, et une
+panne de leur côté ne peut pas abîmer votre journal.
 
 ## Statistiques
 
