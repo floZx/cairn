@@ -540,6 +540,9 @@ Puis remplacer les affectations des champs éditables. Les six concernées :
         assign(.name, on: activity, \.name, dto.name)
         assign(.sportType, on: activity, \.sportTypeRaw,
                SportType(stravaValue: dto.sport_type).rawValue)
+        // Both properties behind one key, deliberately: the user edits a single
+        // "Date" field, and protecting one of the two would leave every sort and
+        // filter reading a value the sync had quietly put back.
         assign(.startDate, on: activity, \.startDate, dto.start_date)
         assign(.startDate, on: activity, \.startLocalDate, dto.start_date_local)
         assign(.distance, on: activity, \.distance, dto.distance)
@@ -739,7 +742,7 @@ serait un piège."
 
 **Interfaces:**
 - Consumes: `ActivityField`, `ActivitySource`, `Activity.markEdited(_:)`.
-- Produces: `struct ActivityDraft: Equatable` avec `var name: String`, `var sport: SportType`, `var startLocalDate: Date`, `var distanceKm: Double`, `var movingMinutes: Double`, `var elevationGain: Double`, `var notes: String`, `var isCommute: Bool`, `var isTrainer: Bool` ; `init(_ activity: Activity)`, `init(startingOn date: Date)`, `var validationMessage: String?`, `func changedFields(comparedTo activity: Activity) -> Set<ActivityField>`, `func apply(to activity: Activity)`.
+- Produces: `struct ActivityDraft: Equatable` avec `var name: String`, `var sport: SportType`, `var startLocalDate: Date`, `var distanceKm: Double`, `var movingMinutes: Double`, `var elevationGain: Double`, `var notes: String`, `var isCommute: Bool`, `var isTrainer: Bool` ; `init(_ activity: Activity)`, `init(startingOn date: Date)`, `var validationMessage: String?`, `func changedFields(comparedTo activity: Activity) -> Set<ActivityField>`, `func apply(to activity: Activity)`, `func makeActivity() -> Activity`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1399,28 +1402,50 @@ Dans `SettingsScene`, ajouter l'onglet :
 
 - [ ] **Step 3: Add the keyboard commands**
 
-Dans `StravaLocalApp`, au menu Strava ou dans un nouveau groupe :
+Les commandes vivent dans l'`App`, l'état dans la vue. Une fermeture posée sur
+`AppEnvironment` est le plus petit pont entre les deux ; une notification en serait
+un plus gros pour rien.
+
+Dans `AppEnvironment` :
+
+```swift
+    /// Installed by `RootView` so the menu bar can reach the window's own state.
+    ///
+    /// Nil until a window exists, which is exactly what disables the menu items:
+    /// there is nothing to add an activity to before then.
+    var requestNewActivity: (() -> Void)?
+    var requestEditSelection: (() -> Void)?
+    var requestDeleteSelection: (() -> Void)?
+```
+
+Dans `RootView`, sur `splitView` :
+
+```swift
+        .onAppear {
+            app.requestNewActivity = { editor = .create }
+            app.requestEditSelection = { if let selected { editor = .edit(selected) } }
+            app.requestDeleteSelection = { pendingDeletion = selected }
+        }
+```
+
+Dans `StravaLocalApp`, un groupe de commandes après « Nouveau » :
 
 ```swift
             CommandGroup(after: .newItem) {
-                Button("Nouvelle activité") { NotificationCenter.default.post(
-                    name: .newActivityRequested, object: nil
-                ) }
-                .keyboardShortcut("n")
+                Button("Nouvelle activité") { app.requestNewActivity?() }
+                    .keyboardShortcut("n")
+                    .disabled(app.requestNewActivity == nil)
+                Button("Modifier l'activité") { app.requestEditSelection?() }
+                    .keyboardShortcut("e")
+                    .disabled(app.requestEditSelection == nil)
+                Button("Supprimer l'activité") { app.requestDeleteSelection?() }
+                    .keyboardShortcut(.delete, modifiers: .command)
+                    .disabled(app.requestDeleteSelection == nil)
             }
 ```
 
-Plutôt que ce détour par une notification, exposer les deux gestes sur `AppEnvironment` :
-
-```swift
-    /// Set by `RootView` so the menu bar can reach the window's own state.
-    ///
-    /// The commands live in the App and the state in the view; a closure is the
-    /// smallest bridge, and a notification would be a bigger one for no gain.
-    var requestNewActivity: (() -> Void)?
-```
-
-`RootView` l'installe dans `.onAppear { app.requestNewActivity = { editor = .create } }`, et la commande de menu appelle `app.requestNewActivity?()` en étant désactivée quand elle est nil.
+Les fermetures étant réinstallées à chaque apparition, elles capturent l'état
+courant de la vue et non celui du premier lancement.
 
 - [ ] **Step 4: Build and run the whole suite**
 
