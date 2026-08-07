@@ -64,7 +64,7 @@ struct ActivityDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(activity.sportType.displayName, systemImage: activity.sportType.symbolName)
+            SportLabel(activity.sportType.displayName, sport: activity.sportType)
                 .foregroundStyle(.secondary)
             Text(activity.name).font(.largeTitle.weight(.semibold))
             Text(Format.longDate(activity.startLocalDate))

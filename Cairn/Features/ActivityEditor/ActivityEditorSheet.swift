@@ -53,7 +53,7 @@ struct ActivityEditorSheet: View {
                     TextField("Nom", text: $draft.name)
                     Picker("Sport", selection: $draft.sport) {
                         ForEach(SportType.allCases) { sport in
-                            Label(sport.displayName, systemImage: sport.symbolName)
+                            SportLabel(sport.displayName, sport: sport)
                                 .tag(sport)
                         }
                     }

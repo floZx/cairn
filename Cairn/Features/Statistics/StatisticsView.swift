@@ -188,7 +188,7 @@ struct StatisticsView: View {
             sectionTitle("Par sport")
             Table(stats.sports) {
                 TableColumn("Sport") { row in
-                    Label(row.sport.displayName, systemImage: row.sport.symbolName)
+                    SportLabel(row.sport.displayName, sport: row.sport)
                 }
                 TableColumn("Activités") { row in
                     Text("\(row.count)").monospacedDigit()
@@ -227,7 +227,7 @@ struct StatisticsView: View {
                     Text(record.formattedValue)
                         .font(.body.monospacedDigit())
                         .frame(width: 90, alignment: .leading)
-                    Label(record.activityName, systemImage: record.sport.symbolName)
+                    SportLabel(record.activityName, sport: record.sport)
                         .lineLimit(1)
                     Spacer(minLength: 8)
                     Text(Format.dateOnly(record.date))

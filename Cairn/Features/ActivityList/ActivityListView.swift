@@ -88,7 +88,7 @@ struct ActivityListView: View {
             // it carries the sport icon, so hiding it would leave rows
             // unreadable. It stays second unless the date is hidden.
             TableColumn("Nom", value: \.name) { activity in
-                Label(activity.name, systemImage: activity.sportType.symbolName)
+                SportLabel(activity.name, sport: activity.sportType)
             }
             .width(min: 180, ideal: 280)
 

@@ -50,8 +50,11 @@ enum SportType: String, Codable, CaseIterable, Sendable, Identifiable {
     /// SF Symbols only — no bundled art, so the app follows system appearance.
     var symbolName: String {
         switch self {
-        case .ride, .eBikeRide: "bicycle"
-        case .mountainBikeRide, .gravelRide: "bicycle.circle"
+        // All four bikes share `bicycle`: SF Symbols has nothing for a mountain
+        // or gravel bike, and `bicycle.circle` was the same drawing in a ring —
+        // it read as a badge rather than as a different sport. The colour is
+        // what tells them apart now.
+        case .ride, .eBikeRide, .mountainBikeRide, .gravelRide: "bicycle"
         case .run, .trailRun: "figure.run"
         case .walk: "figure.walk"
         case .hike: "figure.hiking"

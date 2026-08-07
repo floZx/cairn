@@ -52,7 +52,7 @@ struct SidebarView: View {
                 ForEach(sportCounts, id: \.sport) { entry in
                     Toggle(isOn: binding(for: entry.sport)) {
                         HStack {
-                            Label(entry.sport.displayName, systemImage: entry.sport.symbolName)
+                            SportLabel(entry.sport.displayName, sport: entry.sport)
                             Spacer(minLength: 8)
                             Text("\(entry.count)")
                                 .foregroundStyle(.secondary)
