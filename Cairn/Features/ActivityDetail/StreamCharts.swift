@@ -158,6 +158,9 @@ struct StreamChartsView: View {
         .chartXAxisLabel("km")
         .frame(height: 140)
         .frame(maxWidth: .infinity)
+        // Each plot lit by its own colour, which is what carries it onto the
+        // titles above and below rather than stopping at the frame.
+        .ambientGlow(serie.color)
         .chartOverlay { proxy in
             GeometryReader { geometry in
                 Rectangle()

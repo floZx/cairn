@@ -21,7 +21,15 @@ struct ActivityDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // Lit by the sport's own colour, so opening an activity says
+                // what kind it is before a word is read. A wider blur than the
+                // charts get: this block is the tallest thing on the page, and
+                // the same radius on it would read as a coloured panel.
                 header
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .ambientGlow(
+                        activity.sportType.color, cornerRadius: 16, blurRadius: 52
+                    )
 
                 // No placeholder when there is no track: a pool swim or a gym
                 // session simply has nowhere to be drawn, and a large empty
