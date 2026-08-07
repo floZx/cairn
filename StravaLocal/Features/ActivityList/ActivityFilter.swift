@@ -51,8 +51,8 @@ struct ActivityFilter: Sendable, Equatable {
     var period: DatePeriod = .all
     var minDistanceKm: Double?
     var maxDistanceKm: Double?
-    var minDurationMinutes: Double?
     var minElevation: Double?
+    var maxElevation: Double?
     /// Kept out of `predicate` on purpose: expressing metres-per-kilometre in a
     /// SwiftData predicate needs a division, and this predicate has already had
     /// to be split into sub-expressions to stay inside the type-checker. It is
@@ -102,11 +102,11 @@ struct ActivityFilter: Sendable, Equatable {
         if period != .all { parts.append(period.displayName) }
         if let minDistanceKm { parts.append("≥ \(Format.typedNumber(minDistanceKm)) km") }
         if let maxDistanceKm { parts.append("≤ \(Format.typedNumber(maxDistanceKm)) km") }
-        if let minDurationMinutes {
-            parts.append("≥ \(Format.typedNumber(minDurationMinutes)) min")
-        }
         if let minElevation {
             parts.append("D+ ≥ \(Format.typedNumber(minElevation)) m")
+        }
+        if let maxElevation {
+            parts.append("D+ ≤ \(Format.typedNumber(maxElevation)) m")
         }
         if let minElevationPerKm {
             parts.append("D+/km ≥ \(Format.typedNumber(minElevationPerKm)) m")
@@ -128,8 +128,8 @@ struct ActivityFilter: Sendable, Equatable {
         let end = period.endDate(now: now) ?? .distantFuture
         let minDistance = (minDistanceKm ?? 0) * 1000
         let maxDistance = (maxDistanceKm ?? .greatestFiniteMagnitude) * 1000
-        let minDuration = Int((minDurationMinutes ?? 0) * 60)
         let minGain = minElevation ?? 0
+        let maxGain = maxElevation ?? .greatestFiniteMagnitude
         let box = region ?? .world
         let filtersRegion = region != nil
 
@@ -147,8 +147,9 @@ struct ActivityFilter: Sendable, Equatable {
         let matchesDistance = #Predicate<Activity> { activity in
             activity.distance >= minDistance && activity.distance <= maxDistance
         }
-        let matchesDurationAndElevation = #Predicate<Activity> { activity in
-            activity.movingTime >= minDuration && activity.totalElevationGain >= minGain
+        let matchesElevation = #Predicate<Activity> { activity in
+            activity.totalElevationGain >= minGain
+                && activity.totalElevationGain <= maxGain
         }
         // The region test alone (five chained comparisons) still defeated the
         // type-checker, so it's split once more, latitude and longitude apart;
@@ -172,7 +173,7 @@ struct ActivityFilter: Sendable, Equatable {
             matchesTextAndSport.evaluate(activity)
                 && matchesPeriod.evaluate(activity)
                 && matchesDistance.evaluate(activity)
-                && matchesDurationAndElevation.evaluate(activity)
+                && matchesElevation.evaluate(activity)
                 && (!filtersRegion
                     || (latOverlapsRegion.evaluate(activity) && lonOverlapsRegion.evaluate(activity)))
         }
@@ -231,8 +232,8 @@ extension ActivityFilter: Hashable {
         hasher.combine(period)
         hasher.combine(minDistanceKm)
         hasher.combine(maxDistanceKm)
-        hasher.combine(minDurationMinutes)
         hasher.combine(minElevation)
+        hasher.combine(maxElevation)
         hasher.combine(minElevationPerKm)
         hasher.combine(labels)
         hasher.combine(region?.minLat)

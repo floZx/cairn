@@ -76,10 +76,10 @@ struct SidebarView: View {
                     title: "Distance max.", unit: "km", value: $filter.maxDistanceKm
                 )
                 OptionalNumberField(
-                    title: "Durée min.", unit: "min", value: $filter.minDurationMinutes
+                    title: "D+ min.", unit: "m", value: $filter.minElevation
                 )
                 OptionalNumberField(
-                    title: "D+ min.", unit: "m", value: $filter.minElevation
+                    title: "D+ max.", unit: "m", value: $filter.maxElevation
                 )
                 OptionalNumberField(
                     title: "D+/km min.", unit: "m/km",

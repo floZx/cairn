@@ -98,16 +98,21 @@ struct ActivityFilterTests {
         #expect(try fetch(context, filter).map(\.stravaID) == [2])
     }
 
-    @Test("filtre par durée minimale et dénivelé minimal")
-    func filtersByDurationAndElevation() throws {
+    @Test("filtre par fourchette de dénivelé")
+    func filtersByElevationRange() throws {
         let context = try makeContext {
             insert($0, id: 1, duration: 1200, elevation: 50)
             insert($0, id: 2, duration: 7200, elevation: 1500)
+            insert($0, id: 3, duration: 3600, elevation: 600)
         }
         var filter = ActivityFilter.none
-        filter.minDurationMinutes = 60
-        filter.minElevation = 1000
-        #expect(try fetch(context, filter).map(\.stravaID) == [2])
+        filter.minElevation = 500
+        #expect(try fetch(context, filter).map(\.stravaID).sorted() == [2, 3])
+
+        // Les deux bornes comptent : sans la borne haute, l'activité à 1500 m
+        // passerait aussi, et le test ne garderait que la moitié du filtre.
+        filter.maxElevation = 1000
+        #expect(try fetch(context, filter).map(\.stravaID) == [3])
     }
 
     @Test("les filtres se combinent")
