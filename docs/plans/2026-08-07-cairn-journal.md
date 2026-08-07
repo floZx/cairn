@@ -40,7 +40,7 @@ Modifier une contrainte d'unicité est ce qui fait basculer une migration SwiftD
 | `StravaLocal/Model/DiscardedActivity.swift` | La pierre tombale d'une activité Strava supprimée. |
 | `StravaLocal/Features/ActivityEditor/ActivityDraft.swift` | Le cœur pur de l'édition : valeurs saisies, validation, champs réellement modifiés, application au modèle. Aucune vue, donc entièrement testable. |
 | `StravaLocal/Features/ActivityEditor/ActivityEditorSheet.swift` | La feuille modale, pour l'édition comme pour l'ajout. |
-| `StravaLocal/Features/Settings/DiscardedSettingsView.swift` | La liste des activités écartées, et leur retour. |
+| `StravaLocal/Features/Settings/DiscardedActivitiesSection.swift` | La liste des activités écartées, et leur retour. Une section des réglages de synchronisation, pas un onglet : on l'ouvre deux fois par an, et elle parle de ce dont parle cet onglet — ce que la synchro ne doit pas ramener. |
 | `Tests/ActivityDraftTests.swift` | |
 | `Tests/EditProtectionTests.swift` | |
 | `Tests/DiscardedActivityTests.swift` | |
@@ -55,7 +55,7 @@ Modifier une contrainte d'unicité est ce qui fait basculer une migration SwiftD
 | `StravaLocal/Sync/SyncEngine.swift` | Les identifiants écartés ne sont pas mis en file. |
 | `StravaLocal/App/RootView.swift` | Barre d'outils : ajouter, éditer, supprimer. Feuille et confirmation. |
 | `StravaLocal/App/StravaLocalApp.swift` | Commandes ⌘N, ⌘E, ⌘⌫. Passage de renseignement des `uuid` au lancement. |
-| `StravaLocal/Features/Settings/SettingsScene.swift` | Onglet des activités écartées. |
+| `StravaLocal/Features/Settings/SyncSettingsView.swift` | Accueille la section des activités écartées. |
 | `StravaLocal/Features/ActivityDetail/ActivityDetailView.swift` | Mention de la source et de la date d'édition. |
 
 ---
@@ -1105,8 +1105,16 @@ struct ActivityEditorSheet: View {
                 }
 
                 Section("Notes") {
+                    // First `TextEditor` in the project, so no house style to
+                    // follow — and it arrives borderless, which reads as nothing
+                    // at all beside the bordered fields above it.
                     TextEditor(text: $draft.notes)
+                        .font(.body)
                         .frame(minHeight: 70)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color(nsColor: .separatorColor))
+                        )
                 }
 
                 Section {
@@ -1188,15 +1196,17 @@ avec `@Environment(\.modelContext) private var modelContext` sur `RootView`.
 Et deux entrées de barre d'outils, dans `syncToolbar` :
 
 ```swift
-            ToolbarItem {
+            // Grouped, not three loose buttons: the toolbar already carries three
+            // items, and six side by side is where it stops reading as a toolbar.
+            // These three act on the selected activity and belong together.
+            ToolbarItemGroup {
                 Button {
                     editor = .create
                 } label: {
                     Label("Nouvelle activité", systemImage: "plus")
                 }
                 .help("Ajouter une activité saisie à la main")
-            }
-            ToolbarItem {
+
                 Button {
                     if let selected { editor = .edit(selected) }
                 } label: {
@@ -1204,6 +1214,14 @@ Et deux entrées de barre d'outils, dans `syncToolbar` :
                 }
                 .disabled(selected == nil)
                 .help("Modifier l'activité sélectionnée")
+
+                Button {
+                    pendingDeletion = selected
+                } label: {
+                    Label("Supprimer", systemImage: "trash")
+                }
+                .disabled(selected == nil)
+                .help("Supprimer l'activité sélectionnée")
             }
 ```
 
@@ -1264,12 +1282,12 @@ rien d'autre à l'écran ne le dirait."
 
 **Files:**
 - Modify: `StravaLocal/App/RootView.swift`
-- Create: `StravaLocal/Features/Settings/DiscardedSettingsView.swift`
-- Modify: `StravaLocal/Features/Settings/SettingsScene.swift`
+- Create: `StravaLocal/Features/Settings/DiscardedActivitiesSection.swift`
+- Modify: `StravaLocal/Features/Settings/SyncSettingsView.swift`
 
 **Interfaces:**
 - Consumes: `ImportMapper.discard(_:)`, `ImportMapper.restore(_:)` (tâche 4).
-- Produces: `struct DiscardedSettingsView: View`.
+- Produces: `struct DiscardedActivitiesSection: View`, dont le corps est une `Section` destinée au `Form` de `SyncSettingsView`.
 
 - [ ] **Step 1: Add the delete command with confirmation**
 
@@ -1322,23 +1340,14 @@ et la méthode :
     }
 ```
 
-plus une entrée de barre d'outils et une commande clavier :
-
-```swift
-            ToolbarItem {
-                Button {
-                    pendingDeletion = selected
-                } label: {
-                    Label("Supprimer", systemImage: "trash")
-                }
-                .disabled(selected == nil)
-                .help("Supprimer l'activité sélectionnée")
-            }
-```
+Le bouton de barre d'outils est déjà posé en tâche 6, dans le groupe des trois
+actions sur l'activité — il n'y a rien à ajouter ici.
 
 - [ ] **Step 2: The settings screen**
 
-`StravaLocal/Features/Settings/DiscardedSettingsView.swift` :
+`StravaLocal/Features/Settings/DiscardedActivitiesSection.swift`. C'est une
+`Section`, pas un écran : elle s'insère dans le `Form` de `SyncSettingsView`, à la
+suite des réglages de synchronisation.
 
 ```swift
 import SwiftUI
@@ -1349,14 +1358,13 @@ import SwiftData
 /// Without this screen a deletion would be both permanent and invisible, which
 /// is the worst of the two: the point of a tombstone is that a resync cannot
 /// undo the decision, not that the decision cannot be revisited.
-struct DiscardedSettingsView: View {
+struct DiscardedActivitiesSection: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \DiscardedActivity.discardedAt, order: .reverse)
     private var discarded: [DiscardedActivity]
 
     var body: some View {
-        Form {
-            Section {
+        Section {
                 if discarded.isEmpty {
                     Text("Aucune activité écartée.")
                         .foregroundStyle(.secondary)
@@ -1387,17 +1395,14 @@ struct DiscardedSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
-        }
-        .formStyle(.grouped)
     }
 }
 ```
 
-Dans `SettingsScene`, ajouter l'onglet :
+Dans `SyncSettingsView`, à la fin de son `Form` :
 
 ```swift
-            DiscardedSettingsView()
-                .tabItem { Label("Écartées", systemImage: "archivebox") }
+            DiscardedActivitiesSection()
 ```
 
 - [ ] **Step 3: Add the keyboard commands**
