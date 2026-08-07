@@ -10,6 +10,11 @@ struct DiscardedActivitiesSection: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \DiscardedActivity.discardedAt, order: .reverse)
     private var discarded: [DiscardedActivity]
+    /// Set when `restore` fails: this section is opened maybe twice a year,
+    /// far from `RootView`'s own alert, and a click with no visible effect —
+    /// the row simply stays put — would otherwise read as nothing happened
+    /// rather than as a failure to report.
+    @State private var restoreFailureMessage: String?
 
     var body: some View {
         Section {
@@ -27,7 +32,12 @@ struct DiscardedActivitiesSection: View {
                         }
                         Spacer()
                         Button("Réintégrer") {
-                            try? ImportMapper(context: modelContext).restore(stone)
+                            do {
+                                try ImportMapper(context: modelContext).restore(stone)
+                            } catch {
+                                restoreFailureMessage =
+                                    "Cette activité n'a pas pu être réintégrée. \(error.localizedDescription)"
+                            }
                         }
                     }
                 }
@@ -42,6 +52,17 @@ struct DiscardedActivitiesSection: View {
             )
             .font(.caption)
             .foregroundStyle(.secondary)
+        }
+        .alert(
+            "Échec de la réintégration",
+            isPresented: Binding(
+                get: { restoreFailureMessage != nil },
+                set: { if !$0 { restoreFailureMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { restoreFailureMessage = nil }
+        } message: {
+            Text(restoreFailureMessage ?? "")
         }
     }
 }

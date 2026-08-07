@@ -17,6 +17,12 @@ struct RootView: View {
     /// The activity a confirmation dialog is about to delete. Introduced here
     /// for the toolbar's Supprimer button; the confirmation itself is task 7's.
     @State private var pendingDeletion: Activity?
+    /// Set when a write the user believes already happened — a delete, a
+    /// restore, a save from the editor sheet — actually failed. Both `delete`
+    /// and the editor's `onSave` change what is on screen (the selection
+    /// clears, the sheet dismisses) before `try?` used to hide a failed
+    /// `context.save()` behind a screen that already looks correct.
+    @State private var writeFailureMessage: String?
     /// Shared with every map so the chosen background and colour carry over.
     @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
     @AppStorage(TrackColor.storageKey) private var expandedTrackColor: TrackColor = .accent
@@ -55,6 +61,12 @@ struct RootView: View {
     }
 
     var body: some View {
+        // The sheet, the deletion dialog, and the menu bridge below live on
+        // this outer `Group` rather than on `splitView`: an empty library
+        // shows `WelcomeView` instead, and a modifier attached only to the
+        // branch that never renders yet never fires — `app.requestNewActivity`
+        // stayed nil and ⌘N stayed disabled for exactly the person with no
+        // Strava account, the one this journal is supposed to work for first.
         Group {
             if let expandedMap {
                 fullWindowMap(expandedMap)
@@ -64,6 +76,64 @@ struct RootView: View {
             } else {
                 splitView
             }
+        }
+        .sheet(item: $editor) { mode in
+            ActivityEditorSheet(mode: mode) { draft in
+                // `Mode.apply` carries the switch that used to live here; kept
+                // out of this closure so a test can reach it directly.
+                let activity = mode.apply(draft)
+                if case .create = mode {
+                    modelContext.insert(activity)
+                    selectedActivities = [activity.id]
+                }
+                do {
+                    try modelContext.save()
+                } catch {
+                    // `apply` already mutated the object in memory: the screen
+                    // shows the edit whether or not this succeeds, so silence
+                    // here would be the worst kind — the user believes their
+                    // work is saved.
+                    writeFailureMessage =
+                        "Votre modification n'a pas pu être enregistrée. \(error.localizedDescription)"
+                }
+            }
+        }
+        .confirmationDialog(
+            pendingDeletion.map { "Supprimer « \($0.name) » ?" } ?? "",
+            isPresented: Binding(
+                get: { pendingDeletion != nil },
+                set: { if !$0 { pendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Supprimer", role: .destructive) {
+                if let pendingDeletion {
+                    delete(pendingDeletion)
+                }
+                pendingDeletion = nil
+            }
+            Button("Annuler", role: .cancel) { pendingDeletion = nil }
+        } message: {
+            // `ActivitySource.deleteConfirmationMessage` carries the branch
+            // that used to live here, tested on its own: see its doc comment
+            // for why the two sources cannot share one text.
+            Text(pendingDeletion?.source.deleteConfirmationMessage ?? "")
+        }
+        .alert(
+            "Échec de l'enregistrement",
+            isPresented: Binding(
+                get: { writeFailureMessage != nil },
+                set: { if !$0 { writeFailureMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { writeFailureMessage = nil }
+        } message: {
+            Text(writeFailureMessage ?? "")
+        }
+        .onAppear {
+            app.requestNewActivity = { editor = .create }
+            app.requestEditSelection = { if let selected { editor = .edit(selected) } }
+            app.requestDeleteSelection = { pendingDeletion = selected }
         }
     }
 
@@ -183,44 +253,6 @@ struct RootView: View {
         // Makes the list absorb a sidebar toggle instead of the detail pane.
         .background(SplitViewHoldingPriorities())
         .toolbar { syncToolbar }
-        .sheet(item: $editor) { mode in
-            ActivityEditorSheet(mode: mode) { draft in
-                // `Mode.apply` carries the switch that used to live here; kept
-                // out of this closure so a test can reach it directly.
-                let activity = mode.apply(draft)
-                if case .create = mode {
-                    modelContext.insert(activity)
-                    selectedActivities = [activity.id]
-                }
-                try? modelContext.save()
-            }
-        }
-        .confirmationDialog(
-            pendingDeletion.map { "Supprimer « \($0.name) » ?" } ?? "",
-            isPresented: Binding(
-                get: { pendingDeletion != nil },
-                set: { if !$0 { pendingDeletion = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Supprimer", role: .destructive) {
-                if let pendingDeletion {
-                    delete(pendingDeletion)
-                }
-                pendingDeletion = nil
-            }
-            Button("Annuler", role: .cancel) { pendingDeletion = nil }
-        } message: {
-            // `ActivitySource.deleteConfirmationMessage` carries the branch
-            // that used to live here, tested on its own: see its doc comment
-            // for why the two sources cannot share one text.
-            Text(pendingDeletion?.source.deleteConfirmationMessage ?? "")
-        }
-        .onAppear {
-            app.requestNewActivity = { editor = .create }
-            app.requestEditSelection = { if let selected { editor = .edit(selected) } }
-            app.requestDeleteSelection = { pendingDeletion = selected }
-        }
     }
 
     /// Removes an activity from the journal: from the current selection so the
@@ -228,7 +260,16 @@ struct RootView: View {
     /// the store — leaving a tombstone behind when it came from Strava.
     private func delete(_ activity: Activity) {
         selectedActivities.remove(activity.id)
-        try? ImportMapper(context: modelContext).discard(activity)
+        // The selection is cleared above, before the write is attempted: a
+        // failure here would otherwise leave the activity in place but
+        // deselected, with nothing on screen to say the deletion did not
+        // actually happen.
+        do {
+            try ImportMapper(context: modelContext).discard(activity)
+        } catch {
+            writeFailureMessage =
+                "Votre suppression n'a pas pu être enregistrée. \(error.localizedDescription)"
+        }
     }
 
     /// A floor for the detail pane whenever it actually has something to show.

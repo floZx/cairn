@@ -20,6 +20,11 @@ struct WelcomeView: View {
             } else {
                 Button("Ouvrir les réglages…") { openSettings() }
             }
+            // Without a Strava account, this is the only way in: the ⌘N menu
+            // item exists too, but discoverability by menu alone is not
+            // enough on a first launch with an empty window and no hint the
+            // shortcut exists.
+            Button("Ajouter une activité") { app.requestNewActivity?() }
         }
     }
 }
