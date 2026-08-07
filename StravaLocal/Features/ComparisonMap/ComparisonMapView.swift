@@ -135,6 +135,7 @@ struct MultiTrackMapRepresentable: NSViewRepresentable {
         coordinator.renderedSignature = signature
 
         mapView.removeOverlays(mapView.overlays.filter { !($0 is MKTileOverlay) })
+        mapView.removeAnnotations(mapView.annotations)
 
         let polylines = tracks.filter(\.isDrawable).map { track in
             let line = ColoredPolyline(
@@ -146,6 +147,16 @@ struct MultiTrackMapRepresentable: NSViewRepresentable {
         }
         guard !polylines.isEmpty else { return }
         mapView.addTrackOverlays(polylines)
+
+        // One start marker per route, each in its track's colour: with several on
+        // screen, that is what says which start belongs to which line.
+        for track in tracks where track.isDrawable {
+            guard let first = track.coordinates.first else { continue }
+            let start = StartAnnotation()
+            start.coordinate = first.clLocation
+            start.color = track.color
+            mapView.addAnnotation(start)
+        }
 
         // The union of every track, unlike the global map's density heuristic:
         // here the user picked these activities deliberately, so all of them
@@ -184,12 +195,18 @@ struct MultiTrackMapRepresentable: NSViewRepresentable {
         var mapStyleState = MapStyleState()
 
         func mapView(
+            _ mapView: MKMapView, viewFor annotation: any MKAnnotation
+        ) -> MKAnnotationView? {
+            mapView.startAnnotationView(for: annotation)
+        }
+
+        func mapView(
             _ mapView: MKMapView, rendererFor overlay: any MKOverlay
         ) -> MKOverlayRenderer {
             if let tiles = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tiles)
             }
-            let renderer = MKPolylineRenderer(overlay: overlay)
+            let renderer = DirectedPolylineRenderer(overlay: overlay)
             renderer.strokeColor = (overlay as? ColoredPolyline)?.color
                 ?? TrackPalette.colors[0]
             renderer.lineWidth = 3

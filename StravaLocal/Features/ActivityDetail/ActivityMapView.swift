@@ -52,6 +52,12 @@ struct ActivityMapView: NSViewRepresentable {
                 coordinates: coordinates.map(\.clLocation), count: coordinates.count
             )
             mapView.addTrackOverlays([polyline])
+            if let first = coordinates.first {
+                let start = StartAnnotation()
+                start.coordinate = first.clLocation
+                start.color = trackColor.nsColor
+                mapView.addAnnotation(start)
+            }
             mapView.setVisibleMapRect(
                 polyline.boundingMapRect,
                 edgePadding: NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24),
@@ -77,7 +83,7 @@ struct ActivityMapView: NSViewRepresentable {
         if let marker = coordinator.marker {
             marker.coordinate = highlight.clLocation
         } else {
-            let marker = MKPointAnnotation()
+            let marker = HoverAnnotation()
             marker.coordinate = highlight.clLocation
             mapView.addAnnotation(marker)
             coordinator.marker = marker
@@ -88,7 +94,7 @@ struct ActivityMapView: NSViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var renderedSignature: Int?
-        var marker: MKPointAnnotation?
+        var marker: HoverAnnotation?
         var mapStyleState = MapStyleState()
         var trackColor: TrackColor = .accent
         /// A tilt still owed, because the view had no geometry when it was framed.
@@ -115,7 +121,8 @@ struct ActivityMapView: NSViewRepresentable {
             if let tiles = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tiles)
             }
-            let renderer = MKPolylineRenderer(overlay: overlay)
+            // Directed: chevrons along the line show which way it was run.
+            let renderer = DirectedPolylineRenderer(overlay: overlay)
             renderer.strokeColor = trackColor.nsColor
             // Thin enough that the route's own shape stays readable: at 4 the
             // stroke swallowed the switchbacks it was meant to show.
@@ -128,6 +135,9 @@ struct ActivityMapView: NSViewRepresentable {
         func mapView(
             _ mapView: MKMapView, viewFor annotation: any MKAnnotation
         ) -> MKAnnotationView? {
+            if let start = mapView.startAnnotationView(for: annotation) {
+                return start
+            }
             let view = mapView.dequeueReusableAnnotationView(
                 withIdentifier: Self.markerIdentifier
             ) ?? MKAnnotationView(
