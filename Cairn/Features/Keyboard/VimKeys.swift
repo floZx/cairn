@@ -22,15 +22,23 @@ struct VimKeys: ViewModifier {
             // No ring: these views are not form controls, and a focus ring
             // around a whole pane reads as a bug.
             .focusEffectDisabled()
-            .onKeyPress { press in
+            // `.repeat` as well as `.down`: without it a held key fires once and
+            // walking a long list means tapping `j` eighty times.
+            .onKeyPress(phases: [.down, .repeat]) { press in
                 guard let character = press.characters.first else { return .ignored }
                 // ⌘ belongs to the menus. Swallowing it here would shadow every
                 // shortcut the app already publishes.
                 guard !press.modifiers.contains(.command) else { return .ignored }
 
-                guard let command = buffer.accept(
-                    character, control: press.modifiers.contains(.control)
-                ) else {
+                let control = press.modifiers.contains(.control)
+                // A repeat only reaches the buffer for the keys meant to repeat,
+                // so a leaned-on digit cannot build a count nobody typed.
+                if press.phase == .repeat,
+                   !VimKeyBuffer.repeatsWhenHeld(character, control: control) {
+                    return .ignored
+                }
+
+                guard let command = buffer.accept(character, control: control) else {
                     // A digit or a `g` was consumed even though nothing ran, and
                     // saying so is what stops it reaching a table's type-select.
                     return buffer.isEmpty ? .ignored : .handled

@@ -174,3 +174,30 @@ struct EditNotesKeyTests {
         #expect(buffer.accept("j") == .move(1))
     }
 }
+
+@Suite("Répétition des touches maintenues")
+struct KeyRepeatTests {
+    @Test("seuls les mouvements se répètent quand la touche reste enfoncée")
+    func onlyMotionsRepeat() {
+        // Holding `x` would queue a deletion per tick and `e` would reopen the
+        // editor under the user's hands; leaning on `j` to walk a list is the
+        // whole point of having `j`.
+        #expect(VimKeyBuffer.repeatsWhenHeld("j", control: false))
+        #expect(VimKeyBuffer.repeatsWhenHeld("k", control: false))
+        #expect(VimKeyBuffer.repeatsWhenHeld("d", control: true))
+        #expect(VimKeyBuffer.repeatsWhenHeld("u", control: true))
+
+        for key: Character in ["e", "x", "f", "o", "n", "h", "g", "G", "/", "?"] {
+            #expect(!VimKeyBuffer.repeatsWhenHeld(key, control: false))
+        }
+    }
+
+    @Test("un chiffre maintenu ne construit pas un compte")
+    func heldDigitsBuildNoCount() {
+        // Leaning on a digit would otherwise arm a move of several hundred rows
+        // that nobody asked for.
+        for key: Character in ["0", "5", "9"] {
+            #expect(!VimKeyBuffer.repeatsWhenHeld(key, control: false))
+        }
+    }
+}

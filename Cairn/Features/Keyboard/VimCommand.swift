@@ -48,6 +48,17 @@ struct VimKeyBuffer: Equatable {
 
     var isEmpty: Bool { count == nil && !awaitingG }
 
+    /// Whether holding the key down should keep firing.
+    ///
+    /// Only the motions. Holding `x` would queue a deletion per tick, holding
+    /// `e` would reopen the editor under the user's hands, and a held digit
+    /// would build a count nobody typed. Scrolling through a list by leaning on
+    /// `j`, on the other hand, is the whole point of having `j`.
+    static func repeatsWhenHeld(_ key: Character, control: Bool) -> Bool {
+        if control { return key == "d" || key == "u" }
+        return key == "j" || key == "k"
+    }
+
     /// Drops any half-typed sequence. Escape does this before anything else, so
     /// a mistyped prefix is never left armed for the next keystroke.
     mutating func reset() {
