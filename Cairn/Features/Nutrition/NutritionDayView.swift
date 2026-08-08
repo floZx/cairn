@@ -399,7 +399,9 @@ struct NutritionDayView: View {
                 "Aucun journal alimentaire",
                 systemImage: "fork.knife",
                 description: Text(
-                    "Importez vos données suivinut, ou démarrez un journal vierge."
+                    "Importez vos données suivinut, ou démarrez un journal "
+                    + "vierge. L'import reste possible ensuite dans "
+                    + "Réglages → Nutrition tant que le journal est vide."
                 )
             )
             HStack {

@@ -17,7 +17,9 @@ struct SettingsScene: View {
                 }
             MapSettingsView()
                 .tabItem { Label("Cartes", systemImage: "map") }
+            NutritionSettingsView()
+                .tabItem { Label("Nutrition", systemImage: "fork.knife") }
         }
-        .frame(width: 520, height: 380)
+        .frame(width: 520, height: 460)
     }
 }
