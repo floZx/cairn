@@ -332,4 +332,37 @@ struct NutritionJournalTests {
         #expect(days[0].dayType == nil)
         #expect(try context.fetch(FetchDescriptor<DayType>()).count == 1)
     }
+
+    @Test("une pesée par jour : ressaisir remplace")
+    func weightUpsertsPerDay() throws {
+        let context = try makeContext()
+        let key = DateKey(raw: "2026-08-08")!
+
+        try NutritionJournal.recordWeight(71.4, note: "matin", for: key, in: context)
+        try NutritionJournal.recordWeight(71.2, note: nil, for: key, in: context)
+
+        let entries = try context.fetch(FetchDescriptor<WeightEntry>())
+        #expect(entries.count == 1)
+        #expect(entries[0].weightKg == 71.2)
+        #expect(entries[0].note == nil)
+    }
+
+    @Test("la note d'une pesée se vide en nil après trim")
+    func weightNoteTrimsToNil() throws {
+        let context = try makeContext()
+        let entry = try NutritionJournal.recordWeight(
+            70.9, note: "   ", for: DateKey(raw: "2026-08-07")!, in: context
+        )
+        #expect(entry.note == nil)
+    }
+
+    @Test("la suppression d'une pesée retire sa ligne")
+    func weightDeletes() throws {
+        let context = try makeContext()
+        let entry = try NutritionJournal.recordWeight(
+            71.0, note: nil, for: DateKey(raw: "2026-08-08")!, in: context
+        )
+        try NutritionJournal.deleteWeight(entry, in: context)
+        #expect(try context.fetch(FetchDescriptor<WeightEntry>()).isEmpty)
+    }
 }

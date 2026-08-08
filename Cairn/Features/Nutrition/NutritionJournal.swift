@@ -289,6 +289,45 @@ extension NutritionJournal {
     }
 }
 
+extension NutritionJournal {
+    /// One weigh-in per day: recording an existing day replaces it.
+    /// Upsert on the day: the `#Unique` constraint would make a second insert
+    /// collide, and "one weigh-in per day, re-entering replaces" is the
+    /// suivinut contract the importer's data already follows.
+    @MainActor @discardableResult
+    static func recordWeight(
+        _ weightKg: Double, note: String?, for dateKey: DateKey,
+        in context: ModelContext
+    ) throws -> WeightEntry {
+        let cleanNote = note?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalNote = (cleanNote?.isEmpty ?? true) ? nil : cleanNote
+        let raw = dateKey.raw
+        if let existing = try context.fetch(
+            FetchDescriptor<WeightEntry>(
+                predicate: #Predicate { $0.dateKeyRaw == raw }
+            )
+        ).first {
+            existing.weightKg = weightKg
+            existing.note = finalNote
+            try context.save()
+            return existing
+        }
+        let entry = WeightEntry(dateKey: dateKey, weightKg: weightKg, note: finalNote)
+        context.insert(entry)
+        try context.save()
+        return entry
+    }
+
+    @MainActor
+    static func deleteWeight(
+        _ entry: WeightEntry, in context: ModelContext
+    ) throws {
+        context.delete(entry)
+        try context.save()
+    }
+}
+
 /// A user-facing journal failure, message in French like every string the
 /// alert system shows.
 struct JournalError: Error, CustomStringConvertible {
