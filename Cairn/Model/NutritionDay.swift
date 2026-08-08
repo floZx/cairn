@@ -9,6 +9,7 @@ final class NutritionDay {
     #Unique<NutritionDay>([\.dateKeyRaw])
 
     var dateKeyRaw: String = ""
+    @Relationship(deleteRule: .nullify)
     var dayType: DayType?
 
     init(dateKey: DateKey, dayType: DayType? = nil) {

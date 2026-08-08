@@ -71,4 +71,9 @@ final class FoodCatalog {
             )
         }
     }
+
+    func productCount() throws -> Int {
+        let rows = try db.rows("SELECT COUNT(*) AS n FROM products")
+        return rows.first?["n"]?.intValue ?? 0
+    }
 }

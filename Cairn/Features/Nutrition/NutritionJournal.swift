@@ -260,6 +260,29 @@ extension NutritionJournal {
     }
 }
 
+extension NutritionJournal {
+    @MainActor @discardableResult
+    static func addDayType(
+        named name: String, kcalTarget: Int, in context: ModelContext
+    ) throws -> DayType {
+        let next = (try context.fetch(FetchDescriptor<DayType>())
+            .map(\.sortOrder).max() ?? -1) + 1
+        let dayType = DayType(name: name, kcalTarget: kcalTarget, sortOrder: next)
+        context.insert(dayType)
+        try context.save()
+        return dayType
+    }
+
+    /// Days referencing the deleted type keep their row with a nil type —
+    /// SwiftData's default nullify rule, asserted by test so a future
+    /// cascade never silently eats journal days.
+    @MainActor
+    static func deleteDayType(_ dayType: DayType, in context: ModelContext) throws {
+        context.delete(dayType)
+        try context.save()
+    }
+}
+
 /// A user-facing journal failure, message in French like every string the
 /// alert system shows.
 struct JournalError: Error, CustomStringConvertible {

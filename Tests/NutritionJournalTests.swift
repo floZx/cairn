@@ -311,4 +311,25 @@ struct NutritionJournalTests {
         #expect(try context.fetch(FetchDescriptor<Recipe>()).isEmpty)
         #expect(try context.fetch(FetchDescriptor<RecipeItem>()).isEmpty)
     }
+
+    @Test("un jour-type s'ajoute en fin d'ordre et se supprime sans casser les jours")
+    func dayTypeCrud() throws {
+        let context = try makeContext()
+        let first = try NutritionJournal.addDayType(
+            named: "repos", kcalTarget: 1800, in: context
+        )
+        let second = try NutritionJournal.addDayType(
+            named: "qualité", kcalTarget: 2100, in: context
+        )
+        #expect(first.sortOrder < second.sortOrder)
+
+        // Un jour qui référence le type supprimé garde sa ligne, type effacé.
+        let key = DateKey(raw: "2026-08-08")!
+        try NutritionJournal.setDayType(second, for: key, in: context)
+        try NutritionJournal.deleteDayType(second, in: context)
+        let days = try context.fetch(FetchDescriptor<NutritionDay>())
+        #expect(days.count == 1)
+        #expect(days[0].dayType == nil)
+        #expect(try context.fetch(FetchDescriptor<DayType>()).count == 1)
+    }
 }

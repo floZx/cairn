@@ -114,4 +114,11 @@ struct FoodCatalogTests {
             _ = try FoodCatalog(path: missing)
         }
     }
+
+    @Test("productCount compte le catalogue")
+    func countsProducts() throws {
+        let (catalog, path) = try makeCatalog()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        #expect(try catalog.productCount() == 4)
+    }
 }

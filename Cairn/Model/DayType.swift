@@ -9,6 +9,8 @@ final class DayType {
     var name: String = ""
     var kcalTarget: Int = 0
     var sortOrder: Int = 0
+    @Relationship(deleteRule: .nullify, inverse: \NutritionDay.dayType)
+    var days: [NutritionDay] = []
 
     init(name: String, kcalTarget: Int, sortOrder: Int = 0) {
         self.name = name
