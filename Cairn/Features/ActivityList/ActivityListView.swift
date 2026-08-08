@@ -37,6 +37,16 @@ struct ActivityListView: View {
     /// Set by the probe below, used to follow the keyboard cursor.
     @State private var scroller = TableScroller()
 
+    /// Where the keyboard cursor is, and what it last wrote to the selection.
+    ///
+    /// Deriving the starting point from `selection` on every motion looks right
+    /// and is right at typing speed, but a held key fires sixty times a second
+    /// and a `@Binding` write is not visible to the next read in the same
+    /// runloop pass. Every repeat therefore started from the *same* row and
+    /// landed on the same one — the key repeated and nothing moved.
+    @State private var cursor: Int?
+    @State private var cursorSelection: Set<PersistentIdentifier> = []
+
     /// Which columns are shown, in which order, at which width — right-click the
     /// header to choose, drag to reorder, exactly as in the Finder. Persisted in
     /// `AppStorage` rather than `SceneStorage` so it survives a relaunch and not
@@ -95,18 +105,31 @@ struct ActivityListView: View {
             return
         }
 
-        let current = selection.count == 1
-            ? rows.firstIndex { $0.id == selection.first } : nil
         guard let index = VimMotion.destination(
-            from: current, delta: delta, count: rows.count
+            from: startingPoint(in: rows), delta: delta, count: rows.count
         ) else { return }
+
         // Replaces rather than extends: these motions move the cursor, and a
         // growing selection would turn `j` into a way to select everything.
-        selection = [rows[index].id]
+        cursor = index
+        cursorSelection = [rows[index].id]
+        selection = cursorSelection
         // And the list follows. Without this the cursor walks off the bottom of
         // the window and the list stops being navigable at the very moment it is
         // being navigated.
         scroller.scroll(toRow: index)
+    }
+
+    /// Where the next motion starts from.
+    ///
+    /// The remembered cursor when it is still true, the selection otherwise.
+    /// Trusting the cursor is what makes a held key move more than one row; the
+    /// two checks are what stop it lying after the list has changed underneath.
+    private func startingPoint(in rows: [Activity]) -> Int? {
+        if let cursor, cursor < rows.count, cursorSelection.contains(rows[cursor].id) {
+            return cursor
+        }
+        return selection.count == 1 ? rows.firstIndex { $0.id == selection.first } : nil
     }
 
     var body: some View {
@@ -135,6 +158,12 @@ struct ActivityListView: View {
         .vimKeys { command in
             perform(command, in: rows)
             return true
+        }
+        // A selection that is not the one we wrote came from somewhere else — a
+        // click in the list, a record in the statistics, a track on the map — so
+        // the remembered cursor is stale and the next motion re-derives it.
+        .onChange(of: selection) { _, new in
+            if new != cursorSelection { cursor = nil }
         }
         .onAppear {
             if let first = Self.initialSelection(
