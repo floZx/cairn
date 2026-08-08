@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import Charts
 
 /// Aggregates over the filtered activities, in place of the list.
@@ -12,6 +13,10 @@ import Charts
 struct StatisticsView: View {
     /// Filtered by everything except the date range, which is `period`'s job.
     let activities: [Activity]
+    /// Opens an activity in the detail pane. A record names an outing, and the
+    /// obvious question about it — where was it, how did it go — is answered one
+    /// pane to the right.
+    let onSelect: (PersistentIdentifier) -> Void
 
     @AppStorage(StatsPeriod.storageKey) private var period: StatsPeriod = .twelveMonths
 
@@ -219,21 +224,30 @@ struct StatisticsView: View {
         VStack(alignment: .leading, spacing: 8) {
             sectionTitle("Records")
             ForEach(stats.records) { record in
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(record.kind.label)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 150, alignment: .leading)
-                    Text(record.formattedValue)
-                        .font(.body.monospacedDigit())
-                        .frame(width: 90, alignment: .leading)
-                    SportLabel(record.activityName, sport: record.sport)
-                        .lineLimit(1)
-                    Spacer(minLength: 8)
-                    Text(Format.dateOnly(record.date))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Button {
+                    onSelect(record.activityID)
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(record.kind.label)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 150, alignment: .leading)
+                        Text(record.formattedValue)
+                            .font(.body.monospacedDigit())
+                            .frame(width: 90, alignment: .leading)
+                        SportLabel(record.activityName, sport: record.sport)
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        Text(Format.dateOnly(record.date))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    // The whole row, not just the name: a target the width of an
+                    // activity's title is a target you have to aim at.
+                    .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
+                .help("Ouvrir « \(record.activityName) »")
             }
         }
     }

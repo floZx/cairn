@@ -301,3 +301,36 @@ struct ActivityStatisticsTests {
             == "Dans la période")
     }
 }
+
+@Suite("Records cliquables")
+@MainActor
+struct RecordSelectionTests {
+    @Test("chaque record retient l'activité qui le détient")
+    func recordsCarryTheirActivity() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let now = Date(timeIntervalSince1970: 1_700_200_000)
+
+        let modest = Activity(stravaID: 1, name: "Petite sortie", sportType: .ride)
+        modest.distance = 10_000
+        modest.startDate = now
+        modest.startLocalDate = now
+        let best = Activity(stravaID: 2, name: "La grande", sportType: .ride)
+        best.distance = 120_000
+        best.startDate = now
+        best.startLocalDate = now
+        [modest, best].forEach(context.insert)
+        try context.save()
+
+        let stats = ActivityStatistics.compute(
+            for: [modest, best], period: .twelveMonths, now: now
+        )
+        let record = stats.records.first { $0.kind == .distance }
+
+        // Carried rather than looked up again from the name and the date: two
+        // outings can share both, and opening the wrong one would be worse than
+        // opening nothing at all.
+        #expect(record?.activityName == "La grande")
+        #expect(record?.activityID == best.id)
+        #expect(record?.activityID != modest.id)
+    }
+}

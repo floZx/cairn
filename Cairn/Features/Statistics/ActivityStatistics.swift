@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// Aggregates over a set of activities, for one period and the one before it.
 ///
@@ -76,6 +77,11 @@ struct ActivityStatistics: Equatable {
     struct Record: Identifiable, Equatable {
         let kind: RecordKind
         let value: Double
+        /// The activity holding the record, so a click can open it. Carried
+        /// rather than looked up again from the name and date: two outings can
+        /// share both, and opening the wrong one would be worse than not
+        /// opening anything.
+        let activityID: PersistentIdentifier
         let activityName: String
         let sport: SportType
         let date: Date
@@ -215,6 +221,7 @@ struct ActivityStatistics: Equatable {
             return Record(
                 kind: kind,
                 value: kind.value(of: best),
+                activityID: best.id,
                 activityName: best.name,
                 sport: best.sportType,
                 date: best.startLocalDate

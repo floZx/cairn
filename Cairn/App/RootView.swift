@@ -279,7 +279,13 @@ struct RootView: View {
                         onSelect: { selectedActivities = [$0] }
                     )
                 } else if showsStatistics {
-                    StatisticsView(activities: statisticsActivities)
+                    // Labelled rather than trailing: a trailing closure inside a
+                    // `ViewBuilder` is read as view content, and the compiler
+                    // then tries to make a `TableColumn` out of it.
+                    StatisticsView(
+                        activities: statisticsActivities,
+                        onSelect: { selectedActivities = [$0] }
+                    )
                 } else {
                     ActivityListView(
                         filter: filter,
@@ -494,12 +500,11 @@ struct RootView: View {
 
     @ViewBuilder
     private var detailColumn: some View {
-        // The global map no longer collapses the pane outright: clicking a track
-        // there opens it, and the map simply gives the width back. Statistics has
-        // nothing to put beside it either way.
-        if showsStatistics {
-            collapsedDetailColumn
-        } else if let selected {
+        // Neither the map nor the statistics collapse the pane outright any
+        // more: clicking a track on one, or a record on the other, opens the
+        // activity beside it, and both give the width back when nothing is
+        // selected.
+        if let selected {
             ActivityDetailView(
                 activity: selected,
                 onExpandMap: { expandedMap = .activity(selected.id) }
