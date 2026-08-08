@@ -33,6 +33,18 @@ struct ActivityCard: View {
                             .foregroundStyle(.yellow)
                             .font(.caption)
                     }
+                    // The thumbnails themselves were too much beside a row of
+                    // figures; the fact that there are any is still worth
+                    // knowing, and one glyph says it without taking a column.
+                    if !activity.photos.isEmpty {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                            .help(
+                                activity.photos.count == 1
+                                    ? "1 photo" : "\(activity.photos.count) photos"
+                            )
+                    }
                 }
                 Text(Format.longDate(activity.startLocalDate))
                     .font(.caption)
