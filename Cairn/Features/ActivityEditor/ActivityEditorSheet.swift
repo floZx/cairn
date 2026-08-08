@@ -16,6 +16,8 @@ struct ActivityEditorSheet: View {
     let onSave: (ActivityDraft) -> Void
 
     @State private var draft: ActivityDraft
+    /// Whether the note field is showing its rendering rather than its source.
+    @State private var showsNotePreview = false
     @Environment(\.dismiss) private var dismiss
 
     init(mode: Mode, onSave: @escaping (ActivityDraft) -> Void) {
@@ -84,17 +86,54 @@ struct ActivityEditorSheet: View {
                     )
                 }
 
-                Section("Notes") {
-                    // First `TextEditor` in the project, so no house style to
-                    // follow — and it arrives borderless, which reads as nothing
-                    // at all beside the bordered fields above it.
-                    TextEditor(text: $draft.notes)
-                        .font(.body)
-                        .frame(minHeight: 70)
+                Section {
+                    // Taller than the fields above on purpose: the size of a box
+                    // is what says how much is expected in it, and a two-line
+                    // note field asks for two lines.
+                    if showsNotePreview {
+                        ScrollView {
+                            MarkdownText(markdown: draft.notes)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(6)
+                        }
+                        .frame(minHeight: 150)
                         .overlay(
                             RoundedRectangle(cornerRadius: 4)
                                 .stroke(Color(nsColor: .separatorColor))
                         )
+                    } else {
+                        // First `TextEditor` in the project, so no house style to
+                        // follow — and it arrives borderless, which reads as
+                        // nothing at all beside the bordered fields above it.
+                        TextEditor(text: $draft.notes)
+                            .font(.body)
+                            .frame(minHeight: 150)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(Color(nsColor: .separatorColor))
+                            )
+                    }
+                } header: {
+                    HStack {
+                        Text("Notes")
+                        Spacer()
+                        Picker("", selection: $showsNotePreview) {
+                            Text("Écrire").tag(false)
+                            Text("Aperçu").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(width: 150)
+                        // Nothing to preview yet, and an empty preview pane is a
+                        // worse first impression than no choice at all.
+                        .disabled(draft.notes.isEmpty)
+                    }
+                } footer: {
+                    Text(
+                        "Markdown : **gras**, *italique*, # titre, - liste, > citation."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
 
                 Section {
@@ -131,7 +170,7 @@ struct ActivityEditorSheet: View {
             }
             .padding(12)
         }
-        .frame(width: 460, height: 560)
+        .frame(width: 520, height: 680)
     }
 }
 

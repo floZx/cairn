@@ -526,7 +526,8 @@ struct RootView: View {
         if let selected {
             ActivityDetailView(
                 activity: selected,
-                onExpandMap: { expandedMap = .activity(selected.id) }
+                onExpandMap: { expandedMap = .activity(selected.id) },
+                onEdit: { editor = .edit(selected) }
             )
             .frame(minWidth: Self.detailMinWidth)
         } else if selection.count > 1 {

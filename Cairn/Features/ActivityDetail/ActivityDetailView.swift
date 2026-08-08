@@ -4,6 +4,9 @@ import SwiftData
 struct ActivityDetailView: View {
     let activity: Activity
     var onExpandMap: (() -> Void)?
+    /// Opens the editor. The notes section calls it, which is what turns an
+    /// empty journal entry into an invitation rather than a blank.
+    var onEdit: (() -> Void)?
     @Environment(AppEnvironment.self) private var app
 
     /// Distance under the cursor in a chart, mirrored on the map as a marker.
@@ -27,6 +30,7 @@ struct ActivityDetailView: View {
                 // the same radius on it would read as a coloured panel.
                 header
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .overlay(alignment: .trailing) { sportWatermark }
                     .ambientGlow(
                         activity.sportType.color, cornerRadius: 16, blurRadius: 80
                     )
@@ -53,6 +57,8 @@ struct ActivityDetailView: View {
                 // Above the figures: a photo says what an outing was in a way no
                 // number does, and it arrives with the detail fetch anyway.
                 ActivityPhotosStrip(activityUUID: activity.uuid)
+
+                notes
 
                 statistics
 
@@ -134,15 +140,70 @@ struct ActivityDetailView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
-            // Sits with the title rather than at the foot of the page: the note
-            // is what the activity was about, and it arrives a moment after the
-            // rest, once the detail endpoint has been fetched.
-            if let note = activity.activityDescription?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                !note.isEmpty {
-                Text(note)
+        }
+    }
+
+    /// The sport's own symbol, very large and very faint, filling the space the
+    /// title leaves to its right.
+    ///
+    /// A watermark and not a second icon: the same glyph is already above the
+    /// title at reading size, so repeating it solid would add no information and
+    /// compete with the name of the activity. Faint, it only carries the colour.
+    private var sportWatermark: some View {
+        Image(systemName: activity.sportType.symbolName)
+            .font(.system(size: 96))
+            .foregroundStyle(activity.sportType.color)
+            .opacity(0.12)
+            // Never a scrollbar's width of glyph hanging off the pane: the
+            // header is as narrow as the user cares to drag it.
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    /// The note, or an invitation to write one.
+    ///
+    /// Shown even when empty, which is the whole point: an activity with no note
+    /// used to display nothing at all, so nothing ever suggested writing one. A
+    /// journal is only kept if it asks to be.
+    private var notes: some View {
+        let note = activity.activityDescription?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text("Notes").font(.headline)
+                Spacer()
+                if !note.isEmpty, onEdit != nil {
+                    Button("Modifier", action: { onEdit?() })
+                        .buttonStyle(.link)
+                        .font(.caption)
+                }
+            }
+
+            if note.isEmpty {
+                Button {
+                    onEdit?()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.and.pencil")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Écrire une note")
+                            Text("Sensations, météo, matériel, ce que vous retiendrez.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .disabled(onEdit == nil)
+            } else {
+                MarkdownText(markdown: note)
                     .textSelection(.enabled)
-                    .padding(.top, 4)
             }
         }
     }
