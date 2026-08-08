@@ -61,15 +61,21 @@ struct NutritionSettingsView: View {
             if entries.isEmpty {
                 Section("Données") {
                     Button("Importer depuis suivinut…") { chooseAndImport() }
-                    if let importMessage {
-                        Text(importMessage)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
                 }
             }
         }
         .formStyle(.grouped)
+        .alert(
+            "Journal alimentaire",
+            isPresented: Binding(
+                get: { importMessage != nil },
+                set: { if !$0 { importMessage = nil } }
+            )
+        ) {
+            Button("OK") {}
+        } message: {
+            Text(importMessage ?? "")
+        }
         .alert(
             "Écriture impossible",
             isPresented: Binding(

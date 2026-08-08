@@ -5,7 +5,9 @@ import SwiftUI
 /// Account holds the Strava credentials and the connection; Synchronisation
 /// holds sync state and actions; Cartes holds everything about how maps look
 /// and what they store. Track colour and the tile cache used to live in the
-/// sync tab, where nobody would look for them.
+/// sync tab, where nobody would look for them. Nutrition holds the food
+/// journal's own configuration: macro and weight targets, day types, per-meal
+/// shares, catalog status, and the one-shot suivinut import.
 struct SettingsScene: View {
     var body: some View {
         TabView {

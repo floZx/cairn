@@ -19,6 +19,7 @@ struct NutritionDayView: View {
     @Query private var days: [NutritionDay]
     @Query private var entries: [FoodEntry]
     @Query private var notes: [MealNote]
+    @Query private var favoriteFoods: [FavoriteFood]
     @AppStorage(NutritionSettings.proteinTargetKey)
     private var proteinTarget = NutritionSettings.defaultProteinTargetG
     @AppStorage(NutritionSettings.fatTargetKey)
@@ -81,7 +82,9 @@ struct NutritionDayView: View {
         let dayEntries = entries.filter { $0.dateKeyRaw == dateKey.raw }
         let day = days.first { $0.dateKeyRaw == dateKey.raw }
         let dayNotes = notes.filter { $0.dateKeyRaw == dateKey.raw }
-        let favorites = (try? NutritionJournal.favoriteKeys(in: modelContext)) ?? []
+        let favorites = Set(favoriteFoods.map {
+            FavoriteKey(foodName: $0.foodName, productCode: $0.productCode)
+        })
         let model = NutritionDayModel.compute(
             entries: dayEntries, slots: slots, notes: dayNotes,
             dayType: day?.dayType,
@@ -380,7 +383,10 @@ struct NutritionDayView: View {
     private func saveRecipe() {
         guard let slot = savingRecipeSlot else { return }
         let name = recipeName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
+        guard !name.isEmpty else {
+            writeFailureMessage = "Donnez un nom à la recette pour l'enregistrer."
+            return
+        }
         do {
             try NutritionJournal.saveMealAsRecipe(
                 named: name, dateKey: dateKey, slot: slot, in: modelContext
