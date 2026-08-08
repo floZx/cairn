@@ -206,6 +206,34 @@ struct FileDownloaderTests {
         #expect(try String(contentsOf: destination, encoding: .utf8) == "neuf")
     }
 
+    @Test("un double 416 échoue au lieu de boucler")
+    func doubleHTTP416Fails() async throws {
+        let destination = makeDestination()
+        defer { try? FileManager.default.removeItem(
+            at: destination.deletingLastPathComponent()) }
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("partiel".utf8).write(
+            to: URL(fileURLWithPath: destination.path + ".part"))
+        try Data("\"v1\"".utf8).write(
+            to: URL(fileURLWithPath: destination.path + ".part.etag"))
+        let script = Script()
+        script.responses = [
+            (response(416, headers: ["Content-Range": "bytes */99"]), body([])),
+            (response(416, headers: ["Content-Range": "bytes */99"]), body([])),
+        ]
+
+        await #expect(throws: FileDownloader.DownloadError.self) {
+            try await FileDownloader.download(
+                from: URL(string: "https://exemple.test/file.gz")!,
+                to: destination, transport: script.transport
+            )
+        }
+        #expect(script.requests.count == 2)
+    }
+
     @Test("incomplet : erreur, le .part reste pour reprendre")
     func incompleteKeepsPartAndThrows() async throws {
         let destination = makeDestination()

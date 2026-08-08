@@ -61,10 +61,20 @@ enum FileDownloader {
         }
 
         if response.statusCode == 416 {
+            // A 416 only makes sense as the answer to a Range request. On a
+            // fresh request (resumeFrom == 0) it is a genuine server error,
+            // not a resume signal — raise instead of restarting, mirroring
+            // the Python original's `if exc.code != 416 or not resume_from:
+            // raise` guard. This also bounds the restart-on-416 recursion
+            // below: after a restart resumeFrom is back to 0, so a second
+            // 416 throws instead of recursing forever.
+            guard resumeFrom > 0 else {
+                throw DownloadError(message: "Le serveur a répondu 416.")
+            }
             // Either the .part is already the whole file (crash after the
             // last byte, before promotion), or the remote size changed and
             // the .part is garbage.
-            if remoteSize(from: response) == resumeFrom, resumeFrom > 0 {
+            if remoteSize(from: response) == resumeFrom {
                 try promote(partURL, to: destination, cleaning: metaURL)
                 return
             }
@@ -170,10 +180,32 @@ enum FileDownloader {
 }
 
 /// URLSession streaming without buffering the gigabyte in memory: a data
-/// task whose delegate forwards each received chunk into an AsyncStream.
+/// task whose delegate forwards each received chunk into a *bounded* pull
+/// pipeline.
+///
+/// Waiting is expressed with continuations, not a blocking `NSCondition`:
+/// Swift 6 marks `NSLock`/`NSCondition`'s `lock()`/`wait()`/`unlock()`
+/// `noasync`, so they cannot be called directly inside an `async` function
+/// body. Calling them inside the *synchronous* closure that
+/// `withCheckedThrowingContinuation` runs is legal — that closure isn't
+/// itself `async` — so the FIFO's lock only ever gets taken from there and
+/// from the (equally synchronous) delegate callbacks.
 private final class StreamingFetch: NSObject, URLSessionDataDelegate, @unchecked Sendable {
-    private var continuation: AsyncThrowingStream<Data, Error>.Continuation?
     private var responseContinuation: CheckedContinuation<HTTPURLResponse, Error>?
+    private var task: URLSessionDataTask?
+
+    // A gigabyte download must never buffer faster than the disk drains it.
+    // `capacity` is a 64-slot counting semaphore: `didReceive` blocks on it
+    // before enqueuing a chunk, which blocks URLSession's own delegate queue
+    // and, transitively, its socket reads — real backpressure, not an
+    // unbounded buffer racing ahead of `FileHandle.write`. `lock` guards the
+    // FIFO and the single parked pull continuation.
+    private let capacity = DispatchSemaphore(value: 64)
+    private let lock = NSLock()
+    private var queue: [Data] = []
+    private var finished = false
+    private var streamError: Error?
+    private var pendingPull: CheckedContinuation<Data?, Error>?
 
     static func run(
         _ request: URLRequest
@@ -182,18 +214,92 @@ private final class StreamingFetch: NSObject, URLSessionDataDelegate, @unchecked
         let session = URLSession(
             configuration: .ephemeral, delegate: delegate, delegateQueue: nil
         )
-        let stream = AsyncThrowingStream<Data, Error> { continuation in
-            delegate.continuation = continuation
-            continuation.onTermination = { @Sendable _ in
-                session.invalidateAndCancel()
-            }
-        }
         let task = session.dataTask(with: request)
-        let response = try await withCheckedThrowingContinuation { continuation in
-            delegate.responseContinuation = continuation
-            task.resume()
+        delegate.task = task
+        let stream = AsyncThrowingStream<Data, Error>(unfolding: {
+            try await delegate.nextChunk()
+        })
+        // Cancelling the surrounding Task while we're only waiting for
+        // headers must not hang: withTaskCancellationHandler cancels the
+        // URLSessionTask, which makes didCompleteWithError fire and resume
+        // the continuation with an error instead of leaving it suspended
+        // forever.
+        let response = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                delegate.responseContinuation = continuation
+                task.resume()
+            }
+        } onCancel: {
+            task.cancel()
         }
         return (response, stream)
+    }
+
+    /// Pulled by the consumer (`FileDownloader`'s `for try await`). Returns
+    /// immediately if a chunk is already queued or the stream already
+    /// finished; otherwise parks a continuation that `didReceive` /
+    /// `didCompleteWithError` resume once there is something to report.
+    /// Cancellation cancels the underlying task, the same way the header
+    /// wait does.
+    private func nextChunk() async throws -> Data? {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                lock.lock()
+                if let chunk = dequeueLocked() {
+                    lock.unlock()
+                    continuation.resume(returning: chunk)
+                } else if finished {
+                    let error = streamError
+                    lock.unlock()
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                } else {
+                    pendingPull = continuation
+                    lock.unlock()
+                }
+            }
+        } onCancel: { [task] in
+            task?.cancel()
+        }
+    }
+
+    /// Must be called with `lock` held. Dequeues a chunk and frees the
+    /// capacity slot it held, or returns nil if the queue is empty.
+    private func dequeueLocked() -> Data? {
+        guard !queue.isEmpty else { return nil }
+        let chunk = queue.removeFirst()
+        capacity.signal()
+        return chunk
+    }
+
+    /// Resumes a parked pull once there is a chunk or a terminal state.
+    /// Only ever called from delegate callbacks, which URLSession serializes
+    /// on its own delegate queue, so at most one call runs at a time.
+    private func deliverIfPending() {
+        lock.lock()
+        guard let continuation = pendingPull else {
+            lock.unlock()
+            return
+        }
+        if let chunk = dequeueLocked() {
+            pendingPull = nil
+            lock.unlock()
+            continuation.resume(returning: chunk)
+        } else if finished {
+            pendingPull = nil
+            let error = streamError
+            lock.unlock()
+            if let error {
+                continuation.resume(throwing: error)
+            } else {
+                continuation.resume(returning: nil)
+            }
+        } else {
+            lock.unlock()
+        }
     }
 
     func urlSession(
@@ -211,7 +317,13 @@ private final class StreamingFetch: NSObject, URLSessionDataDelegate, @unchecked
     func urlSession(
         _ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data
     ) {
-        continuation?.yield(data)
+        // Blocks the delegate queue — and so URLSession's socket reads —
+        // until the consumer has drained a slot.
+        capacity.wait()
+        lock.lock()
+        queue.append(data)
+        lock.unlock()
+        deliverIfPending()
     }
 
     func urlSession(
@@ -221,10 +333,12 @@ private final class StreamingFetch: NSObject, URLSessionDataDelegate, @unchecked
         if let error {
             responseContinuation?.resume(throwing: error)
             responseContinuation = nil
-            continuation?.finish(throwing: error)
-        } else {
-            continuation?.finish()
         }
+        lock.lock()
+        streamError = error
+        finished = true
+        lock.unlock()
+        deliverIfPending()
         session.finishTasksAndInvalidate()
     }
 }
