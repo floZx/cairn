@@ -29,6 +29,11 @@ struct ActivityListView: View {
         KeyPathComparator(\Activity.startDate, order: .reverse)
     ]
 
+    /// Which presentation is showing. Persisted: it is a preference, not a mode
+    /// — someone who prefers cards prefers them tomorrow too.
+    @AppStorage(ActivityListStyle.storageKey)
+    private var style: ActivityListStyle = .table
+
     /// Which columns are shown, in which order, at which width — right-click the
     /// header to choose, drag to reorder, exactly as in the Finder. Persisted in
     /// `AppStorage` rather than `SceneStorage` so it survives a relaunch and not
@@ -101,7 +106,101 @@ struct ActivityListView: View {
         // Bound once: `rows` filters and sorts the whole query, and it used to be
         // recomputed for the table and again for each half of the title.
         let rows = rows
-        return Table(
+        return Group {
+            if style == .cards {
+                cards(rows)
+            } else {
+                table(rows)
+            }
+        }
+        .navigationTitle(
+            rows.count == 1 ? "1 activité" : "\(rows.count) activités"
+        )
+        // The window subtitle, so the count is never read as the whole library
+        // when it is in fact a filtered slice of it.
+        .navigationSubtitle(filter.summary ?? "")
+        // Both presentations are backed by an `NSTableView`, and both would
+        // otherwise pay for automatic row heights. See the probe's own note.
+        .background(FixedTableRowHeight())
+        // Motions are answered here, where the sorted rows are; everything
+        // else goes to the parent, which is also what the statistics and the
+        // map hand it.
+        .vimKeys { command in
+            perform(command, in: rows)
+            return true
+        }
+        .onAppear {
+            if let first = Self.initialSelection(
+                rows: rows, current: selection, hasAutoSelected: hasAutoSelected
+            ) {
+                selection = [first]
+            }
+            // Set even when nothing was selected — an empty library on first
+            // launch must not arm the auto-selection for the next filter change.
+            hasAutoSelected = true
+        }
+        .toolbar {
+            // Only with the cards: the table sorts by clicking a header, and a
+            // second control for the same thing would be one too many.
+            if style == .cards {
+                ToolbarItem { sortMenu }
+            }
+            ToolbarItem {
+                Picker("Présentation", selection: $style) {
+                    ForEach(ActivityListStyle.allCases) { option in
+                        Label(option.displayName, systemImage: option.symbolName)
+                            .tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelStyle(.iconOnly)
+                .help("Basculer entre le tableau et les fiches")
+            }
+        }
+    }
+
+    /// Writes into the same `sortOrder` the table's headers drive, so switching
+    /// presentation never reshuffles what is on screen.
+    private var sortMenu: some View {
+        Menu {
+            ForEach(ActivitySort.allCases) { option in
+                Button {
+                    // Same field tapped twice reverses it, as a column header
+                    // does — the one gesture everyone already knows.
+                    sortOrder = option.comparators(
+                        ascending: ActivitySort.current(sortOrder) == option
+                            ? !ActivitySort.isAscending(sortOrder)
+                            : option.startsAscending
+                    )
+                } label: {
+                    if ActivitySort.current(sortOrder) == option {
+                        Label(
+                            option.displayName,
+                            systemImage: ActivitySort.isAscending(sortOrder)
+                                ? "chevron.up" : "chevron.down"
+                        )
+                    } else {
+                        Text(option.displayName)
+                    }
+                }
+            }
+        } label: {
+            Label("Trier", systemImage: "arrow.up.arrow.down")
+        }
+        .help("Trier les fiches")
+    }
+
+    /// The rich presentation: one card per activity.
+    private func cards(_ rows: [Activity]) -> some View {
+        List(rows, selection: $selection) { activity in
+            ActivityCard(activity: activity)
+                .tag(activity.id)
+        }
+        .listStyle(.inset)
+    }
+
+    private func table(_ rows: [Activity]) -> some View {
+        Table(
             rows,
             selection: $selection,
             sortOrder: $sortOrder,
@@ -169,30 +268,6 @@ struct ActivityListView: View {
             }
             .width(min: 60, ideal: 80)
             .customizationID("labels")
-        }
-        .navigationTitle(
-            rows.count == 1 ? "1 activité" : "\(rows.count) activités"
-        )
-        // The window subtitle, so the count is never read as the whole library
-        // when it is in fact a filtered slice of it.
-        .navigationSubtitle(filter.summary ?? "")
-        .background(FixedTableRowHeight())
-        // Motions are answered here, where the sorted rows are; everything
-        // else goes to the parent, which is also what the statistics and the
-        // map hand it.
-        .vimKeys { command in
-            perform(command, in: rows)
-            return true
-        }
-        .onAppear {
-            if let first = Self.initialSelection(
-                rows: rows, current: selection, hasAutoSelected: hasAutoSelected
-            ) {
-                selection = [first]
-            }
-            // Set even when nothing was selected — an empty library on first
-            // launch must not arm the auto-selection for the next filter change.
-            hasAutoSelected = true
         }
     }
 }
