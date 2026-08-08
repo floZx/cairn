@@ -121,4 +121,11 @@ struct FoodCatalogTests {
         defer { try? FileManager.default.removeItem(atPath: path) }
         #expect(try catalog.productCount() == 4)
     }
+
+    @Test("importedAt est nil sur un catalogue sans méta")
+    func importedAtNilWithoutMeta() throws {
+        let (catalog, path) = try makeCatalog()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        #expect(try catalog.importedAt() == nil)
+    }
 }

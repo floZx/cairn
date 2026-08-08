@@ -76,4 +76,20 @@ final class FoodCatalog {
         let rows = try db.rows("SELECT COUNT(*) AS n FROM products")
         return rows.first?["n"]?.intValue ?? 0
     }
+
+    /// The `imported_at` the builder stamped. nil on a catalog copied from
+    /// suivinut before the meta existed, or on fixtures — a missing
+    /// `catalog_meta` table is a normal state, not an error, hence the
+    /// swallow: the only failure a read-only SELECT can hit here is the
+    /// table's absence.
+    func importedAt() throws -> String? {
+        do {
+            let rows = try db.rows(
+                "SELECT value FROM catalog_meta WHERE key = 'imported_at'"
+            )
+            return rows.first?["value"]?.stringValue
+        } catch {
+            return nil
+        }
+    }
 }
