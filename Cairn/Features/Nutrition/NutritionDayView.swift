@@ -34,6 +34,7 @@ struct NutritionDayView: View {
     @State private var savingRecipeSlot: MealSlot?
     @State private var recipeName = ""
     @State private var showsRecipesManager = false
+    @State private var noteTargetSlot: MealSlot?
     // Sorted the way suivinut lists day types: by target then name, so the
     // menu reads from rest day to biggest day.
     @Query(sort: [
@@ -46,6 +47,7 @@ struct NutritionDayView: View {
         addTargetSlot != nil || editingEntry != nil
             || importMessage != nil || writeFailureMessage != nil
             || recipeTargetSlot != nil || savingRecipeSlot != nil || showsRecipesManager
+            || noteTargetSlot != nil
     }
 
     var body: some View {
@@ -109,6 +111,15 @@ struct NutritionDayView: View {
         }
         .sheet(isPresented: $showsRecipesManager) {
             RecipesManagerSheet()
+        }
+        .sheet(item: $noteTargetSlot) { slot in
+            MealNoteSheet(
+                slot: slot, dateKey: dateKey,
+                existingNote: notes.first {
+                    $0.dateKeyRaw == dateKey.raw
+                        && $0.mealSlot?.persistentModelID == slot.persistentModelID
+                }?.note
+            )
         }
         .alert(
             "Écriture impossible",
@@ -234,6 +245,9 @@ struct NutritionDayView: View {
                         savingRecipeSlot = slotModel(for: meal.slotID)
                     }
                     .disabled(meal.rows.isEmpty)
+                    Button("Note du repas…") {
+                        noteTargetSlot = slotModel(for: meal.slotID)
+                    }
                     Divider()
                     Button("Gérer les recettes…") { showsRecipesManager = true }
                 } label: {
