@@ -176,3 +176,93 @@ enum NutritionJournal {
         try context.save()
     }
 }
+
+extension NutritionJournal {
+    /// suivinut's `apply_recipe`: each item becomes a journal entry appended
+    /// at the end of the meal, macros copied — the journal never references
+    /// the recipe afterwards.
+    @MainActor
+    static func applyRecipe(
+        _ recipe: Recipe, to dateKey: DateKey, slot: MealSlot,
+        in context: ModelContext
+    ) throws {
+        for item in recipe.orderedItems {
+            try addEntry(
+                in: context, dateKey: dateKey, slot: slot,
+                foodName: item.foodName, kcal100: item.kcal100,
+                protein100: item.protein100, carbs100: item.carbs100,
+                fat100: item.fat100, grams: item.grams,
+                productCode: item.productCode
+            )
+        }
+    }
+
+    /// The current meal, frozen as a recipe. Refusing an empty meal beats
+    /// silently creating a recipe nothing can apply.
+    @MainActor @discardableResult
+    static func saveMealAsRecipe(
+        named name: String, dateKey: DateKey, slot: MealSlot,
+        in context: ModelContext
+    ) throws -> Recipe {
+        let source = try siblings(of: dateKey.raw, slot: slot, in: context)
+            .sorted { $0.sortOrder < $1.sortOrder }
+        guard !source.isEmpty else {
+            throw JournalError(message: "Ce repas est vide — rien à enregistrer.")
+        }
+        let recipe = Recipe(name: name, mealSlot: slot)
+        context.insert(recipe)
+        for (index, entry) in source.enumerated() {
+            let item = RecipeItem(
+                foodName: entry.foodName, kcal100: entry.kcal100,
+                protein100: entry.protein100, carbs100: entry.carbs100,
+                fat100: entry.fat100, grams: entry.grams,
+                productCode: entry.productCode
+            )
+            item.sortOrder = index
+            item.recipe = recipe
+            context.insert(item)
+        }
+        try context.save()
+        return recipe
+    }
+
+    @MainActor
+    static func deleteRecipe(_ recipe: Recipe, in context: ModelContext) throws {
+        context.delete(recipe)
+        try context.save()
+    }
+
+    @MainActor @discardableResult
+    static func addRecipeItem(
+        to recipe: Recipe, foodName: String, kcal100: Double,
+        protein100: Double, carbs100: Double, fat100: Double,
+        grams: Double, productCode: String?, in context: ModelContext
+    ) throws -> RecipeItem {
+        let next = (recipe.orderedItems.map(\.sortOrder).max() ?? -1) + 1
+        let item = RecipeItem(
+            foodName: foodName, kcal100: kcal100, protein100: protein100,
+            carbs100: carbs100, fat100: fat100, grams: grams,
+            productCode: productCode
+        )
+        item.sortOrder = next
+        item.recipe = recipe
+        context.insert(item)
+        try context.save()
+        return item
+    }
+
+    @MainActor
+    static func deleteRecipeItem(
+        _ item: RecipeItem, in context: ModelContext
+    ) throws {
+        context.delete(item)
+        try context.save()
+    }
+}
+
+/// A user-facing journal failure, message in French like every string the
+/// alert system shows.
+struct JournalError: Error, CustomStringConvertible {
+    let message: String
+    var description: String { message }
+}

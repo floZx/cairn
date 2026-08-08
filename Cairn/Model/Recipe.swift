@@ -26,6 +26,10 @@ final class RecipeItem {
     var carbs100: Double = 0
     var fat100: Double = 0
     var grams: Double = 0
+    /// Display and apply order inside the recipe. suivinut ordered by row id;
+    /// items imported before this field exists stay at 0 and fall back to
+    /// name order — the best that can be recovered.
+    var sortOrder: Int = 0
 
     init(
         foodName: String, kcal100: Double, protein100: Double,
@@ -39,5 +43,14 @@ final class RecipeItem {
         self.fat100 = fat100
         self.grams = grams
         self.productCode = productCode
+    }
+}
+
+extension Recipe {
+    /// Items in stable display order.
+    var orderedItems: [RecipeItem] {
+        (items ?? []).sorted {
+            ($0.sortOrder, $0.foodName) < ($1.sortOrder, $1.foodName)
+        }
     }
 }

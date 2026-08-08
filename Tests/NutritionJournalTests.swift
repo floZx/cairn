@@ -216,4 +216,99 @@ struct NutritionJournalTests {
         try NutritionJournal.removeFavorite(favorite, in: context)
         #expect(try context.fetch(FetchDescriptor<FavoriteFood>()).isEmpty)
     }
+
+    @Test("appliquer une recette appende ses items en fin de repas, dans l'ordre")
+    func applyRecipeAppendsInOrder() throws {
+        let context = try makeContext()
+        let slot = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        context.insert(slot)
+        let key = DateKey(raw: "2026-08-08")!
+        _ = try addFood("Déjà là", to: slot, context: context)
+
+        let recipe = Recipe(name: "Porridge", mealSlot: slot)
+        context.insert(recipe)
+        let oats = RecipeItem(
+            foodName: "Flocons", kcal100: 370, protein100: 13,
+            carbs100: 60, fat100: 7, grams: 80
+        )
+        oats.sortOrder = 0
+        oats.recipe = recipe
+        let milk = RecipeItem(
+            foodName: "Lait", kcal100: 47, protein100: 3.2,
+            carbs100: 4.8, fat100: 1.5, grams: 200, productCode: "456"
+        )
+        milk.sortOrder = 1
+        milk.recipe = recipe
+        context.insert(oats)
+        context.insert(milk)
+        try context.save()
+
+        try NutritionJournal.applyRecipe(recipe, to: key, slot: slot, in: context)
+
+        let entries = try context.fetch(FetchDescriptor<FoodEntry>())
+            .sorted { $0.sortOrder < $1.sortOrder }
+        #expect(entries.map(\.foodName) == ["Déjà là", "Flocons", "Lait"])
+        #expect(entries[2].productCode == "456")
+        #expect(entries[1].kcal100 == 370)
+    }
+
+    @Test("enregistrer un repas comme recette copie ses entrées dans l'ordre")
+    func saveMealAsRecipeCopiesEntries() throws {
+        let context = try makeContext()
+        let slot = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        context.insert(slot)
+        let key = DateKey(raw: "2026-08-08")!
+        _ = try addFood("Skyr", to: slot, context: context, dateKey: key)
+        _ = try addFood("Granola", to: slot, context: context, dateKey: key)
+        // Une entrée d'un autre jour ne doit pas entrer dans la recette.
+        _ = try addFood(
+            "Hier", to: slot, context: context, dateKey: DateKey(raw: "2026-08-07")!
+        )
+
+        let recipe = try NutritionJournal.saveMealAsRecipe(
+            named: "Petit-déj type", dateKey: key, slot: slot, in: context
+        )
+        #expect(recipe.mealSlot?.persistentModelID == slot.persistentModelID)
+        #expect(recipe.orderedItems.map(\.foodName) == ["Skyr", "Granola"])
+        #expect(recipe.orderedItems[0].grams == 100)
+    }
+
+    @Test("enregistrer un repas vide comme recette échoue")
+    func saveEmptyMealThrows() throws {
+        let context = try makeContext()
+        let slot = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        context.insert(slot)
+        #expect(throws: (any Error).self) {
+            try NutritionJournal.saveMealAsRecipe(
+                named: "Vide", dateKey: DateKey(raw: "2026-08-08")!,
+                slot: slot, in: context
+            )
+        }
+        #expect(try context.fetch(FetchDescriptor<Recipe>()).isEmpty)
+    }
+
+    @Test("ajout et suppression d'items de recette, ordre stable")
+    func recipeItemCrud() throws {
+        let context = try makeContext()
+        let recipe = Recipe(name: "Porridge")
+        context.insert(recipe)
+        try context.save()
+
+        let first = try NutritionJournal.addRecipeItem(
+            to: recipe, foodName: "Flocons", kcal100: 370, protein100: 13,
+            carbs100: 60, fat100: 7, grams: 80, productCode: nil, in: context
+        )
+        _ = try NutritionJournal.addRecipeItem(
+            to: recipe, foodName: "Lait", kcal100: 47, protein100: 3.2,
+            carbs100: 4.8, fat100: 1.5, grams: 200, productCode: nil, in: context
+        )
+        #expect(recipe.orderedItems.map(\.foodName) == ["Flocons", "Lait"])
+
+        try NutritionJournal.deleteRecipeItem(first, in: context)
+        #expect(recipe.orderedItems.map(\.foodName) == ["Lait"])
+
+        try NutritionJournal.deleteRecipe(recipe, in: context)
+        #expect(try context.fetch(FetchDescriptor<Recipe>()).isEmpty)
+        #expect(try context.fetch(FetchDescriptor<RecipeItem>()).isEmpty)
+    }
 }

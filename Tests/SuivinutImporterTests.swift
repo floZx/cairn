@@ -76,6 +76,10 @@ struct SuivinutImporterTests {
                 (recipe_id, food_name, product_code, kcal_100g, protein_100g,
                  carbs_100g, fat_100g, grams)
                 VALUES (1, 'Flocons', '123', 370, 13, 60, 7, 80);
+            INSERT INTO recipe_items
+                (recipe_id, food_name, product_code, kcal_100g, protein_100g,
+                 carbs_100g, fat_100g, grams)
+                VALUES (1, 'Lait', NULL, 47, 3.2, 4.8, 1.5, 200);
             INSERT INTO weights VALUES ('2026-08-07', 71.4, NULL);
             """)
     }
@@ -118,8 +122,9 @@ struct SuivinutImporterTests {
         let notes = try context.fetch(FetchDescriptor<MealNote>())
         #expect(notes[0].mealSlot?.name == "Petit-déj")
         let recipes = try context.fetch(FetchDescriptor<Recipe>())
-        #expect(recipes[0].items?.count == 1)
+        #expect(recipes[0].items?.count == 2)
         #expect(recipes[0].mealSlot?.name == "Petit-déj")
+        #expect(recipes[0].orderedItems.map(\.foodName) == ["Flocons", "Lait"])
     }
 
     @Test("une base invalide ne laisse rien dans le store")

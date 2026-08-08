@@ -147,10 +147,11 @@ struct SuivinutImporter {
             summary.recipes += 1
         }
 
+        var recipeItemCounts: [Int64: Int] = [:]
         for row in try db.rows("""
             SELECT recipe_id, food_name, product_code, kcal_100g,
                    protein_100g, carbs_100g, fat_100g, grams
-            FROM recipe_items
+            FROM recipe_items ORDER BY id
             """) {
             guard let recipeID = row["recipe_id"]?.int64Value,
                   let recipe = recipes[recipeID]
@@ -168,6 +169,9 @@ struct SuivinutImporter {
                 grams: row["grams"]?.doubleValue ?? 0,
                 productCode: row["product_code"]?.stringValue
             )
+            let order = recipeItemCounts[recipeID, default: 0]
+            recipeItemCounts[recipeID] = order + 1
+            item.sortOrder = order
             item.recipe = recipe
             context.insert(item)
         }
