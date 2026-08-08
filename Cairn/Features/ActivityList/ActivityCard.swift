@@ -39,8 +39,10 @@ struct ActivityCard: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            // Yields its width before the figures do: a truncated name is
-            // readable, a truncated number is a different number.
+            // A floor, and a high priority: the name is what identifies the
+            // row, and "T…" identifies nothing. What gives way instead is the
+            // last figure, chosen below.
+            .frame(minWidth: 150, alignment: .leading)
             .layoutPriority(1)
 
             Spacer(minLength: 12)
@@ -71,6 +73,11 @@ struct ActivityCard: View {
             }
         }
         .frame(width: Self.thumbnailWidth, height: inner)
+        // The colour spills out of the thumbnail and onto the row, so the card
+        // is lit by its sport rather than merely labelled with it. Narrower than
+        // the detail pane's glow: a row is short, and the same radius would wash
+        // over its neighbours instead of its own text.
+        .ambientGlow(activity.sportType.color, cornerRadius: 8, blurRadius: 30)
     }
 
     /// The figures, as a row of blocks rather than a line of small grey text.
@@ -80,13 +87,44 @@ struct ActivityCard: View {
     /// saying nothing. Heart rate drops out when there is none rather than
     /// leaving a hole.
     private var figures: some View {
-        HStack(spacing: 0) {
-            block(Format.distance(activity.distance), "Distance")
-            block(Format.durationCompact(activity.movingTime), "Durée")
-            block(Format.elevation(activity.totalElevationGain), "D+")
-            if let heartrate = activity.averageHeartrate {
-                block(Format.heartrate(heartrate), "FC moy.")
+        // Everything here is fixed-width, so on a narrow pane something has to
+        // give. `ViewThatFits` decides *which*, in order of what an outing is
+        // actually about: the heart rate goes before the climb, and the climb
+        // before the distance. Left to the layout engine, it was the name that
+        // gave way instead.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) {
+                distanceBlock
+                durationBlock
+                elevationBlock
+                heartrateBlock
             }
+            HStack(spacing: 0) {
+                distanceBlock
+                durationBlock
+                elevationBlock
+            }
+            HStack(spacing: 0) {
+                distanceBlock
+                durationBlock
+            }
+            distanceBlock
+        }
+    }
+
+    private var distanceBlock: some View {
+        block(Format.distance(activity.distance), "Distance")
+    }
+    private var durationBlock: some View {
+        block(Format.durationCompact(activity.movingTime), "Durée")
+    }
+    private var elevationBlock: some View {
+        block(Format.elevation(activity.totalElevationGain), "D+")
+    }
+    @ViewBuilder
+    private var heartrateBlock: some View {
+        if let heartrate = activity.averageHeartrate {
+            block(Format.heartrate(heartrate), "FC moy.")
         }
     }
 
@@ -103,7 +141,7 @@ struct ActivityCard: View {
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
         }
-        .frame(width: 84, alignment: .leading)
+        .frame(width: 80, alignment: .leading)
     }
 
     /// A glimpse of the photos, when there are any.
