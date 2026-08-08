@@ -38,6 +38,12 @@ struct ActivityEditorSheet: View {
         }
     }
 
+    private func save() {
+        guard draft.validationMessage == nil else { return }
+        onSave(draft)
+        dismiss()
+    }
+
     private var title: String {
         switch mode {
         case .edit: "Modifier l'activité"
@@ -169,12 +175,22 @@ struct ActivityEditorSheet: View {
                 Spacer()
                 Button("Annuler") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Enregistrer") {
-                    onSave(draft)
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(draft.validationMessage != nil)
+                Button("Enregistrer", action: save)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(draft.validationMessage != nil)
+                    .help("Enregistrer (⌘⏎)")
+
+                // A twin, invisible, carrying ⌘⏎. `defaultAction` is Return, and
+                // a `TextEditor` keeps Return for itself to make a new line — so
+                // from the note field, the only field anyone stays in for long,
+                // nothing validated the form at all. SwiftUI takes one shortcut
+                // per button, hence two buttons for one action.
+                Button("", action: save)
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .disabled(draft.validationMessage != nil)
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                    .accessibilityHidden(true)
             }
             .padding(12)
         }
