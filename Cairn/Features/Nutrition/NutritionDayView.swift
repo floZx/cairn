@@ -3,9 +3,9 @@ import SwiftUI
 import SwiftData
 import AppKit
 
-/// The daily food journal — Cairn's take on suivinut's Day screen. Read-only
-/// in phase 1: navigation, targets and totals; entry editing arrives with
-/// phase 2.
+/// The daily food journal — Cairn's take on suivinut's Day screen: navigation,
+/// targets, totals, and full entry editing (add, edit, reorder, delete,
+/// day-type choice).
 struct NutritionDayView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \MealSlot.sortOrder) private var slots: [MealSlot]

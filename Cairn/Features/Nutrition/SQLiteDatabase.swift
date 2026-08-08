@@ -4,8 +4,8 @@ import SQLite3
 
 /// The thinnest possible wrapper over the system SQLite: open, run, read
 /// rows. It exists for the one-shot suivinut import and, later, the OFF
-/// catalog — SwiftData owns everything else, so this deliberately has no
-/// bindings, no statement cache, no migration story.
+/// catalog — SwiftData owns everything else. Positional ? bindings exist for
+/// user-provided values, but there's no statement cache or migration story.
 final class SQLiteDatabase {
     enum Value: Equatable {
         case integer(Int64)
