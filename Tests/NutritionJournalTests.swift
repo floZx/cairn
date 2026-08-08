@@ -140,4 +140,80 @@ struct NutritionJournalTests {
         #expect(days.count == 1)
         #expect(days[0].dayType == nil)
     }
+
+    @Test("une note s'upsert, une note vide se supprime")
+    func mealNoteUpsertsAndClears() throws {
+        let context = try makeContext()
+        let slot = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        context.insert(slot)
+        let key = DateKey(raw: "2026-08-08")!
+
+        try NutritionJournal.setMealNote("avant footing", for: key, slot: slot, in: context)
+        var notes = try context.fetch(FetchDescriptor<MealNote>())
+        #expect(notes.count == 1)
+        #expect(notes[0].note == "avant footing")
+
+        try NutritionJournal.setMealNote("  après footing  ", for: key, slot: slot, in: context)
+        notes = try context.fetch(FetchDescriptor<MealNote>())
+        #expect(notes.count == 1)
+        #expect(notes[0].note == "après footing")
+
+        try NutritionJournal.setMealNote("   ", for: key, slot: slot, in: context)
+        #expect(try context.fetch(FetchDescriptor<MealNote>()).isEmpty)
+    }
+
+    @Test("la bascule favori ajoute puis retire, clé (nom, code)")
+    func favoriteToggles() throws {
+        let context = try makeContext()
+        let slot = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        context.insert(slot)
+        let entry = try addFood("Skyr", to: slot, context: context)
+
+        #expect(try NutritionJournal.toggleFavorite(for: entry, in: context))
+        var favorites = try context.fetch(FetchDescriptor<FavoriteFood>())
+        #expect(favorites.count == 1)
+        #expect(favorites[0].foodName == "Skyr")
+        #expect(favorites[0].grams == 100)
+        #expect(try NutritionJournal.favoriteKeys(in: context)
+            == [FavoriteKey(foodName: "Skyr", productCode: nil)])
+
+        #expect(try NutritionJournal.toggleFavorite(for: entry, in: context) == false)
+        #expect(try context.fetch(FetchDescriptor<FavoriteFood>()).isEmpty)
+    }
+
+    @Test("deux favoris de même nom mais code différent coexistent")
+    func favoriteKeyIncludesCode() throws {
+        let context = try makeContext()
+        let slot = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        context.insert(slot)
+        let generic = try addFood("Riz", to: slot, context: context)
+        let branded = try NutritionJournal.addEntry(
+            in: context, dateKey: DateKey(raw: "2026-08-08")!, slot: slot,
+            foodName: "Riz", kcal100: 350, protein100: 7, carbs100: 77,
+            fat100: 1, grams: 120, productCode: "123"
+        )
+
+        try NutritionJournal.toggleFavorite(for: generic, in: context)
+        try NutritionJournal.toggleFavorite(for: branded, in: context)
+        #expect(try context.fetch(FetchDescriptor<FavoriteFood>()).count == 2)
+
+        // Retirer le favori générique laisse le favori de marque en place.
+        try NutritionJournal.toggleFavorite(for: generic, in: context)
+        let remaining = try context.fetch(FetchDescriptor<FavoriteFood>())
+        #expect(remaining.count == 1)
+        #expect(remaining[0].productCode == "123")
+    }
+
+    @Test("removeFavorite supprime le favori visé")
+    func removeFavoriteDeletes() throws {
+        let context = try makeContext()
+        let favorite = FavoriteFood(
+            foodName: "Skyr", kcal100: 57, protein100: 10,
+            carbs100: 4, fat100: 0.2, grams: 150
+        )
+        context.insert(favorite)
+        try context.save()
+        try NutritionJournal.removeFavorite(favorite, in: context)
+        #expect(try context.fetch(FetchDescriptor<FavoriteFood>()).isEmpty)
+    }
 }
