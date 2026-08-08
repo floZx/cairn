@@ -30,6 +30,10 @@ struct NutritionDayView: View {
     @State private var addTargetSlot: MealSlot?
     @State private var editingEntry: FoodEntry?
     @State private var writeFailureMessage: String?
+    @State private var recipeTargetSlot: MealSlot?
+    @State private var savingRecipeSlot: MealSlot?
+    @State private var recipeName = ""
+    @State private var showsRecipesManager = false
     // Sorted the way suivinut lists day types: by target then name, so the
     // menu reads from rest day to biggest day.
     @Query(sort: [
@@ -41,6 +45,7 @@ struct NutritionDayView: View {
     private var isPresentingModal: Bool {
         addTargetSlot != nil || editingEntry != nil
             || importMessage != nil || writeFailureMessage != nil
+            || recipeTargetSlot != nil || savingRecipeSlot != nil || showsRecipesManager
     }
 
     var body: some View {
@@ -99,6 +104,12 @@ struct NutritionDayView: View {
         .sheet(item: $editingEntry) { entry in
             EditEntrySheet(entry: entry)
         }
+        .sheet(item: $recipeTargetSlot) { slot in
+            RecipePickerSheet(slot: slot, dateKey: dateKey)
+        }
+        .sheet(isPresented: $showsRecipesManager) {
+            RecipesManagerSheet()
+        }
         .alert(
             "Écriture impossible",
             isPresented: Binding(
@@ -109,6 +120,19 @@ struct NutritionDayView: View {
             Button("OK") {}
         } message: {
             Text(writeFailureMessage ?? "")
+        }
+        .alert(
+            "Enregistrer comme recette",
+            isPresented: Binding(
+                get: { savingRecipeSlot != nil },
+                set: { if !$0 { savingRecipeSlot = nil } }
+            )
+        ) {
+            TextField("Nom de la recette", text: $recipeName)
+            Button("Annuler", role: .cancel) {}
+            Button("Enregistrer") { saveRecipe() }
+        } message: {
+            Text("Le repas actuel devient une recette réutilisable.")
         }
     }
 
@@ -195,14 +219,28 @@ struct NutritionDayView: View {
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
                 Button {
-                    addTargetSlot = slots.first {
-                        $0.persistentModelID == meal.slotID
-                    }
+                    addTargetSlot = slotModel(for: meal.slotID)
                 } label: {
                     Image(systemName: "plus.circle")
                 }
                 .buttonStyle(.borderless)
                 .help("Ajouter un aliment à \(meal.slotName)")
+                Menu {
+                    Button("Charger une recette…") {
+                        recipeTargetSlot = slotModel(for: meal.slotID)
+                    }
+                    Button("Enregistrer ce repas comme recette…") {
+                        recipeName = ""
+                        savingRecipeSlot = slotModel(for: meal.slotID)
+                    }
+                    .disabled(meal.rows.isEmpty)
+                    Divider()
+                    Button("Gérer les recettes…") { showsRecipesManager = true }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
             }
             if meal.rows.isEmpty {
                 Text("Rien de consigné")
@@ -282,6 +320,10 @@ struct NutritionDayView: View {
         entries.first { $0.persistentModelID == id }
     }
 
+    private func slotModel(for id: PersistentIdentifier) -> MealSlot? {
+        slots.first { $0.persistentModelID == id }
+    }
+
     private func move(_ id: PersistentIdentifier, direction: Int) {
         guard let entry = entry(for: id) else { return }
         do {
@@ -318,6 +360,20 @@ struct NutritionDayView: View {
         } catch {
             writeFailureMessage =
                 "Le jour-type n'a pas pu être enregistré. \(error.localizedDescription)"
+        }
+    }
+
+    private func saveRecipe() {
+        guard let slot = savingRecipeSlot else { return }
+        let name = recipeName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        do {
+            try NutritionJournal.saveMealAsRecipe(
+                named: name, dateKey: dateKey, slot: slot, in: modelContext
+            )
+        } catch {
+            writeFailureMessage =
+                "La recette n'a pas pu être enregistrée. \(error.localizedDescription)"
         }
     }
 
