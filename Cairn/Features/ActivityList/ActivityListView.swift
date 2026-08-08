@@ -151,13 +151,20 @@ struct ActivityListView: View {
         .navigationSubtitle(filter.summary ?? "")
         // Both presentations are backed by an `NSTableView`, and both would
         // otherwise pay for automatic row heights. See the probe's own note.
-        .background(FixedTableRowHeight(scroller: scroller))
+        // Keyed on the presentation: switching builds a different table, and a
+        // probe that ran once would go on holding the destroyed one.
+        .background(FixedTableRowHeight(scroller: scroller).id(style))
         // Motions are answered here, where the sorted rows are; everything
         // else goes to the parent, which is also what the statistics and the
         // map hand it.
         .vimKeys { command in
             perform(command, in: rows)
             return true
+        }
+        // Switching presentation destroys the table the keyboard was in, and
+        // focus goes nowhere. The request waits for the replacement.
+        .onChange(of: style) { _, _ in
+            scroller.focusWhenAttached()
         }
         // A selection that is not the one we wrote came from somewhere else — a
         // click in the list, a record in the statistics, a track on the map — so

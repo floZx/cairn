@@ -29,10 +29,37 @@ import SwiftUI
 @MainActor
 final class TableScroller {
     fileprivate weak var tableView: NSTableView?
+    /// A focus request waiting for a table to exist.
+    ///
+    /// Switching presentation destroys the table the keyboard was in and builds
+    /// another, so the request is made before there is anything to give focus
+    /// to. It is held until the probe finds the replacement rather than fired
+    /// into the void.
+    private var wantsFocus = false
 
-    /// Hands the scroller a table directly, for the test that checks it refuses
-    /// out-of-range rows. Production fills this in from the probe.
-    func attachForTesting(_ table: NSTableView) { tableView = table }
+    /// Whether a focus request is still waiting. For the test.
+    var hasPendingFocus: Bool { wantsFocus }
+
+    /// Hands the scroller a table directly, for the tests. Production fills this
+    /// in from the probe.
+    func attachForTesting(_ table: NSTableView) { attach(table) }
+
+    fileprivate func attach(_ table: NSTableView) {
+        tableView = table
+        applyPendingFocus()
+    }
+
+    /// Puts the keyboard back in the list, now or as soon as there is one.
+    func focusWhenAttached() {
+        wantsFocus = true
+        applyPendingFocus()
+    }
+
+    private func applyPendingFocus() {
+        guard wantsFocus, let tableView, let window = tableView.window else { return }
+        wantsFocus = false
+        window.makeFirstResponder(tableView)
+    }
 
     func scroll(toRow index: Int) {
         guard let tableView, index >= 0, index < tableView.numberOfRows else { return }
@@ -74,8 +101,9 @@ struct FixedTableRowHeight: NSViewRepresentable {
             if delay != .zero { try? await Task.sleep(for: delay) }
             guard let table = tableView(near: probe) else { continue }
             // Handed over before the height is pinned: an empty table has no
-            // height to read yet but is perfectly able to scroll later.
-            scroller?.tableView = table
+            // height to read yet but is perfectly able to scroll — and to take
+            // the keyboard back — right away.
+            scroller?.attach(table)
             if apply(to: table) { return }
         }
         // Nothing found after every retry: the table keeps automatic heights and

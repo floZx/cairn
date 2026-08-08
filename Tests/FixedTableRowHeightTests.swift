@@ -66,6 +66,22 @@ struct FixedTableRowHeightTests {
         #expect(table.numberOfRows == 0)
     }
 
+    @Test("une demande de focus attend qu'un tableau existe")
+    func focusWaitsForATable() {
+        // Switching presentation destroys the table the keyboard was in and
+        // builds another, so the request is made before there is anything to
+        // give focus to. Fired into the void, it would simply be lost and the
+        // keyboard would stay dead until the user clicked.
+        let scroller = TableScroller()
+        scroller.focusWhenAttached()
+        #expect(scroller.hasPendingFocus)
+
+        // A table with no window yet cannot take first responder either, so the
+        // request survives that too.
+        scroller.attachForTesting(NSTableView())
+        #expect(scroller.hasPendingFocus)
+    }
+
     @Test("un tableau encore vide fait patienter au lieu de figer une hauteur")
     func waitsForRows() {
         let table = NSTableView()
