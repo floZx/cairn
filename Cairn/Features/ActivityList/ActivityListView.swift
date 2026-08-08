@@ -20,8 +20,6 @@ struct ActivityListView: View {
     /// deleting. Motions stay here, where the sorted rows are.
     let onCommand: (VimCommand) -> Void
 
-    @State private var keys = VimKeyBuffer()
-
     /// Built in `init` from the incoming filter. The parent applies
     /// `.id(filter)` so a filter change re-instantiates the view, which is what
     /// rebuilds this query — `@Query` can't be mutated in place.
@@ -179,26 +177,12 @@ struct ActivityListView: View {
         // when it is in fact a filtered slice of it.
         .navigationSubtitle(filter.summary ?? "")
         .background(FixedTableRowHeight())
-        // Attached to the table itself: key presses go to the focused view, and
-        // the table is what has focus while the list is being used.
-        .onKeyPress { press in
-            guard let character = press.characters.first else { return .ignored }
-            let control = press.modifiers.contains(.control)
-            // ⌘ belongs to the menus. Swallowing it here would shadow every
-            // shortcut the app already publishes.
-            guard !press.modifiers.contains(.command) else { return .ignored }
-            guard let command = keys.accept(character, control: control) else {
-                // A digit or a `g` was consumed even though nothing ran, and
-                // saying so is what stops it reaching the table's type-select.
-                return keys.isEmpty ? .ignored : .handled
-            }
+        // Motions are answered here, where the sorted rows are; everything
+        // else goes to the parent, which is also what the statistics and the
+        // map hand it.
+        .vimKeys { command in
             perform(command, in: rows)
-            return .handled
-        }
-        .onKeyPress(.escape) {
-            keys.reset()
-            onCommand(.clear)
-            return .handled
+            return true
         }
         .onAppear {
             if let first = Self.initialSelection(

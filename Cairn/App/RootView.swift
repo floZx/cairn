@@ -278,6 +278,7 @@ struct RootView: View {
                         onExpand: { expandedMap = .global },
                         onSelect: { selectedActivities = [$0] }
                     )
+                    .vimKeys(performOutsideTheList)
                 } else if showsStatistics {
                     // Labelled rather than trailing: a trailing closure inside a
                     // `ViewBuilder` is read as view content, and the compiler
@@ -286,6 +287,7 @@ struct RootView: View {
                         activities: statisticsActivities,
                         onSelect: { selectedActivities = [$0] }
                     )
+                    .vimKeys(performOutsideTheList)
                 } else {
                     ActivityListView(
                         filter: filter,
@@ -334,6 +336,21 @@ struct RootView: View {
         } catch {
             writeFailureMessage =
                 "Votre suppression n'a pas pu être enregistrée. \(error.localizedDescription)"
+        }
+    }
+
+    /// The same commands, from a view that has no rows to move through.
+    ///
+    /// Motions are refused rather than silently ignored: the press falls through
+    /// to whatever else might want it, instead of being swallowed by a view that
+    /// had nothing to do with it.
+    private func performOutsideTheList(_ command: VimCommand) -> Bool {
+        switch command {
+        case .move, .first, .last, .halfPage:
+            return false
+        default:
+            perform(command)
+            return true
         }
     }
 
@@ -576,11 +593,13 @@ struct RootView: View {
                 } label: {
                     Label("Fermer le panneau", systemImage: "sidebar.trailing")
                 }
-                // ⌥⌘0 is what Xcode uses to hide its inspector — the same pane,
-                // on the same side, so the finger already knows where to go.
-                .keyboardShortcut("0", modifiers: [.option, .command])
+                // A letter, not a digit: on an AZERTY keyboard the top row
+                // needs shift for its numbers, so ⌥⌘0 is really ⇧⌥⌘0 and half
+                // unreachable. ⌥⌘I is the Finder's inspector shortcut, and this
+                // is the same pane on the same side.
+                .keyboardShortcut("i", modifiers: [.option, .command])
                 .disabled(selection.isEmpty)
-                .help("Fermer le panneau de droite et désélectionner (⌥⌘0)")
+                .help("Fermer le panneau de droite et désélectionner (⌥⌘I)")
             }
             // Grouped, not three loose buttons: the toolbar already carries three
             // items, and six side by side is where it stops reading as a toolbar.

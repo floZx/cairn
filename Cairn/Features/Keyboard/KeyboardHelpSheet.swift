@@ -36,7 +36,7 @@ struct KeyboardHelpSheet: View {
         Group(title: "Chercher", rows: [
             ("/", "aller au champ de recherche"),
             ("échap", "vider la recherche, sinon la sélection"),
-            ("⌥⌘0", "fermer le volet — depuis n'importe quelle vue"),
+            ("⌥⌘I", "fermer le volet — depuis n'importe quelle vue"),
             ("?", "cet aide-mémoire"),
         ]),
     ]
