@@ -71,16 +71,20 @@ final class SQLiteDatabase {
         }
     }
 
-    /// All rows of a SELECT, keyed by column name. Materialising the whole
-    /// result is fine for the volumes this reads — hundreds of journal rows;
-    /// the catalog build in phase 5 will stream on its own terms.
-    func rows(_ sql: String) throws -> [[String: Value]] {
+    /// All rows of a SELECT, keyed by column name. Bindings replace `?`
+    /// placeholders positionally — user-provided text (a search query) must
+    /// never be spliced into SQL. Materialising the whole result is fine for
+    /// the volumes this reads.
+    func rows(
+        _ sql: String, bindings: [Value] = []
+    ) throws -> [[String: Value]] {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK
         else {
             throw Error(message: String(cString: sqlite3_errmsg(handle)))
         }
         defer { sqlite3_finalize(statement) }
+        try bind(bindings, to: statement)
         var result: [[String: Value]] = []
         var stepResult = sqlite3_step(statement)
         while stepResult == SQLITE_ROW {
@@ -112,6 +116,40 @@ final class SQLiteDatabase {
             return .text(String(cString: sqlite3_column_text(statement, index)))
         default:
             return .null
+        }
+    }
+
+    /// `SQLITE_TRANSIENT`: tells SQLite to copy the bytes immediately, so the
+    /// Swift string may be freed as soon as the call returns.
+    private static let transientDestructor = unsafeBitCast(
+        -1, to: sqlite3_destructor_type.self
+    )
+
+    private func bind(_ bindings: [Value], to statement: OpaquePointer?) throws {
+        let expected = sqlite3_bind_parameter_count(statement)
+        guard bindings.count == Int(expected) else {
+            throw Error(
+                message: "\(bindings.count) valeur(s) pour \(expected) paramètre(s)."
+            )
+        }
+        for (index, value) in bindings.enumerated() {
+            let slot = Int32(index + 1)
+            let result: Int32
+            switch value {
+            case let .integer(number):
+                result = sqlite3_bind_int64(statement, slot, number)
+            case let .real(number):
+                result = sqlite3_bind_double(statement, slot, number)
+            case let .text(string):
+                result = sqlite3_bind_text(
+                    statement, slot, string, -1, Self.transientDestructor
+                )
+            case .null:
+                result = sqlite3_bind_null(statement, slot)
+            }
+            guard result == SQLITE_OK else {
+                throw Error(message: String(cString: sqlite3_errmsg(handle)))
+            }
         }
     }
 }

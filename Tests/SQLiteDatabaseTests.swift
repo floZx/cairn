@@ -92,4 +92,61 @@ struct SQLiteDatabaseTests {
             _ = try reader.rows("SELECT id, padding FROM t ORDER BY id")
         }
     }
+
+    @Test("les bindings passent texte, entier, réel et null")
+    func bindsAllValueKinds() throws {
+        let path = temporaryPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let db = try SQLiteDatabase(path: path)
+        try db.execute(
+            "CREATE TABLE t (name TEXT, kcal REAL, count INTEGER, note TEXT);"
+            + "INSERT INTO t VALUES ('Riz', 350.0, 2, NULL);"
+            + "INSERT INTO t VALUES ('Crème', 300.0, 5, 'x');"
+        )
+        let rows = try db.rows(
+            "SELECT name FROM t WHERE kcal = ? AND count = ? AND name = ?",
+            bindings: [.real(350.0), .integer(2), .text("Riz")]
+        )
+        #expect(rows.count == 1)
+        #expect(rows[0]["name"] == .text("Riz"))
+        let none = try db.rows(
+            "SELECT name FROM t WHERE note IS NOT ?", bindings: [.null]
+        )
+        #expect(none.count == 1)
+        #expect(none[0]["name"] == .text("Crème"))
+    }
+
+    @Test("un texte piégé reste une valeur, jamais du SQL")
+    func bindingsAreNotInterpolated() throws {
+        let path = temporaryPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let db = try SQLiteDatabase(path: path)
+        try db.execute(
+            "CREATE TABLE t (name TEXT);"
+            + "INSERT INTO t VALUES ('sain');"
+        )
+        let hostile = "'; DROP TABLE t; --"
+        let rows = try db.rows(
+            "SELECT name FROM t WHERE name = ?", bindings: [.text(hostile)]
+        )
+        #expect(rows.isEmpty)
+        // La table doit avoir survécu au texte hostile.
+        #expect(try db.rows("SELECT name FROM t").count == 1)
+    }
+
+    @Test("un nombre de bindings incohérent échoue proprement")
+    func mismatchedBindingCountThrows() throws {
+        let path = temporaryPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let db = try SQLiteDatabase(path: path)
+        try db.execute("CREATE TABLE t (a TEXT)")
+        #expect(throws: SQLiteDatabase.Error.self) {
+            _ = try db.rows("SELECT a FROM t WHERE a = ?", bindings: [])
+        }
+        #expect(throws: SQLiteDatabase.Error.self) {
+            _ = try db.rows(
+                "SELECT a FROM t", bindings: [.text("de trop")]
+            )
+        }
+    }
 }
