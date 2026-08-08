@@ -13,15 +13,22 @@ struct ActivityEditorSheet: View {
     }
 
     let mode: Mode
+    /// Whether to open with the cursor already in the note field.
+    var focusesNotes: Bool = false
     let onSave: (ActivityDraft) -> Void
 
     @State private var draft: ActivityDraft
     /// Whether the note field is showing its rendering rather than its source.
     @State private var showsNotePreview = false
+    @FocusState private var notesFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
-    init(mode: Mode, onSave: @escaping (ActivityDraft) -> Void) {
+    init(
+        mode: Mode, focusesNotes: Bool = false,
+        onSave: @escaping (ActivityDraft) -> Void
+    ) {
         self.mode = mode
+        self.focusesNotes = focusesNotes
         self.onSave = onSave
         switch mode {
         case let .edit(activity):
@@ -107,6 +114,7 @@ struct ActivityEditorSheet: View {
                         // nothing at all beside the bordered fields above it.
                         TextEditor(text: $draft.notes)
                             .font(.body)
+                            .focused($notesFocused)
                             .frame(minHeight: 150)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 4)
@@ -171,6 +179,11 @@ struct ActivityEditorSheet: View {
             .padding(12)
         }
         .frame(width: 520, height: 680)
+        .onAppear {
+            // Only ever moves focus *into* the notes: leaving it alone otherwise
+            // keeps the name field first, which is what a new activity needs.
+            if focusesNotes { notesFocused = true }
+        }
     }
 }
 

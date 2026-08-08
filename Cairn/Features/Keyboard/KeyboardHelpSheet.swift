@@ -28,6 +28,7 @@ struct KeyboardHelpSheet: View {
         ]),
         Group(title: "Agir sur la sélection", rows: [
             ("e", "modifier"),
+            ("n", "écrire les notes — l'éditeur s'ouvre dans le champ"),
             ("f", "favori"),
             ("x", "supprimer"),
             ("o", "ouvrir la carte en grand"),

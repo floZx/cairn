@@ -153,3 +153,24 @@ struct ClosePaneKeyTests {
         #expect(buffer.accept("j") == .move(1))
     }
 }
+
+@Suite("Écrire les notes au clavier")
+struct EditNotesKeyTests {
+    @Test("n ouvre l'éditeur dans les notes, e l'ouvre normalement")
+    func nAndEAreDistinct() {
+        var buffer = VimKeyBuffer()
+        #expect(buffer.accept("n") == .editNotes)
+        #expect(buffer.accept("e") == .edit)
+        // Two intentions, not one with a flag: opening the form and sitting down
+        // to write are different acts, and only one of them keeps a journal.
+        #expect(VimCommand.editNotes != VimCommand.edit)
+    }
+
+    @Test("un compte devant n est consommé, pas reporté")
+    func aCountBeforeNIsConsumed() {
+        var buffer = VimKeyBuffer()
+        _ = buffer.accept("2")
+        #expect(buffer.accept("n") == .editNotes)
+        #expect(buffer.accept("j") == .move(1))
+    }
+}

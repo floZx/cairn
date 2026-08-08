@@ -14,6 +14,10 @@ enum VimCommand: Equatable, Sendable {
     case clear
     case section(SidebarItem)
     case edit
+    /// The editor, cursor already in the note field. A separate command rather
+    /// than a flag on `.edit`: the two are different intentions, and the one
+    /// that matters for keeping a journal deserves its own key.
+    case editNotes
     case delete
     case toggleFavorite
     case expandMap
@@ -102,6 +106,7 @@ struct VimKeyBuffer: Equatable {
             reset()
             return .openSearch
         case "e": _ = takeCount(); return .edit
+        case "n": _ = takeCount(); return .editNotes
         case "x": _ = takeCount(); return .delete
         case "f": _ = takeCount(); return .toggleFavorite
         case "o": _ = takeCount(); return .expandMap

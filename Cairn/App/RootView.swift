@@ -29,6 +29,13 @@ struct RootView: View {
     @State private var writeFailureMessage: String?
     /// Whether the keyboard map is on screen, opened with `?`.
     @State private var showsKeyboardHelp = false
+    /// Whether the editor about to open should start in the note field.
+    ///
+    /// Carried beside `editor` rather than inside its `Mode`: the mode says
+    /// *what* is being edited and feeds `sheet(item:)`'s identity, while this
+    /// says where to put the cursor — folding it in would give the same activity
+    /// two identities and present the sheet twice.
+    @State private var editorFocusesNotes = false
     /// Focus of the search field, so `/` can reach it.
     ///
     /// Held here rather than in the list: `.searchable` is applied to the list
@@ -104,7 +111,7 @@ struct RootView: View {
             }
         }
         .sheet(item: $editor) { mode in
-            ActivityEditorSheet(mode: mode) { draft in
+            ActivityEditorSheet(mode: mode, focusesNotes: editorFocusesNotes) { draft in
                 // `Mode.apply` carries the switch that used to live here; kept
                 // out of this closure so a test can reach it directly.
                 let activity = mode.apply(draft)
@@ -339,6 +346,13 @@ struct RootView: View {
         }
     }
 
+    private func openEditor(_ activity: Activity, focusingNotes: Bool) {
+        // Set before the sheet is presented: the flag is read as the sheet is
+        // built, and assigning it afterwards would arrive one presentation late.
+        editorFocusesNotes = focusingNotes
+        editor = .edit(activity)
+    }
+
     /// The same commands, from a view that has no rows to move through.
     ///
     /// Motions are refused rather than silently ignored: the press falls through
@@ -360,7 +374,9 @@ struct RootView: View {
         case let .section(item):
             sidebarSelection = item
         case .edit:
-            if let selected { editor = .edit(selected) }
+            if let selected { openEditor(selected, focusingNotes: false) }
+        case .editNotes:
+            if let selected { openEditor(selected, focusingNotes: true) }
         case .delete:
             pendingDeletion = selected
         case .toggleFavorite:
@@ -527,7 +543,9 @@ struct RootView: View {
             ActivityDetailView(
                 activity: selected,
                 onExpandMap: { expandedMap = .activity(selected.id) },
-                onEdit: { editor = .edit(selected) }
+                // The notes section is the one that asks for this, so it lands
+                // in the field it invited the user to fill.
+                onEdit: { openEditor(selected, focusingNotes: true) }
             )
             .frame(minWidth: Self.detailMinWidth)
         } else if selection.count > 1 {
