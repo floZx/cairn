@@ -36,6 +36,10 @@ struct SuivinutImporter {
         do {
             return try importAll(journalPath: journalPath)
         } catch {
+            // `rollback()` discards ALL pending changes in `context`, not just
+            // this import's. That is safe here because the import only runs
+            // while the nutrition store is empty, and every call site passes
+            // the main context with no other pending edits at that point.
             context.rollback()
             throw error
         }

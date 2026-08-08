@@ -65,4 +65,31 @@ struct SQLiteDatabaseTests {
             _ = try db.rows("SELECT * FROM absente")
         }
     }
+
+    @Test("une erreur en cours de lecture lève au lieu de tronquer silencieusement le résultat")
+    func midReadFailureThrowsInsteadOfTruncating() throws {
+        let path = temporaryPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        do {
+            let writer = try SQLiteDatabase(path: path)
+            // Enough padded rows to span many database pages: the schema
+            // (page 1) stays intact after truncation below, but the scan has
+            // to cross into the missing back half of the file before it can
+            // reach SQLITE_DONE.
+            var sql = "CREATE TABLE t (id INTEGER PRIMARY KEY, padding TEXT);\n"
+            for _ in 0..<2000 {
+                sql += "INSERT INTO t (padding) VALUES ('\(String(repeating: "x", count: 200))');\n"
+            }
+            try writer.execute(sql)
+        }
+        let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: path))
+        let size = try handle.seekToEnd()
+        try handle.truncate(atOffset: size / 2)
+        try handle.close()
+
+        let reader = try SQLiteDatabase(path: path, readOnly: true)
+        #expect(throws: SQLiteDatabase.Error.self) {
+            _ = try reader.rows("SELECT id, padding FROM t ORDER BY id")
+        }
+    }
 }

@@ -82,13 +82,22 @@ final class SQLiteDatabase {
         }
         defer { sqlite3_finalize(statement) }
         var result: [[String: Value]] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
+        var stepResult = sqlite3_step(statement)
+        while stepResult == SQLITE_ROW {
             var row: [String: Value] = [:]
             for index in 0..<sqlite3_column_count(statement) {
                 let name = String(cString: sqlite3_column_name(statement, index))
                 row[name] = value(of: statement, at: index)
             }
             result.append(row)
+            stepResult = sqlite3_step(statement)
+        }
+        // The loop only exits on a non-ROW result; SQLITE_DONE is the only
+        // one meaning "all rows read". Anything else (SQLITE_CORRUPT,
+        // SQLITE_IOERR, SQLITE_BUSY, SQLITE_ERROR…) is a mid-query failure —
+        // without this check it would silently return a truncated result.
+        guard stepResult == SQLITE_DONE else {
+            throw Error(message: String(cString: sqlite3_errmsg(handle)))
         }
         return result
     }
