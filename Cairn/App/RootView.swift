@@ -269,6 +269,8 @@ struct RootView: View {
 
     private var showsNutrition: Bool { sidebarSelection == .nutrition }
 
+    private var showsWeight: Bool { sidebarSelection == .weight }
+
     /// One three-column split view for the whole app life, never two.
     ///
     /// An earlier version swapped between a two- and a three-column
@@ -308,6 +310,11 @@ struct RootView: View {
                     // dead while the add/edit sheets are up, and only the view
                     // knows when that is.
                     NutritionDayView(onCommand: performInNutrition)
+                } else if showsWeight {
+                    // Same command filter as the food journal: the weight
+                    // screen is journal territory too, an invisible activity
+                    // selection must stay unreachable from it.
+                    WeightView(onCommand: performInNutrition)
                 } else {
                     ActivityListView(
                         filter: filter,
