@@ -270,6 +270,67 @@ perspective ne réclame pas de relief 3D, elle fonctionne sur une carte plate. L
 sur la carte globale une zone tracée à l'écran couvrirait un trapèze au sol, ce
 qui fausserait la conversion en filtre géographique.
 
+## Raccourcis clavier
+
+Deux jeux qui ne se marchent pas dessus. Les combinaisons avec ⌘ vivent dans les
+menus, disponibles partout, et suivent les conventions de macOS. Les touches
+seules sont des mouvements à la vim : elles n'agissent que lorsque la liste, la
+carte ou les statistiques ont le clavier, ce qui les rend inoffensives ailleurs.
+
+**`?` ouvre l'aide-mémoire dans l'app**, qui est la version qui ne peut pas se
+désynchroniser de ce qui est réellement câblé.
+
+### Se déplacer dans la liste
+
+| | |
+|---|---|
+| `j` `k` | activité suivante / précédente, répétition à la touche maintenue |
+| `5j` | cinq plus bas — tout mouvement accepte un compte |
+| `gg` `G` | première / dernière |
+| `⌃d` `⌃u` | une demi-page vers le bas / vers le haut |
+
+Les chiffres sont des comptes, comme dans vim, ce qui interdit `1`, `2`, `3` pour
+changer de vue : `2j` doit valoir deux lignes plus bas et ne peut pas aussi
+vouloir dire « va à la carte ». D'où le préfixe `g`.
+
+### Changer de vue
+
+| | |
+|---|---|
+| `ga` `gm` `gs` | mes activités / carte globale / statistiques |
+| `t` · ⌥⌘L | basculer entre le tableau et les fiches |
+| `h` · ⌥⌘I | fermer le volet de droite |
+| `échap` | vider la recherche, sinon la sélection |
+
+⌥⌘I est le raccourci de l'inspecteur du Finder : le même volet, du même côté.
+Les deux raccourcis à ⌥⌘ emploient une lettre et non un chiffre, parce que sur un
+clavier AZERTY la rangée du haut demande déjà Maj pour ses chiffres.
+
+### Agir sur une activité
+
+| | |
+|---|---|
+| `e` · ⌘E | modifier |
+| `n` | écrire les notes — l'éditeur s'ouvre dans le champ |
+| `f` · ⌘D | favori |
+| `x` · ⌘⌫ | supprimer |
+| `o` | ouvrir la carte en grand |
+| ⌘N | nouvelle activité saisie à la main |
+
+Dans la fenêtre d'édition, **⌘⏎ enregistre** et échap annule. Entrée seule ne
+suffit pas depuis le champ des notes : un `TextEditor` la garde pour en faire un
+retour à la ligne.
+
+### Fichiers et synchronisation
+
+| | |
+|---|---|
+| ⌘I | importer des fichiers GPX |
+| ⇧⌘E | exporter la sélection en GPX |
+| ⌘R | synchroniser |
+| ⇧⌘R | importer seulement les résumés |
+| `/` | aller au champ de recherche |
+
 ## Emplacement des données
 
 `~/Library/Application Support/Cairn/Cairn.store`
