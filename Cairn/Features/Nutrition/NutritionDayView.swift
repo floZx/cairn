@@ -20,6 +20,7 @@ struct NutritionDayView: View {
     private var weightGoal = NutritionSettings.defaultWeightGoalKg
     @State private var dateKey = DateKey(Date())
     @State private var importMessage: String?
+    @State private var addTargetSlot: MealSlot?
 
     var body: some View {
         if slots.isEmpty {
@@ -54,6 +55,9 @@ struct NutritionDayView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .sheet(item: $addTargetSlot) { slot in
+            AddFoodSheet(slot: slot, dateKey: dateKey)
         }
     }
 
@@ -121,6 +125,15 @@ struct NutritionDayView: View {
                 Text(mealFigure(meal))
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
+                Button {
+                    addTargetSlot = slots.first {
+                        $0.persistentModelID == meal.slotID
+                    }
+                } label: {
+                    Image(systemName: "plus.circle")
+                }
+                .buttonStyle(.borderless)
+                .help("Ajouter un aliment à \(meal.slotName)")
             }
             if meal.rows.isEmpty {
                 Text("Rien de consigné")
