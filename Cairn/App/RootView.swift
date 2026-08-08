@@ -267,6 +267,8 @@ struct RootView: View {
 
     private var showsStatistics: Bool { sidebarSelection == .statistics }
 
+    private var showsNutrition: Bool { sidebarSelection == .nutrition }
+
     /// One three-column split view for the whole app life, never two.
     ///
     /// An earlier version swapped between a two- and a three-column
@@ -301,6 +303,9 @@ struct RootView: View {
                         onSelect: { selectedActivities = [$0] }
                     )
                     .vimKeys(performOutsideTheList)
+                } else if showsNutrition {
+                    NutritionDayView()
+                        .vimKeys(performOutsideTheList)
                 } else {
                     ActivityListView(
                         filter: filter,

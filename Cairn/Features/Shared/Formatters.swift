@@ -113,6 +113,20 @@ enum Format {
         shortDateFormatter.string(from: date)
     }
 
+    private static let fullDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.dateStyle = .full
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    /// Weekday and full date, no time — the food journal is keyed on
+    /// calendar days, an hour would be an invention.
+    static func fullDate(_ date: Date) -> String {
+        fullDateFormatter.string(from: date)
+    }
+
     /// Date without a time, for the list — the hour of the day adds noise to a
     /// column that is mostly used for sorting and scanning.
     static func dateOnly(_ date: Date) -> String {

@@ -5,6 +5,7 @@ enum SidebarItem: Hashable {
     case all
     case globalMap
     case statistics
+    case nutrition
 }
 
 /// Navigation and every filter in one pane.
@@ -35,6 +36,8 @@ struct SidebarView: View {
                     .tag(SidebarItem.globalMap)
                 Label("Statistiques", systemImage: "chart.bar")
                     .tag(SidebarItem.statistics)
+                Label("Alimentation", systemImage: "fork.knife")
+                    .tag(SidebarItem.nutrition)
 
                 // Sits with the map rather than among the filters: it undoes a
                 // rectangle drawn there, and that is where it will be looked for.
