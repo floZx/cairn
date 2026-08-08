@@ -34,6 +34,9 @@ struct ActivityListView: View {
     @AppStorage(ActivityListStyle.storageKey)
     private var style: ActivityListStyle = .table
 
+    /// Set by the probe below, used to follow the keyboard cursor.
+    @State private var scroller = TableScroller()
+
     /// Which columns are shown, in which order, at which width — right-click the
     /// header to choose, drag to reorder, exactly as in the Finder. Persisted in
     /// `AppStorage` rather than `SceneStorage` so it survives a relaunch and not
@@ -100,6 +103,10 @@ struct ActivityListView: View {
         // Replaces rather than extends: these motions move the cursor, and a
         // growing selection would turn `j` into a way to select everything.
         selection = [rows[index].id]
+        // And the list follows. Without this the cursor walks off the bottom of
+        // the window and the list stops being navigable at the very moment it is
+        // being navigated.
+        scroller.scroll(toRow: index)
     }
 
     var body: some View {
@@ -121,7 +128,7 @@ struct ActivityListView: View {
         .navigationSubtitle(filter.summary ?? "")
         // Both presentations are backed by an `NSTableView`, and both would
         // otherwise pay for automatic row heights. See the probe's own note.
-        .background(FixedTableRowHeight())
+        .background(FixedTableRowHeight(scroller: scroller))
         // Motions are answered here, where the sorted rows are; everything
         // else goes to the parent, which is also what the statistics and the
         // map hand it.

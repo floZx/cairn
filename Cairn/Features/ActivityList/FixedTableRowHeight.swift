@@ -19,7 +19,31 @@ import SwiftUI
 /// holding a table instead, because the sidebar is a `List` and therefore an
 /// `NSTableView` too — a sweep from the window could just as well pin the
 /// sidebar's row height and leave the activity table untouched.
+
+/// Keeps whichever table the probe found, so the keyboard can scroll it.
+///
+/// Neither `Table` nor `List` publishes a way to bring a row into view, and
+/// moving the selection with `j` without following it leaves the cursor
+/// somewhere off screen — the list stops being navigable at exactly the moment
+/// it is being navigated. Both are `NSTableView` underneath, which does know how.
+@MainActor
+final class TableScroller {
+    fileprivate weak var tableView: NSTableView?
+
+    /// Hands the scroller a table directly, for the test that checks it refuses
+    /// out-of-range rows. Production fills this in from the probe.
+    func attachForTesting(_ table: NSTableView) { tableView = table }
+
+    func scroll(toRow index: Int) {
+        guard let tableView, index >= 0, index < tableView.numberOfRows else { return }
+        tableView.scrollRowToVisible(index)
+    }
+}
+
 struct FixedTableRowHeight: NSViewRepresentable {
+    /// Filled in once the table is found, if the caller wants to scroll it.
+    var scroller: TableScroller?
+
     /// Spread over half a second: the probe joins a window before the table is
     /// populated, and AppKit posts no "the rows are ready" notification.
     private static let retryDelays: [Duration] = [
@@ -28,10 +52,11 @@ struct FixedTableRowHeight: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSView {
         let probe = RowHeightProbeView()
+        let scroller = self.scroller
         probe.onAttachToWindow = { [weak probe] in
             Task { @MainActor in
                 guard let probe else { return }
-                await Self.applyWhenReady(from: probe)
+                await Self.applyWhenReady(from: probe, scroller: scroller)
             }
         }
         return probe
@@ -42,10 +67,15 @@ struct FixedTableRowHeight: NSViewRepresentable {
     }
 
     @MainActor
-    private static func applyWhenReady(from probe: NSView) async {
+    private static func applyWhenReady(
+        from probe: NSView, scroller: TableScroller?
+    ) async {
         for delay in retryDelays {
             if delay != .zero { try? await Task.sleep(for: delay) }
             guard let table = tableView(near: probe) else { continue }
+            // Handed over before the height is pinned: an empty table has no
+            // height to read yet but is perfectly able to scroll later.
+            scroller?.tableView = table
             if apply(to: table) { return }
         }
         // Nothing found after every retry: the table keeps automatic heights and

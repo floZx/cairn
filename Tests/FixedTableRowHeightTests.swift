@@ -45,6 +45,27 @@ struct FixedTableRowHeightTests {
         #expect(FixedTableRowHeight.tableView(near: probe) == nil)
     }
 
+    @Test("le défilement ne sort jamais des lignes existantes")
+    func scrollingStaysInRange() {
+        // The keyboard asks for a row index computed from the model, and the
+        // table it lands on may not have caught up yet — during a filter change,
+        // or before the first rows exist at all. `scrollRowToVisible` traps on an
+        // index it does not have, so the check belongs here rather than nowhere.
+        let scroller = TableScroller()
+
+        // No table found yet: the probe may still be retrying.
+        scroller.scroll(toRow: 3)
+
+        let table = NSTableView()
+        scroller.attachForTesting(table)
+        // An empty table has no row 0 to reach.
+        scroller.scroll(toRow: 0)
+        scroller.scroll(toRow: -1)
+        scroller.scroll(toRow: 9_999)
+        // Reaching here at all is the assertion: none of those may trap.
+        #expect(table.numberOfRows == 0)
+    }
+
     @Test("un tableau encore vide fait patienter au lieu de figer une hauteur")
     func waitsForRows() {
         let table = NSTableView()
