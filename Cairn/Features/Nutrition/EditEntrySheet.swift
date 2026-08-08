@@ -58,6 +58,7 @@ struct EditEntrySheet: View {
     }
 
     private func save() {
+        guard !entry.isDeleted else { dismiss(); return }
         do {
             try NutritionJournal.update(
                 entry,

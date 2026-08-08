@@ -37,7 +37,8 @@ struct NutritionDayModelTests {
 
         let model = NutritionDayModel.compute(
             entries: [oats, skyr], slots: [dinner, breakfast], notes: [note],
-            dayType: dayType, proteinTargetG: 130, fatTargetG: 66
+            dayType: dayType, proteinTargetG: 130, fatTargetG: 66,
+            favoriteKeys: []
         )
 
         #expect(model.dayTypeName == "repos")
@@ -66,7 +67,8 @@ struct NutritionDayModelTests {
 
         let model = NutritionDayModel.compute(
             entries: [], slots: [breakfast, dinner], notes: [],
-            dayType: dayType, proteinTargetG: 100, fatTargetG: 60
+            dayType: dayType, proteinTargetG: 100, fatTargetG: 60,
+            favoriteKeys: []
         )
 
         #expect(model.daily?.kcal == 2000)
@@ -83,7 +85,8 @@ struct NutritionDayModelTests {
 
         let model = NutritionDayModel.compute(
             entries: [], slots: [slot], notes: [],
-            dayType: nil, proteinTargetG: 130, fatTargetG: 66
+            dayType: nil, proteinTargetG: 130, fatTargetG: 66,
+            favoriteKeys: []
         )
 
         #expect(model.daily == nil)
@@ -105,9 +108,39 @@ struct NutritionDayModelTests {
 
         let model = NutritionDayModel.compute(
             entries: [entry], slots: [slot], notes: [],
-            dayType: nil, proteinTargetG: 130, fatTargetG: 66
+            dayType: nil, proteinTargetG: 130, fatTargetG: 66,
+            favoriteKeys: []
         )
         #expect(model.meals[0].slotID == slot.persistentModelID)
         #expect(model.meals[0].rows[0].entryID == entry.persistentModelID)
+    }
+
+    @Test("une ligne sait si son aliment est en favori")
+    func rowsKnowFavoriteState() throws {
+        let context = try makeContext()
+        let slot = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        context.insert(slot)
+        let key = DateKey(raw: "2026-08-08")!
+        let starred = FoodEntry(
+            dateKey: key, mealSlot: slot, foodName: "Skyr",
+            kcal100: 57, protein100: 10, carbs100: 4, fat100: 0,
+            grams: 150, sortOrder: 0
+        )
+        let plain = FoodEntry(
+            dateKey: key, mealSlot: slot, foodName: "Riz",
+            kcal100: 350, protein100: 7, carbs100: 77, fat100: 1,
+            grams: 120, sortOrder: 1, productCode: "123"
+        )
+        context.insert(starred)
+        context.insert(plain)
+
+        let model = NutritionDayModel.compute(
+            entries: [starred, plain], slots: [slot], notes: [],
+            dayType: nil, proteinTargetG: 130, fatTargetG: 66,
+            favoriteKeys: [FavoriteKey(foodName: "Skyr", productCode: nil)]
+        )
+        #expect(model.meals[0].rows[0].isFavorite)
+        // Même nom ne suffirait pas : la clé inclut le code produit.
+        #expect(!model.meals[0].rows[1].isFavorite)
     }
 }

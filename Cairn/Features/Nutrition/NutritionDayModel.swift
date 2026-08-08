@@ -10,6 +10,7 @@ struct NutritionDayModel: Equatable {
         var name: String
         var grams: Double
         var macros: Macros
+        var isFavorite: Bool
     }
 
     struct Meal: Equatable {
@@ -29,7 +30,8 @@ struct NutritionDayModel: Equatable {
     @MainActor
     static func compute(
         entries: [FoodEntry], slots: [MealSlot], notes: [MealNote],
-        dayType: DayType?, proteinTargetG: Double, fatTargetG: Double
+        dayType: DayType?, proteinTargetG: Double, fatTargetG: Double,
+        favoriteKeys: Set<FavoriteKey>
     ) -> NutritionDayModel {
         let orderedSlots = slots.sorted { $0.sortOrder < $1.sortOrder }
         // Grouped by object identity: entries reference the slot itself, so
@@ -65,7 +67,12 @@ struct NutritionDayModel: Equatable {
                 rows: mealEntries[index].map {
                     Row(
                         entryID: $0.persistentModelID, name: $0.foodName,
-                        grams: $0.grams, macros: Macros(of: $0)
+                        grams: $0.grams, macros: Macros(of: $0),
+                        isFavorite: favoriteKeys.contains(
+                            FavoriteKey(
+                                foodName: $0.foodName, productCode: $0.productCode
+                            )
+                        )
                     )
                 },
                 consumed: mealConsumed[index],

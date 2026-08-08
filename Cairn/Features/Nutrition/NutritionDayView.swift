@@ -53,7 +53,7 @@ struct NutritionDayView: View {
         }
         .vimKeys(enabled: !isPresentingModal, onCommand)
         .alert(
-            "Import suivinut",
+            "Journal alimentaire",
             isPresented: Binding(
                 get: { importMessage != nil },
                 set: { if !$0 { importMessage = nil } }
@@ -74,10 +74,12 @@ struct NutritionDayView: View {
         let dayEntries = entries.filter { $0.dateKeyRaw == dateKey.raw }
         let day = days.first { $0.dateKeyRaw == dateKey.raw }
         let dayNotes = notes.filter { $0.dateKeyRaw == dateKey.raw }
+        let favorites = (try? NutritionJournal.favoriteKeys(in: modelContext)) ?? []
         let model = NutritionDayModel.compute(
             entries: dayEntries, slots: slots, notes: dayNotes,
             dayType: day?.dayType,
-            proteinTargetG: proteinTarget, fatTargetG: fatTarget
+            proteinTargetG: proteinTarget, fatTargetG: fatTarget,
+            favoriteKeys: favorites
         )
         return ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -209,6 +211,7 @@ struct NutritionDayView: View {
             } else {
                 Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
                     GridRow {
+                        Text("")
                         Text("Aliment")
                         Text("g").gridColumnAlignment(.trailing)
                         Text("kcal").gridColumnAlignment(.trailing)
@@ -220,6 +223,19 @@ struct NutritionDayView: View {
                     .foregroundStyle(.secondary)
                     ForEach(meal.rows, id: \.entryID) { row in
                         GridRow {
+                            Button {
+                                toggleFavorite(row.entryID)
+                            } label: {
+                                Image(systemName: row.isFavorite ? "star.fill" : "star")
+                                    .foregroundStyle(
+                                        row.isFavorite ? .yellow : .secondary
+                                    )
+                            }
+                            .buttonStyle(.borderless)
+                            .help(
+                                row.isFavorite
+                                    ? "Retirer des favoris" : "Ajouter aux favoris"
+                            )
                             Text(row.name).lineLimit(1)
                             Text("\(Int(row.grams.rounded()))")
                             Text("\(Int(row.macros.kcal.rounded()))")
@@ -236,6 +252,7 @@ struct NutritionDayView: View {
                             }
                             Button("Monter") { move(row.entryID, direction: -1) }
                             Button("Descendre") { move(row.entryID, direction: 1) }
+                            Button("Basculer favori") { toggleFavorite(row.entryID) }
                             Divider()
                             Button("Supprimer", role: .destructive) {
                                 deleteEntry(row.entryID)
@@ -272,6 +289,16 @@ struct NutritionDayView: View {
         } catch {
             writeFailureMessage =
                 "Le déplacement n'a pas pu être enregistré. \(error.localizedDescription)"
+        }
+    }
+
+    private func toggleFavorite(_ id: PersistentIdentifier) {
+        guard let entry = entry(for: id) else { return }
+        do {
+            try NutritionJournal.toggleFavorite(for: entry, in: modelContext)
+        } catch {
+            writeFailureMessage =
+                "Le favori n'a pas pu être enregistré. \(error.localizedDescription)"
         }
     }
 
