@@ -1449,3 +1449,11 @@ git commit -m "feat(alimentation): édition, réordonnancement, suppression et j
 Phase 3 (plan séparé) : recettes (picker + « enregistrer ce repas comme recette » + éditeur), favoris (étoile + onglet dans la sheet d'ajout), notes de repas éditables, onglet Réglages Nutrition (cibles, jours-types, % repas, réimport avec porte propre et contexte dédié). Les interfaces à respecter : `NutritionJournal`, `FoodCatalog`, `AddFoodSheet` (son segment Favoris s'ajoutera), `NutritionSettings`.
 
 Reste au ledger de la phase 1, à traiter en phase 3+ : porte d'import `slots.isEmpty` vs spec (« aucun FoodEntry ») quand le bouton Réglages arrivera ; contexte SwiftData dédié pour l'import ; volet détail activité résiduel (phase 6).
+
+**Reliquats de la revue finale de phase 2** (exécutée, mergée — à reprendre en phases 3-6) :
+- clamp des macros de saisie manuelle à ≥ 0 dans `AddFoodSheet.canAdd` (phase 3, quand la sheet gagne l'onglet Favoris) ;
+- un échec de `seed()` s'affiche sous le titre d'alerte « Import suivinut » — titre neutre ou état séparé ;
+- recherche synchrone par frappe : minimum 2 caractères ou débounce si latence visible sur le vrai catalogue (phase 5) ;
+- réordonnancement par **drag** (spec §5) non implémenté — seuls les boutons Monter/Descendre existent (phase 6) ;
+- message d'erreur visible quand la recherche échoue (spec §9) — aujourd'hui dégradation silencieuse en liste vide (phase 5) ;
+- `EditEntrySheet` retient un `FoodEntry` vivant : ajouter une garde défensive avant que la phase 3 n'ajoute d'autres chemins de mutation.
