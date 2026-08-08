@@ -10,10 +10,12 @@ import SwiftData
 struct ActivityCard: View {
     let activity: Activity
 
-    /// Tall enough for a legible thumbnail and a row of figures at reading size.
-    /// Fixed so nothing has to be measured — see the type's own note.
-    static let height: CGFloat = 108
-    private static let thumbnailWidth: CGFloat = 124
+    /// Tall enough for a legible thumbnail and a row of figures at reading size,
+    /// and no taller: a card is a row, not a tile, and every extra point is one
+    /// activity fewer on screen. Fixed so nothing has to be measured — see the
+    /// type's own note.
+    static let height: CGFloat = 84
+    private static let thumbnailWidth: CGFloat = 104
     private var inner: CGFloat { Self.height - 16 }
 
     var body: some View {
