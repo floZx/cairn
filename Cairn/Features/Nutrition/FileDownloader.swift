@@ -121,8 +121,16 @@ enum FileDownloader {
         defer { try? handle.close() }
         try handle.seekToEnd()
         do {
+            // No explicit `Task.checkCancellation()` here on purpose: it
+            // would fire *between* chunks, after the transport already
+            // produced one, and unwind straight out of this loop without
+            // ever calling into the transport again — for `.live`, that
+            // abandons `StreamingFetch` with no chance to cancel its task,
+            // invalidate its session, or unblock its backpressure semaphore
+            // (see StreamingFetch.nextChunk's doc comment). Cancellation is
+            // instead discovered on the *next* pull, which the transport
+            // itself can react to and clean up after.
             for try await chunk in bodyStream {
-                try Task.checkCancellation()
                 try handle.write(contentsOf: chunk)
                 downloaded += Int64(chunk.count)
                 onProgress?(downloaded, total)
@@ -193,19 +201,22 @@ enum FileDownloader {
 private final class StreamingFetch: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private var responseContinuation: CheckedContinuation<HTTPURLResponse, Error>?
     private var task: URLSessionDataTask?
+    private var session: URLSession?
 
     // A gigabyte download must never buffer faster than the disk drains it.
     // `capacity` is a 64-slot counting semaphore: `didReceive` blocks on it
     // before enqueuing a chunk, which blocks URLSession's own delegate queue
     // and, transitively, its socket reads — real backpressure, not an
     // unbounded buffer racing ahead of `FileHandle.write`. `lock` guards the
-    // FIFO and the single parked pull continuation.
+    // FIFO, the single parked pull continuation, and `terminated` (see
+    // `shutdown()`).
     private let capacity = DispatchSemaphore(value: 64)
     private let lock = NSLock()
     private var queue: [Data] = []
     private var finished = false
     private var streamError: Error?
     private var pendingPull: CheckedContinuation<Data?, Error>?
+    private var terminated = false
 
     static func run(
         _ request: URLRequest
@@ -216,6 +227,7 @@ private final class StreamingFetch: NSObject, URLSessionDataDelegate, @unchecked
         )
         let task = session.dataTask(with: request)
         delegate.task = task
+        delegate.session = session
         let stream = AsyncThrowingStream<Data, Error>(unfolding: {
             try await delegate.nextChunk()
         })
@@ -235,16 +247,39 @@ private final class StreamingFetch: NSObject, URLSessionDataDelegate, @unchecked
         return (response, stream)
     }
 
-    /// Pulled by the consumer (`FileDownloader`'s `for try await`). Returns
-    /// immediately if a chunk is already queued or the stream already
-    /// finished; otherwise parks a continuation that `didReceive` /
-    /// `didCompleteWithError` resume once there is something to report.
-    /// Cancellation cancels the underlying task, the same way the header
-    /// wait does.
+    /// Pulled by the consumer (`FileDownloader`'s `for try await`) once per
+    /// chunk. Returns immediately if a chunk is already queued or the
+    /// stream already finished; otherwise parks a continuation that
+    /// `didReceive` / `didCompleteWithError` resume once there is something
+    /// to report.
+    ///
+    /// Cancellation has two entry points here, both required: (1) if the
+    /// surrounding Task is *already* cancelled when this is called — the
+    /// common case, since `FileDownloader.download()`'s loop discovers
+    /// cancellation between chunks, after `nextChunk()` already returned —
+    /// checking `Task.isCancelled` up front catches it on the very next
+    /// pull and runs `shutdown()` before anything is parked; (2) if
+    /// cancellation happens *while* this call is suspended waiting for more
+    /// data, `withTaskCancellationHandler`'s `onCancel` runs `shutdown()`
+    /// from outside. Either way `shutdown()` is what actually cancels the
+    /// task, invalidates the session, and unblocks a delegate-queue thread
+    /// that might be parked in `capacity.wait()` — without it, an abandoned
+    /// stream would leak the task/session and leave a GCD thread blocked
+    /// forever once `didReceive` fills the 64-slot capacity semaphore and
+    /// nobody is left to drain it.
     private func nextChunk() async throws -> Data? {
-        try await withTaskCancellationHandler {
+        if Task.isCancelled {
+            shutdown()
+            throw CancellationError()
+        }
+        return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 lock.lock()
+                if terminated {
+                    lock.unlock()
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
                 if let chunk = dequeueLocked() {
                     lock.unlock()
                     continuation.resume(returning: chunk)
@@ -261,8 +296,8 @@ private final class StreamingFetch: NSObject, URLSessionDataDelegate, @unchecked
                     lock.unlock()
                 }
             }
-        } onCancel: { [task] in
-            task?.cancel()
+        } onCancel: { [weak self] in
+            self?.shutdown()
         }
     }
 
@@ -302,6 +337,31 @@ private final class StreamingFetch: NSObject, URLSessionDataDelegate, @unchecked
         }
     }
 
+    /// Cancellation cleanup, safe to call more than once (idempotent via
+    /// `terminated`) and from either `nextChunk()`'s upfront check or its
+    /// `onCancel` handler. Cancels the network task, invalidates the
+    /// session, resumes any parked pull with `CancellationError`, and
+    /// signals `capacity` once to rescue a delegate-queue thread that may
+    /// already be blocked inside `didReceive`'s `capacity.wait()` — at most
+    /// one such call can be in flight at a time, since URLSession serializes
+    /// delegate callbacks on its own queue.
+    private func shutdown() {
+        lock.lock()
+        guard !terminated else {
+            lock.unlock()
+            return
+        }
+        terminated = true
+        queue.removeAll()
+        let pending = pendingPull
+        pendingPull = nil
+        lock.unlock()
+        pending?.resume(throwing: CancellationError())
+        task?.cancel()
+        session?.invalidateAndCancel()
+        capacity.signal()
+    }
+
     func urlSession(
         _ session: URLSession, dataTask: URLSessionDataTask,
         didReceive response: URLResponse,
@@ -317,10 +377,25 @@ private final class StreamingFetch: NSObject, URLSessionDataDelegate, @unchecked
     func urlSession(
         _ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data
     ) {
+        lock.lock()
+        let alreadyTerminated = terminated
+        lock.unlock()
+        guard !alreadyTerminated else { return }
+
         // Blocks the delegate queue — and so URLSession's socket reads —
-        // until the consumer has drained a slot.
+        // until the consumer has drained a slot. `shutdown()` rescues this
+        // with one extra `capacity.signal()` if nobody will ever drain
+        // again.
         capacity.wait()
         lock.lock()
+        if terminated {
+            lock.unlock()
+            // Nobody will consume this chunk: give the slot back instead of
+            // leaking it, in case more data arrives before the task
+            // actually stops.
+            capacity.signal()
+            return
+        }
         queue.append(data)
         lock.unlock()
         deliverIfPending()
