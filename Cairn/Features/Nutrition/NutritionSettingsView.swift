@@ -18,6 +18,8 @@ struct NutritionSettingsView: View {
     @Query private var entries: [FoodEntry]
     @State private var importMessage: String?
     @State private var writeFailureMessage: String?
+    @State private var updater = CatalogUpdater()
+    @State private var catalogRefresh = 0
 
     var body: some View {
         Form {
@@ -56,6 +58,40 @@ struct NutritionSettingsView: View {
             Section("Catalogue") {
                 Text(catalogStatus)
                     .foregroundStyle(.secondary)
+                    .id(catalogRefresh)
+                switch updater.phase {
+                case .downloading(let megabytes, let total):
+                    HStack {
+                        ProgressView(
+                            value: total.map { min(megabytes / $0, 1) } ?? 0
+                        )
+                        Text(downloadLabel(megabytes: megabytes, total: total))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                        Button("Annuler") { updater.cancel() }
+                    }
+                case .building(let kept):
+                    HStack {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Construction… \(kept) produits retenus")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                        Button("Annuler") { updater.cancel() }
+                    }
+                case .failed(let message):
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                    Button("Mettre à jour le catalogue") { updater.start() }
+                case .done, .idle:
+                    Button("Mettre à jour le catalogue") { updater.start() }
+                }
+            }
+            .onChange(of: updater.phase) { _, newPhase in
+                if case .done = newPhase { catalogRefresh += 1 }
             }
 
             if entries.isEmpty {
@@ -135,9 +171,23 @@ struct NutritionSettingsView: View {
               let count = try? catalog.productCount()
         else {
             return "Aucun catalogue — l'import suivinut en copie un, "
-                + "le téléchargement direct arrive dans une prochaine version."
+                + "ou téléchargez-le ci-dessous."
+        }
+        // `try?` on a call that already returns `String?` flattens to a
+        // single `String?` since SE-0230 (Swift 5+), so one `if let`
+        // unwraps it — a second `, let importedAt` (as sketched in the
+        // brief, guarding against a double optional) doesn't compile: the
+        // first binding already produces a non-optional `String`.
+        if let importedAt = try? catalog.importedAt() {
+            return "\(count) produits Open Food Facts — importé le \(importedAt)."
         }
         return "\(count) produits Open Food Facts."
+    }
+
+    private func downloadLabel(megabytes: Double, total: Double?) -> String {
+        let done = Format.typedNumber(megabytes)
+        guard let total else { return "\(done) Mo téléchargés" }
+        return "\(done) / \(Format.typedNumber(total)) Mo"
     }
 
     // MARK: - Actions
