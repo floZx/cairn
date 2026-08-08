@@ -274,10 +274,16 @@ extension NutritionJournal {
     }
 
     /// Days referencing the deleted type keep their row with a nil type —
-    /// SwiftData's default nullify rule, asserted by test so a future
-    /// cascade never silently eats journal days.
+    /// explicit nullification in code (no schema change) so this production
+    /// store never silently eats journal days.
     @MainActor
     static func deleteDayType(_ dayType: DayType, in context: ModelContext) throws {
+        // Nil out referencing days by hand instead of relying on a delete
+        // rule: an explicit loop needs no schema change, and this store
+        // holds real user data — schema edits are not this function's call.
+        let days = try context.fetch(FetchDescriptor<NutritionDay>())
+            .filter { $0.dayType?.persistentModelID == dayType.persistentModelID }
+        for day in days { day.dayType = nil }
         context.delete(dayType)
         try context.save()
     }
