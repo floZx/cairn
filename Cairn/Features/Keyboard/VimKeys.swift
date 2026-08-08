@@ -14,7 +14,19 @@ struct VimKeys: ViewModifier {
     /// out says so, and the press falls through rather than being swallowed.
     let onCommand: (VimCommand) -> Bool
 
+    /// Bumped by the caller to bring the keyboard back here.
+    ///
+    /// A counter rather than a boolean: the request is an event, and a flag that
+    /// has to be lowered again is a flag someone forgets to lower.
+    ///
+    /// It goes through SwiftUI's own focus and not AppKit's. Making the table
+    /// first responder does move the insertion point, but `onKeyPress` is driven
+    /// by `FocusState`, which knows nothing of it — so the keys stayed dead
+    /// exactly as if nothing had been focused at all.
+    var focusRequest: Int = 0
+
     @State private var buffer = VimKeyBuffer()
+    @FocusState private var focused: Bool
 
     func body(content: Content) -> some View {
         content
@@ -22,6 +34,8 @@ struct VimKeys: ViewModifier {
             // No ring: these views are not form controls, and a focus ring
             // around a whole pane reads as a bug.
             .focusEffectDisabled()
+            .focused($focused)
+            .onChange(of: focusRequest) { _, _ in focused = true }
             // `.repeat` as well as `.down`: without it a held key fires once and
             // walking a long list means tapping `j` eighty times.
             .onKeyPress(phases: [.down, .repeat]) { press in
@@ -53,7 +67,9 @@ struct VimKeys: ViewModifier {
 }
 
 extension View {
-    func vimKeys(_ onCommand: @escaping (VimCommand) -> Bool) -> some View {
-        modifier(VimKeys(onCommand: onCommand))
+    func vimKeys(
+        focusRequest: Int = 0, _ onCommand: @escaping (VimCommand) -> Bool
+    ) -> some View {
+        modifier(VimKeys(onCommand: onCommand, focusRequest: focusRequest))
     }
 }

@@ -47,6 +47,9 @@ struct ActivityListView: View {
     @State private var cursor: Int?
     @State private var cursorSelection: Set<PersistentIdentifier> = []
 
+    /// Bumped whenever the keyboard should come back to the list.
+    @State private var focusRequest = 0
+
     /// Which columns are shown, in which order, at which width — right-click the
     /// header to choose, drag to reorder, exactly as in the Finder. Persisted in
     /// `AppStorage` rather than `SceneStorage` so it survives a relaunch and not
@@ -157,13 +160,16 @@ struct ActivityListView: View {
         // Motions are answered here, where the sorted rows are; everything
         // else goes to the parent, which is also what the statistics and the
         // map hand it.
-        .vimKeys { command in
+        .vimKeys(focusRequest: focusRequest) { command in
             perform(command, in: rows)
             return true
         }
         // Switching presentation destroys the table the keyboard was in, and
-        // focus goes nowhere. The request waits for the replacement.
+        // focus goes nowhere. Both halves are asked back: SwiftUI's focus, which
+        // is what feeds `onKeyPress`, and AppKit's first responder, which is what
+        // draws the selected row as active.
         .onChange(of: style) { _, _ in
+            focusRequest += 1
             scroller.focusWhenAttached()
         }
         // A selection that is not the one we wrote came from somewhere else — a

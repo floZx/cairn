@@ -57,7 +57,9 @@ struct FixedTableRowHeightTests {
         scroller.scroll(toRow: 3)
 
         let table = NSTableView()
-        scroller.attachForTesting(table)
+        let probe = NSView()
+        _ = container([container([table]), probe])
+        scroller.attachForTesting(probe)
         // An empty table has no row 0 to reach.
         scroller.scroll(toRow: 0)
         scroller.scroll(toRow: -1)
@@ -76,9 +78,9 @@ struct FixedTableRowHeightTests {
         scroller.focusWhenAttached()
         #expect(scroller.hasPendingFocus)
 
-        // A table with no window yet cannot take first responder either, so the
+        // A probe with no table under it cannot give focus either, so the
         // request survives that too.
-        scroller.attachForTesting(NSTableView())
+        scroller.attachForTesting(NSView())
         #expect(scroller.hasPendingFocus)
     }
 
