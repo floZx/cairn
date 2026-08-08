@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// One activity as a card: its shape, its name, its figures, its photos.
+/// One activity as a card: its shape, its name, its figures.
 ///
 /// Every card is the same height, and deliberately so. A list of rows that size
 /// themselves makes AppKit build all 840 of them to measure — the ten-second
@@ -47,7 +47,6 @@ struct ActivityCard: View {
 
             Spacer(minLength: 12)
             figures
-            photos
         }
         .padding(.vertical, 8)
         .frame(height: Self.height)
@@ -142,23 +141,5 @@ struct ActivityCard: View {
                 .lineLimit(1)
         }
         .frame(width: 80, alignment: .leading)
-    }
-
-    /// A glimpse of the photos, when there are any.
-    ///
-    /// Three at most: past that the row is a gallery, and the point here is only
-    /// to say that this outing was worth photographing.
-    private var photos: some View {
-        HStack(spacing: 5) {
-            ForEach(activity.orderedPhotos.prefix(3)) { photo in
-                if let image = photo.nsImage {
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 68, height: inner)
-                        .clipShape(.rect(cornerRadius: 8))
-                }
-            }
-        }
     }
 }
