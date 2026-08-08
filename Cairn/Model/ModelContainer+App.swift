@@ -6,6 +6,11 @@ enum AppModelContainer {
         Activity.self, ActivityStreams.self, Athlete.self,
         Lap.self, Gear.self, SyncState.self, DiscardedActivity.self,
         ActivityPhoto.self,
+        // Nutrition — added as a block: SwiftData treats new models as a
+        // lightweight migration, existing activity data is untouched.
+        DayType.self, MealSlot.self, NutritionDay.self, FoodEntry.self,
+        MealNote.self, Recipe.self, RecipeItem.self, FavoriteFood.self,
+        WeightEntry.self,
     ])
 
     /// The store file to open, decided in one place rather than scattered across

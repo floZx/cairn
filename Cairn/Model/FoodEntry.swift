@@ -1,0 +1,41 @@
+import Foundation
+import SwiftData
+
+/// One food eaten at one meal. The per-100 g values are copied here at entry
+/// time — denormalised on purpose, so history stays true even if the OFF
+/// catalog is rebuilt or deleted. `productCode` is only a reference back.
+@Model
+final class FoodEntry {
+    #Index<FoodEntry>([\.dateKeyRaw])
+
+    var dateKeyRaw: String = ""
+    var mealSlot: MealSlot?
+    var productCode: String?
+    var foodName: String = ""
+    var kcal100: Double = 0
+    var protein100: Double = 0
+    var carbs100: Double = 0
+    var fat100: Double = 0
+    var grams: Double = 0
+    var sortOrder: Int = 0
+
+    init(
+        dateKey: DateKey, mealSlot: MealSlot?, foodName: String,
+        kcal100: Double, protein100: Double, carbs100: Double,
+        fat100: Double, grams: Double, sortOrder: Int = 0,
+        productCode: String? = nil
+    ) {
+        self.dateKeyRaw = dateKey.raw
+        self.mealSlot = mealSlot
+        self.foodName = foodName
+        self.kcal100 = kcal100
+        self.protein100 = protein100
+        self.carbs100 = carbs100
+        self.fat100 = fat100
+        self.grams = grams
+        self.sortOrder = sortOrder
+        self.productCode = productCode
+    }
+
+    var dateKey: DateKey? { DateKey(raw: dateKeyRaw) }
+}
