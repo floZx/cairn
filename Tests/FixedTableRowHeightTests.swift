@@ -12,11 +12,26 @@ struct FixedTableRowHeightTests {
         return view
     }
 
+    /// Puts a tree in a real window.
+    ///
+    /// The search skips tables that have no window, so a test tree floating free
+    /// would find nothing and prove nothing. The window is returned so it stays
+    /// alive for the duration of the test.
+    @discardableResult
+    private func inWindow(_ root: NSView) -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled], backing: .buffered, defer: true
+        )
+        window.contentView = root
+        return window
+    }
+
     @Test("la sonde trouve le tableau voisin, pas ses propres descendants")
     func findsTheSiblingTable() {
         let probe = NSView()
         let table = NSTableView()
-        _ = container([container([table]), probe])
+        inWindow(container([container([table]), probe]))
 
         #expect(FixedTableRowHeight.tableView(near: probe) === table)
     }
@@ -29,10 +44,10 @@ struct FixedTableRowHeightTests {
         let sidebarTable = NSTableView()
         let listTable = NSTableView()
         let probe = NSView()
-        _ = container([
+        inWindow(container([
             container([sidebarTable]),
             container([container([listTable]), probe]),
-        ])
+        ]))
 
         #expect(FixedTableRowHeight.tableView(near: probe) === listTable)
     }
@@ -40,9 +55,31 @@ struct FixedTableRowHeightTests {
     @Test("sans tableau nulle part, la sonde ne trouve rien")
     func findsNothingWithoutATable() {
         let probe = NSView()
-        _ = container([container([NSView()]), probe])
+        inWindow(container([container([NSView()]), probe]))
 
         #expect(FixedTableRowHeight.tableView(near: probe) == nil)
+    }
+
+    @Test("une table détachée de sa fenêtre est ignorée")
+    func skipsADetachedTable() {
+        // Switching presentation leaves the outgoing table in the tree for a
+        // while, and it comes first in subview order. Keeping it meant
+        // scrolling a table nobody is looking at — which is how `j` stopped
+        // following the cursor after a toggle.
+        let probe = NSView()
+        let detached = NSTableView()
+        let live = NSTableView()
+        let root = container([container([detached, live]), probe])
+
+        // Nothing is in a window yet, so nothing qualifies.
+        #expect(FixedTableRowHeight.tableView(near: probe) == nil)
+
+        inWindow(root)
+        // Both are in the window now, and the first one wins as before.
+        #expect(FixedTableRowHeight.tableView(near: probe) === detached)
+
+        detached.removeFromSuperview()
+        #expect(FixedTableRowHeight.tableView(near: probe) === live)
     }
 
     @Test("le défilement ne sort jamais des lignes existantes")
@@ -58,7 +95,7 @@ struct FixedTableRowHeightTests {
 
         let table = NSTableView()
         let probe = NSView()
-        _ = container([container([table]), probe])
+        inWindow(container([container([table]), probe]))
         scroller.attachForTesting(probe)
         // An empty table has no row 0 to reach.
         scroller.scroll(toRow: 0)

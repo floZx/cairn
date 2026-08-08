@@ -28,18 +28,16 @@ import SwiftUI
 /// it is being navigated. Both are `NSTableView` underneath, which does know how.
 @MainActor
 final class TableScroller {
-    /// The probe, not the table.
+    /// The probe, not the table, and held strongly.
     ///
-    /// Holding the table itself went stale the moment the presentation switched:
-    /// the two tables coexist briefly, so whichever was captured could be the
-    /// one on its way out. Resolving from the probe at each use always answers
-    /// with the table that is actually on screen now.
-    /// Held strongly, and deliberately.
+    /// Holding a table went stale the moment the presentation switched: the two
+    /// coexist briefly, so whichever was captured could be the one on its way
+    /// out. Resolving from the probe at each use always answers with the table
+    /// that is on screen now.
     ///
-    /// A weak reference here resolved to nil the moment the presentation
-    /// switched — measured — leaving the scroller unable to find a table the
-    /// probe's own search finds without trouble. The probe is a zero-sized view
-    /// that draws nothing; keeping it alive costs nothing, and the closure it
+    /// Strongly because a weak reference here resolved to nil as soon as the
+    /// presentation switched — measured. The probe is a zero-sized view that
+    /// draws nothing, so keeping it alive costs nothing, and the closure it
     /// carries captures this object weakly so the two do not hold each other up.
     fileprivate var probe: NSView?
 
@@ -114,11 +112,15 @@ struct FixedTableRowHeight: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSView {
         let probe = RowHeightProbeView()
-        // The probe is what the scroller keeps: it outlives any one table.
-        scroller?.attach(probe)
         probe.onAttachToWindow = { [weak probe, weak scroller] in
             Task { @MainActor in
                 guard let probe else { return }
+                // Registered on *joining a window*, not on being created.
+                // Switching presentation builds a second probe and detaches the
+                // first; registering at creation left the scroller holding the
+                // outgoing one, which resolves to no table at all — measured,
+                // and exactly why `j` stopped scrolling after a toggle.
+                scroller?.attach(probe)
                 await Self.applyWhenReady(from: probe, scroller: scroller)
                 // A focus request may have been made while this table was still
                 // being built; now that it exists, it can be honoured.
@@ -193,9 +195,16 @@ extension FixedTableRowHeight {
         return nil
     }
 
+    /// Skips tables that are no longer in a window.
+    ///
+    /// Switching presentation leaves the outgoing table in the view tree for a
+    /// while, and it comes first in subview order. Returning it hands back
+    /// something detached: pinning its row height does nothing visible, and
+    /// scrolling it moves a table nobody is looking at — which is exactly how
+    /// `j` stopped following the cursor after a toggle.
     @MainActor
     private static func firstDescendantTableView(of view: NSView) -> NSTableView? {
-        if let table = view as? NSTableView { return table }
+        if let table = view as? NSTableView, table.window != nil { return table }
         for subview in view.subviews {
             if let table = firstDescendantTableView(of: subview) { return table }
         }
