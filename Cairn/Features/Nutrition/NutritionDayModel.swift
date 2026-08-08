@@ -6,12 +6,14 @@ import SwiftData
 /// stays testable without UI.
 struct NutritionDayModel: Equatable {
     struct Row: Equatable {
+        var entryID: PersistentIdentifier
         var name: String
         var grams: Double
         var macros: Macros
     }
 
     struct Meal: Equatable {
+        var slotID: PersistentIdentifier
         var slotName: String
         var rows: [Row]
         var consumed: Macros
@@ -58,9 +60,13 @@ struct NutritionDayModel: Equatable {
         )
         let meals = orderedSlots.enumerated().map { index, slot in
             Meal(
+                slotID: slot.persistentModelID,
                 slotName: slot.name,
                 rows: mealEntries[index].map {
-                    Row(name: $0.foodName, grams: $0.grams, macros: Macros(of: $0))
+                    Row(
+                        entryID: $0.persistentModelID, name: $0.foodName,
+                        grams: $0.grams, macros: Macros(of: $0)
+                    )
                 },
                 consumed: mealConsumed[index],
                 target: targets[index],

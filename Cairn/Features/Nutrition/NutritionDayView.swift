@@ -48,8 +48,7 @@ struct NutritionDayView: View {
                 header(model)
                 summary(model)
                 Divider()
-                ForEach(Array(model.meals.enumerated()), id: \.offset) {
-                    _, meal in
+                ForEach(model.meals, id: \.slotID) { meal in
                     mealSection(meal)
                 }
             }
@@ -139,7 +138,7 @@ struct NutritionDayView: View {
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    ForEach(Array(meal.rows.enumerated()), id: \.offset) { _, row in
+                    ForEach(meal.rows, id: \.entryID) { row in
                         GridRow {
                             Text(row.name).lineLimit(1)
                             Text("\(Int(row.grams.rounded()))")

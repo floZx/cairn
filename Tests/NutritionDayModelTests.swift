@@ -89,4 +89,25 @@ struct NutritionDayModelTests {
         #expect(model.daily == nil)
         #expect(model.meals[0].target == nil)
     }
+
+    @Test("chaque ligne et chaque repas portent l'identité de leur modèle")
+    func rowsCarryModelIdentity() throws {
+        let context = try makeContext()
+        let slot = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        context.insert(slot)
+        let key = DateKey(raw: "2026-08-08")!
+        let entry = FoodEntry(
+            dateKey: key, mealSlot: slot, foodName: "Skyr",
+            kcal100: 57, protein100: 10, carbs100: 4, fat100: 0,
+            grams: 150, sortOrder: 0
+        )
+        context.insert(entry)
+
+        let model = NutritionDayModel.compute(
+            entries: [entry], slots: [slot], notes: [],
+            dayType: nil, proteinTargetG: 130, fatTargetG: 66
+        )
+        #expect(model.meals[0].slotID == slot.persistentModelID)
+        #expect(model.meals[0].rows[0].entryID == entry.persistentModelID)
+    }
 }
