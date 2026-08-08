@@ -25,18 +25,23 @@ enum CatalogBuilder {
         onProgress: (@Sendable (_ linesSeen: Int, _ kept: Int) -> Void)? = nil
     ) throws -> Int {
         let tmpPath = offDBPath + ".tmp"
+        let journalPath = tmpPath + "-journal"
         let fileManager = FileManager.default
         if fileManager.fileExists(atPath: tmpPath) {
             try fileManager.removeItem(atPath: tmpPath)
         }
+        try? fileManager.removeItem(atPath: journalPath)
 
         let gunzip = Process()
         gunzip.executableURL = URL(fileURLWithPath: "/usr/bin/gunzip")
         gunzip.arguments = ["-c", gzPath]
         let stdout = Pipe()
-        let stderr = Pipe()
         gunzip.standardOutput = stdout
-        gunzip.standardError = stderr
+        // gunzip may spew warnings on a corrupt stream; nobody reads them,
+        // and an undrained pipe fills up and blocks gunzip's write — which
+        // would stall stdout and hang consume() past cancellation. Send it
+        // to the bit bucket; the exit code is the diagnostic.
+        gunzip.standardError = FileHandle.nullDevice
         try gunzip.run()
 
         do {
@@ -66,6 +71,7 @@ enum CatalogBuilder {
             gunzip.terminate()
             gunzip.waitUntilExit()
             try? fileManager.removeItem(atPath: tmpPath)
+            try? fileManager.removeItem(atPath: journalPath)
             throw error
         }
     }
