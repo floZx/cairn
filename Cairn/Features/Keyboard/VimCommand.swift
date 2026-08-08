@@ -27,6 +27,21 @@ enum VimCommand: Equatable, Sendable {
     /// Swap the table for the cards, or back.
     case toggleListStyle
     case showHelp
+
+    /// Whether the command edits, deletes or presents the *selected activity*
+    /// (or the activity list's own presentation). The food journal refuses
+    /// these: an activity selection can survive invisibly behind it, and `n`
+    /// there would open an editor for an outing the screen does not show.
+    var actsOnActivities: Bool {
+        switch self {
+        case .edit, .editNotes, .delete, .toggleFavorite, .expandMap,
+             .toggleListStyle, .openSearch:
+            return true
+        case .move, .first, .last, .halfPage, .clear, .section, .closePane,
+             .showHelp:
+            return false
+        }
+    }
 }
 
 /// Resolves keystrokes into commands, holding the state a modal editor needs.

@@ -218,4 +218,24 @@ struct ToggleListStyleKeyTests {
         #expect(ActivityListStyle.cards.toggled == .table)
         #expect(ActivityListStyle.table.toggled.toggled == .table)
     }
+
+    @Test("les commandes d'activité sont identifiées comme telles")
+    func flagsActivityBoundCommands() {
+        // Everything that acts on the selected activity or the list's own
+        // presentation: meaningless on the food journal, where firing one
+        // would edit or delete an activity the screen does not show.
+        #expect(VimCommand.edit.actsOnActivities)
+        #expect(VimCommand.editNotes.actsOnActivities)
+        #expect(VimCommand.delete.actsOnActivities)
+        #expect(VimCommand.toggleFavorite.actsOnActivities)
+        #expect(VimCommand.expandMap.actsOnActivities)
+        #expect(VimCommand.toggleListStyle.actsOnActivities)
+        #expect(VimCommand.openSearch.actsOnActivities)
+        // Navigation, escape, help and pane-closing stay meaningful anywhere.
+        #expect(!VimCommand.section(.nutrition).actsOnActivities)
+        #expect(!VimCommand.clear.actsOnActivities)
+        #expect(!VimCommand.showHelp.actsOnActivities)
+        #expect(!VimCommand.closePane.actsOnActivities)
+        #expect(!VimCommand.move(1).actsOnActivities)
+    }
 }

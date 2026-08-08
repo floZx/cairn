@@ -14,6 +14,13 @@ struct VimKeys: ViewModifier {
     /// out says so, and the press falls through rather than being swallowed.
     let onCommand: (VimCommand) -> Bool
 
+    /// `onKeyPress` fires while the view *or any descendant* has focus — and a
+    /// sheet presented from inside the view is a descendant. Without this
+    /// gate, letters typed into such a sheet's text fields ran vim commands
+    /// (`n` opened the activity editor) and digits vanished into a count. The
+    /// presenting view knows when its sheets are up; the modifier cannot.
+    var enabled: Bool = true
+
     /// Bumped by the caller to bring the keyboard back here.
     ///
     /// A counter rather than a boolean: the request is an event, and a flag that
@@ -39,6 +46,7 @@ struct VimKeys: ViewModifier {
             // `.repeat` as well as `.down`: without it a held key fires once and
             // walking a long list means tapping `j` eighty times.
             .onKeyPress(phases: [.down, .repeat]) { press in
+                guard enabled else { return .ignored }
                 guard let character = press.characters.first else { return .ignored }
                 // ⌘ belongs to the menus. Swallowing it here would shadow every
                 // shortcut the app already publishes.
@@ -60,6 +68,7 @@ struct VimKeys: ViewModifier {
                 return onCommand(command) ? .handled : .ignored
             }
             .onKeyPress(.escape) {
+                guard enabled else { return .ignored }
                 buffer.reset()
                 return onCommand(.clear) ? .handled : .ignored
             }
@@ -68,8 +77,11 @@ struct VimKeys: ViewModifier {
 
 extension View {
     func vimKeys(
-        focusRequest: Int = 0, _ onCommand: @escaping (VimCommand) -> Bool
+        enabled: Bool = true, focusRequest: Int = 0,
+        _ onCommand: @escaping (VimCommand) -> Bool
     ) -> some View {
-        modifier(VimKeys(onCommand: onCommand, focusRequest: focusRequest))
+        modifier(VimKeys(
+            onCommand: onCommand, enabled: enabled, focusRequest: focusRequest
+        ))
     }
 }

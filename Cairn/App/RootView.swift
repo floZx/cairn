@@ -304,8 +304,10 @@ struct RootView: View {
                     )
                     .vimKeys(performOutsideTheList)
                 } else if showsNutrition {
-                    NutritionDayView()
-                        .vimKeys(performOutsideTheList)
+                    // The vim modifier lives inside the view here — it must go
+                    // dead while the add/edit sheets are up, and only the view
+                    // knows when that is.
+                    NutritionDayView(onCommand: performInNutrition)
                 } else {
                     ActivityListView(
                         filter: filter,
@@ -362,6 +364,15 @@ struct RootView: View {
         // built, and assigning it afterwards would arrive one presentation late.
         editorFocusesNotes = focusingNotes
         editor = .edit(activity)
+    }
+
+    /// The food journal's command set: navigation, escape, help, closing the
+    /// pane — and nothing that touches an activity. A selection made in the
+    /// list survives invisibly behind this screen, and without the filter a
+    /// stray `n` or `x` edited or deleted an outing nothing was showing.
+    private func performInNutrition(_ command: VimCommand) -> Bool {
+        guard !command.actsOnActivities else { return false }
+        return performOutsideTheList(command)
     }
 
     /// The same commands, from a view that has no rows to move through.

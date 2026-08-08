@@ -7,6 +7,13 @@ import AppKit
 /// targets, totals, and full entry editing (add, edit, reorder, delete,
 /// day-type choice).
 struct NutritionDayView: View {
+    /// The vim commands this screen cannot handle itself, forwarded to the
+    /// window (section jumps, escape, help). Taken as a closure so the vim
+    /// modifier can live *here*: this view knows when its sheets are up, and
+    /// keyboard handling must go dead exactly then — `onKeyPress` fires for
+    /// focused descendants, and a sheet's text field is one.
+    let onCommand: (VimCommand) -> Bool
+
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \MealSlot.sortOrder) private var slots: [MealSlot]
     @Query private var days: [NutritionDay]
@@ -29,6 +36,13 @@ struct NutritionDayView: View {
         SortDescriptor(\DayType.kcalTarget), SortDescriptor(\DayType.name),
     ]) private var dayTypes: [DayType]
 
+    /// Any presentation with text input or a default button: while one is up,
+    /// keystrokes belong to it, never to the vim buffer underneath.
+    private var isPresentingModal: Bool {
+        addTargetSlot != nil || editingEntry != nil
+            || importMessage != nil || writeFailureMessage != nil
+    }
+
     var body: some View {
         Group {
             if slots.isEmpty {
@@ -37,6 +51,7 @@ struct NutritionDayView: View {
                 journal
             }
         }
+        .vimKeys(enabled: !isPresentingModal, onCommand)
         .alert(
             "Import suivinut",
             isPresented: Binding(
