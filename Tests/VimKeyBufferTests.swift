@@ -201,3 +201,21 @@ struct KeyRepeatTests {
         }
     }
 }
+
+@Suite("Bascule de présentation au clavier")
+struct ToggleListStyleKeyTests {
+    @Test("t bascule la présentation")
+    func tTogglesTheStyle() {
+        var buffer = VimKeyBuffer()
+        #expect(buffer.accept("t") == .toggleListStyle)
+    }
+
+    @Test("la bascule fait l'aller-retour")
+    func theToggleGoesBothWays() {
+        // Two cases, so one key is the whole vocabulary: a picker would want a
+        // shortcut each, and there would be nothing to press to come back.
+        #expect(ActivityListStyle.table.toggled == .cards)
+        #expect(ActivityListStyle.cards.toggled == .table)
+        #expect(ActivityListStyle.table.toggled.toggled == .table)
+    }
+}

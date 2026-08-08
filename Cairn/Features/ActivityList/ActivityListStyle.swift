@@ -21,6 +21,12 @@ enum ActivityListStyle: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// The other one. Two cases, so a toggle is the whole vocabulary a shortcut
+    /// needs — a picker would want a key each.
+    var toggled: ActivityListStyle {
+        self == .table ? .cards : .table
+    }
+
     var symbolName: String {
         switch self {
         case .table: "tablecells"

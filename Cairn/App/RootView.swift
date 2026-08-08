@@ -42,6 +42,11 @@ struct RootView: View {
     /// from this view, and `.searchFocused` only binds the field of the
     /// `searchable` in its own chain.
     @FocusState private var searchFieldFocused: Bool
+    /// The list's presentation, held here too so the shortcut reaches it from
+    /// anywhere. Same `AppStorage` key as the list's own, so the two never
+    /// disagree — a second copy of the state would.
+    @AppStorage(ActivityListStyle.storageKey)
+    private var listStyle: ActivityListStyle = .table
     /// Kept apart from `writeFailureMessage`: a GPX that would not parse is not
     /// a failed save, and telling the user their work was lost when it was not
     /// is its own kind of wrong.
@@ -184,6 +189,7 @@ struct RootView: View {
             app.requestToggleFavorite = { toggleFavorite() }
             app.requestImportGPX = { chooseGPXFilesToImport() }
             app.requestExportGPX = { exportGPX(selection) }
+            app.requestToggleListStyle = { listStyle = listStyle.toggled }
         }
     }
 
@@ -385,6 +391,8 @@ struct RootView: View {
             if let selected { expandedMap = .activity(selected.id) }
         case .closePane:
             selectedActivities = []
+        case .toggleListStyle:
+            listStyle = listStyle.toggled
         case .showHelp:
             showsKeyboardHelp = true
         case .clear:

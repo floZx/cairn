@@ -48,6 +48,11 @@ struct CairnApp: App {
                 Button("Favori") { app.requestToggleFavorite?() }
                     .keyboardShortcut("d")
                     .disabled(app.requestToggleFavorite == nil)
+                Button("Tableau ou fiches") { app.requestToggleListStyle?() }
+                    // A letter, like every other shortcut here: the digits need
+                    // shift on an AZERTY keyboard.
+                    .keyboardShortcut("l", modifiers: [.option, .command])
+                    .disabled(app.requestToggleListStyle == nil)
             }
             // The standard placement, so Import and Export land where macOS
             // users already look for them rather than under a menu of our own.

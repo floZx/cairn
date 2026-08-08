@@ -31,6 +31,7 @@ final class AppEnvironment {
     var requestToggleFavorite: (() -> Void)?
     var requestImportGPX: (() -> Void)?
     var requestExportGPX: (() -> Void)?
+    var requestToggleListStyle: (() -> Void)?
 
     init(container: ModelContainer) {
         let store = KeychainStore()

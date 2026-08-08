@@ -25,6 +25,7 @@ struct KeyboardHelpSheet: View {
             ("ga", "mes activités"),
             ("gm", "carte globale"),
             ("gs", "statistiques"),
+            ("t", "basculer tableau / fiches (⌥⌘L depuis partout)"),
         ]),
         Group(title: "Agir sur la sélection", rows: [
             ("e", "modifier"),

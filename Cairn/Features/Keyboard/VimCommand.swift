@@ -24,6 +24,8 @@ enum VimCommand: Equatable, Sendable {
     /// Close the detail pane. Distinct from `.clear`, which peels the search
     /// first: `h` has one meaning and no order of operations.
     case closePane
+    /// Swap the table for the cards, or back.
+    case toggleListStyle
     case showHelp
 }
 
@@ -123,6 +125,7 @@ struct VimKeyBuffer: Equatable {
         case "o": _ = takeCount(); return .expandMap
         // Left, as in vim: the pane on the right goes away.
         case "h": _ = takeCount(); return .closePane
+        case "t": _ = takeCount(); return .toggleListStyle
         case "?": reset(); return .showHelp
         default:
             // Anything unrecognised clears the pending state. Leaving a count
