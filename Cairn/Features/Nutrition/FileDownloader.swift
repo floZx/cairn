@@ -236,13 +236,32 @@ private final class StreamingFetch: NSObject, URLSessionDataDelegate, @unchecked
         // URLSessionTask, which makes didCompleteWithError fire and resume
         // the continuation with an error instead of leaving it suspended
         // forever.
-        let response = try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                delegate.responseContinuation = continuation
-                task.resume()
+        let response: HTTPURLResponse
+        do {
+            response = try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    delegate.responseContinuation = continuation
+                    task.resume()
+                }
+            } onCancel: {
+                task.cancel()
             }
-        } onCancel: {
-            task.cancel()
+        } catch {
+            // `onCancel`'s `task.cancel()` makes URLSession fail the task
+            // with URLError(.cancelled), a plain error — not Swift's
+            // CancellationError. Left as-is, that error propagates through
+            // FileDownloader.download's `try await transport.fetch(request)`
+            // as a raw NSError and CatalogUpdater's `catch is
+            // CancellationError` misses it entirely, painting a red failure
+            // for what is really just « Annuler ». Map it back to Swift's
+            // cancellation vocabulary so every catcher downstream (including
+            // ones that only know `is CancellationError`) sees a pause,
+            // not a failure. Guarded by Task.isCancelled so a genuine
+            // network-level cancel (unrelated to our Task) still surfaces.
+            if (error as? URLError)?.code == .cancelled, Task.isCancelled {
+                throw CancellationError()
+            }
+            throw error
         }
         return (response, stream)
     }

@@ -72,6 +72,24 @@ enum CatalogBuilder {
             gunzip.waitUntilExit()
             try? fileManager.removeItem(atPath: tmpPath)
             try? fileManager.removeItem(atPath: journalPath)
+            // A corrupt .gz makes gunzip exit non-zero with empty stdout
+            // before writing a single line — `consume` never sees a header
+            // and throws its own "Export vide" error first, which reaches
+            // here before the success path's termination-status guard ever
+            // runs. Surface the real diagnostic (gunzip's exit code) instead
+            // of the misleading "empty export" one. Gated on
+            // `terminationReason == .exit`: our own `terminate()` just above
+            // kills a gunzip that was still mid-stream when some *other*
+            // error (e.g. cancellation) interrupted `consume` — that reports
+            // `.uncaughtSignal`, not `.exit`, so genuine cancellation/DB
+            // errors still propagate as themselves instead of being
+            // relabelled "corrompu".
+            if gunzip.terminationReason == .exit, gunzip.terminationStatus != 0 {
+                throw BuildError(
+                    message: "gunzip a échoué (code \(gunzip.terminationStatus)) — "
+                        + "le fichier téléchargé est probablement corrompu."
+                )
+            }
             throw error
         }
     }

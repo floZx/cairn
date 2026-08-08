@@ -17,6 +17,16 @@ final class CatalogUpdater {
 
     private(set) var phase: Phase = .idle
 
+    // `phase`/`task`/`isRunning` are per-instance, but the settings screen
+    // recreates a fresh `CatalogUpdater` `@State` every time Réglages is
+    // reopened. Closing the window mid-download and reopening it makes a
+    // brand-new, idle updater that has never heard of the run still writing
+    // to the shared `.part` file — its own `isRunning` guard in `start()` is
+    // blind to that. A `static` guard is visible to every instance and
+    // closes that gap: at most one download/build can be in flight for the
+    // whole process, matching the single `.part`/cache file they all share.
+    @MainActor private static var inFlight = false
+
     var isRunning: Bool {
         switch phase {
         case .downloading, .building: return true
@@ -62,6 +72,10 @@ final class CatalogUpdater {
 
     func start() {
         guard !isRunning else { return }
+        // Single-flight across instances, not just within this one — see
+        // `inFlight`'s doc comment.
+        guard !Self.inFlight else { return }
+        Self.inFlight = true
         phase = .downloading(megabytes: 0, totalMegabytes: nil)
         let download = download
         let buildCatalog = buildCatalog
@@ -91,8 +105,11 @@ final class CatalogUpdater {
                 await MainActor.run {
                     self.phase = .building(kept: 0)
                 }
-                let importedAt = ISO8601DateFormatter()
-                    .string(from: Date()).prefix(10)
+                // Not ISO8601DateFormatter: it defaults to UTC, which before
+                // ~01:00 CET is still yesterday there. The app's day identity
+                // is the LOCAL calendar day everywhere else (DateKey), and
+                // `imported_at` should agree with it.
+                let importedAt = DateKey(Date()).raw
                 // FoodCatalog.defaultURL is @MainActor-isolated; read it here
                 // (this task body inherited MainActor isolation from
                 // `start()`) and hand the plain path down — `group.addTask`
@@ -123,13 +140,30 @@ final class CatalogUpdater {
                 try? FileManager.default.removeItem(at: cache)
                 await MainActor.run {
                     self.phase = .done(count: count)
+                    Self.inFlight = false
                 }
             } catch is CancellationError {
                 // The .part stays on disk: cancelling is pausing.
                 await MainActor.run {
                     self.phase = .idle
+                    Self.inFlight = false
                 }
             } catch {
+                // A cancellation during the header wait (StreamingFetch.run's
+                // withTaskCancellationHandler) surfaces as URLError(.cancelled)
+                // from URLSession, not CancellationError — the mapping back to
+                // Swift's cancellation vocabulary lives in StreamingFetch,
+                // which this generic catch cannot see into. Checking
+                // Task.isCancelled here catches that case too: cancelling
+                // must always look like a pause (→ .idle), never a red
+                // « La mise à jour a échoué » failure.
+                if Task.isCancelled {
+                    await MainActor.run {
+                        self.phase = .idle
+                        Self.inFlight = false
+                    }
+                    return
+                }
                 // Not `error.localizedDescription`: neither DownloadError nor
                 // BuildError conforms to LocalizedError, so that would print
                 // Foundation's generic "The operation couldn't be completed"
@@ -139,6 +173,7 @@ final class CatalogUpdater {
                     self.phase = .failed(
                         message: "La mise à jour a échoué : \(error)"
                     )
+                    Self.inFlight = false
                 }
             }
         }

@@ -98,12 +98,20 @@ struct CatalogBuilderTests {
         let gz = dir.appending(path: "food.csv.gz")
         try Data("pas du gzip".utf8).write(to: gz)
 
-        #expect(throws: (any Error).self) {
+        // The gunzip diagnostic, not the misleading "Export vide" one that
+        // `consume` throws first when a corrupt stream never produces a
+        // header line.
+        do {
             _ = try CatalogBuilder.build(
                 gzPath: gz.path,
                 offDBPath: dir.appending(path: "off.db").path,
                 importedAt: "2026-08-08"
             )
+            Issue.record("le build aurait dû échouer")
+        } catch let error as CatalogBuilder.BuildError {
+            #expect(error.message.contains("gunzip a échoué"))
+        } catch {
+            Issue.record("erreur inattendue : \(error)")
         }
     }
 

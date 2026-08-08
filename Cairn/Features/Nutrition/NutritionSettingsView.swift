@@ -19,7 +19,7 @@ struct NutritionSettingsView: View {
     @State private var importMessage: String?
     @State private var writeFailureMessage: String?
     @State private var updater = CatalogUpdater()
-    @State private var catalogRefresh = 0
+    @State private var catalogStatus = ""
 
     var body: some View {
         Form {
@@ -58,7 +58,6 @@ struct NutritionSettingsView: View {
             Section("Catalogue") {
                 Text(catalogStatus)
                     .foregroundStyle(.secondary)
-                    .id(catalogRefresh)
                 switch updater.phase {
                 case .downloading(let megabytes, let total):
                     HStack {
@@ -91,7 +90,7 @@ struct NutritionSettingsView: View {
                 }
             }
             .onChange(of: updater.phase) { _, newPhase in
-                if case .done = newPhase { catalogRefresh += 1 }
+                if case .done = newPhase { refreshCatalogStatus() }
             }
 
             if entries.isEmpty {
@@ -101,6 +100,7 @@ struct NutritionSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { refreshCatalogStatus() }
         .alert(
             "Journal alimentaire",
             isPresented: Binding(
@@ -166,12 +166,19 @@ struct NutritionSettingsView: View {
         slots.map(\.targetPct).reduce(0, +)
     }
 
-    private var catalogStatus: String {
+    /// Opens SQLite and runs a COUNT(*) — real I/O, not cheap enough to
+    /// re-derive on every `body` evaluation. Called from `.onAppear` and
+    /// when a build finishes, never from `body` itself: `updater.phase`
+    /// changes up to once per frame during a download, and this used to be
+    /// a computed property read directly from `body`, hitting the
+    /// main-thread database every one of those frames for minutes.
+    private func refreshCatalogStatus() {
         guard let catalog = FoodCatalog.openDefault(),
               let count = try? catalog.productCount()
         else {
-            return "Aucun catalogue — l'import suivinut en copie un, "
+            catalogStatus = "Aucun catalogue — l'import suivinut en copie un, "
                 + "ou téléchargez-le ci-dessous."
+            return
         }
         // `try?` on a call that already returns `String?` flattens to a
         // single `String?` since SE-0230 (Swift 5+), so one `if let`
@@ -179,9 +186,10 @@ struct NutritionSettingsView: View {
         // brief, guarding against a double optional) doesn't compile: the
         // first binding already produces a non-optional `String`.
         if let importedAt = try? catalog.importedAt() {
-            return "\(count) produits Open Food Facts — importé le \(importedAt)."
+            catalogStatus = "\(count) produits Open Food Facts — importé le \(importedAt)."
+        } else {
+            catalogStatus = "\(count) produits Open Food Facts."
         }
-        return "\(count) produits Open Food Facts."
     }
 
     private func downloadLabel(megabytes: Double, total: Double?) -> String {
