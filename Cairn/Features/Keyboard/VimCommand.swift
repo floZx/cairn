@@ -17,6 +17,9 @@ enum VimCommand: Equatable, Sendable {
     case delete
     case toggleFavorite
     case expandMap
+    /// Close the detail pane. Distinct from `.clear`, which peels the search
+    /// first: `h` has one meaning and no order of operations.
+    case closePane
     case showHelp
 }
 
@@ -102,6 +105,8 @@ struct VimKeyBuffer: Equatable {
         case "x": _ = takeCount(); return .delete
         case "f": _ = takeCount(); return .toggleFavorite
         case "o": _ = takeCount(); return .expandMap
+        // Left, as in vim: the pane on the right goes away.
+        case "h": _ = takeCount(); return .closePane
         case "?": reset(); return .showHelp
         default:
             // Anything unrecognised clears the pending state. Leaving a count

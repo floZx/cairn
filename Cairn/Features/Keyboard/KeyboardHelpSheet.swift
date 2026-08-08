@@ -31,10 +31,12 @@ struct KeyboardHelpSheet: View {
             ("f", "favori"),
             ("x", "supprimer"),
             ("o", "ouvrir la carte en grand"),
+            ("h", "fermer le volet de droite"),
         ]),
         Group(title: "Chercher", rows: [
             ("/", "aller au champ de recherche"),
             ("échap", "vider la recherche, sinon la sélection"),
+            ("⌥⌘0", "fermer le volet — depuis n'importe quelle vue"),
             ("?", "cet aide-mémoire"),
         ]),
     ]

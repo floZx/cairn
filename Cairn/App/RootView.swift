@@ -350,6 +350,8 @@ struct RootView: View {
             toggleFavorite()
         case .expandMap:
             if let selected { expandedMap = .activity(selected.id) }
+        case .closePane:
+            selectedActivities = []
         case .showHelp:
             showsKeyboardHelp = true
         case .clear:
@@ -574,8 +576,11 @@ struct RootView: View {
                 } label: {
                     Label("Fermer le panneau", systemImage: "sidebar.trailing")
                 }
+                // ⌥⌘0 is what Xcode uses to hide its inspector — the same pane,
+                // on the same side, so the finger already knows where to go.
+                .keyboardShortcut("0", modifiers: [.option, .command])
                 .disabled(selection.isEmpty)
-                .help("Fermer le panneau de droite et désélectionner")
+                .help("Fermer le panneau de droite et désélectionner (⌥⌘0)")
             }
             // Grouped, not three loose buttons: the toolbar already carries three
             // items, and six side by side is where it stops reading as a toolbar.

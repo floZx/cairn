@@ -133,3 +133,23 @@ struct VimMotionTests {
         #expect(VimMotion.destination(from: 0, delta: 1, count: 0) == nil)
     }
 }
+
+@Suite("Fermeture du volet au clavier")
+struct ClosePaneKeyTests {
+    @Test("h ferme le volet, sans l'ambiguïté d'échap")
+    func hClosesThePane() {
+        var buffer = VimKeyBuffer()
+        #expect(buffer.accept("h") == .closePane)
+        // Escape peels the search first, so it cannot be relied on to close the
+        // pane while something is typed in the field. `h` has one meaning.
+        #expect(VimCommand.closePane != VimCommand.clear)
+    }
+
+    @Test("un compte devant h est consommé, pas reporté")
+    func aCountBeforeHIsConsumed() {
+        var buffer = VimKeyBuffer()
+        _ = buffer.accept("3")
+        _ = buffer.accept("h")
+        #expect(buffer.accept("j") == .move(1))
+    }
+}
