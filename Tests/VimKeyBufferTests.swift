@@ -127,6 +127,16 @@ struct VimKeyBufferTests {
         #expect(!VimCommand.addFood.actsOnActivities)
         #expect(!VimCommand.newWeighIn.actsOnActivities)
     }
+
+    @Test("K/J, c et s pilotent le journal")
+    func journalRowCommands() {
+        #expect(run("K") == [.moveEntryUp])
+        #expect(run("J") == [.moveEntryDown])
+        #expect(run("c") == [.loadRecipe])
+        #expect(run("s") == [.saveRecipe])
+        #expect(!VimCommand.moveEntryUp.actsOnActivities)
+        #expect(!VimCommand.loadRecipe.actsOnActivities)
+    }
 }
 
 @Suite("Déplacement dans la liste")

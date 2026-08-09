@@ -441,7 +441,8 @@ struct RootView: View {
         case .move, .first, .last, .halfPage:
             // Motions are carried out by the list, which has the sorted rows.
             break
-        case .addFood, .newWeighIn:
+        case .addFood, .newWeighIn, .moveEntryUp, .moveEntryDown,
+             .loadRecipe, .saveRecipe:
             // Reaching here means no journal screen intercepted them: the
             // list, map or statistics are showing, where they mean nothing.
             break

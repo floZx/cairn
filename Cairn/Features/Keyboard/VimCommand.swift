@@ -32,6 +32,12 @@ enum VimCommand: Equatable, Sendable {
     /// forwarding to the window; anywhere else they are silent no-ops.
     case addFood
     case newWeighIn
+    /// Move the selected food row inside its meal (suivinut's K/J).
+    case moveEntryUp
+    case moveEntryDown
+    /// Load a recipe into / save a recipe from the cursor's meal.
+    case loadRecipe
+    case saveRecipe
 
     /// Whether the command edits, deletes or presents the *selected activity*
     /// (or the activity list's own presentation). The food journal refuses
@@ -43,7 +49,8 @@ enum VimCommand: Equatable, Sendable {
              .toggleListStyle, .openSearch:
             return true
         case .move, .first, .last, .halfPage, .clear, .section, .closePane,
-             .showHelp, .addFood, .newWeighIn:
+             .showHelp, .addFood, .newWeighIn, .moveEntryUp, .moveEntryDown,
+             .loadRecipe, .saveRecipe:
             return false
         }
     }
@@ -150,6 +157,10 @@ struct VimKeyBuffer: Equatable {
         case "t": _ = takeCount(); return .toggleListStyle
         case "a": _ = takeCount(); return .addFood
         case "w": _ = takeCount(); return .newWeighIn
+        case "K": _ = takeCount(); return .moveEntryUp
+        case "J": _ = takeCount(); return .moveEntryDown
+        case "c": _ = takeCount(); return .loadRecipe
+        case "s": _ = takeCount(); return .saveRecipe
         case "?": reset(); return .showHelp
         default:
             // Anything unrecognised clears the pending state. Leaving a count
