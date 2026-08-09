@@ -456,15 +456,25 @@ struct NutritionDayView: View {
         static let spacing: CGFloat = 16
     }
 
-    /// One "consumed/target" pair, red the moment the target is exceeded —
-    /// suivinut's per-macro meal accounting.
+    /// One "consumed/target" pair — suivinut's per-macro meal accounting,
+    /// with its graduated overshoot: orange while it's still close, red
+    /// once it's frankly blown.
     private func pairText(_ consumed: Double, target: Double?) -> Text {
         let consumedText = "\(Int(consumed.rounded()))"
         guard let target else {
             return Text(consumedText).foregroundStyle(Color.secondary)
         }
         return Text("\(consumedText)/\(Int(target.rounded()))")
-            .foregroundStyle(consumed > target ? Color.red : Color.secondary)
+            .foregroundStyle(overshootColor(consumed: consumed, target: target)
+                             ?? Color.secondary)
+    }
+
+    private func overshootColor(consumed: Double, target: Double) -> Color? {
+        switch NutritionMath.overshoot(consumed: consumed, target: target) {
+        case nil: nil
+        case .moderate: .orange
+        case .heavy: .red
+        }
     }
 
     /// The meal's totals, sitting exactly under the grid's kcal/P/G/L

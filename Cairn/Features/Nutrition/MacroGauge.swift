@@ -2,8 +2,8 @@
 import SwiftUI
 
 /// One "consumed / target" figure with a thin progress bar — the unit of
-/// the day's summary row. System colours only; red is reserved for an
-/// exceeded target, which is the one state that must jump out.
+/// the day's summary row. System colours only; the overshoot is graduated
+/// like suivinut's: orange while it's still close, red once frankly blown.
 struct MacroGauge: View {
     let title: String
     let consumed: Double
@@ -16,15 +16,25 @@ struct MacroGauge: View {
             Text(figure).font(.title3.monospacedDigit())
             if let target, target > 0 {
                 ProgressView(value: min(consumed / target, 1))
-                    .tint(consumed > target ? .red : .accentColor)
+                    .tint(overshootColor(target: target) ?? .accentColor)
                 // suivinut's « reste » line: the number the next meal is
                 // actually planned against, not just a bar to squint at.
                 Text(remainingLabel(target: target))
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(consumed > target ? .red : .secondary)
+                    .foregroundStyle(overshootColor(target: target)
+                                     .map(AnyShapeStyle.init)
+                                     ?? AnyShapeStyle(.secondary))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func overshootColor(target: Double) -> Color? {
+        switch NutritionMath.overshoot(consumed: consumed, target: target) {
+        case nil: nil
+        case .moderate: .orange
+        case .heavy: .red
+        }
     }
 
     private func remainingLabel(target: Double) -> String {

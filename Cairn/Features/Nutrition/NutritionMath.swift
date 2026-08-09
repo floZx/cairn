@@ -59,6 +59,20 @@ struct Macros: Equatable, Sendable {
 /// `domain/nutrition.py` — the adaptive algorithm took three iterations to
 /// get right over there, so the semantics are copied, not re-derived.
 enum NutritionMath {
+    /// How badly a target is exceeded — suivinut's `over_color` rule from
+    /// `tui/widgets.py`: a moderate overshoot (up to +10 % of the target) is
+    /// still fine, a heavy one is not. The half-gram slack keeps a rounding
+    /// crumb from lighting up a figure the user reads as exactly on target.
+    enum Overshoot {
+        case moderate
+        case heavy
+    }
+
+    static func overshoot(consumed: Double, target: Double) -> Overshoot? {
+        guard target > 0, consumed > target + 0.5 else { return nil }
+        return consumed > target * 1.10 ? .heavy : .moderate
+    }
+
     /// Daily macro targets: kcal from the day type, protein and fat global,
     /// carbs deduced from what is left — `(kcal − 4P − 9L) / 4`, floored at 0.
     static func dailyTargets(

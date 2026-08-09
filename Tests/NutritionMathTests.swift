@@ -173,4 +173,19 @@ struct NutritionMathTests {
         )
         #expect(targets == [nil, nil])
     }
+
+    @Test("le dépassement est gradué : rien, modéré jusqu'à +10 %, franc au-delà")
+    func overshootIsGraduated() {
+        // Dans la cible, ou à un demi-gramme près : rien à signaler.
+        #expect(NutritionMath.overshoot(consumed: 90, target: 100) == nil)
+        #expect(NutritionMath.overshoot(consumed: 100.4, target: 100) == nil)
+        // Dépassement modéré : jusqu'à +10 % de la cible inclus.
+        #expect(NutritionMath.overshoot(consumed: 101, target: 100) == .moderate)
+        #expect(NutritionMath.overshoot(consumed: 110, target: 100) == .moderate)
+        // Franc : au-delà de +10 %.
+        #expect(NutritionMath.overshoot(consumed: 110.6, target: 100) == .heavy)
+        #expect(NutritionMath.overshoot(consumed: 300, target: 100) == .heavy)
+        // Pas de cible, pas de dépassement.
+        #expect(NutritionMath.overshoot(consumed: 50, target: 0) == nil)
+    }
 }
