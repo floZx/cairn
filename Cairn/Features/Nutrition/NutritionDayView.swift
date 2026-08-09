@@ -114,6 +114,15 @@ struct NutritionDayView: View {
         }
         .vimKeys(enabled: !isPresentingModal) { command in
             switch command {
+            // h/l travel through days, as in suivinut. `h` arrives as
+            // `.closePane`, which is meaningless here: the journal's pane is
+            // the side panel, and it is not closable.
+            case .closePane:
+                dateKey = dateKey.advanced(by: -1)
+                return true
+            case .dayForward:
+                dateKey = dateKey.advanced(by: 1)
+                return true
             case let .move(delta):
                 cursor = DayCursorModel.move(
                     from: cursor, by: delta, rowCounts: currentRowCounts
@@ -459,8 +468,11 @@ struct NutritionDayView: View {
             }
             .padding(.horizontal, 6)
             .background(
+                // `.selection` rather than `.quaternary`: the cursor is a
+                // selection, and the system's own row-selection style is the
+                // one contrast the eye already knows.
                 cursor == DayCursor(mealIndex: mealIndex, rowIndex: nil)
-                    ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                    ? AnyShapeStyle(.selection) : AnyShapeStyle(.clear),
                 in: RoundedRectangle(cornerRadius: 4)
             )
             if meal.rows.isEmpty {
@@ -511,7 +523,7 @@ struct NutritionDayView: View {
                             cursor == DayCursor(
                                 mealIndex: mealIndex, rowIndex: rowIndex
                             )
-                                ? AnyShapeStyle(.quaternary)
+                                ? AnyShapeStyle(.selection)
                                 : AnyShapeStyle(.clear),
                             in: RoundedRectangle(cornerRadius: 4)
                         )

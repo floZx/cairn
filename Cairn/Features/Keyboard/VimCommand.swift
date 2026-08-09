@@ -38,6 +38,10 @@ enum VimCommand: Equatable, Sendable {
     /// Load a recipe into / save a recipe from the cursor's meal.
     case loadRecipe
     case saveRecipe
+    /// One day forward (`l`, suivinut's day navigation); its mirror is `h`,
+    /// which keeps producing `.closePane` — the journal reinterprets that
+    /// one, since its own pane is not closable.
+    case dayForward
 
     /// Whether the command edits, deletes or presents the *selected activity*
     /// (or the activity list's own presentation). The food journal refuses
@@ -50,7 +54,7 @@ enum VimCommand: Equatable, Sendable {
             return true
         case .move, .first, .last, .halfPage, .clear, .section, .closePane,
              .showHelp, .addFood, .newWeighIn, .moveEntryUp, .moveEntryDown,
-             .loadRecipe, .saveRecipe:
+             .loadRecipe, .saveRecipe, .dayForward:
             return false
         }
     }
@@ -161,6 +165,7 @@ struct VimKeyBuffer: Equatable {
         case "J": _ = takeCount(); return .moveEntryDown
         case "c": _ = takeCount(); return .loadRecipe
         case "s": _ = takeCount(); return .saveRecipe
+        case "l": _ = takeCount(); return .dayForward
         case "?": reset(); return .showHelp
         default:
             // Anything unrecognised clears the pending state. Leaving a count

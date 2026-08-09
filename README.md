@@ -336,7 +336,7 @@ retour à la ligne.
 | `c` `s` | charger une recette / enregistrer le repas en recette |
 | `t` | cycler le jour-type |
 | `w` | nouvelle pesée |
-| `←` `→` | jour précédent / suivant — échap : aujourd'hui |
+| `h` `l` | jour précédent / suivant (aussi `←` `→`) — échap : aujourd'hui |
 
 ### Fichiers et synchronisation
 

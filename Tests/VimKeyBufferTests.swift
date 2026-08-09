@@ -128,6 +128,13 @@ struct VimKeyBufferTests {
         #expect(!VimCommand.newWeighIn.actsOnActivities)
     }
 
+    @Test("l avance d'un jour, le compte est ignoré")
+    func lMovesForwardOneDay() {
+        #expect(run("l") == [.dayForward])
+        #expect(run("3l") == [.dayForward])
+        #expect(!VimCommand.dayForward.actsOnActivities)
+    }
+
     @Test("K/J, c et s pilotent le journal")
     func journalRowCommands() {
         #expect(run("K") == [.moveEntryUp])

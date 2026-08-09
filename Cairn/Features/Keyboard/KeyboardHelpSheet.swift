@@ -48,7 +48,7 @@ struct KeyboardHelpSheet: View {
             ("c / s", "charger une recette / enregistrer le repas en recette"),
             ("t", "cycler le jour-type"),
             ("w", "nouvelle pesée"),
-            ("← / →", "jour précédent / suivant — échap : aujourd'hui"),
+            ("h / l", "jour précédent / suivant (aussi ← / →) — échap : aujourd'hui"),
         ]),
         Group(title: "Chercher", rows: [
             ("/", "aller au champ de recherche"),
