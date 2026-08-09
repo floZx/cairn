@@ -47,7 +47,17 @@ struct WeightView: View {
                 content
             }
         }
-        .vimKeys(enabled: !isPresentingModal, onCommand)
+        .vimKeys(enabled: !isPresentingModal) { command in
+            switch command {
+            case .addFood, .newWeighIn:
+                // Both keys open the same sheet here: on the weight screen,
+                // "add" can only mean a weigh-in.
+                isAddingEntry = true
+                return true
+            default:
+                return onCommand(command)
+            }
+        }
         .sheet(isPresented: $isAddingEntry) {
             WeightEntrySheet(existing: nil, defaultWeightKg: defaultWeight)
         }

@@ -107,6 +107,26 @@ struct VimKeyBufferTests {
         // And nothing of it survives into the next key.
         #expect(buffer.accept("j") == .move(1))
     }
+
+    @Test("gn et gp rejoignent les écrans du journal")
+    func gPrefixReachesJournalSections() {
+        #expect(run("gn") == [.section(.nutrition)])
+        #expect(run("gp") == [.section(.weight)])
+    }
+
+    @Test("a et w déclenchent l'ajout, le compte est ignoré")
+    func addFoodAndWeighIn() {
+        #expect(run("a") == [.addFood])
+        #expect(run("w") == [.newWeighIn])
+        // Un compte n'a pas de sens sur une ouverture de sheet.
+        #expect(run("3a") == [.addFood])
+    }
+
+    @Test("les commandes du journal ne sont pas des commandes d'activité")
+    func journalCommandsAreNotActivityBound() {
+        #expect(!VimCommand.addFood.actsOnActivities)
+        #expect(!VimCommand.newWeighIn.actsOnActivities)
+    }
 }
 
 @Suite("Déplacement dans la liste")

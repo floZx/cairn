@@ -20,6 +20,7 @@ struct NutritionDayView: View {
     @Query private var entries: [FoodEntry]
     @Query private var notes: [MealNote]
     @Query private var favoriteFoods: [FavoriteFood]
+    @Query(sort: \WeightEntry.dateKeyRaw) private var weights: [WeightEntry]
     @AppStorage(NutritionSettings.proteinTargetKey)
     private var proteinTarget = NutritionSettings.defaultProteinTargetG
     @AppStorage(NutritionSettings.fatTargetKey)
@@ -29,6 +30,7 @@ struct NutritionDayView: View {
     @State private var dateKey = DateKey(Date())
     @State private var importMessage: String?
     @State private var addTargetSlot: MealSlot?
+    @State private var isAddingWeight = false
     @State private var editingEntry: FoodEntry?
     @State private var writeFailureMessage: String?
     @State private var recipeTargetSlot: MealSlot?
@@ -45,7 +47,7 @@ struct NutritionDayView: View {
     /// Any presentation with text input or a default button: while one is up,
     /// keystrokes belong to it, never to the vim buffer underneath.
     private var isPresentingModal: Bool {
-        addTargetSlot != nil || editingEntry != nil
+        addTargetSlot != nil || isAddingWeight || editingEntry != nil
             || importMessage != nil || writeFailureMessage != nil
             || recipeTargetSlot != nil || savingRecipeSlot != nil || showsRecipesManager
             || noteTargetSlot != nil
@@ -59,7 +61,27 @@ struct NutritionDayView: View {
                 journal
             }
         }
-        .vimKeys(enabled: !isPresentingModal, onCommand)
+        .vimKeys(enabled: !isPresentingModal) { command in
+            switch command {
+            case .addFood:
+                // suivinut's `a` targets the meal under the cursor; without a
+                // cursor, the first meal is the least surprising target and
+                // the sheet's header names it.
+                if let first = slots.first { addTargetSlot = first }
+                return true
+            case .newWeighIn:
+                isAddingWeight = true
+                return true
+            default:
+                return onCommand(command)
+            }
+        }
+        .sheet(isPresented: $isAddingWeight) {
+            WeightEntrySheet(
+                existing: nil,
+                defaultWeightKg: weights.last?.weightKg ?? weightGoal
+            )
+        }
         .alert(
             "Journal alimentaire",
             isPresented: Binding(

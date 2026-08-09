@@ -27,6 +27,11 @@ enum VimCommand: Equatable, Sendable {
     /// Swap the table for the cards, or back.
     case toggleListStyle
     case showHelp
+    /// Open the add-food sheet (nutrition screen) or a new weigh-in (weight
+    /// screen). Screen-local: the journal views intercept these before
+    /// forwarding to the window; anywhere else they are silent no-ops.
+    case addFood
+    case newWeighIn
 
     /// Whether the command edits, deletes or presents the *selected activity*
     /// (or the activity list's own presentation). The food journal refuses
@@ -38,7 +43,7 @@ enum VimCommand: Equatable, Sendable {
              .toggleListStyle, .openSearch:
             return true
         case .move, .first, .last, .halfPage, .clear, .section, .closePane,
-             .showHelp:
+             .showHelp, .addFood, .newWeighIn:
             return false
         }
     }
@@ -107,6 +112,8 @@ struct VimKeyBuffer: Equatable {
             case "a": return .section(.all)
             case "m": return .section(.globalMap)
             case "s": return .section(.statistics)
+            case "n": return .section(.nutrition)
+            case "p": return .section(.weight)
             // An unknown second key cancels rather than falling through to the
             // one-key table: `gz` must not quietly behave like `z`.
             default: return nil
@@ -141,6 +148,8 @@ struct VimKeyBuffer: Equatable {
         // Left, as in vim: the pane on the right goes away.
         case "h": _ = takeCount(); return .closePane
         case "t": _ = takeCount(); return .toggleListStyle
+        case "a": _ = takeCount(); return .addFood
+        case "w": _ = takeCount(); return .newWeighIn
         case "?": reset(); return .showHelp
         default:
             // Anything unrecognised clears the pending state. Leaving a count

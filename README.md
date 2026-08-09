@@ -298,6 +298,7 @@ vouloir dire « va à la carte ». D'où le préfixe `g`.
 | | |
 |---|---|
 | `ga` `gm` `gs` | mes activités / carte globale / statistiques |
+| `gn` `gp` | alimentation / poids |
 | `t` · ⌥⌘L | basculer entre le tableau et les fiches |
 | `h` · ⌥⌘I | fermer le volet de droite |
 | `échap` | vider la recherche, sinon la sélection |
@@ -320,6 +321,13 @@ clavier AZERTY la rangée du haut demande déjà Maj pour ses chiffres.
 Dans la fenêtre d'édition, **⌘⏎ enregistre** et échap annule. Entrée seule ne
 suffit pas depuis le champ des notes : un `TextEditor` la garde pour en faire un
 retour à la ligne.
+
+### Journal alimentaire
+
+| | |
+|---|---|
+| `a` | ajouter — un aliment sur Alimentation, une pesée sur Poids |
+| `w` | nouvelle pesée |
 
 ### Fichiers et synchronisation
 

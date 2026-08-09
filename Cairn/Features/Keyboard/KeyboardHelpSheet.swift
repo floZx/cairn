@@ -25,6 +25,8 @@ struct KeyboardHelpSheet: View {
             ("ga", "mes activités"),
             ("gm", "carte globale"),
             ("gs", "statistiques"),
+            ("gn", "alimentation"),
+            ("gp", "poids"),
             ("t", "basculer tableau / fiches (⌥⌘L depuis partout)"),
         ]),
         Group(title: "Agir sur la sélection", rows: [
@@ -34,6 +36,10 @@ struct KeyboardHelpSheet: View {
             ("x", "supprimer"),
             ("o", "ouvrir la carte en grand"),
             ("h", "fermer le volet de droite"),
+        ]),
+        Group(title: "Journal alimentaire", rows: [
+            ("a", "ajouter — un aliment sur Alimentation, une pesée sur Poids"),
+            ("w", "nouvelle pesée"),
         ]),
         Group(title: "Chercher", rows: [
             ("/", "aller au champ de recherche"),
@@ -87,6 +93,6 @@ struct KeyboardHelpSheet: View {
             }
             .padding(12)
         }
-        .frame(width: 480, height: 460)
+        .frame(width: 480, height: 540)
     }
 }
