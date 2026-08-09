@@ -2,6 +2,17 @@
 import SwiftUI
 import SwiftData
 import AppKit
+import UniformTypeIdentifiers
+
+/// What a dragged food row carries: just enough to find the entry again.
+/// `PersistentIdentifier` is Codable, so the payload stays tiny and honest.
+struct FoodEntryDragPayload: Codable, Transferable {
+    let id: PersistentIdentifier
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .data)
+    }
+}
 
 /// The daily food journal — Cairn's take on suivinut's Day screen: navigation,
 /// targets, totals, and full entry editing (add, edit, reorder, delete,
@@ -345,6 +356,14 @@ struct NutritionDayView: View {
                                 deleteEntry(row.entryID)
                             }
                         }
+                        .draggable(FoodEntryDragPayload(id: row.entryID))
+                        .dropDestination(for: FoodEntryDragPayload.self) {
+                            payloads, _ in
+                            guard let payload = payloads.first else {
+                                return false
+                            }
+                            return drop(payload.id, onto: row.entryID)
+                        }
                     }
                 }
             }
@@ -380,6 +399,29 @@ struct NutritionDayView: View {
         } catch {
             writeFailureMessage =
                 "Le déplacement n'a pas pu être enregistré. \(error.localizedDescription)"
+        }
+    }
+
+    /// Reorders by drag: the dragged entry lands right after the row it was
+    /// dropped on. Same-meal only — `placeEntry` refuses the rest, and
+    /// returning false lets the system animate the rejection.
+    private func drop(
+        _ draggedID: PersistentIdentifier, onto targetID: PersistentIdentifier
+    ) -> Bool {
+        guard draggedID != targetID,
+              let dragged = entry(for: draggedID),
+              let target = entry(for: targetID)
+        else { return false }
+        guard dragged.mealSlot?.persistentModelID
+            == target.mealSlot?.persistentModelID
+        else { return false }
+        do {
+            try NutritionJournal.placeEntry(dragged, after: target, in: modelContext)
+            return true
+        } catch {
+            writeFailureMessage =
+                "Le déplacement n'a pas pu être enregistré. \(error.localizedDescription)"
+            return false
         }
     }
 

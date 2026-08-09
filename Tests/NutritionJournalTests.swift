@@ -365,4 +365,42 @@ struct NutritionJournalTests {
         try NutritionJournal.deleteWeight(entry, in: context)
         #expect(try context.fetch(FetchDescriptor<WeightEntry>()).isEmpty)
     }
+
+    @Test("placer après renumérote tout le repas")
+    func placeAfterRenumbers() throws {
+        let context = try makeContext()
+        let slot = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        context.insert(slot)
+        let a = try addFood("A", to: slot, context: context)
+        let b = try addFood("B", to: slot, context: context)
+        let c = try addFood("C", to: slot, context: context)
+
+        // A après C : ordre B, C, A — et des sort_order 0,1,2 propres.
+        try NutritionJournal.placeEntry(a, after: c, in: context)
+        let ordered = try context.fetch(FetchDescriptor<FoodEntry>())
+            .sorted { $0.sortOrder < $1.sortOrder }
+        #expect(ordered.map(\.foodName) == ["B", "C", "A"])
+        #expect(ordered.map(\.sortOrder) == [0, 1, 2])
+
+        // C après A : B, A, C.
+        try NutritionJournal.placeEntry(c, after: a, in: context)
+        let again = try context.fetch(FetchDescriptor<FoodEntry>())
+            .sorted { $0.sortOrder < $1.sortOrder }
+        #expect(again.map(\.foodName) == ["B", "A", "C"])
+    }
+
+    @Test("placer après une cible d'un autre repas est sans effet")
+    func placeAcrossMealsIsNoOp() throws {
+        let context = try makeContext()
+        let breakfast = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        let dinner = MealSlot(name: "Dîner", sortOrder: 1, targetPct: 39)
+        context.insert(breakfast)
+        context.insert(dinner)
+        let a = try addFood("A", to: breakfast, context: context)
+        let d = try addFood("D", to: dinner, context: context)
+
+        let before = (a.sortOrder, a.mealSlot?.name)
+        try NutritionJournal.placeEntry(a, after: d, in: context)
+        #expect((a.sortOrder, a.mealSlot?.name) == before)
+    }
 }

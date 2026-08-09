@@ -328,6 +328,38 @@ extension NutritionJournal {
     }
 }
 
+extension NutritionJournal {
+    /// Re-seats `entry` right after `target` in their shared (day, meal),
+    /// renumbering the whole meal 0..n — suivinut's `place_entry_after`.
+    /// No-op when the two live in different meals or days.
+    @MainActor
+    static func placeEntry(
+        _ entry: FoodEntry, after target: FoodEntry, in context: ModelContext
+    ) throws {
+        guard let slot = entry.mealSlot,
+              target.mealSlot?.persistentModelID == slot.persistentModelID,
+              target.dateKeyRaw == entry.dateKeyRaw,
+              target.persistentModelID != entry.persistentModelID
+        else { return }
+        var ordered = try siblings(of: entry.dateKeyRaw, slot: slot, in: context)
+            .sorted { $0.sortOrder < $1.sortOrder }
+        guard let from = ordered.firstIndex(where: {
+            $0.persistentModelID == entry.persistentModelID
+        }) else { return }
+        let moved = ordered.remove(at: from)
+        guard let to = ordered.firstIndex(where: {
+            $0.persistentModelID == target.persistentModelID
+        }) else { return }
+        ordered.insert(moved, at: to + 1)
+        // Renumber the whole meal: gaps accumulated by drags would otherwise
+        // grow unbounded, and a clean 0..n is what suivinut writes too.
+        for (position, sibling) in ordered.enumerated() {
+            sibling.sortOrder = position
+        }
+        try context.save()
+    }
+}
+
 /// A user-facing journal failure, message in French like every string the
 /// alert system shows.
 struct JournalError: Error, CustomStringConvertible {
