@@ -43,6 +43,14 @@ struct VimKeys: ViewModifier {
             .focusEffectDisabled()
             .focused($focused)
             .onChange(of: focusRequest) { _, _ in focused = true }
+            // Claim focus on appearance: switching sections (sidebar click or
+            // `g` jump) builds a fresh view, and without this the keys stay
+            // dead until the user clicks into the content. One tick later,
+            // because the focus system silently drops a target that is still
+            // being inserted.
+            .onAppear {
+                Task { @MainActor in focused = true }
+            }
             // `.repeat` as well as `.down`: without it a held key fires once and
             // walking a long list means tapping `j` eighty times.
             .onKeyPress(phases: [.down, .repeat]) { press in
