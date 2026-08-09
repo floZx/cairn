@@ -157,6 +157,15 @@ struct ActivityListView: View {
         // Keyed on the presentation: switching builds a different table, and a
         // probe that ran once would go on holding the destroyed one.
         .background(FixedTableRowHeight(scroller: scroller).id(style))
+        // Clicking the selected row again clears it — the detail pane closes
+        // and the list gets the width back, without reaching for ⌥⌘I.
+        .background(DeselectOnRepeatClick {
+            selection = []
+            // The keyboard cursor went with it: leaving it behind meant the
+            // next `j` resumed from a row nothing on screen pointed at.
+            cursor = nil
+            cursorSelection = []
+        })
         // Motions are answered here, where the sorted rows are; everything
         // else goes to the parent, which is also what the statistics and the
         // map hand it.
