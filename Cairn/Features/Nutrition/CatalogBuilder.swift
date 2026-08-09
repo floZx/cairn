@@ -196,6 +196,9 @@ enum CatalogBuilder {
         }
 
         if batchOpen { try db.execute("COMMIT") }
+        // The FTS rebuild is one multi-second statement: the last chance to
+        // honour « Annuler » is right before it.
+        try Task.checkCancellation()
         try db.execute(
             "INSERT INTO products_fts(name, brands, code) "
             + "SELECT name, COALESCE(brands, ''), code FROM products"

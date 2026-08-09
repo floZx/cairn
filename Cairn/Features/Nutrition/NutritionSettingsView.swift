@@ -62,7 +62,7 @@ struct NutritionSettingsView: View {
                 case .downloading(let megabytes, let total):
                     HStack {
                         ProgressView(
-                            value: total.map { min(megabytes / $0, 1) } ?? 0
+                            value: total.flatMap { $0 > 0 ? min(megabytes / $0, 1) : nil } ?? 0
                         )
                         Text(downloadLabel(megabytes: megabytes, total: total))
                             .font(.caption)

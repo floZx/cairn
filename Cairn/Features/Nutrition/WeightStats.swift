@@ -14,7 +14,7 @@ enum WeightStats {
     static func window(_ weights: [WeightPoint], days: Int?) -> [WeightPoint] {
         guard let days, let last = weights.last else { return weights }
         let cutoff = last.dateKey.advanced(by: -days)
-        return weights.filter { $0.dateKey.raw >= cutoff.raw }
+        return weights.filter { $0.dateKey >= cutoff }
     }
 
     static func delta(_ weights: [WeightPoint], days: Int = 7) -> Double? {

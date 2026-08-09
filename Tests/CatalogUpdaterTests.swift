@@ -118,4 +118,25 @@ struct CatalogUpdaterTests {
         await second.waitUntilFinished()
         #expect(second.phase == .done(count: 0))
     }
+
+    @Test("un gz complet en cache saute le téléchargement")
+    func existingCacheSkipsDownload() async throws {
+        let cache = CatalogUpdater.cacheURL
+        try FileManager.default.createDirectory(
+            at: cache.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("gz factice".utf8).write(to: cache)
+        defer { try? FileManager.default.removeItem(at: cache) }
+
+        let updater = CatalogUpdater(
+            download: { _, _, _ in
+                Issue.record("le téléchargement ne devait pas être appelé")
+            },
+            build: { _, _, _, _ in 7 }
+        )
+        updater.start()
+        await updater.waitUntilFinished()
+        #expect(updater.phase == .done(count: 7))
+    }
 }

@@ -54,11 +54,7 @@ enum FileDownloader {
         }
 
         let (response, bodyStream): (HTTPURLResponse, AsyncThrowingStream<Data, Error>)
-        do {
-            (response, bodyStream) = try await transport.fetch(request)
-        } catch {
-            throw error
-        }
+        (response, bodyStream) = try await transport.fetch(request)
 
         if response.statusCode == 416 {
             // A 416 only makes sense as the answer to a Range request. On a

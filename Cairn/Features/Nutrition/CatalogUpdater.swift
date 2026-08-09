@@ -89,17 +89,27 @@ final class CatalogUpdater {
             // code"). A `let` sidesteps it; the nested closures re-weaken it
             // themselves so a slow download/build still can't outlive an
             // abandoned updater.
-            guard let self else { return }
+            guard let self else {
+                // The updater died between start() and this first tick: the
+                // process-wide guard must not stay latched forever.
+                Self.inFlight = false
+                return
+            }
             do {
                 let cache = Self.cacheURL
-                try await download(CatalogBuilder.catalogURL, cache) {
-                    bytes, total in
-                    Task { @MainActor [weak self] in
-                        guard self?.isRunning == true else { return }
-                        self?.phase = .downloading(
-                            megabytes: Double(bytes) / 1_048_576,
-                            totalMegabytes: total.map { Double($0) / 1_048_576 }
-                        )
+                // A complete gz survives a failed build (the .part flow only
+                // covers interrupted downloads): reuse it instead of paying
+                // the gigabyte again. A finished build deletes it either way.
+                if !FileManager.default.fileExists(atPath: cache.path) {
+                    try await download(CatalogBuilder.catalogURL, cache) {
+                        bytes, total in
+                        Task { @MainActor [weak self] in
+                            guard self?.isRunning == true else { return }
+                            self?.phase = .downloading(
+                                megabytes: Double(bytes) / 1_048_576,
+                                totalMegabytes: total.map { Double($0) / 1_048_576 }
+                            )
+                        }
                     }
                 }
                 await MainActor.run {
