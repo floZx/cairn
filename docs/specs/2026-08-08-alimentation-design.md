@@ -189,7 +189,9 @@ comme `ActivityStatistics`.
 Nouvel onglet « Nutrition » dans la scène Settings existante :
 
 - cibles protéines (g) et lipides (g), objectif de poids (kg) ;
-- éditeur de **jours-types** (nom + kcal, ajout/suppression/réordonnancement) ;
+- éditeur de **jours-types** (nom + kcal, ajout/suppression — le réordonnancement
+  a été retiré : l'ordre n'a d'effet visible nulle part, les menus trient par
+  kcal) ;
 - **répartition % par repas** avec total affiché, coloré en vert si = 100 ;
 - statut du catalogue + « Mettre à jour le catalogue » (progression) ;
 - « Importer depuis suivinut… » (visible tant que le store nutrition est vide).

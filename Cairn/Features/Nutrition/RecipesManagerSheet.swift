@@ -12,6 +12,7 @@ struct RecipesManagerSheet: View {
     @State private var selectedID: PersistentIdentifier?
     @State private var isAddingItem = false
     @State private var errorMessage: String?
+    @State private var addItemErrorMessage: String?
 
     private var selectedRecipe: Recipe? {
         recipes.first { $0.persistentModelID == selectedID }
@@ -96,7 +97,10 @@ struct RecipesManagerSheet: View {
             .font(.callout.monospacedDigit())
             .foregroundStyle(.secondary)
             HStack {
-                Button("Ajouter un aliment…") { isAddingItem = true }
+                Button("Ajouter un aliment…") {
+                    addItemErrorMessage = nil
+                    isAddingItem = true
+                }
                 Spacer()
                 Button("Supprimer la recette", role: .destructive) {
                     delete(recipe)
@@ -110,6 +114,11 @@ struct RecipesManagerSheet: View {
             Text("Ajouter à « \(selectedRecipe?.name ?? "") »")
                 .font(.headline)
             FoodPickerView { pick in addItem(pick) }
+            if let addItemErrorMessage {
+                Text(addItemErrorMessage)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            }
             HStack {
                 Spacer()
                 Button("Annuler") { isAddingItem = false }
@@ -129,9 +138,10 @@ struct RecipesManagerSheet: View {
                 fat100: pick.fat100, grams: pick.grams,
                 productCode: pick.productCode, in: modelContext
             )
+            errorMessage = nil
             isAddingItem = false
         } catch {
-            errorMessage =
+            addItemErrorMessage =
                 "L'aliment n'a pas pu être ajouté. \(error.localizedDescription)"
         }
     }
@@ -139,6 +149,7 @@ struct RecipesManagerSheet: View {
     private func delete(_ item: RecipeItem) {
         do {
             try NutritionJournal.deleteRecipeItem(item, in: modelContext)
+            errorMessage = nil
         } catch {
             errorMessage =
                 "La suppression n'a pas pu être enregistrée. \(error.localizedDescription)"
@@ -149,6 +160,7 @@ struct RecipesManagerSheet: View {
         selectedID = nil
         do {
             try NutritionJournal.deleteRecipe(recipe, in: modelContext)
+            errorMessage = nil
         } catch {
             errorMessage =
                 "La suppression n'a pas pu être enregistrée. \(error.localizedDescription)"

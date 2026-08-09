@@ -186,15 +186,21 @@ extension NutritionJournal {
         _ recipe: Recipe, to dateKey: DateKey, slot: MealSlot,
         in context: ModelContext
     ) throws {
+        // One save for the whole recipe: a mid-apply failure must not leave
+        // half a porridge in the journal.
+        var next = (try siblings(of: dateKey.raw, slot: slot, in: context)
+            .map(\.sortOrder).max() ?? 0) + 1
         for item in recipe.orderedItems {
-            try addEntry(
-                in: context, dateKey: dateKey, slot: slot,
-                foodName: item.foodName, kcal100: item.kcal100,
-                protein100: item.protein100, carbs100: item.carbs100,
-                fat100: item.fat100, grams: item.grams,
+            context.insert(FoodEntry(
+                dateKey: dateKey, mealSlot: slot, foodName: item.foodName,
+                kcal100: item.kcal100, protein100: item.protein100,
+                carbs100: item.carbs100, fat100: item.fat100,
+                grams: item.grams, sortOrder: next,
                 productCode: item.productCode
-            )
+            ))
+            next += 1
         }
+        try context.save()
     }
 
     /// The current meal, frozen as a recipe. Refusing an empty meal beats

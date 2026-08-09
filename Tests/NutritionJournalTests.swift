@@ -403,4 +403,32 @@ struct NutritionJournalTests {
         try NutritionJournal.placeEntry(a, after: d, in: context)
         #expect((a.sortOrder, a.mealSlot?.name) == before)
     }
+
+    @Test("appliquer une recette n'écrit qu'une fois")
+    func applyRecipeSavesOnce() throws {
+        // Pas d'espion de save() : on vérifie l'invariant observable — les
+        // sort_order restent contigus et l'ordre est bon, comme avant.
+        let context = try makeContext()
+        let slot = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        context.insert(slot)
+        let recipe = Recipe(name: "R", mealSlot: slot)
+        context.insert(recipe)
+        for (index, name) in ["Un", "Deux", "Trois"].enumerated() {
+            let item = RecipeItem(
+                foodName: name, kcal100: 100, protein100: 1,
+                carbs100: 1, fat100: 1, grams: 100
+            )
+            item.sortOrder = index
+            item.recipe = recipe
+            context.insert(item)
+        }
+        try context.save()
+        try NutritionJournal.applyRecipe(
+            recipe, to: DateKey(raw: "2026-08-08")!, slot: slot, in: context
+        )
+        let ordered = try context.fetch(FetchDescriptor<FoodEntry>())
+            .sorted { $0.sortOrder < $1.sortOrder }
+        #expect(ordered.map(\.foodName) == ["Un", "Deux", "Trois"])
+        #expect(context.hasChanges == false)
+    }
 }

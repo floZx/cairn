@@ -30,6 +30,7 @@ struct FoodPickerView: View {
     @State private var mode: Mode = .search
     @State private var query = ""
     @State private var results: [FoodCatalog.Product] = []
+    @State private var searchErrorMessage: String?
     @State private var selected: FoodCatalog.Product?
     @State private var grams = 100.0
     @State private var manualName = ""
@@ -101,6 +102,11 @@ struct FoodPickerView: View {
                     .tag(product.code)
                 }
                 .frame(minHeight: 180)
+                if let searchErrorMessage {
+                    Text(searchErrorMessage)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                }
                 if let selected {
                     gramsRow(kcal100: selected.kcal100)
                 }
@@ -119,9 +125,16 @@ struct FoodPickerView: View {
 
     private func runSearch(_ text: String) {
         guard let catalog else { return }
-        // A failed read degrades to an empty list: the catalog is optional
-        // comfort, never a crash.
-        results = (try? catalog.search(text)) ?? []
+        do {
+            results = try catalog.search(text)
+            searchErrorMessage = nil
+        } catch {
+            // A broken catalog must say so — a silently empty list reads as
+            // « no result », which is a different fact.
+            results = []
+            searchErrorMessage =
+                "La recherche a échoué : \(error.localizedDescription)"
+        }
         if let selected, !results.contains(selected) {
             self.selected = nil
         }

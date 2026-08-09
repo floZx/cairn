@@ -184,7 +184,7 @@ struct WeightView: View {
     }
 
     private func signed(_ value: Double) -> String {
-        (value >= 0 ? "+" : "−") + Format.typedNumber(abs(value))
+        Format.signedTwoDecimals(value)
     }
 
     private var list: some View {

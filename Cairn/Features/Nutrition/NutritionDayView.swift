@@ -1,7 +1,6 @@
 // Cairn/Features/Nutrition/NutritionDayView.swift
 import SwiftUI
 import SwiftData
-import AppKit
 import UniformTypeIdentifiers
 
 /// What a dragged food row carries: just enough to find the entry again.
@@ -494,44 +493,9 @@ struct NutritionDayView: View {
     }
 
     private func chooseAndImport() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.message = "Choisir le journal.db de suivinut"
-        // Where the living journal actually is — the iCloud folder shared
-        // with the suivinut TUI. Falling back to home if it does not exist.
-        let iCloudFolder = FileManager.default.homeDirectoryForCurrentUser
-            .appending(path: "Library/Mobile Documents/com~apple~CloudDocs/suivinut")
-        if FileManager.default.fileExists(atPath: iCloudFolder.path) {
-            panel.directoryURL = iCloudFolder
-        }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        importJournal(from: url)
-    }
-
-    private func importJournal(from url: URL) {
-        do {
-            let summary = try SuivinutImporter(context: modelContext)
-                .run(journalPath: url.path)
-            if let value = summary.proteinTargetG { proteinTarget = value }
-            if let value = summary.fatTargetG { fatTarget = value }
-            if let value = summary.weightGoalKg { weightGoal = value }
-            // Best effort: a missing catalog is normal (phase 5 downloads
-            // one), so only a found-but-uncopyable catalog would matter, and
-            // even that must not fail an import that already succeeded.
-            _ = try? SuivinutImporter.copyCatalog(
-                nextTo: url,
-                to: URL.applicationSupportDirectory.appending(path: "Cairn")
-            )
-            importMessage =
-                "\(summary.entries) aliments, \(summary.weights) pesées et "
-                + "\(summary.recipes) recettes importés."
-        } catch {
-            importMessage =
-                "L'import a échoué : \(error.localizedDescription) "
-                + "Rien n'a été modifié."
-        }
+        importMessage = SuivinutImportFlow.chooseAndImport(
+            container: modelContext.container
+        )
     }
 
     private func seed() {

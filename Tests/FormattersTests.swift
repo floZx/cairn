@@ -97,4 +97,12 @@ struct FormattersTests {
         #expect(Format.shortDate(date).contains("août"))
         #expect(!Format.longDate(date).contains("August"))
     }
+
+    @Test("le format signé garde deux décimales et le vrai moins")
+    func signedTwoDecimals() {
+        #expect(Format.signedTwoDecimals(-0.04) == "−0,04")
+        #expect(Format.signedTwoDecimals(0.4) == "+0,4")
+        #expect(Format.signedTwoDecimals(-1.25) == "−1,25")
+        #expect(Format.signedTwoDecimals(0) == "+0,0")
+    }
 }
