@@ -45,6 +45,9 @@ struct FoodPickerView: View {
     @Query(sort: \FavoriteFood.foodName) private var favorites: [FavoriteFood]
     @State private var selectedFavorite: FavoriteFood?
 
+    @FocusState private var searchFocused: Bool
+    @FocusState private var gramsFocused: Bool
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Picker("", selection: $mode) {
@@ -68,7 +71,13 @@ struct FoodPickerView: View {
                     .disabled(!canAdd)
             }
         }
-        .onAppear { catalog = FoodCatalog.openDefault() }
+        .onAppear {
+            catalog = FoodCatalog.openDefault()
+            searchFocused = true
+        }
+        .onChange(of: mode) { _, newMode in
+            if newMode == .search { searchFocused = true }
+        }
     }
 
     // MARK: - Search
@@ -88,8 +97,16 @@ struct FoodPickerView: View {
             } else {
                 TextField("Rechercher un aliment", text: $query)
                     .textFieldStyle(.roundedBorder)
+                    .focused($searchFocused)
                     .onChange(of: query) { _, newValue in
                         runSearch(newValue)
+                    }
+                    .onSubmit {
+                        // Return in the search field: take the first hit and
+                        // jump to the quantity — type, Return, done. The
+                        // suivinut rhythm.
+                        if selected == nil { selected = results.first }
+                        if selected != nil { gramsFocused = true }
                     }
                 List(results, id: \.code, selection: resultSelection) { product in
                     VStack(alignment: .leading, spacing: 2) {
@@ -258,6 +275,7 @@ struct FoodPickerView: View {
             TextField("g", value: $grams, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 80)
+                .focused($gramsFocused)
             Text("g")
             Spacer()
             Text("\(Int((kcal100 * grams / 100).rounded())) kcal")

@@ -157,6 +157,23 @@ Colonne *détail* (sélection `.nutrition`) :
 Cas vide : `ContentUnavailableView` avec invite d'import suivinut ou de
 création du premier repas.
 
+**Raccourcis finaux du journal** (ajout post-spec, demande utilisateur :
+parité clavier avec suivinut) :
+
+| | |
+|---|---|
+| `j` `k` | ligne ou repas suivant / précédent |
+| `a` | ajouter un aliment au repas sélectionné (pesée sur Poids) |
+| `e` `⏎` | éditer l'aliment sélectionné |
+| `x` | supprimer l'aliment sélectionné |
+| `f` | étoile favori |
+| `K` `J` | remonter / descendre l'aliment |
+| `n` | note du repas sélectionné |
+| `c` `s` | charger une recette / enregistrer le repas en recette |
+| `t` | cycler le jour-type |
+| `w` | nouvelle pesée |
+| `←` `→` | jour précédent / suivant — échap : aujourd'hui |
+
 ## 6. Écran Poids (`WeightView`)
 
 - **Graphe Swift Charts** : `LineMark` + `PointMark` des pesées, `RuleMark`

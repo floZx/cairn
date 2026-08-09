@@ -38,8 +38,17 @@ struct KeyboardHelpSheet: View {
             ("h", "fermer le volet de droite"),
         ]),
         Group(title: "Journal alimentaire", rows: [
-            ("a", "ajouter — un aliment sur Alimentation, une pesée sur Poids"),
+            ("j / k", "ligne ou repas suivant / précédent"),
+            ("a", "ajouter un aliment au repas sélectionné (pesée sur Poids)"),
+            ("e / ⏎", "éditer l'aliment sélectionné"),
+            ("x", "supprimer l'aliment sélectionné"),
+            ("f", "étoile favori"),
+            ("K / J", "remonter / descendre l'aliment"),
+            ("n", "note du repas sélectionné"),
+            ("c / s", "charger une recette / enregistrer le repas en recette"),
+            ("t", "cycler le jour-type"),
             ("w", "nouvelle pesée"),
+            ("← / →", "jour précédent / suivant — échap : aujourd'hui"),
         ]),
         Group(title: "Chercher", rows: [
             ("/", "aller au champ de recherche"),
@@ -93,6 +102,6 @@ struct KeyboardHelpSheet: View {
             }
             .padding(12)
         }
-        .frame(width: 480, height: 540)
+        .frame(width: 480, height: 640)
     }
 }

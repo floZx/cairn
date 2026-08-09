@@ -13,6 +13,7 @@ struct MealNoteSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var text: String
     @State private var errorMessage: String?
+    @FocusState private var noteFocused: Bool
 
     init(slot: MealSlot, dateKey: DateKey, existingNote: String?) {
         self.slot = slot
@@ -28,6 +29,7 @@ struct MealNoteSheet: View {
             TextEditor(text: $text)
                 .font(.body)
                 .frame(minHeight: 120)
+                .focused($noteFocused)
             if let errorMessage {
                 Text(errorMessage)
                     .font(.callout)
@@ -43,6 +45,7 @@ struct MealNoteSheet: View {
         }
         .padding(20)
         .frame(minWidth: 420, minHeight: 240)
+        .onAppear { noteFocused = true }
     }
 
     private func save() {

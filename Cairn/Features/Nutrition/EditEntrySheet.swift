@@ -12,6 +12,7 @@ struct EditEntrySheet: View {
     @State private var name: String
     @State private var grams: Double
     @State private var errorMessage: String?
+    @FocusState private var gramsFocused: Bool
 
     init(entry: FoodEntry) {
         self.entry = entry
@@ -30,6 +31,7 @@ struct EditEntrySheet: View {
                 TextField("g", value: $grams, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 80)
+                    .focused($gramsFocused)
                 Text("g")
                 Spacer()
                 Text("\(Int((entry.kcal100 * grams / 100).rounded())) kcal")
@@ -55,6 +57,7 @@ struct EditEntrySheet: View {
         }
         .padding(20)
         .frame(minWidth: 380)
+        .onAppear { gramsFocused = true }
     }
 
     private func save() {

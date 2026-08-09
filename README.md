@@ -326,8 +326,17 @@ retour à la ligne.
 
 | | |
 |---|---|
-| `a` | ajouter — un aliment sur Alimentation, une pesée sur Poids |
+| `j` `k` | ligne ou repas suivant / précédent |
+| `a` | ajouter un aliment au repas sélectionné (pesée sur Poids) |
+| `e` `⏎` | éditer l'aliment sélectionné |
+| `x` | supprimer l'aliment sélectionné |
+| `f` | étoile favori |
+| `K` `J` | remonter / descendre l'aliment |
+| `n` | note du repas sélectionné |
+| `c` `s` | charger une recette / enregistrer le repas en recette |
+| `t` | cycler le jour-type |
 | `w` | nouvelle pesée |
+| `←` `→` | jour précédent / suivant — échap : aujourd'hui |
 
 ### Fichiers et synchronisation
 

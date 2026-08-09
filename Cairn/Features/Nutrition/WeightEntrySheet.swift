@@ -14,6 +14,7 @@ struct WeightEntrySheet: View {
     @State private var weightKg: Double
     @State private var note: String
     @State private var errorMessage: String?
+    @FocusState private var weightFocused: Bool
 
     init(existing: WeightEntry?, defaultWeightKg: Double) {
         self.existing = existing
@@ -35,6 +36,7 @@ struct WeightEntrySheet: View {
                 TextField("kg", value: $weightKg, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 80)
+                    .focused($weightFocused)
                 Text("kg")
             }
             TextField("Note (optionnelle)", text: $note)
@@ -55,6 +57,7 @@ struct WeightEntrySheet: View {
         }
         .padding(20)
         .frame(minWidth: 360)
+        .onAppear { weightFocused = true }
     }
 
     private func save() {

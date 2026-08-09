@@ -13,6 +13,7 @@ struct RecipePickerSheet: View {
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
     @State private var selectedID: PersistentIdentifier?
     @State private var errorMessage: String?
+    @FocusState private var listFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -39,6 +40,7 @@ struct RecipePickerSheet: View {
                     .tag(recipe.persistentModelID)
                 }
                 .frame(minHeight: 200)
+                .focused($listFocused)
             }
             if let errorMessage {
                 Text(errorMessage)
@@ -56,6 +58,10 @@ struct RecipePickerSheet: View {
         }
         .padding(20)
         .frame(minWidth: 440, minHeight: 340)
+        .onAppear {
+            listFocused = true
+            if selectedID == nil { selectedID = recipes.first?.persistentModelID }
+        }
     }
 
     private func subtitle(of recipe: Recipe) -> String {
