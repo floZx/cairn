@@ -50,6 +50,7 @@ struct NutritionDayView: View {
     @State private var recipeName = ""
     @State private var showsRecipesManager = false
     @State private var noteTargetSlot: MealSlot?
+    @State private var cursor: DayCursor?
     // Sorted the way suivinut lists day types: by target then name, so the
     // menu reads from rest day to biggest day.
     @Query(sort: [
@@ -65,6 +66,44 @@ struct NutritionDayView: View {
             || noteTargetSlot != nil
     }
 
+    /// Rows per meal for the CURRENT day — the cursor's coordinate system.
+    /// Recomputed on demand: cheap, and always consistent with what the
+    /// screen shows.
+    private var currentRowCounts: [Int] {
+        let dayEntries = entries.filter { $0.dateKeyRaw == dateKey.raw }
+        return slots
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .map { slot in
+                dayEntries.filter {
+                    $0.mealSlot?.persistentModelID == slot.persistentModelID
+                }.count
+            }
+    }
+
+    /// The slot under the cursor, first slot when nothing is selected —
+    /// `a`, `n`, `c`, `s` always have a target.
+    private var cursorSlot: MealSlot? {
+        let ordered = slots.sorted { $0.sortOrder < $1.sortOrder }
+        guard let cursor, ordered.indices.contains(cursor.mealIndex) else {
+            return ordered.first
+        }
+        return ordered[cursor.mealIndex]
+    }
+
+    /// The food entry under the cursor, nil on a header or empty screen.
+    private var cursorEntry: FoodEntry? {
+        guard let cursor, let rowIndex = cursor.rowIndex,
+              let slot = cursorSlot else { return nil }
+        let rows = entries
+            .filter {
+                $0.dateKeyRaw == dateKey.raw
+                    && $0.mealSlot?.persistentModelID == slot.persistentModelID
+            }
+            .sorted { $0.sortOrder < $1.sortOrder }
+        guard rows.indices.contains(rowIndex) else { return nil }
+        return rows[rowIndex]
+    }
+
     var body: some View {
         Group {
             if slots.isEmpty {
@@ -75,18 +114,70 @@ struct NutritionDayView: View {
         }
         .vimKeys(enabled: !isPresentingModal) { command in
             switch command {
+            case let .move(delta):
+                cursor = DayCursorModel.move(
+                    from: cursor, by: delta, rowCounts: currentRowCounts
+                )
+                return true
+            case .first:
+                cursor = DayCursorModel.positions(
+                    rowCounts: currentRowCounts
+                ).first
+                return true
+            case .last:
+                cursor = DayCursorModel.positions(
+                    rowCounts: currentRowCounts
+                ).last
+                return true
             case .addFood:
-                // suivinut's `a` targets the meal under the cursor; without a
-                // cursor, the first meal is the least surprising target and
-                // the sheet's header names it.
-                if let first = slots.first { addTargetSlot = first }
+                if let slot = cursorSlot { addTargetSlot = slot }
                 return true
             case .newWeighIn:
                 isAddingWeight = true
                 return true
+            case .edit:
+                if let entry = cursorEntry { editingEntry = entry }
+                return true
+            case .delete:
+                if let entry = cursorEntry {
+                    deleteEntry(entry.persistentModelID)
+                    cursor = DayCursorModel.clamp(
+                        cursor, rowCounts: currentRowCounts
+                    )
+                }
+                return true
+            case .toggleFavorite:
+                if let entry = cursorEntry {
+                    toggleFavorite(entry.persistentModelID)
+                }
+                return true
+            case .moveEntryUp, .moveEntryDown:
+                moveCursorEntry(up: command == .moveEntryUp)
+                return true
+            case .editNotes:
+                if let slot = cursorSlot { noteTargetSlot = slot }
+                return true
+            case .loadRecipe:
+                if let slot = cursorSlot { recipeTargetSlot = slot }
+                return true
+            case .saveRecipe:
+                if let cursor, currentRowCounts.indices.contains(cursor.mealIndex),
+                   currentRowCounts[cursor.mealIndex] > 0,
+                   let slot = cursorSlot {
+                    recipeName = ""
+                    savingRecipeSlot = slot
+                }
+                return true
+            case .toggleListStyle:
+                cycleDayType()
+                return true
             case .clear:
-                // Escape peels the date first: coming back to today is the
-                // journal's own « clear », the window's comes after.
+                if cursor != nil {
+                    // Escape peels the cursor first, then the date, then the
+                    // window — one layer per press, like everywhere else.
+                    cursor = nil
+                    return true
+                }
                 if dateKey != DateKey(Date()) {
                     dateKey = DateKey(Date())
                     return true
@@ -95,6 +186,29 @@ struct NutritionDayView: View {
             default:
                 return onCommand(command)
             }
+        }
+        .onKeyPress(.leftArrow) {
+            guard !isPresentingModal else { return .ignored }
+            dateKey = dateKey.advanced(by: -1)
+            return .handled
+        }
+        .onKeyPress(.rightArrow) {
+            guard !isPresentingModal else { return .ignored }
+            dateKey = dateKey.advanced(by: 1)
+            return .handled
+        }
+        .onKeyPress(.return) {
+            guard !isPresentingModal, let entry = cursorEntry else {
+                return .ignored
+            }
+            editingEntry = entry
+            return .handled
+        }
+        .onChange(of: dateKey) { _, _ in
+            cursor = DayCursorModel.clamp(cursor, rowCounts: currentRowCounts)
+        }
+        .onChange(of: entries.count) { _, _ in
+            cursor = DayCursorModel.clamp(cursor, rowCounts: currentRowCounts)
         }
         .sheet(isPresented: $isAddingWeight) {
             WeightEntrySheet(
@@ -113,6 +227,40 @@ struct NutritionDayView: View {
         } message: {
             Text(importMessage ?? "")
         }
+    }
+
+    /// K/J: move the row, keep the cursor glued to it.
+    private func moveCursorEntry(up: Bool) {
+        guard let entry = cursorEntry, let position = cursor,
+              let rowIndex = position.rowIndex else { return }
+        let counts = currentRowCounts
+        let target = rowIndex + (up ? -1 : 1)
+        guard target >= 0, target < counts[position.mealIndex] else { return }
+        do {
+            try NutritionJournal.move(
+                entry, direction: up ? -1 : 1, in: modelContext
+            )
+            cursor = DayCursor(mealIndex: position.mealIndex, rowIndex: target)
+        } catch {
+            writeFailureMessage =
+                "Le déplacement n'a pas pu être enregistré. \(error.localizedDescription)"
+        }
+    }
+
+    /// suivinut opened a picker on `t`; a cycle is just as fast for a handful
+    /// of day types and needs no extra modal: … → last → none → first → …
+    private func cycleDayType() {
+        let current = days.first { $0.dateKeyRaw == dateKey.raw }?.dayType
+        let next: DayType?
+        if let current,
+           let index = dayTypes.firstIndex(where: {
+               $0.persistentModelID == current.persistentModelID
+           }) {
+            next = index + 1 < dayTypes.count ? dayTypes[index + 1] : nil
+        } else {
+            next = dayTypes.first
+        }
+        setDayType(next)
     }
 
     // MARK: - Journal
@@ -138,8 +286,10 @@ struct NutritionDayView: View {
                 header(model)
                 summary(model)
                 Divider()
-                ForEach(model.meals, id: \.slotID) { meal in
-                    mealSection(meal)
+                ForEach(
+                    Array(model.meals.enumerated()), id: \.element.slotID
+                ) { mealIndex, meal in
+                    mealSection(meal, mealIndex: mealIndex)
                 }
             }
             .padding(24)
@@ -266,7 +416,9 @@ struct NutritionDayView: View {
         }
     }
 
-    private func mealSection(_ meal: NutritionDayModel.Meal) -> some View {
+    private func mealSection(
+        _ meal: NutritionDayModel.Meal, mealIndex: Int
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(meal.slotName).font(.headline)
@@ -301,6 +453,12 @@ struct NutritionDayView: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
             }
+            .padding(.horizontal, 6)
+            .background(
+                cursor == DayCursor(mealIndex: mealIndex, rowIndex: nil)
+                    ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                in: RoundedRectangle(cornerRadius: 4)
+            )
             if meal.rows.isEmpty {
                 Text("Rien de consigné")
                     .font(.callout)
@@ -318,7 +476,9 @@ struct NutritionDayView: View {
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    ForEach(meal.rows, id: \.entryID) { row in
+                    ForEach(
+                        Array(meal.rows.enumerated()), id: \.element.entryID
+                    ) { rowIndex, row in
                         GridRow {
                             Button {
                                 toggleFavorite(row.entryID)
@@ -343,6 +503,14 @@ struct NutritionDayView: View {
                         // `monospacedDigit()` is a `Text` method; on a row
                         // the font modifier carries the same trait.
                         .font(.body.monospacedDigit())
+                        .background(
+                            cursor == DayCursor(
+                                mealIndex: mealIndex, rowIndex: rowIndex
+                            )
+                                ? AnyShapeStyle(.quaternary)
+                                : AnyShapeStyle(.clear),
+                            in: RoundedRectangle(cornerRadius: 4)
+                        )
                         .contextMenu {
                             Button("Éditer…") {
                                 editingEntry = entry(for: row.entryID)
