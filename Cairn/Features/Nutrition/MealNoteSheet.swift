@@ -41,6 +41,18 @@ struct MealNoteSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Button("Enregistrer") { save() }
                     .keyboardShortcut(.defaultAction)
+                    .help("Enregistrer (⌘⏎)")
+
+                // A twin, invisible, carrying ⌘⏎. `defaultAction` is Return, and
+                // a `TextEditor` keeps Return for itself to make a new line — so
+                // from the note field, the only field anyone stays in for long,
+                // nothing validated the form at all. SwiftUI takes one shortcut
+                // per button, hence two buttons for one action.
+                Button("") { save() }
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                    .accessibilityHidden(true)
             }
         }
         .padding(20)

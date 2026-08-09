@@ -234,6 +234,10 @@ struct NutritionDayView: View {
         guard let entry = cursorEntry, let position = cursor,
               let rowIndex = position.rowIndex else { return }
         let counts = currentRowCounts
+        // The cursor can outlive a vanished meal (its first-slot fallback
+        // does not guarantee `mealIndex` still exists) — a silent no-op
+        // beats an out-of-range crash.
+        guard counts.indices.contains(position.mealIndex) else { return }
         let target = rowIndex + (up ? -1 : 1)
         guard target >= 0, target < counts[position.mealIndex] else { return }
         do {
