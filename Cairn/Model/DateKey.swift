@@ -39,6 +39,20 @@ struct DateKey: Hashable, Comparable, Sendable, CustomStringConvertible {
     /// which is why the format is validated so strictly at init.
     static func < (lhs: DateKey, rhs: DateKey) -> Bool { lhs.raw < rhs.raw }
 
+    /// First day of this key's month.
+    var monthStart: DateKey {
+        DateKey(raw: String(raw.prefix(8)) + "01")!
+    }
+
+    /// Last day of this key's month.
+    func monthEnd(calendar: Calendar = .current) -> DateKey {
+        let start = monthStart
+        let count = calendar.range(
+            of: .day, in: .month, for: start.date(calendar: calendar)
+        )?.count ?? 28
+        return start.advanced(by: count - 1, calendar: calendar)
+    }
+
     var description: String { raw }
 
     private static func components(of raw: String) -> (Int, Int, Int)? {

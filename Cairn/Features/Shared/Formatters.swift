@@ -158,4 +158,21 @@ enum Format {
     static func cadence(_ rpm: Double?) -> String {
         rpm.map { "\(Int($0.rounded())) rpm" } ?? "—"
     }
+
+    private static let signedTwoDecimalsFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.minimumFractionDigits = 1
+        formatter.maximumFractionDigits = 2
+        formatter.positivePrefix = "+"
+        // U+2212, the real minus — a hyphen reads as a dash in running text.
+        formatter.negativePrefix = "−"
+        return formatter
+    }()
+
+    /// Signed rates and deltas: two decimals so −0,04 kg/sem never rounds
+    /// to the lie « −0,0 ».
+    static func signedTwoDecimals(_ value: Double) -> String {
+        signedTwoDecimalsFormatter.string(from: value as NSNumber) ?? "\(value)"
+    }
 }

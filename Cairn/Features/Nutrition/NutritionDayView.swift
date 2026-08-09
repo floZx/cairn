@@ -7,6 +7,9 @@ import AppKit
 /// targets, totals, and full entry editing (add, edit, reorder, delete,
 /// day-type choice).
 struct NutritionDayView: View {
+    /// The day shown — lifted to the caller so the detail column's mini
+    /// calendar and this journal travel together.
+    @Binding var dateKey: DateKey
     /// The vim commands this screen cannot handle itself, forwarded to the
     /// window (section jumps, escape, help). Taken as a closure so the vim
     /// modifier can live *here*: this view knows when its sheets are up, and
@@ -27,7 +30,6 @@ struct NutritionDayView: View {
     private var fatTarget = NutritionSettings.defaultFatTargetG
     @AppStorage(NutritionSettings.weightGoalKey)
     private var weightGoal = NutritionSettings.defaultWeightGoalKg
-    @State private var dateKey = DateKey(Date())
     @State private var importMessage: String?
     @State private var addTargetSlot: MealSlot?
     @State private var isAddingWeight = false
@@ -72,6 +74,14 @@ struct NutritionDayView: View {
             case .newWeighIn:
                 isAddingWeight = true
                 return true
+            case .clear:
+                // Escape peels the date first: coming back to today is the
+                // journal's own « clear », the window's comes after.
+                if dateKey != DateKey(Date()) {
+                    dateKey = DateKey(Date())
+                    return true
+                }
+                return onCommand(command)
             default:
                 return onCommand(command)
             }

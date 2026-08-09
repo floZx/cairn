@@ -36,6 +36,10 @@ struct RootView: View {
     /// says where to put the cursor — folding it in would give the same activity
     /// two identities and present the sheet twice.
     @State private var editorFocusesNotes = false
+    /// The day the food journal and its side panel are showing — lifted here
+    /// so the mini calendar (in the detail column) and the journal (in the
+    /// content column) share one binding rather than drifting apart.
+    @State private var nutritionDateKey = DateKey(Date())
     /// Focus of the search field, so `/` can reach it.
     ///
     /// Held here rather than in the list: `.searchable` is applied to the list
@@ -309,7 +313,9 @@ struct RootView: View {
                     // The vim modifier lives inside the view here — it must go
                     // dead while the add/edit sheets are up, and only the view
                     // knows when that is.
-                    NutritionDayView(onCommand: performInNutrition)
+                    NutritionDayView(
+                        dateKey: $nutritionDateKey, onCommand: performInNutrition
+                    )
                 } else if showsWeight {
                     // Same command filter as the food journal: the weight
                     // screen is journal territory too, an invisible activity
@@ -574,7 +580,12 @@ struct RootView: View {
         // more: clicking a track on one, or a record on the other, opens the
         // activity beside it, and both give the width back when nothing is
         // selected.
-        if let selected {
+        if showsNutrition || showsWeight {
+            // The journal screens claim the pane: the side panel replaces
+            // whatever activity was left selected behind them.
+            NutritionSidePanel(selected: $nutritionDateKey)
+                .frame(minWidth: Self.detailMinWidth)
+        } else if let selected {
             ActivityDetailView(
                 activity: selected,
                 onExpandMap: { expandedMap = .activity(selected.id) },
