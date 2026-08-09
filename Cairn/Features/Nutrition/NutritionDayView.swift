@@ -455,9 +455,11 @@ struct NutritionDayView: View {
     /// independent Grid widths made each meal drift, and suivinut's single
     /// shared table is what the eye expects. The name column absorbs the rest.
     private enum NumericColumn {
-        static let grams: CGFloat = 44
-        static let kcal: CGFloat = 72
-        static let macro: CGFloat = 60
+        // Widened with the type: a "0/1 237" total at the larger size no
+        // longer fits the width its `.callout` version did.
+        static let grams: CGFloat = 48
+        static let kcal: CGFloat = 82
+        static let macro: CGFloat = 66
         static let spacing: CGFloat = 16
     }
 
@@ -495,7 +497,7 @@ struct NutritionDayView: View {
             pairText(meal.consumed.fat, target: meal.target?.fat)
                 .frame(width: NumericColumn.macro, alignment: .trailing)
         }
-        .font(.callout.monospacedDigit())
+        .font(.body.monospacedDigit())
     }
 
     private func mealSection(
@@ -503,7 +505,7 @@ struct NutritionDayView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(meal.slotName).font(.headline)
+                Text(meal.slotName).font(.title3.weight(.semibold))
                 Button {
                     addTargetSlot = slotModel(for: meal.slotID)
                 } label: {
@@ -543,7 +545,7 @@ struct NutritionDayView: View {
             )
             if meal.rows.isEmpty {
                 Text("Rien de consigné")
-                    .font(.callout)
+                    .font(.body)
                     .foregroundStyle(.tertiary)
             } else {
                 Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
@@ -562,7 +564,7 @@ struct NutritionDayView: View {
                         Text("L")
                             .frame(width: NumericColumn.macro, alignment: .trailing)
                     }
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     ForEach(
                         Array(meal.rows.enumerated()), id: \.element.entryID
@@ -596,7 +598,7 @@ struct NutritionDayView: View {
                         }
                         // `monospacedDigit()` is a `Text` method; on a row
                         // the font modifier carries the same trait.
-                        .font(.body.monospacedDigit())
+                        .font(.title3.monospacedDigit())
                         .background(
                             cursor == DayCursor(
                                 mealIndex: mealIndex, rowIndex: rowIndex
@@ -630,7 +632,7 @@ struct NutritionDayView: View {
             }
             if let note = meal.note {
                 Text(note)
-                    .font(.callout.italic())
+                    .font(.body.italic())
                     .foregroundStyle(.secondary)
             }
         }

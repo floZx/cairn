@@ -346,6 +346,14 @@ struct RootView: View {
         }
         // Makes the list absorb a sidebar toggle instead of the detail pane.
         .background(SplitViewHoldingPriorities())
+        // Arriving at the statistics gives the whole width to the charts: the
+        // activity left selected in the list has nothing to do with the
+        // figures now on screen, and its pane was simply in the way. Clicking
+        // a record still opens that activity beside them — this fires on
+        // entering the section, not on every selection made inside it.
+        .onChange(of: sidebarSelection) { _, newValue in
+            if newValue == .statistics { selectedActivities = [] }
+        }
         .toolbar { syncToolbar }
     }
 
