@@ -56,7 +56,14 @@ final class SQLiteDatabase {
         }
     }
 
-    deinit { sqlite3_close(handle) }
+    // sqlite3_close (v1) returns SQLITE_BUSY and silently leaves the
+    // connection open if any prepared Statement is still unfinalized — the
+    // finalize-before-close ordering would then be load-bearing between
+    // Statement and SQLiteDatabase lifetimes. sqlite3_close_v2 instead
+    // marks the connection a "zombie" and defers the actual close until
+    // its last outstanding statement is finalized, so that ordering stops
+    // mattering.
+    deinit { sqlite3_close_v2(handle) }
 
     /// Statements that return nothing — DDL, INSERT. Several statements
     /// separated by `;` are fine, `sqlite3_exec` runs the batch.

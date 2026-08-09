@@ -20,8 +20,27 @@ enum CatalogCSV {
 
         /// The highest column index this parser ever reads — bounds how far
         /// `row(from:columns:)` needs to split a line before it can stop.
-        var maxIndex: Int {
-            max(
+        /// Computed once here, at header-parse time, rather than once per
+        /// line in `row(from:columns:)`.
+        let maxIndex: Int
+
+        init(
+            code: Int, name: Int, brands: Int, quantity: Int,
+            servingSize: Int, countriesTags: Int, completeness: Int,
+            kcal: Int, protein: Int, carbs: Int, fat: Int
+        ) {
+            self.code = code
+            self.name = name
+            self.brands = brands
+            self.quantity = quantity
+            self.servingSize = servingSize
+            self.countriesTags = countriesTags
+            self.completeness = completeness
+            self.kcal = kcal
+            self.protein = protein
+            self.carbs = carbs
+            self.fat = fat
+            self.maxIndex = max(
                 code, name, brands, quantity, servingSize, countriesTags,
                 completeness, kcal, protein, carbs, fat
             )
