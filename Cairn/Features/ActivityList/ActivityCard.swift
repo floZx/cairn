@@ -10,30 +10,30 @@ import SwiftData
 struct ActivityCard: View {
     let activity: Activity
 
-    /// Tall enough for a legible thumbnail and a row of figures at reading size,
-    /// and no taller: a card is a row, not a tile, and every extra point is one
-    /// activity fewer on screen. Fixed so nothing has to be measured — see the
-    /// type's own note.
-    static let height: CGFloat = 84
-    private static let thumbnailWidth: CGFloat = 104
-    private var inner: CGFloat { Self.height - 16 }
+    /// Half the original 84: the tall card showed a handful of outings where
+    /// the point of a list is to scan many. Two lines of text and a thumbnail
+    /// still fit, everything just speaks one size down. Fixed so nothing has
+    /// to be measured — see the type's own note.
+    static let height: CGFloat = 42
+    private static let thumbnailWidth: CGFloat = 52
+    private var inner: CGFloat { Self.height - 10 }
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 10) {
             thumbnail
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 7) {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 5) {
                     Image(systemName: activity.sportType.symbolName)
-                        .font(.title3)
+                        .font(.subheadline)
                         .foregroundStyle(activity.sportType.color)
                     Text(activity.name)
-                        .font(.title3.weight(.semibold))
+                        .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                     if activity.isFavorite {
                         Image(systemName: "star.fill")
                             .foregroundStyle(.yellow)
-                            .font(.caption)
+                            .font(.caption2)
                     }
                     // The thumbnails themselves were too much beside a row of
                     // figures; the fact that there are any is still worth
@@ -41,7 +41,7 @@ struct ActivityCard: View {
                     if !activity.photos.isEmpty {
                         Image(systemName: "photo")
                             .foregroundStyle(.secondary)
-                            .font(.caption)
+                            .font(.caption2)
                             .help(
                                 activity.photos.count == 1
                                     ? "1 photo" : "\(activity.photos.count) photos"
@@ -49,7 +49,7 @@ struct ActivityCard: View {
                     }
                 }
                 Text(Format.longDate(activity.startLocalDate))
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -62,7 +62,7 @@ struct ActivityCard: View {
             Spacer(minLength: 12)
             figures
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 5)
         .frame(height: Self.height)
     }
 
@@ -70,7 +70,7 @@ struct ActivityCard: View {
     private var thumbnail: some View {
         let coordinates = activity.simplifiedCoordinates
         ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 // Tinted by the sport rather than plain grey, the same language
                 // the detail pane's glow already speaks.
                 .fill(activity.sportType.color.opacity(0.10))
@@ -81,7 +81,7 @@ struct ActivityCard: View {
                 // kind of nothing this is, rather than leaving an empty box that
                 // reads as a failure to load.
                 Image(systemName: activity.sportType.symbolName)
-                    .font(.title)
+                    .font(.body)
                     .foregroundStyle(activity.sportType.color.opacity(0.35))
             }
         }
@@ -90,7 +90,7 @@ struct ActivityCard: View {
         // is lit by its sport rather than merely labelled with it. Narrower than
         // the detail pane's glow: a row is short, and the same radius would wash
         // over its neighbours instead of its own text.
-        .ambientGlow(activity.sportType.color, cornerRadius: 8, blurRadius: 30)
+        .ambientGlow(activity.sportType.color, cornerRadius: 6, blurRadius: 18)
     }
 
     /// The figures, as a row of blocks rather than a line of small grey text.
@@ -142,9 +142,9 @@ struct ActivityCard: View {
     }
 
     private func block(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: 0) {
             Text(value)
-                .font(.headline.monospacedDigit())
+                .font(.subheadline.weight(.medium).monospacedDigit())
                 .lineLimit(1)
                 // Rather than truncating: a number cut short reads as another
                 // number, where a slightly smaller one reads as itself.
@@ -154,6 +154,6 @@ struct ActivityCard: View {
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
         }
-        .frame(width: 80, alignment: .leading)
+        .frame(width: 72, alignment: .leading)
     }
 }
