@@ -349,13 +349,18 @@ struct NutritionDayView: View {
             titleVisibility: .visible
         ) {
             // Return confirms, Escape cancels: `x ⏎` stays a two-key delete,
-            // but a stray `x` alone no longer costs a food.
-            Button("Supprimer", role: .destructive) {
+            // but a stray `x` alone no longer costs a food. No `.destructive`
+            // role: AppKit refuses to make a destructive button the default,
+            // so with it the shortcut was silently dropped and ⏎ did nothing.
+            // The title already asks the question; blue is a fair colour for
+            // the answer.
+            Button("Supprimer") {
                 if let entry = entryPendingDeletion {
                     deleteEntry(entry.persistentModelID)
                 }
             }
             .keyboardShortcut(.defaultAction)
+            Button("Annuler", role: .cancel) {}
         }
         .alert(
             "Enregistrer comme recette",
