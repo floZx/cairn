@@ -279,6 +279,29 @@ extension NutritionJournal {
         return dayType
     }
 
+    /// Moves a day type up or down among its peers.
+    ///
+    /// Renumbers the whole list rather than swapping two neighbours: the
+    /// seeded types and the imported ones do not necessarily start out with
+    /// contiguous `sortOrder`s, and a swap between 0 and 7 leaves a list that
+    /// looks reordered until the next insert lands in the gap.
+    @MainActor
+    static func moveDayType(
+        _ dayType: DayType, by offset: Int, in context: ModelContext
+    ) throws {
+        let ordered = try context.fetch(FetchDescriptor<DayType>())
+            .sorted { $0.sortOrder < $1.sortOrder }
+        guard let from = ordered.firstIndex(where: {
+            $0.persistentModelID == dayType.persistentModelID
+        }) else { return }
+        let to = from + offset
+        guard ordered.indices.contains(to) else { return }
+        var moved = ordered
+        moved.swapAt(from, to)
+        for (index, type) in moved.enumerated() { type.sortOrder = index }
+        try context.save()
+    }
+
     /// Days referencing the deleted type keep their row with a nil type —
     /// explicit nullification in code (no schema change) so this production
     /// store never silently eats journal days.

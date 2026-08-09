@@ -19,6 +19,8 @@ struct NutritionSettingsView: View {
     @State private var writeFailureMessage: String?
     @State private var updater = CatalogUpdater()
     @State private var catalogStatus = ""
+    @State private var showsRecipesManager = false
+    @State private var showsFavoritesManager = false
 
     var body: some View {
         Form {
@@ -32,11 +34,28 @@ struct NutritionSettingsView: View {
                 )
             }
 
-            Section("Jours-types") {
-                ForEach(dayTypes) { dayType in
-                    dayTypeRow(dayType)
+            Section {
+                ForEach(Array(dayTypes.enumerated()), id: \.element) {
+                    index, dayType in
+                    dayTypeRow(dayType, index: index)
                 }
                 Button("Ajouter un jour-type") { addDayType() }
+            } header: {
+                Text("Jours-types")
+            } footer: {
+                Text("L'ordre est celui du menu de jour-type du journal.")
+            }
+
+            Section {
+                Button("Gérer les recettes…") { showsRecipesManager = true }
+                Button("Gérer les favoris…") { showsFavoritesManager = true }
+            } header: {
+                Text("Bibliothèque")
+            } footer: {
+                Text(
+                    "Les recettes se créent depuis un repas rempli, les favoris "
+                    + "avec l'étoile d'une ligne du journal."
+                )
             }
 
             Section {
@@ -100,6 +119,8 @@ struct NutritionSettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear { refreshCatalogStatus() }
+        .sheet(isPresented: $showsRecipesManager) { RecipesManagerSheet() }
+        .sheet(isPresented: $showsFavoritesManager) { FavoritesManagerSheet() }
         .alert(
             "Journal alimentaire",
             isPresented: Binding(
@@ -126,7 +147,7 @@ struct NutritionSettingsView: View {
 
     // MARK: - Rows
 
-    private func dayTypeRow(_ dayType: DayType) -> some View {
+    private func dayTypeRow(_ dayType: DayType, index: Int) -> some View {
         @Bindable var dayType = dayType
         return HStack {
             TextField("Nom", text: $dayType.name)
@@ -137,6 +158,24 @@ struct NutritionSettingsView: View {
             .frame(width: 80)
             .onSubmit { save() }
             .monospacedDigit()
+            // Arrows rather than drag: the row is two text fields wide, and a
+            // drag started on one of them is someone selecting text.
+            Button {
+                move(dayType, by: -1)
+            } label: {
+                Image(systemName: "chevron.up")
+            }
+            .buttonStyle(.borderless)
+            .disabled(index == 0)
+            .help("Monter ce jour-type")
+            Button {
+                move(dayType, by: 1)
+            } label: {
+                Image(systemName: "chevron.down")
+            }
+            .buttonStyle(.borderless)
+            .disabled(index == dayTypes.count - 1)
+            .help("Descendre ce jour-type")
             Button {
                 delete(dayType)
             } label: {
@@ -207,6 +246,15 @@ struct NutritionSettingsView: View {
         } catch {
             writeFailureMessage =
                 "Le jour-type n'a pas pu être créé. \(error.localizedDescription)"
+        }
+    }
+
+    private func move(_ dayType: DayType, by offset: Int) {
+        do {
+            try NutritionJournal.moveDayType(dayType, by: offset, in: modelContext)
+        } catch {
+            writeFailureMessage =
+                "L'ordre n'a pas pu être enregistré. \(error.localizedDescription)"
         }
     }
 

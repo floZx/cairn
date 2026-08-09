@@ -333,6 +333,41 @@ struct NutritionJournalTests {
         #expect(try context.fetch(FetchDescriptor<DayType>()).count == 1)
     }
 
+    @Test("un jour-type se déplace dans la liste, et l'ordre est renuméroté")
+    func dayTypeReordering() throws {
+        let context = try makeContext()
+        let names = ["repos", "qualité", "sortie longue"]
+        for name in names {
+            _ = try NutritionJournal.addDayType(
+                named: name, kcalTarget: 2000, in: context
+            )
+        }
+        func ordered() throws -> [String] {
+            try context.fetch(FetchDescriptor<DayType>())
+                .sorted { $0.sortOrder < $1.sortOrder }
+                .map(\.name)
+        }
+        let last = try #require(
+            try context.fetch(FetchDescriptor<DayType>())
+                .first { $0.name == "sortie longue" }
+        )
+        try NutritionJournal.moveDayType(last, by: -1, in: context)
+        #expect(try ordered() == ["repos", "sortie longue", "qualité"])
+        // Renumérotés de 0 à n-1 : un ordre à trous ferait retomber le
+        // prochain ajout au milieu de la liste.
+        #expect(
+            try context.fetch(FetchDescriptor<DayType>())
+                .map(\.sortOrder).sorted() == [0, 1, 2]
+        )
+        // Aux extrémités, le déplacement ne fait rien plutôt que de boucler.
+        let first = try #require(
+            try context.fetch(FetchDescriptor<DayType>())
+                .first { $0.name == "repos" }
+        )
+        try NutritionJournal.moveDayType(first, by: -1, in: context)
+        #expect(try ordered() == ["repos", "sortie longue", "qualité"])
+    }
+
     @Test("une pesée par jour : ressaisir remplace")
     func weightUpsertsPerDay() throws {
         let context = try makeContext()
