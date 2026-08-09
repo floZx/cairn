@@ -36,10 +36,18 @@ final class CatalogUpdater {
 
     /// Kept outside Application Support/Cairn's store files: a partial
     /// download surviving for resume is cache, not user data.
-    static var cacheURL: URL {
+    static var defaultCacheURL: URL {
         URL.applicationSupportDirectory
             .appending(path: "Cairn/cache/food.csv.gz")
     }
+
+    /// Alias kept for existing call sites reading the static property.
+    static var cacheURL: URL { defaultCacheURL }
+
+    /// Per-instance, defaulting to the real cache path: lets tests point a
+    /// `CatalogUpdater` at a throwaway file instead of writing to and
+    /// deleting the user's actual `~/Library/Application Support` cache.
+    let cacheURL: URL
 
     private let download: @Sendable (
         URL, URL, @Sendable @escaping (Int64, Int64?) -> Void
@@ -50,6 +58,7 @@ final class CatalogUpdater {
     private var task: Task<Void, Never>?
 
     init(
+        cacheURL: URL = CatalogUpdater.defaultCacheURL,
         download: @escaping @Sendable (
             URL, URL, @Sendable @escaping (Int64, Int64?) -> Void
         ) async throws -> Void = { url, destination, progress in
@@ -66,6 +75,7 @@ final class CatalogUpdater {
             )
         }
     ) {
+        self.cacheURL = cacheURL
         self.download = download
         self.buildCatalog = build
     }
@@ -96,7 +106,7 @@ final class CatalogUpdater {
                 return
             }
             do {
-                let cache = Self.cacheURL
+                let cache = self.cacheURL
                 // A complete gz survives a failed build (the .part flow only
                 // covers interrupted downloads): reuse it instead of paying
                 // the gigabyte again. A finished build deletes it either way.
@@ -174,6 +184,14 @@ final class CatalogUpdater {
                     }
                     return
                 }
+                // A genuine failure (not a cancellation) taints whatever gz
+                // sits at `cache`: it may be exactly what made the download
+                // or the build blow up, and the skip-download branch above
+                // would otherwise hand that same broken file back on every
+                // retry, failing identically forever with no way out short
+                // of the user manually finding and deleting it. Purge it so
+                // the next attempt starts clean.
+                try? FileManager.default.removeItem(at: self.cacheURL)
                 // Not `error.localizedDescription`: neither DownloadError nor
                 // BuildError conforms to LocalizedError, so that would print
                 // Foundation's generic "The operation couldn't be completed"

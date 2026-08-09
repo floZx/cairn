@@ -121,15 +121,17 @@ struct CatalogUpdaterTests {
 
     @Test("un gz complet en cache saute le téléchargement")
     func existingCacheSkipsDownload() async throws {
-        let cache = CatalogUpdater.cacheURL
-        try FileManager.default.createDirectory(
-            at: cache.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
+        // A throwaway file under the temp directory, not the real
+        // `~/Library/Application Support/Cairn/cache` — this test writes to
+        // and deletes its cache file, and must not touch the user's actual
+        // catalogue cache.
+        let cache = FileManager.default.temporaryDirectory
+            .appending(path: "CatalogUpdaterTests-\(UUID()).csv.gz")
         try Data("gz factice".utf8).write(to: cache)
         defer { try? FileManager.default.removeItem(at: cache) }
 
         let updater = CatalogUpdater(
+            cacheURL: cache,
             download: { _, _, _ in
                 Issue.record("le téléchargement ne devait pas être appelé")
             },

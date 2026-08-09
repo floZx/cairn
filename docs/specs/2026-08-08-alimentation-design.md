@@ -37,7 +37,9 @@ Deux nouvelles entrées de sidebar sous « Statistiques » : **Alimentation** et
   - `.weight` → `WeightView`
 - La colonne *détail* reprend le rôle du panneau latéral de suivinut quand la
   sélection est `.nutrition` : mini-calendrier + panneau de stats (voir §5).
-  Pour `.weight`, la colonne détail reste sur son contenu par défaut.
+  Pour `.weight`, la colonne détail reprend elle aussi ce panneau du journal
+  (mini-calendrier + panneau de stats) — décidé en phase 6 pour supprimer le
+  panneau d'activité résiduel qui y restait affiché.
 - Navigation vim (`VimCommand`) : `gn` → Alimentation, `gp` → Poids.
 
 ## 2. Modèle de données (SwiftData)

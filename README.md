@@ -301,7 +301,7 @@ vouloir dire « va à la carte ». D'où le préfixe `g`.
 | `gn` `gp` | alimentation / poids |
 | `t` · ⌥⌘L | basculer entre le tableau et les fiches |
 | `h` · ⌥⌘I | fermer le volet de droite |
-| `échap` | vider la recherche, sinon la sélection |
+| `échap` | revenir à aujourd'hui (journal), vider la recherche, sinon la sélection |
 
 ⌥⌘I est le raccourci de l'inspecteur du Finder : le même volet, du même côté.
 Les deux raccourcis à ⌥⌘ emploient une lettre et non un chiffre, parce que sur un
