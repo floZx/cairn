@@ -29,9 +29,13 @@ struct FoodPickerView: View {
 
     @State private var mode: Mode = .search
     @State private var query = ""
-    @State private var results: [FoodCatalog.Product] = []
+    @State private var results: [FoodSearch.Hit] = []
     @State private var searchErrorMessage: String?
-    @State private var selected: FoodCatalog.Product?
+    @State private var selected: FoodSearch.Hit?
+    /// The distinct foods most recently logged, fetched once per presentation:
+    /// with an empty search field they are the list — the suivinut behaviour,
+    /// because the next food is usually one of the last thirty.
+    @State private var recents: [FoodSearch.Hit] = []
     @State private var grams = 100.0
     @State private var manualName = ""
     @State private var manualKcal = 0.0
@@ -73,6 +77,8 @@ struct FoodPickerView: View {
         }
         .onAppear {
             catalog = FoodCatalog.openDefault()
+            recents = fetchRecents()
+            runSearch(query)
             searchFocused = true
         }
         .onChange(of: mode) { _, newMode in
@@ -95,7 +101,10 @@ struct FoodPickerView: View {
                     )
                 )
             } else {
-                TextField("Rechercher un aliment", text: $query)
+                TextField(
+                    "Rechercher un aliment (vide : favoris et derniers utilisés)",
+                    text: $query
+                )
                     .textFieldStyle(.roundedBorder)
                     .focused($searchFocused)
                     .onChange(of: query) { _, newValue in
@@ -105,18 +114,25 @@ struct FoodPickerView: View {
                         // Return in the search field: take the first hit and
                         // jump to the quantity — type, Return, done. The
                         // suivinut rhythm.
-                        if selected == nil { selected = results.first }
+                        if selected == nil { select(results.first) }
                         if selected != nil { gramsFocused = true }
                     }
-                List(results, id: \.code, selection: resultSelection) { product in
+                List(results, selection: resultSelection) { hit in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(product.name).lineLimit(1)
-                        Text(subtitle(of: product))
+                        HStack(spacing: 4) {
+                            if hit.isFavorite {
+                                Image(systemName: "star.fill")
+                                    .foregroundStyle(.yellow)
+                                    .font(.caption)
+                            }
+                            Text(hit.name).lineLimit(1)
+                        }
+                        Text(subtitle(of: hit))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
-                    .tag(product.code)
+                    .tag(hit.id)
                 }
                 .frame(minHeight: 180)
                 if let searchErrorMessage {
@@ -131,38 +147,99 @@ struct FoodPickerView: View {
         }
     }
 
-    /// Selection carried by product code — `Product` is a plain value and
-    /// the list wants a stable `Hashable` tag.
+    /// Selection carried by the hit's id — `Hit` is a plain value and the
+    /// list wants a stable `Hashable` tag.
     private var resultSelection: Binding<String?> {
         Binding(
-            get: { selected?.code },
-            set: { code in selected = results.first { $0.code == code } }
+            get: { selected?.id },
+            set: { id in select(results.first { $0.id == id }) }
         )
     }
 
+    private func select(_ hit: FoodSearch.Hit?) {
+        selected = hit
+        // A favorite carries its usual serving; prefill it so the common
+        // case is type, Return, Return.
+        if let favoriteGrams = hit?.favoriteGrams { grams = favoriteGrams }
+    }
+
     private func runSearch(_ text: String) {
-        guard let catalog else { return }
-        do {
-            results = try catalog.search(text)
-            searchErrorMessage = nil
-        } catch {
-            // A broken catalog must say so — a silently empty list reads as
-            // « no result », which is a different fact.
-            results = []
-            searchErrorMessage =
-                "La recherche a échoué : \(error.localizedDescription)"
+        let favoriteHits = favorites.map { favorite in
+            FoodSearch.Hit(
+                id: "fav:\(favorite.foodName)|\(favorite.productCode ?? "")",
+                name: favorite.foodName, brands: "",
+                kcal100: favorite.kcal100, protein100: favorite.protein100,
+                carbs100: favorite.carbs100, fat100: favorite.fat100,
+                productCode: favorite.productCode,
+                favoriteGrams: favorite.grams
+            )
         }
+        var catalogHits: [FoodSearch.Hit] = []
+        if let catalog, !text.trimmingCharacters(in: .whitespaces).isEmpty {
+            do {
+                catalogHits = try catalog.search(text).map { product in
+                    FoodSearch.Hit(
+                        id: "cat:\(product.code)",
+                        name: product.name, brands: product.brands,
+                        kcal100: product.kcal100, protein100: product.protein100,
+                        carbs100: product.carbs100, fat100: product.fat100,
+                        productCode: product.code, favoriteGrams: nil
+                    )
+                }
+                searchErrorMessage = nil
+            } catch {
+                // A broken catalog must say so — a silently empty list reads
+                // as « no result », which is a different fact.
+                searchErrorMessage =
+                    "La recherche a échoué : \(error.localizedDescription)"
+            }
+        } else {
+            searchErrorMessage = nil
+        }
+        results = FoodSearch.assemble(
+            query: text, favorites: favoriteHits, recents: recents,
+            catalog: catalogHits
+        )
         if let selected, !results.contains(selected) {
             self.selected = nil
         }
     }
 
-    private func subtitle(of product: FoodCatalog.Product) -> String {
-        let macros = "\(Int(product.kcal100.rounded())) kcal · "
-            + "P \(Int(product.protein100.rounded())) · "
-            + "G \(Int(product.carbs100.rounded())) · "
-            + "L \(Int(product.fat100.rounded())) /100 g"
-        return product.brands.isEmpty ? macros : "\(product.brands) — \(macros)"
+    /// The last thirty distinct foods, newest day first — suivinut's
+    /// `recent_foods`. Fetched wide then deduplicated here: SwiftData has no
+    /// GROUP BY, and three hundred rows is nothing.
+    private func fetchRecents() -> [FoodSearch.Hit] {
+        var descriptor = FetchDescriptor<FoodEntry>(
+            sortBy: [
+                SortDescriptor(\.dateKeyRaw, order: .reverse),
+                SortDescriptor(\.sortOrder, order: .reverse),
+            ]
+        )
+        descriptor.fetchLimit = 300
+        guard let entries = try? modelContext.fetch(descriptor) else { return [] }
+        var seen = Set<String>()
+        var hits: [FoodSearch.Hit] = []
+        for entry in entries {
+            let key = "\(entry.foodName)|\(entry.productCode ?? "")"
+            guard seen.insert(key).inserted else { continue }
+            hits.append(FoodSearch.Hit(
+                id: "recent:\(key)",
+                name: entry.foodName, brands: "",
+                kcal100: entry.kcal100, protein100: entry.protein100,
+                carbs100: entry.carbs100, fat100: entry.fat100,
+                productCode: entry.productCode, favoriteGrams: nil
+            ))
+            if hits.count == 30 { break }
+        }
+        return hits
+    }
+
+    private func subtitle(of hit: FoodSearch.Hit) -> String {
+        let macros = "\(Int(hit.kcal100.rounded())) kcal · "
+            + "P \(Int(hit.protein100.rounded())) · "
+            + "G \(Int(hit.carbs100.rounded())) · "
+            + "L \(Int(hit.fat100.rounded())) /100 g"
+        return hit.brands.isEmpty ? macros : "\(hit.brands) — \(macros)"
     }
 
     // MARK: - Favorites
@@ -306,7 +383,7 @@ struct FoodPickerView: View {
                 foodName: selected.name, kcal100: selected.kcal100,
                 protein100: selected.protein100, carbs100: selected.carbs100,
                 fat100: selected.fat100, grams: grams,
-                productCode: selected.code
+                productCode: selected.productCode
             ))
         case .favorites:
             guard let favorite = selectedFavorite else { return }
