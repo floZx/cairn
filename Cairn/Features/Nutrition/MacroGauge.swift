@@ -17,9 +17,21 @@ struct MacroGauge: View {
             if let target, target > 0 {
                 ProgressView(value: min(consumed / target, 1))
                     .tint(consumed > target ? .red : .accentColor)
+                // suivinut's « reste » line: the number the next meal is
+                // actually planned against, not just a bar to squint at.
+                Text(remainingLabel(target: target))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(consumed > target ? .red : .secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func remainingLabel(target: Double) -> String {
+        let remaining = target - consumed
+        return remaining >= 0
+            ? "reste \(rounded(remaining)) \(unit)"
+            : "dépassé de \(rounded(-remaining)) \(unit)"
     }
 
     private var figure: String {

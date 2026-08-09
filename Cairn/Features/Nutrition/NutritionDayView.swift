@@ -50,6 +50,9 @@ struct NutritionDayView: View {
     @State private var recipeName = ""
     @State private var showsRecipesManager = false
     @State private var noteTargetSlot: MealSlot?
+    /// The entry a confirmation dialog is about to delete — same pattern as
+    /// activities: an accidental `x` must cost one Escape, not a food.
+    @State private var entryPendingDeletion: FoodEntry?
     @State private var cursor: DayCursor?
     // Sorted the way suivinut lists day types: by target then name, so the
     // menu reads from rest day to biggest day.
@@ -63,7 +66,7 @@ struct NutritionDayView: View {
         addTargetSlot != nil || isAddingWeight || editingEntry != nil
             || importMessage != nil || writeFailureMessage != nil
             || recipeTargetSlot != nil || savingRecipeSlot != nil || showsRecipesManager
-            || noteTargetSlot != nil
+            || noteTargetSlot != nil || entryPendingDeletion != nil
     }
 
     /// Rows per meal for the CURRENT day — the cursor's coordinate system.
@@ -149,10 +152,7 @@ struct NutritionDayView: View {
                 return true
             case .delete:
                 if let entry = cursorEntry {
-                    deleteEntry(entry.persistentModelID)
-                    cursor = DayCursorModel.clamp(
-                        cursor, rowCounts: currentRowCounts
-                    )
+                    entryPendingDeletion = entry
                 }
                 return true
             case .toggleFavorite:
@@ -340,6 +340,23 @@ struct NutritionDayView: View {
         } message: {
             Text(writeFailureMessage ?? "")
         }
+        .confirmationDialog(
+            entryPendingDeletion.map { "Supprimer « \($0.foodName) » ?" } ?? "",
+            isPresented: Binding(
+                get: { entryPendingDeletion != nil },
+                set: { if !$0 { entryPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            // Return confirms, Escape cancels: `x ⏎` stays a two-key delete,
+            // but a stray `x` alone no longer costs a food.
+            Button("Supprimer", role: .destructive) {
+                if let entry = entryPendingDeletion {
+                    deleteEntry(entry.persistentModelID)
+                }
+            }
+            .keyboardShortcut(.defaultAction)
+        }
         .alert(
             "Enregistrer comme recette",
             isPresented: Binding(
@@ -429,16 +446,49 @@ struct NutritionDayView: View {
         }
     }
 
+    /// Fixed numeric columns so every meal's figures line up down the page —
+    /// independent Grid widths made each meal drift, and suivinut's single
+    /// shared table is what the eye expects. The name column absorbs the rest.
+    private enum NumericColumn {
+        static let grams: CGFloat = 44
+        static let kcal: CGFloat = 72
+        static let macro: CGFloat = 60
+        static let spacing: CGFloat = 16
+    }
+
+    /// One "consumed/target" pair, red the moment the target is exceeded —
+    /// suivinut's per-macro meal accounting.
+    private func pairText(_ consumed: Double, target: Double?) -> Text {
+        let consumedText = "\(Int(consumed.rounded()))"
+        guard let target else {
+            return Text(consumedText).foregroundStyle(Color.secondary)
+        }
+        return Text("\(consumedText)/\(Int(target.rounded()))")
+            .foregroundStyle(consumed > target ? Color.red : Color.secondary)
+    }
+
+    /// The meal's totals, sitting exactly under the grid's kcal/P/G/L
+    /// columns: same fixed widths, same spacing, both blocks flush right.
+    private func mealTotals(_ meal: NutritionDayModel.Meal) -> some View {
+        HStack(spacing: NumericColumn.spacing) {
+            pairText(meal.consumed.kcal, target: meal.target?.kcal)
+                .frame(width: NumericColumn.kcal, alignment: .trailing)
+            pairText(meal.consumed.protein, target: meal.target?.protein)
+                .frame(width: NumericColumn.macro, alignment: .trailing)
+            pairText(meal.consumed.carbs, target: meal.target?.carbs)
+                .frame(width: NumericColumn.macro, alignment: .trailing)
+            pairText(meal.consumed.fat, target: meal.target?.fat)
+                .frame(width: NumericColumn.macro, alignment: .trailing)
+        }
+        .font(.callout.monospacedDigit())
+    }
+
     private func mealSection(
         _ meal: NutritionDayModel.Meal, mealIndex: Int
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(meal.slotName).font(.headline)
-                Spacer()
-                Text(mealFigure(meal))
-                    .font(.callout.monospacedDigit())
-                    .foregroundStyle(.secondary)
                 Button {
                     addTargetSlot = slotModel(for: meal.slotID)
                 } label: {
@@ -465,8 +515,9 @@ struct NutritionDayView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
+                Spacer()
+                mealTotals(meal)
             }
-            .padding(.horizontal, 6)
             .background(
                 // `.selection` rather than `.quaternary`: the cursor is a
                 // selection, and the system's own row-selection style is the
@@ -484,11 +535,17 @@ struct NutritionDayView: View {
                     GridRow {
                         Text("")
                         Text("Aliment")
-                        Text("g").gridColumnAlignment(.trailing)
-                        Text("kcal").gridColumnAlignment(.trailing)
-                        Text("P").gridColumnAlignment(.trailing)
-                        Text("G").gridColumnAlignment(.trailing)
-                        Text("L").gridColumnAlignment(.trailing)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("g")
+                            .frame(width: NumericColumn.grams, alignment: .trailing)
+                        Text("kcal")
+                            .frame(width: NumericColumn.kcal, alignment: .trailing)
+                        Text("P")
+                            .frame(width: NumericColumn.macro, alignment: .trailing)
+                        Text("G")
+                            .frame(width: NumericColumn.macro, alignment: .trailing)
+                        Text("L")
+                            .frame(width: NumericColumn.macro, alignment: .trailing)
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -510,11 +567,17 @@ struct NutritionDayView: View {
                                     ? "Retirer des favoris" : "Ajouter aux favoris"
                             )
                             Text(row.name).lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             Text("\(Int(row.grams.rounded()))")
+                                .frame(width: NumericColumn.grams, alignment: .trailing)
                             Text("\(Int(row.macros.kcal.rounded()))")
+                                .frame(width: NumericColumn.kcal, alignment: .trailing)
                             Text("\(Int(row.macros.protein.rounded()))")
+                                .frame(width: NumericColumn.macro, alignment: .trailing)
                             Text("\(Int(row.macros.carbs.rounded()))")
+                                .frame(width: NumericColumn.macro, alignment: .trailing)
                             Text("\(Int(row.macros.fat.rounded()))")
+                                .frame(width: NumericColumn.macro, alignment: .trailing)
                         }
                         // `monospacedDigit()` is a `Text` method; on a row
                         // the font modifier carries the same trait.
@@ -536,7 +599,7 @@ struct NutritionDayView: View {
                             Button("Basculer favori") { toggleFavorite(row.entryID) }
                             Divider()
                             Button("Supprimer", role: .destructive) {
-                                deleteEntry(row.entryID)
+                                entryPendingDeletion = entry(for: row.entryID)
                             }
                         }
                         .draggable(FoodEntryDragPayload(id: row.entryID))
@@ -556,15 +619,6 @@ struct NutritionDayView: View {
                     .foregroundStyle(.secondary)
             }
         }
-    }
-
-    /// "612 / 655 kcal" when the meal has an adaptive target, plain total
-    /// otherwise — the header answers "how am I doing on this meal" at a
-    /// glance.
-    private func mealFigure(_ meal: NutritionDayModel.Meal) -> String {
-        let consumed = Int(meal.consumed.kcal.rounded())
-        guard let target = meal.target else { return "\(consumed) kcal" }
-        return "\(consumed) / \(Int(target.kcal.rounded())) kcal"
     }
 
     private func entry(for id: PersistentIdentifier) -> FoodEntry? {
