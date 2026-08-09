@@ -36,6 +36,10 @@ struct RootView: View {
     /// says where to put the cursor — folding it in would give the same activity
     /// two identities and present the sheet twice.
     @State private var editorFocusesNotes = false
+    /// Whether the food journal's side panel (calendar + day summary) is up.
+    /// `AppStorage` rather than `State`: closing the panel is a workspace
+    /// choice, and it should still be closed after a relaunch.
+    @AppStorage("nutritionPanelVisible") private var nutritionPanelVisible = true
     /// The day the food journal and its side panel are showing — lifted here
     /// so the mini calendar (in the detail column) and the journal (in the
     /// content column) share one binding rather than drifting apart.
@@ -581,11 +585,20 @@ struct RootView: View {
         // more: clicking a track on one, or a record on the other, opens the
         // activity beside it, and both give the width back when nothing is
         // selected.
-        if showsNutrition || showsWeight {
-            // The journal screens claim the pane: the side panel replaces
-            // whatever activity was left selected behind them.
-            NutritionSidePanel(selected: $nutritionDateKey)
-                .frame(minWidth: Self.detailMinWidth)
+        if showsNutrition {
+            // The food journal claims the pane: the side panel replaces
+            // whatever activity was left selected behind it — unless the user
+            // closed it, which the toolbar button toggles. The weight screen
+            // gets no pane at all: its charts already fill the window, and a
+            // food calendar beside them answered a question nobody asked.
+            if nutritionPanelVisible {
+                NutritionSidePanel(selected: $nutritionDateKey)
+                    .frame(minWidth: Self.detailMinWidth)
+            } else {
+                collapsedDetailColumn
+            }
+        } else if showsWeight {
+            collapsedDetailColumn
         } else if let selected {
             ActivityDetailView(
                 activity: selected,
@@ -655,7 +668,14 @@ struct RootView: View {
             // this way the affordance is visible before it is needed.
             ToolbarItem {
                 Button {
-                    selectedActivities = []
+                    // In the food journal the pane is not driven by a
+                    // selection, so the same button toggles the side panel
+                    // instead of clearing a selection it doesn't have.
+                    if showsNutrition {
+                        nutritionPanelVisible.toggle()
+                    } else {
+                        selectedActivities = []
+                    }
                 } label: {
                     Label("Fermer le panneau", systemImage: "sidebar.trailing")
                 }
@@ -664,8 +684,16 @@ struct RootView: View {
                 // unreachable. ⌥⌘I is the Finder's inspector shortcut, and this
                 // is the same pane on the same side.
                 .keyboardShortcut("i", modifiers: [.option, .command])
-                .disabled(selection.isEmpty)
-                .help("Fermer le panneau de droite et désélectionner (⌥⌘I)")
+                // The weight screen has no pane to close; elsewhere the button
+                // needs something to act on.
+                .disabled(showsWeight || (!showsNutrition && selection.isEmpty))
+                .help(
+                    showsNutrition
+                        ? (nutritionPanelVisible
+                            ? "Fermer le panneau de droite (⌥⌘I)"
+                            : "Rouvrir le panneau de droite (⌥⌘I)")
+                        : "Fermer le panneau de droite et désélectionner (⌥⌘I)"
+                )
             }
             // Grouped, not three loose buttons: the toolbar already carries three
             // items, and six side by side is where it stops reading as a toolbar.
