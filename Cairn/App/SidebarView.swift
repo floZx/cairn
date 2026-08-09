@@ -27,6 +27,12 @@ struct SidebarView: View {
             .sorted { $0.count > $1.count }
     }
 
+    /// The filter sections drive the activity screens; beside the food and
+    /// weight journals they would filter nothing on screen.
+    private var showsFilters: Bool {
+        selection != .nutrition && selection != .weight
+    }
+
     var body: some View {
         List(selection: $selection) {
             Section {
@@ -44,7 +50,7 @@ struct SidebarView: View {
 
                 // Sits with the map rather than among the filters: it undoes a
                 // rectangle drawn there, and that is where it will be looked for.
-                if filter.region != nil {
+                if showsFilters, filter.region != nil {
                     Button {
                         filter.region = nil
                     } label: {
@@ -54,61 +60,63 @@ struct SidebarView: View {
                 }
             }
 
-            Section("Sports") {
-                ForEach(sportCounts, id: \.sport) { entry in
-                    Toggle(isOn: binding(for: entry.sport)) {
-                        HStack {
-                            SportLabel(entry.sport.displayName, sport: entry.sport)
-                            Spacer(minLength: 8)
-                            Text("\(entry.count)")
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
+            if showsFilters {
+                Section("Sports") {
+                    ForEach(sportCounts, id: \.sport) { entry in
+                        Toggle(isOn: binding(for: entry.sport)) {
+                            HStack {
+                                SportLabel(entry.sport.displayName, sport: entry.sport)
+                                Spacer(minLength: 8)
+                                Text("\(entry.count)")
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
+                        }
+                        .toggleStyle(.checkbox)
+                    }
+                }
+
+                Section("Filtres") {
+                    Picker("Période", selection: $filter.period) {
+                        ForEach(DatePeriod.allCases) { period in
+                            Text(period.displayName).tag(period)
                         }
                     }
-                    .toggleStyle(.checkbox)
+                    OptionalNumberField(
+                        title: "Distance min.", unit: "km", value: $filter.minDistanceKm
+                    )
+                    OptionalNumberField(
+                        title: "Distance max.", unit: "km", value: $filter.maxDistanceKm
+                    )
+                    OptionalNumberField(
+                        title: "D+ min.", unit: "m", value: $filter.minElevation
+                    )
+                    OptionalNumberField(
+                        title: "D+ max.", unit: "m", value: $filter.maxElevation
+                    )
+                    OptionalNumberField(
+                        title: "D+/km min.", unit: "m/km",
+                        value: $filter.minElevationPerKm
+                    )
                 }
-            }
 
-            Section("Filtres") {
-                Picker("Période", selection: $filter.period) {
-                    ForEach(DatePeriod.allCases) { period in
-                        Text(period.displayName).tag(period)
+                Section("Étiquettes") {
+                    ForEach(ActivityLabel.allCases) { label in
+                        Toggle(isOn: binding(for: label)) {
+                            GutteredLabel(label.displayName, systemImage: label.symbolName)
+                        }
+                        .toggleStyle(.checkbox)
                     }
                 }
-                OptionalNumberField(
-                    title: "Distance min.", unit: "km", value: $filter.minDistanceKm
-                )
-                OptionalNumberField(
-                    title: "Distance max.", unit: "km", value: $filter.maxDistanceKm
-                )
-                OptionalNumberField(
-                    title: "D+ min.", unit: "m", value: $filter.minElevation
-                )
-                OptionalNumberField(
-                    title: "D+ max.", unit: "m", value: $filter.maxElevation
-                )
-                OptionalNumberField(
-                    title: "D+/km min.", unit: "m/km",
-                    value: $filter.minElevationPerKm
-                )
-            }
 
-            Section("Étiquettes") {
-                ForEach(ActivityLabel.allCases) { label in
-                    Toggle(isOn: binding(for: label)) {
-                        GutteredLabel(label.displayName, systemImage: label.symbolName)
-                    }
-                    .toggleStyle(.checkbox)
-                }
-            }
-
-            if filter.isActive {
-                Section {
-                    // The count is on the button because that is where the eye
-                    // already goes to undo a filter; the window subtitle says
-                    // which ones.
-                    Button("Réinitialiser les filtres (\(filter.activeCriteriaCount))") {
-                        filter = .none
+                if filter.isActive {
+                    Section {
+                        // The count is on the button because that is where the eye
+                        // already goes to undo a filter; the window subtitle says
+                        // which ones.
+                        Button("Réinitialiser les filtres (\(filter.activeCriteriaCount))") {
+                            filter = .none
+                        }
                     }
                 }
             }
