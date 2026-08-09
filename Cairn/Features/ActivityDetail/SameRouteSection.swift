@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Charts
 
 /// The other outings on this very course — Strava's « matched activities ».
 ///
@@ -22,19 +23,118 @@ struct SameRouteSection: View {
         let matches = Self.matches(for: activity, in: activities)
         if !matches.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Même parcours").font(.headline)
+                Text("Parcours similaires").font(.headline)
                 Text(
                     "\(matches.count + 1) sorties sur ce tracé — "
                     + "l'écart se lit face à celle-ci."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                VStack(spacing: 2) {
-                    ForEach(rows(matches: matches), id: \.id) { row in
-                        rowView(row, matches: matches)
+                chart(matches)
+                rowList(matches)
+            }
+        }
+    }
+
+    // MARK: - Chart
+
+    /// One dot per attempt, in time — Strava's progress graph for a matched
+    /// course. The line makes the trend readable; the dots carry the story:
+    /// the open outing in the sport's colour, the record in trophy yellow.
+    ///
+    /// Past a dozen attempts the chart windows itself to roughly ten and
+    /// scrolls horizontally, opening on the most recent — forty-nine weekly
+    /// footings squeezed into one pane width were a single grey smear.
+    @ViewBuilder
+    private func chart(_ matches: [Activity]) -> some View {
+        let attempts = rows(matches: matches)
+            .filter { $0.movingTime > 0 }
+            .sorted { $0.startLocalDate < $1.startLocalDate }
+        if attempts.count >= 3 {
+            let span = attempts.last!.startLocalDate
+                .timeIntervalSince(attempts.first!.startLocalDate)
+            if attempts.count > 12, span > 0 {
+                // Ten *average* gaps of visible window: irregular outings mean
+                // some windows show more dots, some fewer, and that is fine.
+                let visible = span / Double(attempts.count) * 10
+                chartBase(attempts, matches: matches)
+                    .chartScrollableAxes(.horizontal)
+                    .chartXVisibleDomain(length: visible)
+                    .chartScrollPosition(initialX:
+                        attempts.last!.startLocalDate.addingTimeInterval(-visible)
+                    )
+            } else {
+                chartBase(attempts, matches: matches)
+            }
+        }
+    }
+
+    /// Plotted in average speed, labelled in the sport's own tongue — pace
+    /// for a run, km/h for a ride, /100 m for a swim (what Strava's graph
+    /// shows too, not the finish time). Up is faster, which is the way a
+    /// progress chart wants to read.
+    private func chartBase(
+        _ attempts: [Activity], matches: [Activity]
+    ) -> some View {
+        let bestSpeed = attempts.map(\.averageSpeed).max()
+        return Chart(attempts, id: \.id) { attempt in
+            LineMark(
+                x: .value("Date", attempt.startLocalDate),
+                y: .value("Allure", attempt.averageSpeed)
+            )
+            .foregroundStyle(.quaternary)
+            PointMark(
+                x: .value("Date", attempt.startLocalDate),
+                y: .value("Allure", attempt.averageSpeed)
+            )
+            .foregroundStyle(pointColor(attempt, bestSpeed: bestSpeed))
+            .symbolSize(
+                attempt.persistentModelID == activity.persistentModelID ? 90 : 45
+            )
+        }
+        // From the slowest attempt, not from zero: the differences between
+        // efforts are seconds per kilometre, and a zero-based axis flattens
+        // them into one straight line.
+        .chartYScale(domain: .automatic(includesZero: false))
+        .chartYAxis {
+            AxisMarks { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let speed = value.as(Double.self) {
+                        Text(Format.speed(speed, sport: activity.sportType))
+                            .monospacedDigit()
                     }
                 }
             }
+        }
+        .frame(height: 110)
+    }
+
+    private func pointColor(_ attempt: Activity, bestSpeed: Double?) -> Color {
+        if attempt.persistentModelID == activity.persistentModelID {
+            return activity.sportType.color
+        }
+        return attempt.averageSpeed == bestSpeed ? .yellow : .secondary
+    }
+
+    /// Six rows, then the list scrolls in place: a weekly loop accumulates
+    /// dozens of outings, and the section is a comparison, not an archive.
+    /// The cut sits mid-row on purpose — a half-visible line is what says
+    /// « there is more » without a scroll indicator asking to be noticed.
+    @ViewBuilder
+    private func rowList(_ matches: [Activity]) -> some View {
+        let stack = VStack(spacing: 2) {
+            ForEach(rows(matches: matches), id: \.id) { row in
+                rowView(row, matches: matches)
+            }
+        }
+        if matches.count + 1 > 6 {
+            ScrollView {
+                stack
+            }
+            .frame(height: 6.5 * 27)
+        } else {
+            stack
         }
     }
 
