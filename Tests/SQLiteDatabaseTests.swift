@@ -149,4 +149,54 @@ struct SQLiteDatabaseTests {
             )
         }
     }
+
+    @Test("une instruction préparée s'exécute plusieurs fois avec des bindings différents")
+    func preparedStatementExecutesRepeatedly() throws {
+        let path = temporaryPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let db = try SQLiteDatabase(path: path)
+        try db.execute("CREATE TABLE t (name TEXT, kcal REAL)")
+        let insert = try db.prepare("INSERT INTO t (name, kcal) VALUES (?, ?)")
+        try insert.execute(bindings: [.text("Riz"), .real(350.0)])
+        try insert.execute(bindings: [.text("Crème"), .real(300.0)])
+        try insert.execute(bindings: [.text("Pain"), .real(265.0)])
+        let rows = try db.rows("SELECT name, kcal FROM t ORDER BY kcal")
+        #expect(rows.count == 3)
+        #expect(rows[0]["name"] == .text("Pain"))
+        #expect(rows[0]["kcal"] == .real(265.0))
+        #expect(rows[1]["name"] == .text("Crème"))
+        #expect(rows[2]["name"] == .text("Riz"))
+    }
+
+    @Test("un nombre de bindings incohérent sur une instruction préparée échoue")
+    func preparedStatementMismatchedBindingCountThrows() throws {
+        let path = temporaryPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let db = try SQLiteDatabase(path: path)
+        try db.execute("CREATE TABLE t (name TEXT, kcal REAL)")
+        let insert = try db.prepare("INSERT INTO t (name, kcal) VALUES (?, ?)")
+        #expect(throws: SQLiteDatabase.Error.self) {
+            try insert.execute(bindings: [.text("Riz")])
+        }
+    }
+
+    @Test("après une erreur, l'instruction préparée redevient utilisable")
+    func preparedStatementUsableAfterError() throws {
+        let path = temporaryPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let db = try SQLiteDatabase(path: path)
+        try db.execute("CREATE TABLE t (name TEXT UNIQUE, kcal REAL)")
+        let insert = try db.prepare("INSERT INTO t (name, kcal) VALUES (?, ?)")
+        try insert.execute(bindings: [.text("Riz"), .real(350.0)])
+        #expect(throws: SQLiteDatabase.Error.self) {
+            try insert.execute(bindings: [.text("Riz"), .real(999.0)])
+        }
+        // La même instruction, réinitialisée par le reset du defer, sert
+        // encore pour la ligne suivante.
+        try insert.execute(bindings: [.text("Pain"), .real(265.0)])
+        let rows = try db.rows("SELECT name FROM t ORDER BY name")
+        #expect(rows.count == 2)
+        #expect(rows[0]["name"] == .text("Pain"))
+        #expect(rows[1]["name"] == .text("Riz"))
+    }
 }

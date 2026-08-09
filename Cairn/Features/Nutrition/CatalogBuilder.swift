@@ -99,6 +99,14 @@ enum CatalogBuilder {
         onProgress: (@Sendable (Int, Int) -> Void)?
     ) throws -> Int {
         let db = try SQLiteDatabase(path: tmpPath)
+        // The .tmp is disposable and the atomic swap is the integrity
+        // boundary: a crash mid-build means a rebuild, never a corrupt live
+        // catalog. So the durability machinery is pure overhead here — no
+        // journal, no fsync, and a page cache big enough that random-order
+        // primary-key inserts stop thrashing.
+        try db.execute("PRAGMA journal_mode = OFF")
+        try db.execute("PRAGMA synchronous = OFF")
+        try db.execute("PRAGMA cache_size = -65536")
         try db.execute("""
             CREATE TABLE products (
                 code TEXT PRIMARY KEY, name TEXT NOT NULL, brands TEXT,
@@ -110,6 +118,17 @@ enum CatalogBuilder {
                 tokenize = 'unicode61 remove_diacritics 2');
             CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """)
+        // One parse instead of one per row: the CSV export runs to
+        // millions of lines, and `sqlite3_prepare_v2` per INSERT was a
+        // measurable share of the build's cost.
+        let insertStatement = try db.prepare(
+            """
+            INSERT OR REPLACE INTO products
+                (code, name, brands, quantity, kcal_100g, protein_100g,
+                 carbs_100g, fat_100g, serving_size, completeness)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
+            """
+        )
 
         var columns: CatalogCSV.Columns?
         var remainder = Data()
@@ -122,24 +141,16 @@ enum CatalogBuilder {
                 try db.execute("BEGIN")
                 batchOpen = true
             }
-            _ = try db.rows(
-                """
-                INSERT OR REPLACE INTO products
-                    (code, name, brands, quantity, kcal_100g, protein_100g,
-                     carbs_100g, fat_100g, serving_size, completeness)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
-                """,
-                bindings: [
-                    .text(row.code), .text(row.name),
-                    row.brands.map(SQLiteDatabase.Value.text) ?? .null,
-                    row.quantity.map(SQLiteDatabase.Value.text) ?? .null,
-                    .real(row.kcal), .real(row.protein),
-                    row.carbs.map(SQLiteDatabase.Value.real) ?? .null,
-                    row.fat.map(SQLiteDatabase.Value.real) ?? .null,
-                    row.servingSize.map(SQLiteDatabase.Value.text) ?? .null,
-                    .real(row.completeness),
-                ]
-            )
+            try insertStatement.execute(bindings: [
+                .text(row.code), .text(row.name),
+                row.brands.map(SQLiteDatabase.Value.text) ?? .null,
+                row.quantity.map(SQLiteDatabase.Value.text) ?? .null,
+                .real(row.kcal), .real(row.protein),
+                row.carbs.map(SQLiteDatabase.Value.real) ?? .null,
+                row.fat.map(SQLiteDatabase.Value.real) ?? .null,
+                row.servingSize.map(SQLiteDatabase.Value.text) ?? .null,
+                .real(row.completeness),
+            ])
             kept += 1
             if kept % batchSize == 0 {
                 try db.execute("COMMIT")

@@ -106,6 +106,53 @@ final class SQLiteDatabase {
         return result
     }
 
+    /// A statement prepared once and executed many times — the batch-insert
+    /// path pays one parse instead of one per row. Owned by the database
+    /// object; must not outlive it.
+    final class Statement {
+        private let handle: OpaquePointer
+        private unowned let database: SQLiteDatabase
+
+        fileprivate init(handle: OpaquePointer, database: SQLiteDatabase) {
+            self.handle = handle
+            self.database = database
+        }
+
+        deinit { sqlite3_finalize(handle) }
+
+        /// Binds, steps to completion, then resets for the next execution.
+        /// The reset runs via `defer` so a failed execution (bad binding
+        /// count, constraint violation…) still leaves the statement usable
+        /// for the next call instead of wedged mid-bind.
+        func execute(bindings: [Value]) throws {
+            defer {
+                sqlite3_clear_bindings(handle)
+                sqlite3_reset(handle)
+            }
+            try database.bind(bindings, to: handle)
+            var stepResult = sqlite3_step(handle)
+            while stepResult == SQLITE_ROW {
+                stepResult = sqlite3_step(handle)
+            }
+            guard stepResult == SQLITE_DONE else {
+                throw Error(
+                    message: String(cString: sqlite3_errmsg(database.handle))
+                )
+            }
+        }
+    }
+
+    /// Prepares `sql` once for repeated execution via `Statement.execute`.
+    func prepare(_ sql: String) throws -> Statement {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK,
+              let statement
+        else {
+            throw Error(message: String(cString: sqlite3_errmsg(handle)))
+        }
+        return Statement(handle: statement, database: self)
+    }
+
     private func value(of statement: OpaquePointer?, at index: Int32) -> Value {
         switch sqlite3_column_type(statement, index) {
         case SQLITE_INTEGER:

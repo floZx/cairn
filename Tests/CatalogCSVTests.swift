@@ -137,4 +137,16 @@ struct CatalogCSVTests {
     func shortLineFiltered() throws {
         #expect(CatalogCSV.row(from: "123\tabc", columns: try columns()) == nil)
     }
+
+    @Test("des colonnes en trop après fat_100g n'empoisonnent pas le dernier champ lu")
+    func extraTrailingColumnsDontGlueLastField() throws {
+        let columns = try columns()
+        // Le vrai export OFF a ~200 colonnes ; seules 11 sont lues. Si le
+        // split limité collait la fin de ligne dans le dernier champ retenu
+        // (fat_100g), "7" deviendrait "7\tfoo\tbar\tbaz" et échouerait à se
+        // parser en Double.
+        let extended = line() + "\tfoo\tbar\tbaz"
+        let row = try #require(CatalogCSV.row(from: extended, columns: columns))
+        #expect(row.fat == 7)
+    }
 }

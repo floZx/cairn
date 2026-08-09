@@ -17,6 +17,15 @@ enum CatalogCSV {
         var protein: Int
         var carbs: Int
         var fat: Int
+
+        /// The highest column index this parser ever reads — bounds how far
+        /// `row(from:columns:)` needs to split a line before it can stop.
+        var maxIndex: Int {
+            max(
+                code, name, brands, quantity, servingSize, countriesTags,
+                completeness, kcal, protein, carbs, fat
+            )
+        }
     }
 
     struct Row: Equatable {
@@ -73,13 +82,22 @@ enum CatalogCSV {
     /// name and code present, kcal/protein present, completeness ≥ 0.5,
     /// plausibility bounds (a kJ typed into the kcal field reads as 1500+).
     static func row(from line: String, columns: Columns) -> Row? {
-        let fields = line
-            .split(separator: "\t", omittingEmptySubsequences: false)
-            .map(String.init)
+        // Every export line runs ~200 columns wide but only 11 are ever
+        // read, and splitting the full line into Strings for all of them
+        // was most of this parser's cost. `maxSplits: maxIndex + 1` caps
+        // the split so elements 0...maxIndex land as clean single fields —
+        // exactly the ones `field(_:)` below ever indexes — while anything
+        // past maxIndex collapses into one merged tail element at index
+        // maxIndex + 1. That tail is never read, so columns glued together
+        // in it (tabs and all) are harmless.
+        let fields = line.split(
+            separator: "\t", maxSplits: columns.maxIndex + 1,
+            omittingEmptySubsequences: false
+        )
         func field(_ index: Int) -> String? {
             guard fields.indices.contains(index) else { return nil }
             let value = fields[index]
-            return value.isEmpty ? nil : value
+            return value.isEmpty ? nil : String(value)
         }
         guard let code = field(columns.code),
               let name = field(columns.name),
