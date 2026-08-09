@@ -7,6 +7,9 @@ struct ActivityDetailView: View {
     /// Opens the editor. The notes section calls it, which is what turns an
     /// empty journal entry into an invitation rather than a blank.
     var onEdit: (() -> Void)?
+    /// Jumps to another activity — the « même parcours » rows use it, so a
+    /// past effort on this course is one click away.
+    var onSelectActivity: ((PersistentIdentifier) -> Void)?
     @Environment(AppEnvironment.self) private var app
 
     /// Distance under the cursor in a chart, mirrored on the map as a marker.
@@ -61,6 +64,8 @@ struct ActivityDetailView: View {
                 notes
 
                 statistics
+
+                SameRouteSection(activity: activity, onSelect: onSelectActivity)
 
                 if !trackModel.series.isEmpty {
                     StreamChartsView(

@@ -605,7 +605,8 @@ struct RootView: View {
                 onExpandMap: { expandedMap = .activity(selected.id) },
                 // The notes section is the one that asks for this, so it lands
                 // in the field it invited the user to fill.
-                onEdit: { openEditor(selected, focusingNotes: true) }
+                onEdit: { openEditor(selected, focusingNotes: true) },
+                onSelectActivity: { selectedActivities = [$0] }
             )
             .frame(minWidth: Self.detailMinWidth)
         } else if selection.count > 1 {
