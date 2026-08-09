@@ -104,6 +104,13 @@ struct FixedTableRowHeight: NSViewRepresentable {
     /// Filled in once the table is found, if the caller wants to scroll it.
     var scroller: TableScroller?
 
+    // No row-height parameter, and deliberately so: on the cards `List`,
+    // AppKit-level pinning is powerless — SwiftUI's own delegate serves the
+    // heights (50 pt for realised rows, its 24 pt estimate for the rest) and
+    // `usesAutomaticRowHeights` is already false, so `apply` correctly does
+    // nothing there. What fixes the estimate is `defaultMinListRowHeight`,
+    // set on the list itself — see `ActivityListView.cards`.
+
     /// Spread over half a second: the probe joins a window before the table is
     /// populated, and AppKit posts no "the rows are ready" notification.
     private static let retryDelays: [Duration] = [

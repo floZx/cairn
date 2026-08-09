@@ -15,6 +15,11 @@ struct ActivityCard: View {
     /// still fit, everything just speaks one size down. Fixed so nothing has
     /// to be measured — see the type's own note.
     static let height: CGFloat = 42
+    /// The insets the list wraps each card in — ours, not the `List` default,
+    /// so the full row height is a constant the row-height probe can be told
+    /// instead of having to measure (and mis-measure — see the probe).
+    static let rowInsets = EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16)
+    static var rowHeight: CGFloat { height + rowInsets.top + rowInsets.bottom }
     private static let thumbnailWidth: CGFloat = 52
     private var inner: CGFloat { Self.height - 10 }
 

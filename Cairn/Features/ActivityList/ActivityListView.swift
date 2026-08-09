@@ -243,9 +243,19 @@ struct ActivityListView: View {
     private func cards(_ rows: [Activity]) -> some View {
         List(rows, selection: $selection) { activity in
             ActivityCard(activity: activity)
+                .listRowInsets(ActivityCard.rowInsets)
                 .tag(activity.id)
         }
         .listStyle(.inset)
+        // The height SwiftUI assumes for rows it has not built yet. Its
+        // default assumption is 24 pt under 50 pt cards, and a fast scroll
+        // into unbuilt territory laid rows out at that estimate — cards drawn
+        // over each other until a correction pass. With the estimate equal to
+        // the real height there is nothing to correct, ever. (AppKit-level
+        // row-height pinning cannot fix this list: SwiftUI's delegate serves
+        // the heights — verified live, `usesAutomaticRowHeights` already
+        // false, estimated rows answering 24.)
+        .environment(\.defaultMinListRowHeight, ActivityCard.rowHeight)
     }
 
     private func table(_ rows: [Activity]) -> some View {
