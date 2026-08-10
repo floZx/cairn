@@ -36,6 +36,12 @@ struct FoodPickerView: View {
     /// with an empty search field they are the list — the suivinut behaviour,
     /// because the next food is usually one of the last thirty.
     @State private var recents: [FoodSearch.Hit] = []
+    /// Bumped by every search, so the list knows to go back to its first row.
+    ///
+    /// A counter rather than something derived from `results`: two searches
+    /// running one after the other can hand back the very same rows — a
+    /// letter that narrows nothing — and the list still has to scroll up.
+    @State private var searchGeneration = 0
     @State private var grams = 100.0
     @State private var manualName = ""
     @State private var manualKcal = 0.0
@@ -111,28 +117,73 @@ struct FoodPickerView: View {
                         runSearch(newValue)
                     }
                     .onSubmit {
-                        // Return in the search field: take the first hit and
-                        // jump to the quantity — type, Return, done. The
-                        // suivinut rhythm.
+                        // Return in the search field: take whatever the arrows
+                        // are pointing at, or the first hit when they have not
+                        // been used, and jump to the quantity — type, Return,
+                        // done. The suivinut rhythm.
                         if selected == nil { select(results.first) }
                         if selected != nil { gramsFocused = true }
                     }
-                List(results, selection: resultSelection) { hit in
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
-                            if hit.isFavorite {
-                                Image(systemName: "star.fill")
-                                    .foregroundStyle(.yellow)
-                                    .font(.caption)
-                            }
-                            Text(hit.name).lineLimit(1)
+                    // The arrows walk the results without leaving the field,
+                    // so the search stays editable all the way down the list.
+                    // They have to be caught here rather than left to the list:
+                    // the field holds the focus while one types, and an arrow
+                    // key was moving the insertion point through "riz".
+                    //
+                    // Plain `j` and `k` cannot serve in a search field, where
+                    // they are two perfectly good letters to type — "jambon",
+                    // "kiwi". Held with control they are no longer letters,
+                    // so the vim pair works here too, beside the arrows.
+                    .onKeyPress(.upArrow) { moveSelection(by: -1); return .handled }
+                    .onKeyPress(.downArrow) { moveSelection(by: 1); return .handled }
+                    .onKeyPress(phases: [.down, .repeat]) { press in
+                        guard press.modifiers.contains(.control) else {
+                            return .ignored
                         }
-                        Text(subtitle(of: hit))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
+                        switch press.key.character {
+                        case "j": moveSelection(by: 1)
+                        case "k": moveSelection(by: -1)
+                        // ⌃K would otherwise cut to end of line and ⌃J insert
+                        // a newline; anything else keeps its usual meaning.
+                        default: return .ignored
+                        }
+                        return .handled
                     }
-                    .tag(hit.id)
+                ScrollViewReader { list in
+                    List(results, selection: resultSelection) { hit in
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 4) {
+                                if hit.isFavorite {
+                                    Image(systemName: "star.fill")
+                                        .foregroundStyle(.yellow)
+                                        .font(.caption)
+                                }
+                                Text(hit.name).lineLimit(1)
+                            }
+                            Text(subtitle(of: hit))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        .tag(hit.id)
+                    }
+                    // Six rows show at a time and the catalog returns fifty:
+                    // without this the highlight walks off the bottom and the
+                    // arrows appear to stop working.
+                    .onChange(of: selected?.id) { _, id in
+                        guard let id else { return }
+                        list.scrollTo(id)
+                    }
+                    // Back to the top on every keystroke. Driven by the token
+                    // rather than by `query`, because the search that rebuilds
+                    // the rows and the scroll that follows it have to happen
+                    // in that order — two `onChange` on sibling views make no
+                    // such promise, and one on the token cannot run before
+                    // `runSearch` has set both.
+                    .onChange(of: searchGeneration) { _, _ in
+                        guard let first = results.first?.id else { return }
+                        list.scrollTo(first, anchor: .top)
+                    }
                 }
                 .frame(minHeight: 180)
                 if let searchErrorMessage {
@@ -154,6 +205,17 @@ struct FoodPickerView: View {
             get: { selected?.id },
             set: { id in select(results.first { $0.id == id }) }
         )
+    }
+
+    /// Walks the results, reusing the list's own motion rule: from nothing,
+    /// down lands on the first row and up on the last, and both ends hold
+    /// rather than wrap.
+    private func moveSelection(by offset: Int) {
+        guard let index = VimMotion.destination(
+            from: results.firstIndex { $0.id == selected?.id },
+            delta: offset, count: results.count
+        ) else { return }
+        select(results[index])
     }
 
     private func select(_ hit: FoodSearch.Hit?) {
@@ -200,9 +262,11 @@ struct FoodPickerView: View {
             query: text, favorites: favoriteHits, recents: recents,
             catalog: catalogHits
         )
-        if let selected, !results.contains(selected) {
-            self.selected = nil
-        }
+        // Every keystroke starts the list over. Keeping a highlight that
+        // happened to survive the new search left it stranded a dozen rows
+        // down, out of sight, and Return took a food nobody could see.
+        selected = nil
+        searchGeneration += 1
     }
 
     /// The last thirty distinct foods, newest day first — suivinut's

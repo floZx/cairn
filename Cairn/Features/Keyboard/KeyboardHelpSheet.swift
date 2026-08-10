@@ -49,6 +49,7 @@ struct KeyboardHelpSheet: View {
             ("t", "cycler le jour-type"),
             ("w", "nouvelle pesée"),
             ("h / l", "jour précédent / suivant (aussi ← / →) — échap : aujourd'hui"),
+            ("↓ / ↑ ou ⌃J / ⌃K", "parcourir les résultats de recherche d'aliment"),
         ]),
         Group(title: "Chercher", rows: [
             ("/", "aller au champ de recherche"),
