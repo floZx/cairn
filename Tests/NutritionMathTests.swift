@@ -188,4 +188,16 @@ struct NutritionMathTests {
         // Pas de cible, pas de dépassement.
         #expect(NutritionMath.overshoot(consumed: 50, target: 0) == nil)
     }
+
+    @Test("la couleur suit les entiers affichés, pas les décimales cachées")
+    func overshootFollowsTheDisplayedFigures() {
+        // « 33/33 » : dépassement réel de 0,6 g, invisible à l'écran.
+        #expect(NutritionMath.overshoot(consumed: 33.4, target: 32.8) == nil)
+        // Dès que les entiers diffèrent, la couleur revient.
+        #expect(NutritionMath.overshoot(consumed: 33.6, target: 32.8) == .moderate)
+        // Le seuil franc se lit lui aussi sur les entiers : 111 dépasse
+        // 110 = 100 × 1,1, mais 110 affiché ne dépasse pas.
+        #expect(NutritionMath.overshoot(consumed: 110.4, target: 100.4) == .moderate)
+        #expect(NutritionMath.overshoot(consumed: 110.6, target: 100.4) == .heavy)
+    }
 }

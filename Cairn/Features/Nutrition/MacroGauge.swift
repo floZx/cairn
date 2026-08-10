@@ -37,8 +37,11 @@ struct MacroGauge: View {
         }
     }
 
+    /// Derived from the rounded figures the gauge itself shows: computed on
+    /// the raw values, it announced "dépassé de 1 g" under a "33 / 33 g" that
+    /// exceeds nothing the reader can see.
     private func remainingLabel(target: Double) -> String {
-        let remaining = target - consumed
+        let remaining = target.rounded() - consumed.rounded()
         return remaining >= 0
             ? "reste \(rounded(remaining)) \(unit)"
             : "dépassé de \(rounded(-remaining)) \(unit)"

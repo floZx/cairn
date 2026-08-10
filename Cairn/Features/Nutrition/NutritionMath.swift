@@ -61,16 +61,26 @@ struct Macros: Equatable, Sendable {
 enum NutritionMath {
     /// How badly a target is exceeded — suivinut's `over_color` rule from
     /// `tui/widgets.py`: a moderate overshoot (up to +10 % of the target) is
-    /// still fine, a heavy one is not. The half-gram slack keeps a rounding
-    /// crumb from lighting up a figure the user reads as exactly on target.
+    /// still fine, a heavy one is not.
     enum Overshoot {
         case moderate
         case heavy
     }
 
+    /// Judged on the figures as displayed, not on what is behind them.
+    ///
+    /// Every macro in the journal is written to the unit, so a rule reading
+    /// the decimals contradicts the screen: 33.4 against a target of 32.8 is
+    /// genuinely over, and used to come out orange — under the label "33/33".
+    /// A colour that disagrees with its own number reads as a bug, and it
+    /// was one. Rounding first also subsumes the half-gram slack ported from
+    /// suivinut, which only ever guarded the same crumb from one side.
     static func overshoot(consumed: Double, target: Double) -> Overshoot? {
-        guard target > 0, consumed > target + 0.5 else { return nil }
-        return consumed > target * 1.10 ? .heavy : .moderate
+        guard target > 0 else { return nil }
+        let shownConsumed = consumed.rounded()
+        let shownTarget = target.rounded()
+        guard shownConsumed > shownTarget else { return nil }
+        return shownConsumed > shownTarget * 1.10 ? .heavy : .moderate
     }
 
     /// Daily macro targets: kcal from the day type, protein and fat global,
