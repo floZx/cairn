@@ -35,11 +35,6 @@ struct ActivityCard: View {
                     Text(activity.name)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                    if activity.isFavorite {
-                        Image(systemName: "star.fill")
-                            .foregroundStyle(.yellow)
-                            .font(.caption2)
-                    }
                     // The thumbnails themselves were too much beside a row of
                     // figures; the fact that there are any is still worth
                     // knowing, and one glyph says it without taking a column.
@@ -53,10 +48,21 @@ struct ActivityCard: View {
                             )
                     }
                 }
-                Text(Format.longDate(activity.startLocalDate))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(Format.longDate(activity.startLocalDate))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    // Symbols only, and after the date rather than beside the
+                    // name: the favourite's star used to sit up there alone,
+                    // and one marker shown out of six is a marker that lies by
+                    // omission. Priority to the chips — a truncated date is
+                    // still a date, a truncated row of markers is a wrong one.
+                    ForEach(activity.labels) { label in
+                        ActivityLabelChip(label: label, compact: true)
+                    }
+                    .layoutPriority(1)
+                }
             }
             // A floor, and a high priority: the name is what identifies the
             // row, and "T…" identifies nothing. What gives way instead is the

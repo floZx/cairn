@@ -10,6 +10,12 @@ import SwiftUI
 struct ActivityLabelChip: View {
     let label: ActivityLabel
 
+    /// Drops the word and keeps the symbol, for the card list: a 42 pt row
+    /// has no room for six names, and the date beside them is what the row is
+    /// actually indexed by. The name moves to the tooltip rather than being
+    /// lost — these symbols are learned in a day, but not in a second.
+    var compact = false
+
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: label.symbolName)
@@ -17,12 +23,15 @@ struct ActivityLabelChip: View {
                     label == .favorite
                         ? AnyShapeStyle(.yellow) : AnyShapeStyle(.secondary)
                 )
-            Text(label.displayName)
-                .foregroundStyle(.secondary)
+            if !compact {
+                Text(label.displayName)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .font(.caption)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
+        .font(compact ? .caption2 : .caption)
+        .padding(.horizontal, compact ? 5 : 8)
+        .padding(.vertical, compact ? 1 : 3)
         .background(.quaternary, in: .capsule)
+        .help(compact ? label.displayName : "")
     }
 }
