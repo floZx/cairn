@@ -256,6 +256,8 @@ struct ActivityListView: View {
                 .tag(activity.id)
         }
         .listStyle(.inset)
+        // Lets the column's material through — see `RootView.splitView`.
+        .scrollContentBackground(.hidden)
         // The height SwiftUI assumes for rows it has not built yet. Its
         // default assumption is 24 pt under 50 pt cards, and a fast scroll
         // into unbuilt territory laid rows out at that estimate — cards drawn
@@ -337,5 +339,7 @@ struct ActivityListView: View {
             .width(min: 60, ideal: 80)
             .customizationID("labels")
         }
+        // Lets the column's material through — see `RootView.splitView`.
+        .scrollContentBackground(.hidden)
     }
 }

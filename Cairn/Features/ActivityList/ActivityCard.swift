@@ -29,9 +29,10 @@ struct ActivityCard: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 5) {
-                    Image(systemName: activity.sportType.symbolName)
-                        .font(.subheadline)
-                        .foregroundStyle(activity.sportType.color)
+                    // No sport glyph here: the thumbnail to the left already
+                    // says which sport this was, by the colour of its trace or
+                    // by the symbol standing in for one, and repeating it
+                    // beside the name only ate into the name.
                     Text(activity.name)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
@@ -64,11 +65,11 @@ struct ActivityCard: View {
                     .layoutPriority(1)
                 }
             }
-            // A floor, and a high priority: the name is what identifies the
-            // row, and "T…" identifies nothing. What gives way instead is the
-            // last figure, chosen below.
-            .frame(minWidth: 150, alignment: .leading)
-            .layoutPriority(1)
+            // A low floor and no priority: the figures are what the row is
+            // read for, and a name cut short is still a name where a missing
+            // heart rate is a row that quietly says less than its neighbour.
+            // So this is what gives way, down to an ellipsis if it must.
+            .frame(minWidth: 60, alignment: .leading)
 
             Spacer(minLength: 12)
             figures
@@ -81,10 +82,10 @@ struct ActivityCard: View {
     private var thumbnail: some View {
         let coordinates = activity.simplifiedCoordinates
         ZStack {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                // Tinted by the sport rather than plain grey, the same language
-                // the detail pane's glow already speaks.
-                .fill(activity.sportType.color.opacity(0.10))
+            // No tile under the track: the tinted rectangle made sense on an
+            // opaque list, where it lifted the trace off flat grey. Over the
+            // frosted column it reads as a sticker on glass, and the trace
+            // stands on its own — the glow below still lights the row.
             if coordinates.count > 1 {
                 TrackThumbnail(coordinates: coordinates, color: activity.sportType.color)
             } else {
@@ -92,8 +93,16 @@ struct ActivityCard: View {
                 // kind of nothing this is, rather than leaving an empty box that
                 // reads as a failure to load.
                 Image(systemName: activity.sportType.symbolName)
-                    .font(.body)
-                    .foregroundStyle(activity.sportType.color.opacity(0.35))
+                    // Sized against the space a trace would have filled, not
+                    // against the text: it stands in for the whole thumbnail,
+                    // and at body size it was a small mark adrift in it. Now
+                    // that the name carries no glyph of its own, this is what
+                    // says which sport a gym session was.
+                    .font(.system(size: 22))
+                    // A touch stronger than it was: it used to sit on a tinted
+                    // tile that framed it, and without one at the old opacity
+                    // a gym session's grey glyph all but vanished.
+                    .foregroundStyle(activity.sportType.color.opacity(0.5))
             }
         }
         .frame(width: Self.thumbnailWidth, height: inner)
@@ -111,28 +120,16 @@ struct ActivityCard: View {
     /// saying nothing. Heart rate drops out when there is none rather than
     /// leaving a hole.
     private var figures: some View {
-        // Everything here is fixed-width, so on a narrow pane something has to
-        // give. `ViewThatFits` decides *which*, in order of what an outing is
-        // actually about: the heart rate goes before the climb, and the climb
-        // before the distance. Left to the layout engine, it was the name that
-        // gave way instead.
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 0) {
-                distanceBlock
-                durationBlock
-                elevationBlock
-                heartrateBlock
-            }
-            HStack(spacing: 0) {
-                distanceBlock
-                durationBlock
-                elevationBlock
-            }
-            HStack(spacing: 0) {
-                distanceBlock
-                durationBlock
-            }
+        // All four, always. They used to drop out one by one through a
+        // `ViewThatFits` as the pane narrowed, which made two rows side by
+        // side carry different columns — the reader cannot tell a figure
+        // withheld for want of room from one the activity never recorded.
+        // The name absorbs the shortfall instead; see its frame above.
+        HStack(spacing: 0) {
             distanceBlock
+            durationBlock
+            elevationBlock
+            heartrateBlock
         }
     }
 

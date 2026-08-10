@@ -9,6 +9,7 @@ struct RootView: View {
     @State private var filter = ActivityFilter.none
     // See the comment on `ActivityListView.selection`: `Activity.ID` can't be
     // named from this file, so `PersistentIdentifier` is used directly.
+    @Environment(\.colorScheme) private var colorScheme
     @State private var selectedActivities: Set<PersistentIdentifier> = []
     /// Whether the list has already picked its opening row. Held here rather than
     /// in the list, which `.id(filter)` re-instantiates on every filter change.
@@ -341,6 +342,14 @@ struct RootView: View {
                 }
             }
             .frame(minWidth: 480)
+            // The same frosted sheet as the detail pane, so the two content
+            // columns read as one surface and only the sidebar stands apart.
+            // At the column rather than on the list: SwiftUI paints the
+            // column's own fill above anything a child puts behind itself.
+            .background(
+                VisualEffectBackground(material: .underWindowBackground)
+                    .ignoresSafeArea(edges: .top)
+            )
         } detail: {
             detailColumn
                 // The pane has no fill of its own — with the window opened up
@@ -348,9 +357,17 @@ struct RootView: View {
                 // through it and the figures sat on someone else's window.
                 // A frosted sheet of its own gives it back a surface, and the
                 // right kind of one.
-                .background(VisualEffectBackground(material: .underWindowBackground))
+                .background(
+                VisualEffectBackground(material: .underWindowBackground)
+                    .ignoresSafeArea(edges: .top)
+            )
         }
         // Makes the list absorb a sidebar toggle instead of the detail pane.
+        // The toolbar's own fill was a dark opaque band laid across three
+        // frosted columns — 28 where the sidebar under it reads 57. Hidden, it
+        // lets each column's material rise behind it, so the bar takes the
+        // colour of whatever it sits above instead of cutting the window in two.
+        .toolbarBackground(.hidden, for: .windowToolbar)
         .background(SplitViewHoldingPriorities())
         // Arriving at the statistics gives the whole width to the charts: the
         // activity left selected in the list has nothing to do with the
@@ -646,7 +663,36 @@ struct RootView: View {
     private var sidebar: some View {
         SidebarView(selection: $sidebarSelection, filter: $filter)
             .frame(minWidth: 260)
-            .background(VisualEffectBackground(material: .sidebar))
+            .sportWash(washColor, strength: SportWashStrength.sidebar)
+            // `ignoresSafeArea` so the material runs up behind the toolbar:
+            // with the toolbar's own fill hidden below, a background stopping
+            // at the safe area would leave the bare window there — which, on
+            // a window opened up for the sidebar's blending, is the desktop.
+            .background {
+                ZStack {
+                    // A lighter material than the content columns beside it,
+                    // which is what makes the pane read as raised rather than
+                    // as one more panel — with all three on the same material
+                    // the sidebar had nothing to stand above.
+                    VisualEffectBackground(material: .sidebar)
+                    // A breath of light over the material, and the whole
+                    // reason for it: `sidebar` and the content columns' own
+                    // material land within a point or two of each other here,
+                    // so the pane that should sit above the others read as
+                    // level with them. Lifting this one rather than darkening
+                    // its neighbours keeps the glass on all three.
+                    Color.white.opacity(colorScheme == .dark ? 0.05 : 0.10)
+                }
+                // On the fill alone, never on the pane: applied to the whole
+                // view it pulled the rows themselves up under the title bar,
+                // where the traffic lights sat on top of the first one.
+                .ignoresSafeArea(edges: .top)
+            }
+    }
+
+    /// The colour the window borrows from what is open, if anything is.
+    private var washColor: Color? {
+        selected?.sportType.color
     }
 
     @ToolbarContentBuilder

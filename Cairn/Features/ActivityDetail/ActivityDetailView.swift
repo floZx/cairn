@@ -16,7 +16,6 @@ struct ActivityDetailView: View {
     @State private var hoverDistanceKm: Double?
     @AppStorage(MapStyle.storageKey) private var mapStyle: MapStyle = .standard
     @AppStorage(TrackColor.storageKey) private var trackColor: TrackColor = .accent
-    @Environment(\.colorScheme) private var colorScheme
 
     /// Cached: the body re-evaluates on every mouse move while a chart is
     /// hovered, and deriving this from the blobs each time made hover pay an
@@ -87,40 +86,15 @@ struct ActivityDetailView: View {
             }
             .padding()
         }
-        // The sport's light on the frosted pane behind the content.
-        //
-        // The window material can only blend the desktop, so on a dark
-        // wallpaper it has nothing to catch and the pane stays grey whatever
-        // the outing. This is the colour the app itself supplies: a wash from
-        // the top, where the header already carries the sport, fading out
-        // before the figures. Same reasoning as `AmbientGlow`, and the same
-        // restraint — felt before it is seen, or it is a tinted rectangle.
-        .background(alignment: .top) {
-            LinearGradient(
-                colors: [
-                    activity.sportType.color.opacity(
-                        AmbientGlow.opacity(for: colorScheme) * Self.paneWashFactor
-                    ),
-                    .clear,
-                ],
-                startPoint: .top, endPoint: .bottom
-            )
-            .frame(height: 260)
-            .allowsHitTesting(false)
-        }
+        // The sport's light on the frosted pane behind the content: the window
+        // material can only blend the desktop, so on a dark wallpaper it has
+        // nothing to catch and the pane stays grey whatever the outing.
+        .sportWash(activity.sportType.color, strength: SportWashStrength.detail)
         .navigationTitle(activity.name)
         .task(id: activity.stravaID) {
             app.loadDetail(stravaID: activity.stravaID)
         }
     }
-
-    /// A fraction of the glow's own opacity, because the two stack.
-    ///
-    /// The header already lights its own block with `AmbientGlow`, and the
-    /// pane's wash sits right under it over the same 260 points. At the glow's
-    /// full strength the sum read as a coloured banner across the top rather
-    /// than as light.
-    private static let paneWashFactor = 0.55
 
     /// Why there are no charts, or nil when there are.
     ///
