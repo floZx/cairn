@@ -364,5 +364,11 @@ struct ActivityListView: View {
         }
         // Lets the column's material through — see `RootView.splitView`.
         .scrollContentBackground(.hidden)
+        // And so does this: hiding the scroll background is not enough on a
+        // `Table`, which paints an opaque fill on every other row on top of
+        // it. That striping is what made this presentation look solid where
+        // the cards look like glass. The selection and the row separators
+        // carry the eye across a row on their own.
+        .alternatingRowBackgrounds(.disabled)
     }
 }
