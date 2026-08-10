@@ -21,6 +21,8 @@ struct SettingsScene: View {
                 .tabItem { Label("Cartes", systemImage: "map") }
             NutritionSettingsView()
                 .tabItem { Label("Nutrition", systemImage: "fork.knife") }
+            BackupSettingsView()
+                .tabItem { Label("Sauvegarde", systemImage: "externaldrive.badge.icloud") }
         }
         .frame(width: 520, height: 460)
     }

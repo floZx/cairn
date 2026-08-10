@@ -25,8 +25,26 @@ enum AppModelContainer {
         return "Cairn.store"
     }
 
+    /// Where the store and its external storage live.
+    static var directory: URL {
+        URL.applicationSupportDirectory.appending(path: "Cairn")
+    }
+
+    /// The store file in use right now — the real library, or the demo one.
+    static var storeURL: URL {
+        directory.appending(path: storeFileName(isTesting: false, isDemo: DemoData.isEnabled))
+    }
+
+    /// Where SwiftData keeps the values too large to sit in the store: the
+    /// photographs. Named after the store, with a leading dot, which is
+    /// SwiftData's own convention rather than a choice of ours.
+    static var externalStorageURL: URL {
+        let stem = storeURL.deletingPathExtension().lastPathComponent
+        return directory.appending(path: ".\(stem)_SUPPORT")
+    }
+
     static func make() throws -> ModelContainer {
-        let directory = URL.applicationSupportDirectory.appending(path: "Cairn")
+        let directory = Self.directory
         try FileManager.default.createDirectory(
             at: directory, withIntermediateDirectories: true
         )

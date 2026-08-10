@@ -16,6 +16,11 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
     case longRun
     case workout
     case commute
+    /// Strava's `trainer` flag, which is about being indoors and not about a
+    /// home trainer at all: in one real library of 840 activities it was set
+    /// on every one of the 5 pool swims, all 107 gym sessions and 49 of the
+    /// 355 runs — treadmills. Named after the machine, it put a home-trainer
+    /// badge on every length of breaststroke.
     case trainer
     case manual
     case isPrivate
@@ -36,7 +41,7 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
         case .longRun: "Sortie longue"
         case .workout: "Entraînement"
         case .commute: "Trajet"
-        case .trainer: "Home trainer"
+        case .trainer: "Intérieur"
         case .manual: "Manuelle"
         case .isPrivate: "Privée"
         }
@@ -50,7 +55,7 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
         case .longRun: "Longue"
         case .workout: "Entraîn."
         case .commute: "Trajet"
-        case .trainer: "Trainer"
+        case .trainer: "Intérieur"
         case .manual: "Manuelle"
         case .isPrivate: "Privée"
         }

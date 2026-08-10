@@ -5,6 +5,7 @@ import SwiftData
 struct CairnApp: App {
     private let container: ModelContainer
     @State private var app: AppEnvironment
+    @State private var backup = BackupController()
 
     init() {
         let container: ModelContainer
@@ -31,6 +32,10 @@ struct CairnApp: App {
             RootView()
                 .environment(app)
                 .task { app.syncOnLaunch() }
+                // At most once a day, and only if the library moved — see
+                // `BackupPlan`. Off the main thread, so a launch never waits
+                // on a hundred megabytes.
+                .task { backup.run(force: false) }
         }
         .modelContainer(container)
         .commands {
