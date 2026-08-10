@@ -99,7 +99,7 @@ struct ActivityDetailView: View {
             LinearGradient(
                 colors: [
                     activity.sportType.color.opacity(
-                        AmbientGlow.opacity(for: colorScheme)
+                        AmbientGlow.opacity(for: colorScheme) * Self.paneWashFactor
                     ),
                     .clear,
                 ],
@@ -113,6 +113,14 @@ struct ActivityDetailView: View {
             app.loadDetail(stravaID: activity.stravaID)
         }
     }
+
+    /// A fraction of the glow's own opacity, because the two stack.
+    ///
+    /// The header already lights its own block with `AmbientGlow`, and the
+    /// pane's wash sits right under it over the same 260 points. At the glow's
+    /// full strength the sum read as a coloured banner across the top rather
+    /// than as light.
+    private static let paneWashFactor = 0.55
 
     /// Why there are no charts, or nil when there are.
     ///

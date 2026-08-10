@@ -21,10 +21,8 @@ struct SidebarView: View {
     @Binding var filter: ActivityFilter
     @Query private var activities: [Activity]
 
-    private var sportCounts: [(sport: SportType, count: Int)] {
-        Dictionary(grouping: activities, by: \.sportType)
-            .map { (sport: $0.key, count: $0.value.count) }
-            .sorted { $0.count > $1.count }
+    private var sportCounts: [SportTally.Row] {
+        SportTally.rows(for: activities.map(\.sportType))
     }
 
     /// The filter sections drive the activity screens; beside the food and
@@ -62,7 +60,7 @@ struct SidebarView: View {
 
             if showsFilters {
                 Section("Sports") {
-                    ForEach(sportCounts, id: \.sport) { entry in
+                    ForEach(sportCounts) { entry in
                         Toggle(isOn: binding(for: entry.sport)) {
                             HStack {
                                 SportLabel(entry.sport.displayName, sport: entry.sport)
