@@ -411,7 +411,9 @@ struct RootView: View {
         // strip cannot match two different columns; this way round at least
         // the tones are right.
         .toolbarBackground(.hidden, for: .windowToolbar)
-        .background(SplitViewHoldingPriorities())
+        .background(SplitViewHoldingPriorities(
+            paneKind: showsNutrition ? .nutrition : .activity
+        ))
         // Arriving at the statistics gives the whole width to the charts: the
         // activity left selected in the list has nothing to do with the
         // figures now on screen, and its pane was simply in the way. Clicking
@@ -653,6 +655,12 @@ struct RootView: View {
     /// reopened a few points wide, its labels wrapped one letter per line.
     private static let detailMinWidth: CGFloat = 360
 
+    /// The food journal's panel needs far less: a small calendar and a day's
+    /// totals, where the activity pane carries a map and a photo strip. It
+    /// used to inherit the activity floor and so could never be tucked away
+    /// to the sliver it wants to be.
+    private static let nutritionPanelMinWidth: CGFloat = 220
+
     @ViewBuilder
     private var detailColumn: some View {
         // Neither the map nor the statistics collapse the pane outright any
@@ -667,7 +675,7 @@ struct RootView: View {
             // food calendar beside them answered a question nobody asked.
             if nutritionPanelVisible {
                 NutritionSidePanel(selected: $nutritionDateKey)
-                    .frame(minWidth: Self.detailMinWidth)
+                    .frame(minWidth: Self.nutritionPanelMinWidth)
             } else {
                 collapsedDetailColumn
             }

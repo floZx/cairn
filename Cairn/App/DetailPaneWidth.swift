@@ -22,24 +22,56 @@ import AppKit
 /// key can be written but never read back. Hence keeping the one width that
 /// matters here, and restoring it ourselves.
 enum DetailPaneWidth {
-    static let defaultsKey = "detailPaneWidth.v1"
-
-    /// Below this, the pane is not narrow — it is shut.
+    /// Which pane the column is holding, and therefore whose width this is.
     ///
-    /// `RootView` collapses the detail column to zero whenever there is nothing
-    /// to show in it, and that collapse arrives as an ordinary resize. Saving it
-    /// would mean reopening at zero forever, so anything under a plausible pane
-    /// width is treated as the collapse it is rather than as a choice.
-    static let minimumSaved: Double = 120
+    /// The two share a column but not a purpose: the activity pane carries a
+    /// map, a strip of photographs and four rows of figures, the food
+    /// journal's panel a small calendar and a day's totals. One width for
+    /// both meant dragging the journal's panel narrow dragged the activity
+    /// pane with it — a divider knows nothing of what is behind it.
+    enum Kind: String, CaseIterable, Sendable {
+        case activity
+        case nutrition
 
-    static func save(_ width: Double, to defaults: UserDefaults = .standard) {
-        guard width >= minimumSaved else { return }
-        defaults.set(width, forKey: defaultsKey)
+        var defaultsKey: String {
+            switch self {
+            // Left as it was, so a width already dragged survives the split.
+            case .activity: "detailPaneWidth.v1"
+            case .nutrition: "nutritionPaneWidth.v1"
+            }
+        }
+
+        /// Below this, the pane is not narrow — it is shut.
+        ///
+        /// `RootView` collapses the detail column to zero whenever it has
+        /// nothing to show, and that collapse arrives as an ordinary resize.
+        /// Saving it would mean reopening at zero forever, so anything under
+        /// a plausible width for *this* pane is read as the collapse it is.
+        /// The journal's panel is allowed to be far narrower, so its floor
+        /// has to be lower or its honest widths would be discarded as shuts.
+        var minimumSaved: Double {
+            switch self {
+            case .activity: 120
+            case .nutrition: 80
+            }
+        }
     }
 
-    static func saved(from defaults: UserDefaults = .standard) -> Double? {
-        let width = defaults.double(forKey: defaultsKey)
-        return width >= minimumSaved ? width : nil
+    static let defaultsKey = Kind.activity.defaultsKey
+
+    static func save(
+        _ width: Double, for kind: Kind = .activity,
+        to defaults: UserDefaults = .standard
+    ) {
+        guard width >= kind.minimumSaved else { return }
+        defaults.set(width, forKey: kind.defaultsKey)
+    }
+
+    static func saved(
+        for kind: Kind = .activity, from defaults: UserDefaults = .standard
+    ) -> Double? {
+        let width = defaults.double(forKey: kind.defaultsKey)
+        return width >= kind.minimumSaved ? width : nil
     }
 
     /// Where the last divider goes so the detail pane gets `width`, or nil when

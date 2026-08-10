@@ -37,6 +37,29 @@ struct DetailPaneWidthTests {
         #expect(DetailPaneWidth.saved(from: defaults) == 487)
     }
 
+    @Test("chaque volet garde sa propre largeur")
+    func kindsDoNotShare() {
+        let defaults = makeDefaults()
+        DetailPaneWidth.save(487, for: .activity, to: defaults)
+        DetailPaneWidth.save(240, for: .nutrition, to: defaults)
+        #expect(DetailPaneWidth.saved(for: .activity, from: defaults) == 487)
+        #expect(DetailPaneWidth.saved(for: .nutrition, from: defaults) == 240)
+        // Régler l'un ne dit rien de l'autre : c'est tout l'objet du partage.
+        DetailPaneWidth.save(600, for: .activity, to: defaults)
+        #expect(DetailPaneWidth.saved(for: .nutrition, from: defaults) == 240)
+    }
+
+    @Test("le plancher du volet alimentation est plus bas que celui des activités")
+    func nutritionKeepsNarrowerWidths() {
+        let defaults = makeDefaults()
+        // 100 pt : un repli pour le volet d'activité, une largeur honnête
+        // pour le panneau du journal, qui n'a qu'un calendrier à loger.
+        DetailPaneWidth.save(100, for: .activity, to: defaults)
+        DetailPaneWidth.save(100, for: .nutrition, to: defaults)
+        #expect(DetailPaneWidth.saved(for: .activity, from: defaults) == nil)
+        #expect(DetailPaneWidth.saved(for: .nutrition, from: defaults) == 100)
+    }
+
     @Test("le séparateur se place pour rendre au volet sa largeur")
     func placesTheDivider() {
         let position = DetailPaneWidth.dividerPosition(

@@ -1,5 +1,7 @@
 import SwiftUI
 
+
+
 /// Decides which column absorbs a width change, and gives the geometry a name
 /// that survives a rebuild.
 ///
@@ -46,31 +48,121 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         .zero, .milliseconds(50), .milliseconds(250), .milliseconds(750),
     ]
 
+    /// Which pane the detail column is showing, so its width is filed under
+    /// the pane it was dragged for.
+    var paneKind: DetailPaneWidth.Kind = .activity
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeNSView(context: Context) -> NSView {
         let probe = ProbeView()
+        let coordinator = context.coordinator
+        coordinator.kind = paneKind
         probe.onAttachToWindow = { [weak probe] in
             Task { @MainActor in
                 guard let probe else { return }
-                await Self.applyWhenReady(from: probe)
+                await Self.applyWhenReady(from: probe, coordinator: coordinator)
             }
         }
         return probe
     }
 
+    /// Holds the split view between updates, and which pane it is showing.
+    @MainActor
+    final class Coordinator {
+        fileprivate weak var splitView: NSSplitView?
+        fileprivate var kind: DetailPaneWidth.Kind = .activity
+
+        /// The width the column owes the pane now showing, until it can take
+        /// it.
+        ///
+        /// A hand-over cannot simply set the width: switching section shuts
+        /// the column to nothing for a moment — measured at two full seconds
+        /// — and a pane of zero width is one `RootView` has deliberately
+        /// closed, which nothing may reopen. So the width waits here and is
+        /// laid on at the first resize that finds the column open again.
+        private var pendingWidth: Double?
+
+        /// True while the column is rearranging itself after a hand-over.
+        ///
+        /// Everything the switch provokes — the column's minimum changing with
+        /// the pane, AppKit pushing the divider to obey it, the position we
+        /// then set ourselves — arrives as an ordinary resize, and an observer
+        /// cannot tell any of it from a drag. Recorded as one, the floor the
+        /// column had just been clamped to overwrote the very width that was
+        /// about to be restored, and the pane came back at its minimum for
+        /// good.
+        private var isSettling = false
+
+        /// Hands the column from one pane to the other: what the user left
+        /// behind is filed under the pane they dragged it for, and the pane
+        /// arriving comes back at its own width.
+        fileprivate func handOver(to newKind: DetailPaneWidth.Kind) {
+            guard newKind != kind, let splitView else {
+                kind = newKind
+                return
+            }
+            saveCurrentWidth(of: splitView)
+            kind = newKind
+            isSettling = true
+            // Read now rather than when it is finally applied: the churn this
+            // switch is about to cause would have had time to answer with
+            // something else.
+            pendingWidth = DetailPaneWidth.saved(for: newKind)
+            // Attempted one hop later, because the column's minimum changes
+            // with the pane in this very update and a position set before
+            // AppKit has taken the new constraint gets clamped to the old
+            // floor. If the column is shut by then, the width simply waits.
+            Task { @MainActor [weak self, weak splitView] in
+                if let splitView { self?.applyPendingWidth(to: splitView) }
+                try? await Task.sleep(for: .milliseconds(50))
+                self?.isSettling = false
+            }
+        }
+
+        /// Lays the owed width on the column, if it is open to take it.
+        fileprivate func applyPendingWidth(to splitView: NSSplitView) {
+            guard let width = pendingWidth,
+                  splitView.arrangedSubviews.count >= 3,
+                  splitView.arrangedSubviews[2].frame.width > 0
+            else { return }
+            pendingWidth = nil
+            SplitViewHoldingPriorities.setDetailWidth(width, of: splitView)
+        }
+
+        /// Called at startup, once the split view has been found.
+        fileprivate func restoreOnLaunch(_ splitView: NSSplitView) {
+            pendingWidth = DetailPaneWidth.saved(for: kind)
+            applyPendingWidth(to: splitView)
+        }
+
+        fileprivate func saveCurrentWidth(of splitView: NSSplitView) {
+            guard !isSettling, splitView.arrangedSubviews.count >= 3 else { return }
+            DetailPaneWidth.save(
+                splitView.arrangedSubviews[2].frame.width, for: kind
+            )
+        }
+    }
+
     func updateNSView(_ view: NSView, context: Context) {
-        // Nothing to do: the work hangs off the probe joining a window, which
-        // happens after SwiftUI's first update and never again.
+        // The probe's own work hangs off joining a window, which happens after
+        // SwiftUI's first update and never again. What does change here is
+        // which pane the column holds.
+        context.coordinator.handOver(to: paneKind)
     }
 
     @MainActor
-    private static func applyWhenReady(from probe: NSView) async {
+    private static func applyWhenReady(
+        from probe: NSView, coordinator: Coordinator
+    ) async {
         for delay in Self.retryDelays {
             if delay != .zero { try? await Task.sleep(for: delay) }
 
             guard let root = probe.window?.contentView else { continue }
             for splitView in root.descendantSplitViews() where apply(to: splitView) {
-                restoreDetailWidth(of: splitView)
-                observeDetailWidth(of: splitView)
+                coordinator.splitView = splitView
+                coordinator.restoreOnLaunch(splitView)
+                observeDetailWidth(of: splitView, coordinator: coordinator)
                 clipDividersUnderToolbar(of: splitView)
                 return
             }
@@ -102,15 +194,11 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         return true
     }
 
-    /// Puts the last divider back where it leaves the detail pane its width.
-    ///
-    /// Runs after AppKit has restored its own geometry, which is the whole
-    /// point: AppKit restored from a key that a rebuild may have orphaned, and
-    /// this corrects it.
+
+    /// Puts the last divider where it leaves the detail pane exactly `width`.
     @MainActor
-    static func restoreDetailWidth(of splitView: NSSplitView) {
-        guard let width = DetailPaneWidth.saved(),
-              splitView.arrangedSubviews.count >= 3,
+    static func setDetailWidth(_ width: Double, of splitView: NSSplitView) {
+        guard splitView.arrangedSubviews.count >= 3,
               // Nothing to reopen when the pane is deliberately shut: `RootView`
               // collapses it to zero whenever there is no selection.
               splitView.arrangedSubviews[2].frame.width > 0
@@ -133,16 +221,37 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
     /// taken out of the notification: `Notification` is not `Sendable`, and the
     /// observer is never removed — it lives exactly as long as the window does.
     @MainActor
-    private static func observeDetailWidth(of splitView: NSSplitView) {
+    private static func observeDetailWidth(
+        of splitView: NSSplitView, coordinator: Coordinator
+    ) {
         NotificationCenter.default.addObserver(
             forName: NSSplitView.didResizeSubviewsNotification,
             object: splitView, queue: .main
-        ) { [weak splitView] _ in
+        ) { [weak splitView, weak coordinator] note in
+            // Only a drag is a choice, and AppKit says which is which.
+            //
+            // Measured on macOS 15: a divider pulled by hand posts
+            // notifications carrying `NSSplitViewUserResizeKey`, while the
+            // resize AppKit performs to honour a column's minimum — the one
+            // that arrived six hundred milliseconds after every section
+            // switch and wrote the floor over the width being restored —
+            // carries the divider index and nothing else. A window of time
+            // could not tell them apart; this can.
+            //
+            // The key is not documented, so its absence is read as "not a
+            // drag": widths would stop being remembered rather than be
+            // remembered wrong.
+            let isDrag = note.userInfo?["NSSplitViewUserResizeKey"] != nil
             MainActor.assumeIsolated {
                 guard let splitView, splitView.arrangedSubviews.count >= 3 else {
                     return
                 }
-                DetailPaneWidth.save(splitView.arrangedSubviews[2].frame.width)
+                // Under whichever pane is showing: the same drag means two
+                // different things depending on what the column holds.
+                if isDrag { coordinator?.saveCurrentWidth(of: splitView) }
+                // Whatever the cause: this may be the resize that reopens the
+                // column, and the width it is owed has been waiting for it.
+                coordinator?.applyPendingWidth(to: splitView)
                 // The dividers were just resized along with everything else,
                 // so the mask has to follow or it clips the wrong slice.
                 clipDividersUnderToolbar(of: splitView)
