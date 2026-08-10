@@ -276,6 +276,20 @@ struct RootView: View {
 
     private var showsStatistics: Bool { sidebarSelection == .statistics }
 
+    /// Whether the toolbar's activity buttons have anything to act on.
+    ///
+    /// Beside the food journal, the weight chart or the statistics they work
+    /// on a selection those screens never show — a Supprimer that would take
+    /// away an outing the user cannot see, a Favori whose star lights nothing.
+    /// The sort, presentation and search controls need no such gate: they
+    /// belong to the list's own toolbar and leave with it.
+    ///
+    /// The menu keeps every one of them, shortcuts included: this hides the
+    /// buttons, it does not withdraw the commands.
+    private var showsActivityActions: Bool {
+        !showsNutrition && !showsWeight && !showsStatistics
+    }
+
     private var showsNutrition: Bool { sidebarSelection == .nutrition }
 
     private var showsWeight: Bool { sidebarSelection == .weight }
@@ -794,44 +808,47 @@ struct RootView: View {
             }
             // Grouped, not three loose buttons: the toolbar already carries three
             // items, and six side by side is where it stops reading as a toolbar.
-            // These three act on the selected activity and belong together.
-            ToolbarItemGroup {
-                Button {
-                    editor = .create
-                } label: {
-                    Label("Nouvelle activité", systemImage: "plus")
-                }
-                .help("Ajouter une activité saisie à la main")
+            // These three act on the selected activity and belong together —
+            // and leave together, on the screens that show no activity.
+            if showsActivityActions {
+                ToolbarItemGroup {
+                    Button {
+                        editor = .create
+                    } label: {
+                        Label("Nouvelle activité", systemImage: "plus")
+                    }
+                    .help("Ajouter une activité saisie à la main")
 
-                Button {
-                    toggleFavorite()
-                } label: {
-                    // Filled when every selected activity is already a favourite,
-                    // so the icon says what the button is about to do.
-                    Label(
-                        "Favori",
-                        systemImage: selection.allSatisfy(\.isFavorite) && !selection.isEmpty
-                            ? "star.fill" : "star"
-                    )
-                }
-                .disabled(selection.isEmpty)
-                .help("Marquer ou retirer des favoris")
+                    Button {
+                        toggleFavorite()
+                    } label: {
+                        // Filled when every selected activity is already a favourite,
+                        // so the icon says what the button is about to do.
+                        Label(
+                            "Favori",
+                            systemImage: selection.allSatisfy(\.isFavorite) && !selection.isEmpty
+                                ? "star.fill" : "star"
+                        )
+                    }
+                    .disabled(selection.isEmpty)
+                    .help("Marquer ou retirer des favoris")
 
-                Button {
-                    if let selected { editor = .edit(selected) }
-                } label: {
-                    Label("Modifier", systemImage: "pencil")
-                }
-                .disabled(selected == nil)
-                .help("Modifier l'activité sélectionnée")
+                    Button {
+                        if let selected { editor = .edit(selected) }
+                    } label: {
+                        Label("Modifier", systemImage: "pencil")
+                    }
+                    .disabled(selected == nil)
+                    .help("Modifier l'activité sélectionnée")
 
-                Button {
-                    pendingDeletion = selected
-                } label: {
-                    Label("Supprimer", systemImage: "trash")
+                    Button {
+                        pendingDeletion = selected
+                    } label: {
+                        Label("Supprimer", systemImage: "trash")
+                    }
+                    .disabled(selected == nil)
+                    .help("Supprimer l'activité sélectionnée")
                 }
-                .disabled(selected == nil)
-                .help("Supprimer l'activité sélectionnée")
             }
     }
 }
