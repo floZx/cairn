@@ -25,6 +25,15 @@ final class SelectionOverlayView: NSView {
 
     override var isOpaque: Bool { false }
 
+    /// Matches `MKMapView`, which is flipped: origin at the top left.
+    ///
+    /// Without this the rectangle was drawn in one coordinate system and read
+    /// in another. It looked right — the drawing used the same unflipped space
+    /// as the mouse — but the box handed to the filter was its mirror about
+    /// the middle of the map, so a zone traced over Saint-Galmier selected the
+    /// tracks of a band the same distance the other way.
+    override var isFlipped: Bool { true }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         isEnabled ? super.hitTest(point) : nil
     }
