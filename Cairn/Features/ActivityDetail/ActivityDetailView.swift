@@ -118,6 +118,15 @@ struct ActivityDetailView: View {
             Text(Format.longDate(activity.startLocalDate))
                 .foregroundStyle(.secondary)
 
+            if !headerLabels.isEmpty {
+                FlowLayout {
+                    ForEach(headerLabels) { label in
+                        ActivityLabelChip(label: label)
+                    }
+                }
+                .padding(.top, 2)
+            }
+
             // Said outright, and for every source including Strava. Showing the
             // origin only when it was *not* Strava made the common case silent,
             // so an activity wrongly marked as imported looked no different from
@@ -145,6 +154,18 @@ struct ActivityDetailView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
+        }
+    }
+
+    /// The markers worth a chip here.
+    ///
+    /// `manual` drops out when the source line below already says "Saisie
+    /// manuelle" — the same fact twice, two lines apart. It stays for an
+    /// activity synced from Strava, where the source reads "Strava" and the
+    /// marker is the only thing saying it was typed in rather than recorded.
+    private var headerLabels: [ActivityLabel] {
+        activity.labels.filter { label in
+            !(label == .manual && activity.source == .manual)
         }
     }
 
