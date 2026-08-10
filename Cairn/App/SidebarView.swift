@@ -122,6 +122,11 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        // The list paints its own opaque background over anything behind it.
+        // The material itself lives on the column, in `RootView.sidebar`:
+        // placed here it ended up under SwiftUI's own sidebar fill and never
+        // showed.
+        .scrollContentBackground(.hidden)
     }
 
     private func binding(for label: ActivityLabel) -> Binding<Bool> {

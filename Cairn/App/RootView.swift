@@ -343,6 +343,12 @@ struct RootView: View {
             .frame(minWidth: 480)
         } detail: {
             detailColumn
+                // The pane has no fill of its own — with the window opened up
+                // for the sidebar's material, the desktop came straight
+                // through it and the figures sat on someone else's window.
+                // A frosted sheet of its own gives it back a surface, and the
+                // right kind of one.
+                .background(VisualEffectBackground(material: .underWindowBackground))
         }
         // Makes the list absorb a sidebar toggle instead of the detail pane.
         .background(SplitViewHoldingPriorities())
@@ -640,6 +646,7 @@ struct RootView: View {
     private var sidebar: some View {
         SidebarView(selection: $sidebarSelection, filter: $filter)
             .frame(minWidth: 260)
+            .background(VisualEffectBackground(material: .sidebar))
     }
 
     @ToolbarContentBuilder
