@@ -116,8 +116,10 @@ struct ActivityDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            SportLabel(activity.sportType.displayName, sport: activity.sportType)
-                .foregroundStyle(.secondary)
+            // No sport line above the title: the watermark behind the header
+            // is the same glyph at ten times the size, and the wash over the
+            // whole pane is the same colour. Three ways of saying "trail"
+            // before the name of the outing is read.
             Text(activity.name).font(.largeTitle.weight(.semibold))
             Text(Format.longDate(activity.startLocalDate))
                 .foregroundStyle(.secondary)

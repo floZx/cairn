@@ -82,6 +82,17 @@ struct FormattersTests {
         #expect(!formatted.contains(":"))
     }
 
+    @Test("la date numérique est en jj/mm/aaaa, à largeur constante")
+    func numericDateIsFixedWidth() {
+        // 2026-08-05T12:33:00Z, soit le 5 août à Paris.
+        let august = Date(timeIntervalSince1970: 1_785_933_180)
+        #expect(Format.numericDate(august) == "05/08/2026")
+        // Le jour et le mois gardent leur zéro : c'est ce qui fait qu'une
+        // colonne de dates s'aligne sans jamais changer de largeur.
+        let december = august.addingTimeInterval(60 * 60 * 24 * 130)
+        #expect(Format.numericDate(december).count == 10)
+    }
+
     @Test("la natation s'exprime en allure aux 100 m, pas au kilomètre")
     func formatsSwimPacePerHundredMetres() {
         // 1000 m en 25 min = 0,6667 m/s → 2:30 aux 100 m.

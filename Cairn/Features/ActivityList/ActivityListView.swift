@@ -269,6 +269,18 @@ struct ActivityListView: View {
         .environment(\.defaultMinListRowHeight, ActivityCard.rowHeight)
     }
 
+    /// A figure in a table cell.
+    ///
+    /// Trailing and monospaced, which is the whole difference between a column
+    /// of numbers and a list of them: left-aligned, "3,3 km" and "96,7 km"
+    /// started at the same place and ended nowhere near each other, so nothing
+    /// could be compared down the column without reading every row.
+    private func figure(_ text: String) -> some View {
+        Text(text)
+            .monospacedDigit()
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
     private func table(_ rows: [Activity]) -> some View {
         Table(
             rows,
@@ -277,10 +289,13 @@ struct ActivityListView: View {
             columnCustomization: $columnCustomization
         ) {
             TableColumn("Date", value: \.startLocalDate) { activity in
-                Text(Format.dateOnly(activity.startLocalDate))
+                Text(Format.numericDate(activity.startLocalDate))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
-            // "12 déc. 2025" is the widest this gets, now the time is gone.
-            .width(min: 90, ideal: 105)
+            // Every date is now "09/08/2026" wide, so the column can be cut to
+            // fit it exactly instead of to the longest month name.
+            .width(min: 80, ideal: 88)
             .customizationID("date")
 
             // No `customizationID`, which is what makes this column permanent:
@@ -288,41 +303,42 @@ struct ActivityListView: View {
             // unreadable. It stays second unless the date is hidden.
             TableColumn("Nom", value: \.name) { activity in
                 SportLabel(activity.name, sport: activity.sportType)
+                    .fontWeight(.medium)
             }
             .width(min: 180, ideal: 280)
 
             TableColumn("Distance", value: \.distance) { activity in
-                Text(Format.distance(activity.distance))
+                figure(Format.distance(activity.distance))
             }
             .width(min: 80, ideal: 90)
             .customizationID("distance")
 
             TableColumn("Durée", value: \.movingTime) { activity in
-                Text(Format.durationCompact(activity.movingTime))
+                figure(Format.durationCompact(activity.movingTime))
             }
             .width(min: 80, ideal: 90)
             .customizationID("duration")
 
             TableColumn("D+", value: \.totalElevationGain) { activity in
-                Text(Format.elevation(activity.totalElevationGain))
+                figure(Format.elevation(activity.totalElevationGain))
             }
             .width(min: 70, ideal: 80)
             .customizationID("elevation")
 
             TableColumn("D+/km", value: \.elevationPerKilometre) { activity in
-                Text(Format.elevationPerKilometre(activity.elevationPerKilometre))
+                figure(Format.elevationPerKilometre(activity.elevationPerKilometre))
             }
             .width(min: 80, ideal: 90)
             .customizationID("elevationPerKilometre")
 
             TableColumn("Vitesse", value: \.averageSpeed) { activity in
-                Text(Format.speed(activity.averageSpeed, sport: activity.sportType))
+                figure(Format.speed(activity.averageSpeed, sport: activity.sportType))
             }
             .width(min: 90, ideal: 100)
             .customizationID("speed")
 
             TableColumn("FC moy.", value: \.averageHeartrateOrZero) { activity in
-                Text(Format.heartrate(activity.averageHeartrate))
+                figure(Format.heartrate(activity.averageHeartrate))
             }
             .width(min: 80, ideal: 90)
             .customizationID("averageHeartRate")
@@ -331,7 +347,14 @@ struct ActivityListView: View {
                 HStack(spacing: 4) {
                     ForEach(activity.labels) { label in
                         Image(systemName: label.symbolName)
-                            .foregroundStyle(.secondary)
+                            // The favourite keeps the yellow it has in the
+                            // cards and in the detail pane; a star greyed out
+                            // here read as a marker that was not set.
+                            .foregroundStyle(
+                                label == .favorite
+                                    ? AnyShapeStyle(.yellow)
+                                    : AnyShapeStyle(.secondary)
+                            )
                     }
                 }
                 .help(activity.labels.map(\.displayName).joined(separator: ", "))

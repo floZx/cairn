@@ -94,6 +94,17 @@ enum Format {
         return formatter
     }()
 
+    /// All digits, fixed width: for a table column, where "9 août 2026" and
+    /// "31 juil. 2026" are two different widths and neither lines up with the
+    /// next. `dateFormat` rather than a style, because a style is the system's
+    /// choice and this one has to be the same length on every row.
+    private static let numericDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.dateFormat = "dd/MM/yyyy"
+        return formatter
+    }()
+
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "fr_FR")
@@ -131,6 +142,10 @@ enum Format {
     /// column that is mostly used for sorting and scanning.
     static func dateOnly(_ date: Date) -> String {
         dateOnlyFormatter.string(from: date)
+    }
+
+    static func numericDate(_ date: Date) -> String {
+        numericDateFormatter.string(from: date)
     }
 
     static func time(_ date: Date) -> String {

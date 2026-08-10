@@ -71,6 +71,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
             for splitView in root.descendantSplitViews() where apply(to: splitView) {
                 restoreDetailWidth(of: splitView)
                 observeDetailWidth(of: splitView)
+                clipDividersUnderToolbar(of: splitView)
                 return
             }
         }
@@ -142,7 +143,50 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
                     return
                 }
                 DetailPaneWidth.save(splitView.arrangedSubviews[2].frame.width)
+                // The dividers were just resized along with everything else,
+                // so the mask has to follow or it clips the wrong slice.
+                clipDividersUnderToolbar(of: splitView)
             }
+        }
+    }
+
+    /// Stops the column dividers at the bottom of the toolbar.
+    ///
+    /// The dividers run the full height of the window. That never showed while
+    /// the toolbar painted its own fill over them — and hiding that fill is
+    /// exactly what let each column's material rise into the bar and give it
+    /// the right tone. The line came with it: one hard rule straight up
+    /// through the middle of the toolbar, cutting it in two.
+    ///
+    /// Masked rather than hidden: below the bar the divider is doing its job,
+    /// and the two content columns are close enough in tone that without it
+    /// they would run together. Only the part inside the bar goes.
+    @MainActor
+    static func clipDividersUnderToolbar(of splitView: NSSplitView) {
+        guard let contentView = splitView.window?.contentView else { return }
+        // What the titlebar and toolbar take off the top. Zero in a window
+        // without one, in which case there is nothing to clip.
+        let barHeight = contentView.bounds.height
+            - contentView.window!.contentLayoutRect.height
+        guard barHeight > 0 else { return }
+
+        // By elimination rather than by class: the dividers are the subviews
+        // that are not arranged columns, and the class that draws them is
+        // private. Nothing here breaks if AppKit renames it.
+        let columns = Set(splitView.arrangedSubviews.map(ObjectIdentifier.init))
+        for divider in splitView.subviews
+        where !columns.contains(ObjectIdentifier(divider)) {
+            divider.wantsLayer = true
+            let mask = divider.layer?.mask ?? CALayer()
+            mask.backgroundColor = NSColor.black.cgColor
+            // Layer coordinates follow the view, which is not flipped: y grows
+            // upward, so the bar is the top slice and what we keep starts at 0.
+            mask.frame = CGRect(
+                x: 0, y: 0,
+                width: divider.bounds.width,
+                height: max(0, divider.bounds.height - barHeight)
+            )
+            divider.layer?.mask = mask
         }
     }
 

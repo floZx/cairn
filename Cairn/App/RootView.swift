@@ -357,16 +357,45 @@ struct RootView: View {
                 // through it and the figures sat on someone else's window.
                 // A frosted sheet of its own gives it back a surface, and the
                 // right kind of one.
+                // Deliberately not lifted the way the sidebar is: tried, and
+                // measured at 47 against the sidebar's 53 and the list's 48,
+                // which puts all three planes within five values of each
+                // other — the flatness the lift was introduced to cure. The
+                // sidebar is chrome and earns the raised plane; this pane is a
+                // document, map and charts and photographs, and belongs with
+                // the content it describes.
                 .background(
-                VisualEffectBackground(material: .underWindowBackground)
-                    .ignoresSafeArea(edges: .top)
-            )
+                    VisualEffectBackground(material: .underWindowBackground)
+                        .ignoresSafeArea(edges: .top)
+                )
         }
         // Makes the list absorb a sidebar toggle instead of the detail pane.
+        // One sheet for the whole window, the toolbar strip included.
+        //
+        // The two content columns used to reach up behind the toolbar each on
+        // their own, and the boundary between them came with them: a hard line
+        // straight through the middle of the bar, warmed on one side by the
+        // detail pane's wash. A single sheet has no boundary to show. Only the
+        // sidebar keeps a fill of its own up there, which is the one seam
+        // macOS draws in a toolbar anyway.
+        // A guard, never meant to be seen: every column paints over it. It is
+        // here so that no strip of an opened-up window is ever left bare.
+        .background(
+            VisualEffectBackground(material: .underWindowBackground)
+                .ignoresSafeArea()
+        )
         // The toolbar's own fill was a dark opaque band laid across three
-        // frosted columns — 28 where the sidebar under it reads 57. Hidden, it
-        // lets each column's material rise behind it, so the bar takes the
-        // colour of whatever it sits above instead of cutting the window in two.
+        // frosted columns — 28 where the sidebar under it reads 58. Hidden, it
+        // lets each column's material rise into it, so the bar carries the
+        // tone of whatever it sits above.
+        //
+        // The cost, and it is a real one: that fill was also what covered the
+        // split view's dividers, which now run the full height of the window,
+        // toolbar included. Every replacement tried — a thin material, a
+        // lighter sheet behind it — turns out to impose its own tone on the
+        // whole width, which puts a band back over the sidebar. One uniform
+        // strip cannot match two different columns; this way round at least
+        // the tones are right.
         .toolbarBackground(.hidden, for: .windowToolbar)
         .background(SplitViewHoldingPriorities())
         // Arriving at the statistics gives the whole width to the charts: the
@@ -686,7 +715,13 @@ struct RootView: View {
                 // On the fill alone, never on the pane: applied to the whole
                 // view it pulled the rows themselves up under the title bar,
                 // where the traffic lights sat on top of the first one.
-                .ignoresSafeArea(edges: .top)
+                //
+                // Every edge, not just the top. The split view seats this pane
+                // a few points inside its own column, and on a window opened
+                // up for blending those points are not merely unpainted, they
+                // are see-through — a bare strip of desktop down the left of
+                // the window, and only there.
+                .ignoresSafeArea()
             }
     }
 
