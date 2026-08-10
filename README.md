@@ -4,6 +4,9 @@ Journal local de vos activités physiques sur macOS. Vos données vous appartien
 et vivent sur votre disque : Strava n'est qu'une des façons de l'alimenter, aux
 côtés de la saisie manuelle.
 
+Le journal s'est élargi au-delà du sport : il tient aussi l'**alimentation** et
+le **poids**, pour que tout le suivi se lise au même endroit.
+
 ## Captures
 
 <!-- Les images arrivent dans docs/screenshots/ ; voir « Jeu de démonstration ». -->
@@ -170,6 +173,24 @@ accepte le nom, la description, le sport et le matériel — mais c'est un choix
 aucune autorisation d'écriture n'est demandée, aucun quota n'est consommé, et une
 panne de leur côté ne peut pas abîmer votre journal.
 
+## Parcours similaires
+
+Le détail d'une activité liste les autres sorties faites **sur le même tracé**,
+avec pour chacune sa date, son temps, son allure et l'écart face à celle qui est
+ouverte. Un graphe d'allure les met en perspective ; un clic ouvre l'une d'elles.
+
+L'appariement se fait en deux temps. Même sport et distances à ±10 % d'abord,
+parce que c'est gratuit et que cela épargne de décoder la trace de toute la
+bibliothèque. Puis la forme : chaque tracé est rééchantillonné en 32 points
+équidistants **le long du parcours**, et deux tracés sont les mêmes si l'écart
+moyen point à point reste sous `max(75 m, 1 % de la distance)`, plafonné à
+250 m. La dérive GPS passe, la rue parallèle non.
+
+Comparer position à position le long du chemin rend le sens de parcours
+discriminant sans qu'on ait à s'en occuper : une boucle faite à l'envers ne
+s'apparie pas, tandis qu'un aller-retour s'apparie dans les deux sens — il est
+symétrique, c'est bien le même parcours.
+
 ## Statistiques
 
 La vue Statistiques donne les cumuls, un histogramme du volume, une ventilation
@@ -196,6 +217,56 @@ Un choix de fond : aucune distance totale n'est affichée globalement. Additionn
 une natation, une sortie en vélo électrique et un trail donne un nombre qui
 n'informe sur rien. Seuls le nombre d'activités, le temps et le dénivelé sont
 cumulés globalement ; la distance se lit par sport.
+
+## Alimentation et poids
+
+Deux sections de la barre latérale, portage d'un carnet en console que
+l'application a absorbé pour que tout le suivi tienne au même endroit.
+
+**Le journal alimentaire** est une journée à la fois : des repas, les aliments
+qui les composent, et les macros qui en découlent. Les cibles par repas sont
+**adaptatives** — un repas terminé grève le budget du jour et les suivants se
+partagent ce qui reste réellement, plutôt qu'une part fixe qui mentirait dès le
+premier écart. Un dépassement se lit à la couleur : orange jusqu'à +10 % de la
+cible, rouge au-delà, et jugé sur les entiers affichés pour qu'une couleur ne
+contredise jamais le nombre qu'elle habille.
+
+**Les aliments** viennent d'un catalogue Open Food Facts construit localement à
+partir de l'export CSV — environ 380 000 produits après filtrage, dans un index
+FTS5. Il se télécharge et se reconstruit depuis les réglages ; il n'est
+interrogé qu'en local. La recherche sert d'abord vos favoris et vos derniers
+aliments utilisés, avant le catalogue.
+
+**Recettes et favoris** évitent de ressaisir : un repas rempli s'enregistre
+comme recette réutilisable, l'étoile d'une ligne en fait un favori avec sa
+quantité habituelle. Les deux se gèrent depuis les réglages.
+
+**Le poids** a sa propre section : une pesée par jour, une courbe, et une
+tendance en kg/semaine calculée par moindres carrés sur une fenêtre ancrée à la
+dernière pesée.
+
+Un import unique récupère les données d'un carnet `suivinut` existant.
+
+## Sauvegarde
+
+L'application écrit une copie de vos données dans **iCloud Drive**, dans un
+dossier `Cairn` : au démarrage, une fois par jour, et seulement si quelque chose
+a changé. Les réglages en donnent la date et un bouton pour en forcer une.
+
+C'est une sauvegarde et non une synchronisation, délibérément : une synchro
+propage une suppression en quelques secondes, ce qui ne protège pas de l'erreur
+contre laquelle on sauvegarde le plus souvent. Trois versions datées sont
+conservées.
+
+Les deux moitiés sont traitées différemment parce qu'elles se comportent
+différemment. Le journal est un fichier SQLite que l'application tient ouvert :
+il est extrait par `VACUUM INTO` sur une connexion en lecture seule, ce qui
+donne une copie cohérente sans toucher au fichier en service, puis compressé —
+112 Mo deviennent 39. Les photos sont des milliers de fichiers jamais modifiés
+après écriture : seules les manquantes sont envoyées.
+
+Un fichier `COMMENT-RESTAURER.txt` accompagne les copies. Le catalogue Open Food
+Facts n'est pas sauvegardé : il se retélécharge.
 
 ## Fonds de carte
 
@@ -337,6 +408,7 @@ retour à la ligne.
 | `t` | cycler le jour-type |
 | `w` | nouvelle pesée |
 | `h` `l` | jour précédent / suivant (aussi `←` `→`) — échap : aujourd'hui |
+| `↓` `↑` · `⌃J` `⌃K` | parcourir les résultats de recherche d'aliment |
 
 ### Fichiers et synchronisation
 
@@ -350,7 +422,16 @@ retour à la ligne.
 
 ## Emplacement des données
 
-`~/Library/Application Support/Cairn/Cairn.store`
+Tout vit dans `~/Library/Application Support/Cairn/` :
+
+| | |
+|---|---|
+| `Cairn.store` | le journal : activités, alimentation, pesées |
+| `.Cairn_SUPPORT/` | les photos, que SwiftData stocke hors de la base |
+| `off.db` | le catalogue Open Food Facts, retéléchargeable |
+
+Les deux premiers sont irremplaçables et partent dans la sauvegarde iCloud ; le
+troisième non, puisqu'il se reconstruit.
 
 ## Licence
 
