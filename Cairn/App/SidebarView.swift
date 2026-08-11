@@ -30,6 +30,16 @@ struct SidebarView: View {
     /// to mark *some* month even when nothing is open. `RootView` maps it onto
     /// `journalSelection` and onto the store — see `journalDayBinding`.
     @Binding var journalDay: DateKey
+
+    /// The food journal's day, for its own calendar. The same binding the
+    /// journal screen travels on, so the two never disagree.
+    @Binding var nutritionDay: DateKey
+
+    /// A calendar is a grid, not a row: on the list's own row insets it loses
+    /// a column to them.
+    private static let calendarInsets = EdgeInsets(
+        top: 4, leading: 6, bottom: 4, trailing: 6
+    )
     @Environment(AppEnvironment.self) private var app
     @Query private var activities: [Activity]
 
@@ -83,6 +93,17 @@ struct SidebarView: View {
                 }
             }
 
+            // Both day-keyed sections put their calendar here, in the one pane
+            // that is on screen whatever the content column is showing. The
+            // food journal's used to sit in the right-hand panel, which is the
+            // side one reads results on, not the side one navigates from.
+            if selection == .nutrition {
+                Section {
+                    NutritionCalendarSection(selected: $nutritionDay)
+                        .listRowInsets(Self.calendarInsets)
+                }
+            }
+
             if selection == .journal {
                 // Above the tags, because it answers the question one arrives
                 // with — "what did I write on the 6th?" — where the tags answer
@@ -92,9 +113,7 @@ struct SidebarView: View {
                         selected: $journalDay,
                         loggedDays: Set(app.journal.notes.map(\.date.raw))
                     )
-                    // The grid is not a row: without this it inherits the
-                    // list's row insets and loses a column to them.
-                    .listRowInsets(EdgeInsets(top: 4, leading: 6, bottom: 4, trailing: 6))
+                    .listRowInsets(Self.calendarInsets)
                 }
 
                 if !tagCounts.isEmpty {

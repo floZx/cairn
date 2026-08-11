@@ -974,7 +974,8 @@ struct RootView: View {
             selection: $sidebarSelection,
             filter: $filter,
             journalTags: $journalTags,
-            journalDay: journalDayBinding
+            journalDay: journalDayBinding,
+            nutritionDay: $nutritionDateKey
         )
             .frame(minWidth: 260)
             .sportWash(washColor, strength: SportWashStrength.sidebar)

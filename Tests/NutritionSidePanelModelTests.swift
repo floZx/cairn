@@ -51,7 +51,6 @@ struct NutritionSidePanelModelTests {
         #expect(model.loggedThisMonth == 3)
         #expect(model.daysElapsedThisMonth == 8)
         #expect(model.streak == 3)
-        #expect(model.loggedDays.contains("2026-07-31"))
     }
 
     @Test("la série s'arrête au premier trou")

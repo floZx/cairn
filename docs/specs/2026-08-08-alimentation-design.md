@@ -40,6 +40,13 @@ Deux nouvelles entrées de sidebar sous « Statistiques » : **Alimentation** et
   Pour `.weight`, la colonne détail reprend elle aussi ce panneau du journal
   (mini-calendrier + panneau de stats) — décidé en phase 6 pour supprimer le
   panneau d'activité résiduel qui y restait affiché.
+
+  *Révision du 11 août 2026.* Le mini-calendrier a quitté ce panneau pour la
+  **barre latérale**, où celui du journal de notes venait d'arriver. On navigue
+  depuis le volet de gauche et on lit les résultats à droite ; avoir les deux
+  calendriers de part et d'autre de la fenêtre selon la section ne se
+  justifiait par rien. Le panneau garde ce pour quoi il existait : les chiffres
+  que le jour choisi produit.
 - Navigation vim (`VimCommand`) : `gn` → Alimentation, `gp` → Poids.
 
 ## 2. Modèle de données (SwiftData)
@@ -146,10 +153,16 @@ Colonne *content* :
   ajout/suppression d'items) accessible depuis l'écran Alimentation. Pas
   d'entrée sidebar propre — la sidebar reste courte.
 
-Colonne *détail* (sélection `.nutrition`) :
+Barre latérale (sélection `.nutrition`, depuis le 11 août 2026) :
 
 - **Mini-calendrier** mensuel : jours avec repas marqués, clic = navigation,
-  flèches mois précédent/suivant.
+  flèches mois précédent/suivant. Porté par `NutritionCalendarSection`, une vue
+  à part : la barre latérale est à l'écran dans toutes les sections, et une
+  `@Query` posée dessus irait chercher tous les repas jamais saisis pendant
+  qu'on parcourt les activités.
+
+Colonne *détail* (sélection `.nutrition`) :
+
 - **Panneau stats** (portage de `tui/stats_panel.py`) : moyennes 7 j (kcal/j,
   protéines g/j), régularité du mois (« X/Y jours »), série de jours
   consécutifs, et rappel poids (actuel vs objectif).

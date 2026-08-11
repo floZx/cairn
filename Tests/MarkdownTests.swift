@@ -101,6 +101,7 @@ struct MarkdownTests {
 }
 
 @Suite("Tags rendus dans une note")
+@MainActor
 struct MarkdownTaggedTests {
     private func tagged(_ text: String) -> AttributedString {
         MarkdownText.tagged(AttributedString(text))

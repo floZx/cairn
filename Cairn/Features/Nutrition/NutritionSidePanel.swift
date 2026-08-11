@@ -1,8 +1,15 @@
 import SwiftUI
 import SwiftData
 
-/// The detail column beside the journal screens: suivinut's side panel —
-/// mini calendar on top, the 7-day / weight / regularity stats below.
+/// The detail column beside the food journal: suivinut's side panel, less its
+/// calendar.
+///
+/// The calendar moved to the sidebar on 11 August 2026, where the journal's
+/// own had just landed: one travels *from* the left pane and reads results on
+/// the right, and having the two calendars on opposite sides of the window
+/// depending on the section was the kind of difference nothing justified.
+/// What stays here is what the panel was always for — the figures the chosen
+/// day produces.
 struct NutritionSidePanel: View {
     @Binding var selected: DateKey
 
@@ -18,8 +25,6 @@ struct NutritionSidePanel: View {
         )
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                MiniCalendarView(selected: $selected, loggedDays: model.loggedDays)
-                Divider()
                 section("Apports · 7 j") {
                     statLine("moy. \(model.averageKcal7d) kcal/j")
                     statLine("moy. \(model.averageProtein7d) g P/j")

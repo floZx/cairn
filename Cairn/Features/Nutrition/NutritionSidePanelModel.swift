@@ -13,7 +13,6 @@ struct NutritionSidePanelModel: Equatable {
     var weightDelta7d: Double?
     var weightRatePerWeek: Double?
     var weeksToGoal: Double?
-    var loggedDays: Set<String>
 
     @MainActor
     static func compute(
@@ -64,8 +63,7 @@ struct NutritionSidePanelModel: Equatable {
             weightDelta7d: WeightStats.delta(points),
             weightRatePerWeek: WeightStats.ratePerWeek(points),
             weeksToGoal: goalKg > 0
-                ? WeightStats.weeksToGoal(points, goal: goalKg) : nil,
-            loggedDays: loggedDays
+                ? WeightStats.weeksToGoal(points, goal: goalKg) : nil
         )
     }
 }

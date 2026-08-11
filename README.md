@@ -267,8 +267,8 @@ après confirmation, y met le fichier, d'où il reste récupérable. La ligne, e
 reste dans la liste tant que c'est la note où vous écrivez : tout effacer pour
 recommencer ne doit pas fermer le volet sous le curseur.
 
-**Un calendrier** occupe le haut de la barre latérale, le même que celui du
-journal alimentaire : une pastille sur les jours qui portent une note, un clic
+**Un calendrier** occupe le haut de la barre latérale, le même composant que
+pour l'alimentation : une pastille sur les jours qui portent une note, un clic
 pour y aller. Cliquer un jour vide ouvre une note blanche pour ce jour-là — de
 quoi rédiger l'entrée de mardi dernier qu'on avait sautée, sans qu'un fichier
 apparaisse si l'on se ravise. Le curseur n'est pas placé dans le texte : cliquer
@@ -312,7 +312,9 @@ qui les composent, et les macros qui en découlent. Les cibles par repas sont
 partagent ce qui reste réellement, plutôt qu'une part fixe qui mentirait dès le
 premier écart. Un dépassement se lit à la couleur : orange jusqu'à +10 % de la
 cible, rouge au-delà, et jugé sur les entiers affichés pour qu'une couleur ne
-contredise jamais le nombre qu'elle habille.
+contredise jamais le nombre qu'elle habille. Un calendrier occupe le haut de la
+barre latérale, comme celui du journal de notes : c'est du volet de gauche qu'on
+navigue, et les chiffres du jour choisi se lisent à droite.
 
 **Les aliments** viennent d'un catalogue Open Food Facts construit localement à
 partir de l'export CSV — environ 380 000 produits après filtrage, dans un index
