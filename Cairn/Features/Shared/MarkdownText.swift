@@ -13,19 +13,12 @@ struct MarkdownText: View {
     /// fills its pane and is read for minutes at a time, so it asks for more.
     var baseSize: CGFloat?
 
-    /// Whether `#tag` is picked out and its hash dropped.
+    /// Whether a tag's `#` is dropped from what is displayed.
     ///
-    /// On wherever a note is *read*, journal and activity alike: the two are
-    /// written by the same person in the same habit, and one of them showing a
-    /// bare `#Sam` beside the other's coloured `Sam` was the kind of difference
-    /// nothing justified. Off by default all the same, because the flag also
-    /// removes characters from what is displayed, and that should be asked for
+    /// On wherever a note is *read*, journal and activity alike. Off by
+    /// default: it removes characters from the text, which should be asked for
     /// rather than inherited.
-    ///
-    /// It is only a colour. An activity's note is a database field, not a file
-    /// in the vault, so a tag picked out in one is not a tag the sidebar lists
-    /// or the journal can filter on.
-    var highlightsTags = false
+    var hidesTagHashes = false
 
     private var blocks: [MarkdownBlock] { MarkdownParser.blocks(from: markdown) }
 
@@ -110,7 +103,7 @@ struct MarkdownText: View {
     }
 
     private func inline(_ text: String) -> Text {
-        Self.inline(text, highlightingTags: highlightsTags)
+        Self.inline(text, hidingTagHashes: hidesTagHashes)
     }
 
     /// Inline Markdown, or the raw text when it will not parse.
@@ -118,33 +111,33 @@ struct MarkdownText: View {
     /// Falling back rather than throwing: a stray bracket in a note must show
     /// the note, not an error — and `AttributedString` refuses more input than
     /// one would expect.
-    static func inline(_ text: String, highlightingTags: Bool = false) -> Text {
+    static func inline(_ text: String, hidingTagHashes: Bool = false) -> Text {
         guard let attributed = try? AttributedString(
             markdown: text,
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         ) else {
-            // The raw text, tags and all: the fallback's job is to show the
+            // The raw text, hashes and all: the fallback's job is to show the
             // note rather than an error, and picking tags out of a string
             // Markdown could not parse would be guessing twice.
             return Text(text)
         }
-        return Text(highlightingTags ? tagged(attributed) : attributed)
+        return Text(hidingTagHashes ? withoutTagHashes(attributed) : attributed)
     }
 
-    /// Colours every `#tag` and drops the `#`.
+    /// Drops the `#` from every tag.
     ///
     /// The hash is syntax, not reading matter: it is what Obsidian needs in the
-    /// file and what the editor still shows, but on the page the colour says
-    /// "tag" on its own — the same reason the sidebar and the chips lost theirs.
+    /// file and what the editor still shows, but on the page it says nothing —
+    /// the same reason the sidebar and the chips lost theirs.
     ///
     /// The recognition rules are `JournalTagScanner.inline`'s, reached through
     /// `JournalTag.isAllowed` and `JournalTag.init?(name:)` rather than copied:
     /// a `#` opening the run, the allowed characters, and the two exclusions
     /// (`# ` is a heading, `#2026` is a year). A second copy of those rules
     /// would drift from the tags the sidebar actually lists.
-    static func tagged(_ attributed: AttributedString) -> AttributedString {
+    static func withoutTagHashes(_ attributed: AttributedString) -> AttributedString {
         var result = attributed
-        var found: [(hash: Range<AttributedString.Index>, name: Range<AttributedString.Index>)] = []
+        var found: [Range<AttributedString.Index>] = []
         let characters = result.characters
         var previous: Character?
         var index = characters.startIndex
@@ -165,14 +158,13 @@ struct MarkdownText: View {
             }
             guard JournalTag(name: String(characters[nameStart..<end])) != nil
             else { continue }
-            found.append((index..<nameStart, nameStart..<end))
+            found.append(index..<nameStart)
         }
 
-        // Back to front: removing the hash shifts everything after it, so the
+        // Back to front: removing a hash shifts everything after it, so the
         // ranges still to come must all lie before the one being edited.
-        for tag in found.reversed() {
-            result[tag.name].foregroundColor = .accentColor
-            result.removeSubrange(tag.hash)
+        for hash in found.reversed() {
+            result.removeSubrange(hash)
         }
         return result
     }

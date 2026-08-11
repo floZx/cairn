@@ -300,17 +300,11 @@ pastilles, sur la ligne de la liste comme au-dessus de la note, cochent le tag
 d'un clic.
 
 Le dièse ne s'affiche nulle part : ni dans la barre latérale, ni sur les
-pastilles, ni dans la note lue, où le tag prend simplement la couleur d'accent.
-C'est de la syntaxe, pas de la lecture — elle reste dans le fichier, qu'Obsidian
-attend ainsi, et dans l'éditeur, où l'on écrit du Markdown.
-
-Les **notes d'activité** sont colorées de la même façon, partout où elles se
-lisent : le détail d'une activité, l'aperçu de sa fenêtre d'édition, et le
-rappel au-dessus d'une note du jour. Les deux sortes de notes s'écrivent de la
-même main et dans la même habitude, et voir un `#Sam` nu à côté d'un `Sam` coloré
-ne se justifiait par rien. Ce n'est qu'une couleur, en revanche : la note d'une
-activité est un champ de la base et non un fichier du coffre, donc un tag mis en
-couleur là n'apparaît pas dans la barre latérale et ne filtre rien.
+pastilles, ni dans une note lue — celle du jour comme celle d'une activité, dans
+son détail et dans l'aperçu de sa fenêtre d'édition. C'est de la syntaxe, pas de
+la lecture : elle reste dans le fichier, qu'Obsidian attend ainsi, et dans
+l'éditeur, où l'on écrit du Markdown. Le tag n'est pas coloré pour autant — une
+couleur d'accent le ferait passer pour quelque chose qu'on peut cliquer.
 
 La recherche porte sur le texte entier de toutes les notes, sans index : dix ans
 de journal tiennent en quelques mégaoctets, et une recherche sur des données déjà

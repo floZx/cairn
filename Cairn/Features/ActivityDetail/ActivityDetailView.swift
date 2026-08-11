@@ -244,7 +244,7 @@ struct ActivityDetailView: View {
                 .disabled(onEdit == nil)
             } else {
                 MarkdownText(
-                    markdown: note, baseSize: Self.noteSize, highlightsTags: true
+                    markdown: note, baseSize: Self.noteSize, hidesTagHashes: true
                 )
                 .textSelection(.enabled)
             }

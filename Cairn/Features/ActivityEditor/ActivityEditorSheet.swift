@@ -105,13 +105,13 @@ struct ActivityEditorSheet: View {
                     // note field asks for two lines.
                     if showsNotePreview {
                         ScrollView {
-                            // The same size and the same tag colouring as the
+                            // The same size and the same tag rendering as the
                             // detail pane: a preview that renders differently
                             // from the thing it previews is worse than none.
                             MarkdownText(
                                 markdown: draft.notes,
                                 baseSize: ActivityDetailView.noteSize,
-                                highlightsTags: true
+                                hidesTagHashes: true
                             )
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(6)

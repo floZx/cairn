@@ -175,7 +175,7 @@ struct JournalDetailView: View {
                     MarkdownText(
                         markdown: bodyText,
                         baseSize: Self.noteSize,
-                        highlightsTags: true
+                        hidesTagHashes: true
                     )
                 }
             }
