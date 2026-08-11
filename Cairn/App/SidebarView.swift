@@ -76,23 +76,30 @@ struct SidebarView: View {
                 }
             }
 
-            if selection == .journal, !tagCounts.isEmpty {
-                Section("Tags") {
-                    ForEach(tagCounts) { entry in
-                        Toggle(isOn: binding(for: entry.tag)) {
-                            HStack {
-                                Text(entry.tag.displayName)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                Spacer(minLength: 8)
-                                Text("\(entry.count)")
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
+            if selection == .journal {
+                if !tagCounts.isEmpty {
+                    Section("Tags") {
+                        ForEach(tagCounts) { entry in
+                            Toggle(isOn: binding(for: entry.tag)) {
+                                HStack {
+                                    Text(entry.tag.displayName)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    Spacer(minLength: 8)
+                                    Text("\(entry.count)")
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
                             }
+                            .toggleStyle(.checkbox)
                         }
-                        .toggleStyle(.checkbox)
                     }
                 }
+                // Outside the section above, and deliberately: point the
+                // journal at a folder whose notes carry none of the ticked
+                // tags and there are no counts to list, while the ticks are
+                // still filtering the list down to nothing. Nested, the one
+                // button that undoes them went with the tags.
                 if !journalTags.isEmpty {
                     Section {
                         Button("Retirer les tags (\(journalTags.count))") {
