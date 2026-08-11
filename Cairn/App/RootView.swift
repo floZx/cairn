@@ -321,6 +321,9 @@ struct RootView: View {
     private var journalSelectionBinding: Binding<DateKey?> {
         Binding(
             get: { journalSelection },
+            // Explicit closure, not a method reference: swift-frontend 6.3
+            // aborts synthesising the thunk for `set: selectJournalNote`, with
+            // no diagnostic — an IRGen crash, not a compile error.
             set: { selectJournalNote($0) }
         )
     }

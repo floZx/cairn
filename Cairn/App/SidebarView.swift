@@ -27,10 +27,16 @@ struct SidebarView: View {
         SportTally.rows(for: activities.map(\.sportType))
     }
 
-    /// The filter sections drive the activity screens; beside the journal, the
-    /// food and weight screens they would filter nothing on screen.
+    /// The filter sections belong to the activity screens; beside the journal,
+    /// the food and weight screens they would filter nothing on screen.
+    ///
+    /// A deselected sidebar is still one of the activity screens: the content
+    /// column falls through to the list when nothing is selected, and the
+    /// filters have to be there with it. Hence a whitelist that reads nil as
+    /// the list it actually shows, rather than one that only names sections.
     private var showsFilters: Bool {
-        selection == .all || selection == .globalMap || selection == .statistics
+        selection == nil || selection == .all || selection == .globalMap
+            || selection == .statistics
     }
 
     var body: some View {
