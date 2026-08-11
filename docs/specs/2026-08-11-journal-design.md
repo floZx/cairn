@@ -306,6 +306,15 @@ Le champ `.searchable` cherche dans le texte entier, insensible à la casse et
 aux accents. Recherche et tags cochés se cumulent : la liste montre les notes
 qui satisfont les deux.
 
+**Les pastilles de tags ne prennent jamais le clavier** *(corrigé le 11 août
+2026)*. Elles sont cliquables mais `focusable(false)` : un contrôle focalisable
+dans une ligne de `List` prend le clavier dès que cette ligne est sélectionnée.
+Un `j` maintenu déplaçait donc la sélection une fois, la pastille de la ligne
+d'arrivée captait le focus, et toutes les répétitions suivantes lui parvenaient
+— elle qui ne fait rien d'une touche. La touche semblait n'agir qu'une fois. La
+liste d'activités n'a aucun contrôle dans ses lignes, ce qui explique qu'elle
+n'ait jamais eu le problème.
+
 **La liste suit le curseur** *(corrigé le 11 août 2026)*. Un `j` maintenu
 promenait la sélection hors de l'écran : les lignes défilaient bien, mais sous
 le bord de la fenêtre, si bien que la touche semblait n'avoir agi qu'une fois.

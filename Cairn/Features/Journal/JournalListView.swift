@@ -186,6 +186,14 @@ struct JournalTagChip: View {
                 .background(.quaternary, in: .capsule)
         }
         .buttonStyle(.plain)
+        // Clickable, never focusable. These chips sit inside the rows of a
+        // `List`, and a focusable control in a row takes the keyboard from the
+        // list the moment that row is selected: the first `j` moved the
+        // selection onto a chip, and every repeat after it went to the chip,
+        // which does nothing with a key. Held `j` looked as though it fired
+        // once. The activity list has no control inside a row, which is why it
+        // never had the problem.
+        .focusable(false)
         .help("Ne garder que les notes portant \(tag.name)")
     }
 }
