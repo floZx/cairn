@@ -24,20 +24,23 @@ import AppKit
 enum DetailPaneWidth {
     /// Which pane the column is holding, and therefore whose width this is.
     ///
-    /// The two share a column but not a purpose: the activity pane carries a
+    /// They share a column but not a purpose: the activity pane carries a
     /// map, a strip of photographs and four rows of figures, the food
-    /// journal's panel a small calendar and a day's totals. One width for
-    /// both meant dragging the journal's panel narrow dragged the activity
-    /// pane with it — a divider knows nothing of what is behind it.
+    /// journal's panel a small calendar and a day's totals, the journal's an
+    /// editor. One width for all of them meant dragging the food journal's
+    /// panel narrow dragged the activity pane with it — a divider knows
+    /// nothing of what is behind it.
     enum Kind: String, CaseIterable, Sendable {
         case activity
         case nutrition
+        case journal
 
         var defaultsKey: String {
             switch self {
             // Left as it was, so a width already dragged survives the split.
             case .activity: "detailPaneWidth.v1"
             case .nutrition: "nutritionPaneWidth.v1"
+            case .journal: "journalPaneWidth.v1"
             }
         }
 
@@ -53,6 +56,9 @@ enum DetailPaneWidth {
             switch self {
             case .activity: 120
             case .nutrition: 80
+            // An editor filling the pane: narrower than the activity pane's
+            // map and figures, wider than the food journal's small calendar.
+            case .journal: 120
             }
         }
     }

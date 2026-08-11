@@ -5,6 +5,7 @@ enum SidebarItem: Hashable {
     case all
     case globalMap
     case statistics
+    case journal
     case nutrition
     case weight
 }
@@ -19,16 +20,17 @@ enum SidebarItem: Hashable {
 struct SidebarView: View {
     @Binding var selection: SidebarItem?
     @Binding var filter: ActivityFilter
+    @Environment(AppEnvironment.self) private var app
     @Query private var activities: [Activity]
 
     private var sportCounts: [SportTally.Row] {
         SportTally.rows(for: activities.map(\.sportType))
     }
 
-    /// The filter sections drive the activity screens; beside the food and
-    /// weight journals they would filter nothing on screen.
+    /// The filter sections drive the activity screens; beside the journal, the
+    /// food and weight screens they would filter nothing on screen.
     private var showsFilters: Bool {
-        selection != .nutrition && selection != .weight
+        selection == .all || selection == .globalMap || selection == .statistics
     }
 
     var body: some View {
@@ -41,6 +43,9 @@ struct SidebarView: View {
                     .tag(SidebarItem.globalMap)
                 Label("Statistiques", systemImage: "chart.bar")
                     .tag(SidebarItem.statistics)
+                Label("Journal", systemImage: "text.book.closed")
+                    .badge(app.journal.notes.count)
+                    .tag(SidebarItem.journal)
                 Label("Alimentation", systemImage: "fork.knife")
                     .tag(SidebarItem.nutrition)
                 Label("Poids", systemImage: "scalemass")

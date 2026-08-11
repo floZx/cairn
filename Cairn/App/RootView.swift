@@ -45,6 +45,16 @@ struct RootView: View {
     /// so the mini calendar (in the detail column) and the journal (in the
     /// content column) share one binding rather than drifting apart.
     @State private var nutritionDateKey = DateKey(Date())
+    /// The journal's own selection, search and ticked tags. Held here rather
+    /// than in the list for the same reason as the activity list's: the
+    /// sidebar's tag section and the search field both live outside it.
+    @State private var journalSelection: DateKey?
+    @State private var journalQuery = ""
+    @State private var journalTags: Set<JournalTag> = []
+    /// Bumped to bring the keyboard back to the list, or to the editor.
+    @State private var journalListFocus = 0
+    @State private var journalEditorFocus = 0
+    @State private var journalPendingDeletion: DateKey?
     /// Focus of the search field, so `/` can reach it.
     ///
     /// Held here rather than in the list: `.searchable` is applied to the list
@@ -287,7 +297,37 @@ struct RootView: View {
     /// The menu keeps every one of them, shortcuts included: this hides the
     /// buttons, it does not withdraw the commands.
     private var showsActivityActions: Bool {
-        !showsNutrition && !showsWeight && !showsStatistics
+        !showsJournal && !showsNutrition && !showsWeight && !showsStatistics
+    }
+
+    private var showsJournal: Bool { sidebarSelection == .journal }
+
+    /// The notes the list shows: the search and the ticked tags together.
+    private var journalNotes: [JournalNote] {
+        JournalNote.filter(
+            app.journal.notes, query: journalQuery, tags: journalTags
+        )
+    }
+
+    /// The list's selection, which stays put while a write is failing.
+    ///
+    /// `JournalStore.update(_:for:)` refuses to leave a note whose last write
+    /// failed — it keeps the buffer, the edited date and its baseline where
+    /// they are — and it refuses silently. A selection that moved anyway would
+    /// leave the list showing one note while the store still edited another,
+    /// and every word typed into the row on screen would go into the note
+    /// behind it. So the selection follows the store's rule rather than
+    /// discovering it too late.
+    private var journalSelectionBinding: Binding<DateKey?> {
+        Binding(
+            get: { journalSelection },
+            set: { selectJournalNote($0) }
+        )
+    }
+
+    private func selectJournalNote(_ date: DateKey?) {
+        guard app.journal.pendingWriteFailure == nil else { return }
+        journalSelection = date
     }
 
     private var showsNutrition: Bool { sidebarSelection == .nutrition }
@@ -328,18 +368,45 @@ struct RootView: View {
                         onSelect: { selectedActivities = [$0] }
                     )
                     .vimKeys(performOutsideTheList)
+                } else if showsJournal {
+                    Group {
+                        if app.journal.folder == nil {
+                            JournalEmptyView(onChooseFolder: chooseJournalFolder)
+                        } else {
+                            JournalListView(
+                                notes: journalNotes,
+                                query: journalQuery,
+                                selection: journalSelectionBinding,
+                                focusRequest: journalListFocus,
+                                onCommand: performInJournal,
+                                onSelectTag: { journalTags.insert($0) },
+                                onOpenEditor: { journalEditorFocus += 1 },
+                                onDelete: { journalPendingDeletion = $0 }
+                            )
+                            .searchable(
+                                text: $journalQuery,
+                                prompt: "Rechercher dans le journal"
+                            )
+                            // The same `FocusState` as the activity list's
+                            // field: only one of the two is ever on screen, and
+                            // a second one would be a second thing for `/` to
+                            // aim at.
+                            .searchFocused($searchFieldFocused)
+                        }
+                    }
                 } else if showsNutrition {
                     // The vim modifier lives inside the view here — it must go
                     // dead while the add/edit sheets are up, and only the view
                     // knows when that is.
                     NutritionDayView(
-                        dateKey: $nutritionDateKey, onCommand: performInNutrition
+                        dateKey: $nutritionDateKey,
+                        onCommand: performOutsideActivities
                     )
                 } else if showsWeight {
                     // Same command filter as the food journal: the weight
                     // screen is journal territory too, an invisible activity
                     // selection must stay unreachable from it.
-                    WeightView(onCommand: performInNutrition)
+                    WeightView(onCommand: performOutsideActivities)
                 } else {
                     ActivityListView(
                         filter: filter,
@@ -412,7 +479,8 @@ struct RootView: View {
         // the tones are right.
         .toolbarBackground(.hidden, for: .windowToolbar)
         .background(SplitViewHoldingPriorities(
-            paneKind: showsNutrition ? .nutrition : .activity
+            paneKind: showsJournal ? .journal
+                : (showsNutrition ? .nutrition : .activity)
         ))
         // Arriving at the statistics gives the whole width to the charts: the
         // activity left selected in the list has nothing to do with the
@@ -459,13 +527,44 @@ struct RootView: View {
         editor = .edit(activity)
     }
 
-    /// The food journal's command set: navigation, escape, help, closing the
-    /// pane — and nothing that touches an activity. A selection made in the
-    /// list survives invisibly behind this screen, and without the filter a
-    /// stray `n` or `x` edited or deleted an outing nothing was showing.
-    private func performInNutrition(_ command: VimCommand) -> Bool {
+    /// The command set for the screens that show no activity — the journal, the
+    /// food journal, the weight chart. An activity selection survives invisibly
+    /// behind all three, and without this filter a stray `n` or `x` edited or
+    /// deleted an outing nothing was showing.
+    private func performOutsideActivities(_ command: VimCommand) -> Bool {
         guard !command.actsOnActivities else { return false }
         return performOutsideTheList(command)
+    }
+
+    /// The journal's own command set.
+    ///
+    /// It keeps the rule above — nothing may reach the activity selection
+    /// surviving invisibly behind this screen — but three keys mean something
+    /// here that they cannot mean beside a food log: `/` has a search field to
+    /// aim at, Escape has a search and a selection of its own to peel, and `h`
+    /// has a pane that does close.
+    private func performInJournal(_ command: VimCommand) -> Bool {
+        switch command {
+        case .openSearch:
+            searchFieldFocused = true
+            return true
+        case .clear:
+            // One layer at a time, in the order the screen was narrowed.
+            if !journalQuery.isEmpty {
+                journalQuery = ""
+            } else if !journalTags.isEmpty {
+                journalTags = []
+            } else {
+                selectJournalNote(nil)
+            }
+            searchFieldFocused = false
+            return true
+        case .closePane:
+            selectJournalNote(nil)
+            return true
+        default:
+            return performOutsideActivities(command)
+        }
     }
 
     /// The same commands, from a view that has no rows to move through.
@@ -545,6 +644,16 @@ struct RootView: View {
             writeFailureMessage =
                 "Le favori n'a pas pu être enregistré. \(error.localizedDescription)"
         }
+    }
+
+    private func chooseJournalFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.prompt = "Choisir"
+        panel.message = "Choisissez le dossier qui contient vos notes du jour"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        app.journal.choose(url)
     }
 
     private func chooseGPXFilesToImport() {
@@ -667,7 +776,11 @@ struct RootView: View {
         // more: clicking a track on one, or a record on the other, opens the
         // activity beside it, and both give the width back when nothing is
         // selected.
-        if showsNutrition {
+        if showsJournal {
+            // The editor arrives at the next task; until then the notes have
+            // the whole width.
+            collapsedDetailColumn
+        } else if showsNutrition {
             // The food journal claims the pane: the side panel replaces
             // whatever activity was left selected behind it — unless the user
             // closed it, which the toolbar button toggles. The weight screen
