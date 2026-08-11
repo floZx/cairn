@@ -75,6 +75,19 @@ struct MarkdownTests {
         #expect(MarkdownParser.blocks(from: "\n  \n\n").isEmpty)
     }
 
+    @Test("le parseur ne mange pas le frontmatter, c'est à l'appelant de le faire")
+    func theParserLeavesFrontMatterAlone() {
+        // Deliberate: this parser also renders the notes of an activity, which
+        // are a field in a database and never carry front matter. A `---` typed
+        // there is a separator someone meant to see. Only the journal, whose
+        // notes are files in an Obsidian vault, drops the block — through
+        // `JournalNote.body(of:)`, on the way to the renderer.
+        #expect(
+            MarkdownParser.blocks(from: "---\ntags: [sam]\n---\nPromenade.")
+                == [.paragraph("--- tags: [sam] --- Promenade.")]
+        )
+    }
+
     @Test("une numérotation qui ne part pas de un est respectée")
     func keepsTheAuthorsNumbering() {
         // A list starting at 3 is usually a mistake, but renumbering it in

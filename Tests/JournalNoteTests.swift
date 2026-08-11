@@ -27,6 +27,41 @@ struct JournalNoteTests {
         #expect(note("2026-08-11", text).summary == "Promenade avec #Sam.")
     }
 
+    @Test("le corps rendu ne montre pas le frontmatter")
+    func bodyDropsFrontmatter() {
+        // Rendered, a note carrying front matter would otherwise open on a
+        // paragraph « --- tags: [sam] --- », which says nothing to anyone.
+        let text = """
+            ---
+            tags: [sam]
+            ---
+
+            # Mardi
+            Promenade.
+            """
+        #expect(
+            MarkdownParser.blocks(from: JournalNote.body(of: text)) == [
+                .heading(level: 1, text: "Mardi"),
+                .paragraph("Promenade."),
+            ]
+        )
+    }
+
+    @Test("un tiret de séparation en milieu de note reste dans le corps")
+    func bodyKeepsARuleInTheMiddle() {
+        // The block only counts at the very top of the file, as it does for the
+        // tags: below the first line it is something the author typed.
+        let text = "Une note.\n\n---\ntags: [sam]\n---"
+        #expect(JournalNote.body(of: text) == text)
+    }
+
+    @Test("un frontmatter jamais refermé ne perd que sa première ligne")
+    func bodyOfAnUnterminatedFrontmatter() {
+        // Whatever follows an unclosed `---` is almost certainly the note
+        // itself; showing it is better than hiding it to the end of the file.
+        #expect(JournalNote.body(of: "---\ntags: [sam]") == "tags: [sam]")
+    }
+
     @Test("la recherche ignore la casse et les accents")
     func searchFoldsCaseAndDiacritics() {
         let subject = note("2026-08-11", "Journée à Sète, très chaude.")

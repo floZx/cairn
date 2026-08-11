@@ -32,25 +32,47 @@ struct JournalNote: Identifiable, Equatable, Sendable {
         text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// The note without its YAML front matter: what a reader is meant to see.
+    ///
+    /// Deliberately *not* a rule of `MarkdownParser`. That parser also renders
+    /// the notes of an activity, which are a field in a database and never
+    /// carry front matter — a `---` typed there is a separator someone meant to
+    /// see, and a parser that swallowed it would be interpreting a text it has
+    /// no business interpreting. Front matter is a fact about files in a vault,
+    /// so the journal drops it on the way to the renderer rather than teaching
+    /// every note in the app that `---` can be invisible.
+    ///
+    /// A static function on a `String` and not a property, because the pane
+    /// renders the buffer being typed, which is not always `text`.
+    ///
+    /// The block only counts at the very top of the file, as it does for the
+    /// tags: below the first line, `---` is a horizontal rule. An unterminated
+    /// block loses only its opening `---` — what follows is almost certainly
+    /// the note itself, and hiding it to the end of the file would lose it.
+    static func body(of text: String) -> String {
+        var lines = text.components(separatedBy: .newlines)[...]
+        guard lines.first?.trimmingCharacters(in: .whitespaces) == "---" else {
+            return text
+        }
+        lines = lines.dropFirst()
+        if let closing = lines.firstIndex(where: {
+            let line = $0.trimmingCharacters(in: .whitespaces)
+            return line == "---" || line == "..."
+        }) {
+            lines = lines[lines.index(after: closing)...]
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// The first real line, for the list row.
     ///
     /// Front matter is skipped: `tags: [sam]` is metadata, and a list of rows
     /// all reading "---" says nothing about any of them.
     var summary: String {
         guard isReadable else { return "contenu illisible" }
-        var lines = text.components(separatedBy: .newlines)[...]
-        if lines.first?.trimmingCharacters(in: .whitespaces) == "---" {
-            lines = lines.dropFirst()
-            if let closing = lines.firstIndex(where: {
-                let line = $0.trimmingCharacters(in: .whitespaces)
-                return line == "---" || line == "..."
-            }) {
-                lines = lines[lines.index(after: closing)...]
-            }
-        }
-        let first = lines.first {
-            !$0.trimmingCharacters(in: .whitespaces).isEmpty
-        } ?? ""
+        let first = Self.body(of: text)
+            .components(separatedBy: .newlines)
+            .first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? ""
         return String(first.trimmingCharacters(in: .whitespaces).prefix(160))
     }
 

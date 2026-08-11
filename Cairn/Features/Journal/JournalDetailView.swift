@@ -1,11 +1,22 @@
 import SwiftUI
 
-/// The note, open and editable.
+/// The note, read as Markdown and edited on a click.
 ///
-/// Plain text, always writable, with no rendered mode: a journal exists to be
-/// written in, and a Markdown preview would put one keystroke between the
-/// thought and the page. The `#` and the `-` stay visible, which is what makes
-/// the same file readable in Obsidian.
+/// The pane opens on the note rendered — titles, lists, quotes, through the
+/// same `MarkdownText` that serves the notes of an activity — and turns into a
+/// plain text field as soon as one clicks into it, or presses `e`, `n` or `⏎`
+/// from the list. Escape hands the note back, rendered.
+///
+/// The first version was a text field and nothing else, on the grounds that a
+/// journal exists to be written in and a preview puts a keystroke between the
+/// thought and the page. Using it settled the question the other way: a journal
+/// is re-read far more often than it is written, and the `#` and the `-` in
+/// front of every line are noise on the days one only reads. Writing still
+/// costs one click, or the key one already presses to write.
+///
+/// Going from rendered to editor puts the caret at the end of the text and not
+/// where the click landed: they are two different views, and SwiftUI carries no
+/// click position from one to the other.
 struct JournalDetailView: View {
     let note: JournalNote
     let text: String
@@ -21,22 +32,44 @@ struct JournalDetailView: View {
     let onLeaveEditor: () -> Void
 
     @FocusState private var editorFocused: Bool
+    /// The note being written in, when there is one.
+    ///
+    /// Which note, rather than a plain "editing" flag: any other note is then
+    /// read *by construction*, whatever a flag might have been left saying, and
+    /// the two events that arrive together on ⌘N — the note changes, the editor
+    /// is asked for — cannot undo each other whichever `onChange` SwiftUI
+    /// decides to run first.
+    @State private var editedNote: DateKey?
+
+    private var isEditing: Bool { editedNote == note.id }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
-            if note.isReadable {
+            if !note.isReadable {
+                unreadable
+            } else if isEditing {
                 editor
             } else {
-                unreadable
+                reader
             }
         }
-        // Only where there is a field to aim at: `e` or Return on an unreadable
-        // row would otherwise ask for focus nothing can take.
-        .onChange(of: focusRequest) { _, _ in
-            guard note.isReadable else { return }
-            editorFocused = true
+        // `e`, `n`, `⏎` from the list and ⌘N all land in the field: reading
+        // mode holds no focus of its own, so nothing swallows them on the way.
+        .onChange(of: focusRequest) { _, _ in beginEditing() }
+        // Another note opens read, and so does the one just left when one comes
+        // back to it. Cleared against the note being *left* rather than
+        // unconditionally: ⌘N changes the note and asks for the editor in the
+        // same breath, and SwiftUI promises no order between the two handlers —
+        // this way, whichever runs first, the request survives.
+        //
+        // The focus goes too: left standing at true with no field on screen, it
+        // would make the next request a no-op and the next note would not get
+        // the keyboard.
+        .onChange(of: note.id) { previous, _ in
+            if editedNote == previous { editedNote = nil }
+            editorFocused = false
         }
     }
 
@@ -58,6 +91,54 @@ struct JournalDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// The note as one reads it.
+    ///
+    /// The whole surface takes the click, not only the text: an empty note has
+    /// nothing to aim at, and a note of three lines leaves most of the pane
+    /// looking dead. The invitation is there for the empty one — a blank pane
+    /// that turns into an editor when clicked says so nowhere.
+    private var reader: some View {
+        ScrollView {
+            Group {
+                if bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("Cliquez pour écrire")
+                        .foregroundStyle(.tertiary)
+                } else {
+                    MarkdownText(markdown: bodyText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            // The text itself, whatever height it happens to have…
+            .contentShape(.rect)
+            .onTapGesture { beginEditing() }
+        }
+        // …and the space under it, which is most of the pane on most days.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .contentShape(.rect)
+        .onTapGesture { beginEditing() }
+    }
+
+    /// What gets rendered: the buffer on screen, front matter left out.
+    ///
+    /// The buffer rather than `note.text`, so leaving the editor shows what was
+    /// just typed and not what the file said before the save.
+    private var bodyText: String { JournalNote.body(of: text) }
+
+    /// Reading to writing.
+    ///
+    /// The focus is claimed one tick later: the field does not exist yet in
+    /// this update pass, and `@FocusState` set before its view is inserted does
+    /// not stick — the same reason `RootView` defers its own bump after opening
+    /// today's note. Unreadable notes are refused here rather than at each call
+    /// site: `e` or Return on such a row would ask for focus nothing can take.
+    private func beginEditing() {
+        guard note.isReadable else { return }
+        editedNote = note.id
+        Task { @MainActor in editorFocused = true }
+    }
+
     private var editor: some View {
         // Explicit closure rather than `set: onEdit`: passing the stored
         // closure straight in converts a non-Sendable function value into the
@@ -68,10 +149,12 @@ struct JournalDetailView: View {
             .focused($editorFocused)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            // Escape leaves the field rather than clearing it: the list gets
-            // the keyboard back and `j`/`k` work again straight away.
+            // Escape leaves the field rather than clearing it: the note comes
+            // back rendered, the list gets the keyboard back and `j`/`k` work
+            // again straight away.
             .onKeyPress(.escape) {
                 editorFocused = false
+                editedNote = nil
                 onLeaveEditor()
                 return .handled
             }

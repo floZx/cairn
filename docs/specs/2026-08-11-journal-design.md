@@ -20,8 +20,24 @@ Le coffre de référence est
 1. **Liste + détail**, à la manière de « Mes activités » : la colonne centrale
    liste les notes, le volet de droite affiche celle qui est sélectionnée. Pas
    de « un jour à la fois » comme Alimentation.
-2. **Toujours éditable, texte brut** : le volet de droite est un champ de
-   texte. Pas de rendu Markdown, pas de bascule lecture/édition.
+2. **Lecture en Markdown rendu, édition au clic** : le volet de droite affiche
+   la note rendue — titres, listes, citations — et devient un champ de texte dès
+   qu'on clique dedans, ou sur `e`, `n` ou `⏎` depuis la liste. Échap rend la
+   note à nouveau.
+
+   *Révision du 11 août 2026.* La première version était « toujours éditable,
+   texte brut », au motif qu'un journal est fait pour être écrit et qu'un aperçu
+   met une frappe entre la pensée et la page. L'usage a tranché dans l'autre
+   sens : on relit son journal bien plus souvent qu'on ne l'écrit, et les `#` et
+   les `-` en tête de chaque ligne ne sont du bruit que les jours où l'on ne
+   fait que lire. Écrire coûte maintenant un clic, ou la touche qu'on tapait
+   déjà pour écrire.
+
+   Trois conséquences assumées : le curseur se place **en fin de texte** et non
+   à l'endroit cliqué — ce sont deux vues, et SwiftUI ne transporte pas la
+   position du clic de l'une à l'autre ; **changer de note revient toujours en
+   lecture**, arriver dans l'éditeur se demande ; une note illisible garde son
+   écran d'indisponibilité et ne devient jamais éditable.
 3. **Tags dans la barre latérale**, en cases à cocher avec leur nombre, à la
    place des filtres d'activité.
 4. **Uniquement les notes du jour** : seuls les fichiers `AAAA-MM-JJ.md` à la
@@ -121,10 +137,11 @@ plusieurs, et l'intérêt de cocher le deuxième est de resserrer.
 
 ### Cliquer un tag
 
-Le volet de droite étant un champ de texte brut, un clic dans l'éditeur pose le
-curseur — les tags n'y sont pas cliquables. Ils le sont **en pastilles** : sur
-la ligne de la liste, et dans l'en-tête au-dessus de l'éditeur. Un clic sur une
-pastille coche le tag correspondant dans la barre latérale.
+Dans le volet de droite, un clic passe en édition et un clic dans l'éditeur pose
+le curseur : les tags n'y sont cliquables ni en lecture ni en écriture. Ils le
+sont **en pastilles** : sur la ligne de la liste, et dans l'en-tête au-dessus de
+la note. Un clic sur une pastille coche le tag correspondant dans la barre
+latérale.
 
 ## 3. L'écran
 
@@ -141,8 +158,24 @@ Quand une recherche est active, **l'extrait montre le passage qui correspond**
 plutôt que le début de la note : une liste de résultats qui n'affiche nulle part
 ce qu'elle a trouvé oblige à ouvrir chaque note pour le savoir.
 
-**Volet de droite** — un en-tête (la date, les pastilles de tags) puis un
-`TextEditor` qui prend toute la hauteur restante.
+**Volet de droite** — un en-tête (la date, les pastilles de tags) puis, sur
+toute la hauteur restante, la note rendue par `MarkdownText`, le composant qui
+sert déjà les notes d'activité, ou le `TextEditor` quand on écrit.
+
+Toute la surface du volet prend le clic, pas seulement le texte : une note vide
+n'offre rien à viser, et une invite discrète — « Cliquez pour écrire » — le dit,
+faute de quoi un volet blanc qui se transforme en éditeur ne s'annonce nulle
+part.
+
+Le **frontmatter n'est pas rendu** : `JournalNote.body(of:)` l'enlève avant
+d'appeler le renderer, sinon chaque note en porterait un paragraphe « --- tags:
+[sam] --- » en tête. Ce saut est dans le journal et non dans `MarkdownParser`,
+qui rend aussi les notes d'activité : celles-ci sont un champ de base de
+données et jamais un fichier, un `---` qu'on y tape est un séparateur voulu, et
+un parseur qui l'avalerait interpréterait un texte qui ne le lui demande pas.
+
+Le bandeau de conflit et la ligne d'échec d'écriture sont dans l'en-tête, donc
+visibles dans les deux modes : ce sont eux qui préviennent d'une perte.
 
 **Sans dossier configuré** — un panneau à la manière de `WelcomeView` : ce
 qu'est le journal, un bouton « Choisir un dossier… », et le fait qu'un dossier
@@ -156,8 +189,9 @@ de notes du jour Obsidian existant s'ouvre tel quel.
 | ⌘N | la note du jour — la crée si besoin, la sélectionne, place le curseur dedans |
 | `j` `k` `gg` `G` `⌃d` `⌃u` | parcourir la liste, comme partout |
 | `e` · ⏎ | passer le clavier dans l'éditeur |
+| clic dans le volet | passer en édition, curseur en fin de texte |
 | `/` | aller au champ de recherche |
-| `échap` | sortir de l'éditeur, puis vider la recherche, puis les tags cochés, puis la sélection |
+| `échap` | sortir de l'éditeur — la note repasse en lecture —, puis vider la recherche, puis les tags cochés, puis la sélection |
 | ⌘⌫ · `x` | supprimer la note, après confirmation |
 
 ⌘N veut déjà dire « nouvelle activité » : dans la section Journal il change de
@@ -207,7 +241,7 @@ clair. L'app n'est pas en bac à sable (`com.apple.security.app-sandbox` à
 | `JournalFolder.swift` | lire, écrire, supprimer — le seul fichier qui touche le disque |
 | `JournalStore.swift` | l'état observable, la surveillance, l'enregistrement différé |
 | `JournalListView.swift` | la liste et sa recherche |
-| `JournalDetailView.swift` | l'en-tête et l'éditeur |
+| `JournalDetailView.swift` | l'en-tête, la note rendue et l'éditeur |
 
 `Cairn/Features/Settings/JournalSettingsView.swift`.
 
@@ -231,6 +265,9 @@ suite. La logique est presque toute en valeurs pures, donc en tests rapides :
 - **Décompte** : tri par fréquence puis par nom.
 - **Règle du vide** : une note faite d'espaces et de retours à la ligne est
   considérée comme vide.
+- **Corps rendu** : le frontmatter est enlevé du corps, un `---` en milieu de
+  note y reste, un bloc jamais refermé ne perd que sa première ligne — et
+  `MarkdownParser`, lui, ne touche à rien de tout cela.
 - **`JournalFolder`**, sur un dossier temporaire : aller-retour lecture /
   écriture, nom de fichier produit pour une date, rejet de ce qui n'est pas une
   note du jour (`notes.md`, `2026-13-01.md`, un sous-dossier).
@@ -241,7 +278,6 @@ Volontairement absents de cette première version, à rouvrir si le besoin se
 fait sentir à l'usage :
 
 - tout lien entre une note et les activités, repas ou pesées du même jour ;
-- le rendu Markdown en lecture ;
 - les liens `[[wikilink]]` et la navigation entre notes ;
 - les notes autres que celles du jour ;
 - les modèles (*templates*) de note.
