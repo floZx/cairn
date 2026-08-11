@@ -49,6 +49,11 @@ struct JournalNote: Identifiable, Equatable, Sendable {
     /// tags: below the first line, `---` is a horizontal rule. An unterminated
     /// block loses only its opening `---` — what follows is almost certainly
     /// the note itself, and hiding it to the end of the file would lose it.
+    ///
+    /// That last rule is where this parts company with
+    /// `JournalTagScanner.frontmatter`, on purpose: without a closing
+    /// delimiter there is no block to read keys from, so it yields no tags,
+    /// while here there is still a note to show. Change one and read the other.
     static func body(of text: String) -> String {
         var lines = text.components(separatedBy: .newlines)[...]
         guard lines.first?.trimmingCharacters(in: .whitespaces) == "---" else {

@@ -106,6 +106,11 @@ enum JournalTagScanner {
     /// Deliberately not a YAML parser. A note's front matter is three or four
     /// lines a person typed, and the failure mode of guessing wrong here is one
     /// missing tag, not a corrupted file.
+    ///
+    /// Stricter than `JournalNote.body(of:)`, which draws the same block for
+    /// the renderer: an unterminated `---` yields nothing here, since there is
+    /// no block whose keys could be read, where the renderer still has a note
+    /// to show. Deliberate, and worth re-reading both before touching either.
     static func frontmatter(in text: String) -> Set<JournalTag> {
         // The block only counts at the very top of the file: a `---` in the
         // middle of a note is a horizontal rule.

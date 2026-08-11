@@ -877,6 +877,11 @@ struct RootView: View {
                     onLeaveEditor: { journalListFocus += 1 }
                 )
                 .frame(minWidth: Self.detailMinWidth)
+                // Another vault is another pane. The date is the only identity
+                // a note has, so without this a folder change that happens to
+                // hold the same day would leave the pane open — in the editor,
+                // on a file it has never shown.
+                .id(app.journal.folder)
             } else {
                 collapsedDetailColumn
             }

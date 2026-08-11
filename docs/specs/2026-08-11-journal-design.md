@@ -33,11 +33,16 @@ Le coffre de référence est
    fait que lire. Écrire coûte maintenant un clic, ou la touche qu'on tapait
    déjà pour écrire.
 
-   Trois conséquences assumées : le curseur se place **en fin de texte** et non
-   à l'endroit cliqué — ce sont deux vues, et SwiftUI ne transporte pas la
-   position du clic de l'une à l'autre ; **changer de note revient toujours en
-   lecture**, arriver dans l'éditeur se demande ; une note illisible garde son
-   écran d'indisponibilité et ne devient jamais éditable.
+   Trois conséquences assumées : **le curseur ne suit pas le clic** — ce sont
+   deux vues, et SwiftUI ne transporte pas la position du clic de l'une à
+   l'autre ; **changer de note revient toujours en lecture**, arriver dans
+   l'éditeur se demande ; une note illisible garde son écran d'indisponibilité
+   et ne devient jamais éditable.
+
+   Où le curseur atterrit exactement — début ou fin du texte — est ce que fait
+   `TextEditor` quand `@FocusState` le désigne, et reste **à constater à
+   l'usage** : cette ligne dira laquelle des deux dès qu'on l'aura regardé. Les
+   contournements restent hors périmètre dans les deux cas.
 3. **Tags dans la barre latérale**, en cases à cocher avec leur nombre, à la
    place des filtres d'activité.
 4. **Uniquement les notes du jour** : seuls les fichiers `AAAA-MM-JJ.md` à la
@@ -165,7 +170,16 @@ sert déjà les notes d'activité, ou le `TextEditor` quand on écrit.
 Toute la surface du volet prend le clic, pas seulement le texte : une note vide
 n'offre rien à viser, et une invite discrète — « Cliquez pour écrire » — le dit,
 faute de quoi un volet blanc qui se transforme en éditeur ne s'annonce nulle
-part.
+part. **Une exception, voulue** : un lien `[texte](url)` rendu reste un lien et
+s'ouvre dans le navigateur. Quelqu'un qui clique un lien veut le suivre, pas
+écrire à côté ; pour éditer la ligne, on clique à côté du lien.
+
+Le mode — lecture ou écriture, et sur quelle note — est un `JournalEditing`,
+sorti de la vue et testé à part : changer de note et demander l'éditeur peuvent
+arriver dans la même passe de mise à jour, dans un ordre que SwiftUI ne promet
+pas, et une règle qui retient *quelle* note est éditée survit aux deux ordres là
+où un booléen s'annulait lui-même. Le volet est également refait à neuf quand on
+change de dossier : une autre note du même jour n'est pas la même note.
 
 Le **frontmatter n'est pas rendu** : `JournalNote.body(of:)` l'enlève avant
 d'appeler le renderer, sinon chaque note en porterait un paragraphe « --- tags:
@@ -189,7 +203,7 @@ de notes du jour Obsidian existant s'ouvre tel quel.
 | ⌘N | la note du jour — la crée si besoin, la sélectionne, place le curseur dedans |
 | `j` `k` `gg` `G` `⌃d` `⌃u` | parcourir la liste, comme partout |
 | `e` · ⏎ | passer le clavier dans l'éditeur |
-| clic dans le volet | passer en édition, curseur en fin de texte |
+| clic dans le volet | passer en édition ; le curseur ne se pose pas à l'endroit cliqué |
 | `/` | aller au champ de recherche |
 | `échap` | sortir de l'éditeur — la note repasse en lecture —, puis vider la recherche, puis les tags cochés, puis la sélection |
 | ⌘⌫ · `x` | supprimer la note, après confirmation |
@@ -241,6 +255,7 @@ clair. L'app n'est pas en bac à sable (`com.apple.security.app-sandbox` à
 | `JournalFolder.swift` | lire, écrire, supprimer — le seul fichier qui touche le disque |
 | `JournalStore.swift` | l'état observable, la surveillance, l'enregistrement différé |
 | `JournalListView.swift` | la liste et sa recherche |
+| `JournalEditing.swift` | lecture ou écriture, et sur quelle note |
 | `JournalDetailView.swift` | l'en-tête, la note rendue et l'éditeur |
 
 `Cairn/Features/Settings/JournalSettingsView.swift`.
@@ -268,6 +283,9 @@ suite. La logique est presque toute en valeurs pures, donc en tests rapides :
 - **Corps rendu** : le frontmatter est enlevé du corps, un `---` en milieu de
   note y reste, un bloc jamais refermé ne perd que sa première ligne — et
   `MarkdownParser`, lui, ne touche à rien de tout cela.
+- **Mode lecture/écriture** (`JournalEditing`) : les deux ordres d'arrivée de
+  ⌘N finissent tous deux dans l'éditeur, revenir sur une note qu'on éditait
+  l'ouvre en lecture, échap termine.
 - **`JournalFolder`**, sur un dossier temporaire : aller-retour lecture /
   écriture, nom de fichier produit pour une date, rejet de ce qui n'est pas une
   note du jour (`notes.md`, `2026-13-01.md`, un sous-dossier).

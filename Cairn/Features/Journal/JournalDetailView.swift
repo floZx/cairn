@@ -32,16 +32,9 @@ struct JournalDetailView: View {
     let onLeaveEditor: () -> Void
 
     @FocusState private var editorFocused: Bool
-    /// The note being written in, when there is one.
-    ///
-    /// Which note, rather than a plain "editing" flag: any other note is then
-    /// read *by construction*, whatever a flag might have been left saying, and
-    /// the two events that arrive together on ⌘N — the note changes, the editor
-    /// is asked for — cannot undo each other whichever `onChange` SwiftUI
-    /// decides to run first.
-    @State private var editedNote: DateKey?
-
-    private var isEditing: Bool { editedNote == note.id }
+    /// Reading or writing, and on which note. The rules are `JournalEditing`'s,
+    /// and tested there: what is left here is the focus plumbing.
+    @State private var editing = JournalEditing()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -49,7 +42,7 @@ struct JournalDetailView: View {
             Divider()
             if !note.isReadable {
                 unreadable
-            } else if isEditing {
+            } else if editing.isEditing(note.id) {
                 editor
             } else {
                 reader
@@ -58,17 +51,12 @@ struct JournalDetailView: View {
         // `e`, `n`, `⏎` from the list and ⌘N all land in the field: reading
         // mode holds no focus of its own, so nothing swallows them on the way.
         .onChange(of: focusRequest) { _, _ in beginEditing() }
-        // Another note opens read, and so does the one just left when one comes
-        // back to it. Cleared against the note being *left* rather than
-        // unconditionally: ⌘N changes the note and asks for the editor in the
-        // same breath, and SwiftUI promises no order between the two handlers —
-        // this way, whichever runs first, the request survives.
-        //
-        // The focus goes too: left standing at true with no field on screen, it
-        // would make the next request a no-op and the next note would not get
-        // the keyboard.
+        // The note just left goes back to reading, under `JournalEditing`'s
+        // rule rather than this view's. The focus goes with it: left standing
+        // at true with no field on screen, it would make the next request a
+        // no-op and the next note would not get the keyboard.
         .onChange(of: note.id) { previous, _ in
-            if editedNote == previous { editedNote = nil }
+            editing.left(previous)
             editorFocused = false
         }
     }
@@ -118,6 +106,10 @@ struct JournalDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .contentShape(.rect)
         .onTapGesture { beginEditing() }
+        // A new scroll view per note: kept as one, a long note read to the end
+        // would hand the next one its own offset, which opens somewhere in the
+        // middle of a note one has never seen.
+        .id(note.id)
     }
 
     /// What gets rendered: the buffer on screen, front matter left out.
@@ -135,7 +127,7 @@ struct JournalDetailView: View {
     /// site: `e` or Return on such a row would ask for focus nothing can take.
     private func beginEditing() {
         guard note.isReadable else { return }
-        editedNote = note.id
+        editing.requested(for: note.id)
         Task { @MainActor in editorFocused = true }
     }
 
@@ -154,7 +146,7 @@ struct JournalDetailView: View {
             // again straight away.
             .onKeyPress(.escape) {
                 editorFocused = false
-                editedNote = nil
+                editing.ended()
                 onLeaveEditor()
                 return .handled
             }
