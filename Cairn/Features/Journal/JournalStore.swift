@@ -24,6 +24,14 @@ final class JournalStore {
     /// Set when the note being edited changed underneath. Cleared by the
     /// banner's two buttons.
     private(set) var conflict: JournalReconciliation.Outcome?
+    /// The note whose last write failed, if any.
+    ///
+    /// While this is set the store refuses to move on to another note: the
+    /// error has to stay over the text it belongs to, and that text would be
+    /// unreachable the moment the buffer was replaced. A list keeping its own
+    /// selection reads this so the two do not drift apart — the store having
+    /// stayed on a note the sidebar has left is a worse state than either.
+    private(set) var pendingWriteFailure: DateKey?
     private(set) var folder: URL?
 
     private let defaults: UserDefaults
@@ -92,6 +100,7 @@ final class JournalStore {
         isDirty = false
         baseline = nil
         conflict = nil
+        pendingWriteFailure = nil
         reload()
         startWatching()
     }
@@ -128,8 +137,23 @@ final class JournalStore {
 
     /// Reconciles what the disk now says with what is being typed.
     private func merged(_ fresh: [JournalNote]) -> [JournalNote] {
-        guard let editingDate, isDirty else { return fresh }
+        guard let editingDate else { return fresh }
         let diskText = fresh.first { $0.date == editingDate }?.text
+
+        guard isDirty else {
+            // A note that is open and saved is the ordinary resting state, and
+            // the disk is more recent than what is merely being displayed: the
+            // editor takes it, as the list does, with no banner — there is no
+            // unsaved work to arbitrate. Leaving the buffer alone would show
+            // this morning's text over the phone's, and the next keystroke
+            // would write it back over the top.
+            //
+            // A file that has gone leaves an empty note rather than a
+            // remembered one: the day holds nothing everywhere else too.
+            buffer = diskText ?? ""
+            baseline = (editingDate, buffer)
+            return fresh
+        }
 
         // Nothing has happened to this note's file — the event was our own
         // save coming back, or some other note in the folder changing. Keep
@@ -167,9 +191,32 @@ final class JournalStore {
     private func keepingBuffer(
         over fresh: [JournalNote], at date: DateKey
     ) -> [JournalNote] {
-        var kept = fresh.filter { $0.date != date }
-        kept.append(JournalNote(date: date, text: buffer))
-        return kept.sorted { $0.date > $1.date }
+        Self.placing(
+            JournalNote(
+                date: date, text: buffer,
+                isReadable: fresh.first { $0.date == date }?.isReadable ?? true
+            ),
+            in: fresh
+        )
+    }
+
+    /// `notes` with this one in it: replacing the note for that day, or slotted
+    /// in where the day belongs.
+    ///
+    /// Nothing is re-sorted. A note's date is its identity and typing cannot
+    /// change it, so the order a keystroke arrives into is the order it leaves.
+    private static func placing(
+        _ note: JournalNote, in notes: [JournalNote]
+    ) -> [JournalNote] {
+        var updated = notes
+        if let index = updated.firstIndex(where: { $0.date == note.date }) {
+            updated[index] = note
+        } else if let index = updated.firstIndex(where: { $0.date < note.date }) {
+            updated.insert(note, at: index)
+        } else {
+            updated.append(note)
+        }
+        return updated
     }
 
     // MARK: - Writing
@@ -177,6 +224,10 @@ final class JournalStore {
     func update(_ text: String, for date: DateKey) {
         if editingDate != date {
             saveNow()
+            // The note being left could not be written: stay on it. Replacing
+            // the buffer here would leave the paragraph that failed to reach
+            // the disk nowhere at all, with only a message to say so.
+            guard pendingWriteFailure == nil else { return }
             // What the folder's last read says this note holds, which is what
             // its file held: the buffer only ever stands in for the note being
             // edited, and that is the one being left behind here.
@@ -187,9 +238,13 @@ final class JournalStore {
         isDirty = true
         // Shown immediately, saved in a moment: the list row's excerpt and the
         // tag list must follow the typing, not the debounce.
-        var updated = notes.filter { $0.date != date }
-        updated.append(JournalNote(date: date, text: text))
-        notes = updated.sorted { $0.date > $1.date }
+        notes = Self.placing(
+            JournalNote(
+                date: date, text: text,
+                isReadable: note(for: date)?.isReadable ?? true
+            ),
+            in: notes
+        )
 
         saveTask?.cancel()
         saveTask = Task { [weak self] in
@@ -205,7 +260,7 @@ final class JournalStore {
         guard isDirty, let folder, let date = editingDate else { return }
         isDirty = false
         do {
-            if buffer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if JournalNote(date: date, text: buffer).isEmpty {
                 // Opening today's note and typing nothing must not leave an
                 // empty file in the vault. Straight out, not to the trash: it
                 // never held anything.
@@ -217,9 +272,11 @@ final class JournalStore {
                 try JournalFolder.write(buffer, for: date, in: folder)
                 baseline = (date, buffer)
             }
+            pendingWriteFailure = nil
             loadError = nil
         } catch {
             isDirty = true
+            pendingWriteFailure = date
             loadError = "La note n'a pas pu être enregistrée. \(error.localizedDescription)"
         }
     }
@@ -232,8 +289,7 @@ final class JournalStore {
     func openToday() -> DateKey {
         let today = DateKey(Date())
         if note(for: today) == nil {
-            notes.insert(JournalNote(date: today, text: ""), at: 0)
-            notes.sort { $0.date > $1.date }
+            notes = Self.placing(JournalNote(date: today, text: ""), in: notes)
         }
         return today
     }
@@ -246,6 +302,8 @@ final class JournalStore {
             buffer = ""
             isDirty = false
             baseline = nil
+            // Whatever would not write is being thrown away on purpose here.
+            pendingWriteFailure = nil
         }
         do {
             try JournalFolder.remove(date, in: folder, toTrash: true)
@@ -266,6 +324,7 @@ final class JournalStore {
         buffer = ""
         isDirty = false
         baseline = nil
+        pendingWriteFailure = nil
         reload()
     }
 
@@ -318,7 +377,15 @@ final class JournalStore {
             )
         ) else { return }
         FSEventStreamSetDispatchQueue(stream, .main)
-        FSEventStreamStart(stream)
+        guard FSEventStreamStart(stream) else {
+            // A stream that never started must not be stopped — CoreServices
+            // asserts on it — so it is let go of here rather than handed to a
+            // `FolderStream`. The folder simply goes unwatched: notes written
+            // elsewhere then show up on the next reload rather than at once.
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            return
+        }
         self.stream = FolderStream(stream)
     }
 
