@@ -723,7 +723,17 @@ struct RootView: View {
         // write here would move the list while the store stayed behind — the
         // desynchronisation task 6 built that guard to prevent.
         selectJournalNote(app.journal.openToday())
-        journalEditorFocus += 1
+        // One tick later, for the same reason `VimKeys` waits before claiming
+        // focus. With nothing selected the detail column is showing
+        // `collapsedDetailColumn`, so the line above does not merely change
+        // `JournalDetailView`'s `focusRequest` — it *inserts* that view, and
+        // `onChange` never fires on insertion. Both writes land in one update
+        // pass, so there is no intermediate render to catch the counter going
+        // up. Deferring the bump gives the editor a view that already exists
+        // to aim at. `onChange(initial:)` in the detail view would fix this
+        // case and break every plain click-selection, which must not steal the
+        // keyboard into the editor.
+        Task { @MainActor in journalEditorFocus += 1 }
     }
 
     private func chooseGPXFilesToImport() {
@@ -999,6 +1009,13 @@ struct RootView: View {
                     // instead of clearing a selection it doesn't have.
                     if showsNutrition {
                         nutritionPanelVisible.toggle()
+                    } else if showsJournal {
+                        // The journal's pane follows the note selection, and
+                        // the activity selection it would otherwise clear is
+                        // invisible here: without this branch the button — and
+                        // the ⌥⌘I the key map calls good "depuis n'importe
+                        // quelle vue" — left the note pane exactly where it was.
+                        selectJournalNote(nil)
                     } else {
                         selectedActivities = []
                     }
@@ -1011,8 +1028,13 @@ struct RootView: View {
                 // is the same pane on the same side.
                 .keyboardShortcut("i", modifiers: [.option, .command])
                 // The weight screen has no pane to close; elsewhere the button
-                // needs something to act on.
-                .disabled(showsWeight || (!showsNutrition && selection.isEmpty))
+                // needs something to act on — a selected note in the journal,
+                // a selected activity anywhere else.
+                .disabled(
+                    showsWeight
+                        || (showsJournal && journalSelection == nil)
+                        || (!showsNutrition && !showsJournal && selection.isEmpty)
+                )
                 .help(
                     showsNutrition
                         ? (nutritionPanelVisible
