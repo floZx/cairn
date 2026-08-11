@@ -29,14 +29,16 @@ enum JournalFolder {
 
     /// Every daily note at the root of `folder`, newest first.
     ///
-    /// Sub-directories are not walked, and files that are not daily notes do
-    /// not exist as far as Cairn is concerned — choosing a whole Obsidian
-    /// vault must not drag its entire contents into a journal.
+    /// `contentsOfDirectory` is shallow by nature — unlike `enumerator(at:)`,
+    /// it never walks into sub-directories, so none is needed here. Files
+    /// that are not daily notes do not exist as far as Cairn is concerned —
+    /// choosing a whole Obsidian vault must not drag its entire contents into
+    /// a journal.
     static func notes(in folder: URL) throws -> [JournalNote] {
         let names = try FileManager.default.contentsOfDirectory(
             at: folder,
             includingPropertiesForKeys: nil,
-            options: [.skipsSubdirectoryDescendants, .skipsPackageDescendants]
+            options: [.skipsPackageDescendants]
         )
         var notes: [JournalNote] = []
         for url in names {

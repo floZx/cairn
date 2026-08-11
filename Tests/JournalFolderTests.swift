@@ -116,4 +116,34 @@ struct JournalFolderTests {
         #expect(notes.count == 1)
         #expect(notes[0].summary == "contenu illisible")
     }
+
+    @Test("un espace réservé iCloud non téléchargé n'est pas listé")
+    func iCloudPlaceholderIsNotListed() throws {
+        let folder = try makeFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        try JournalFolder.write("réelle", for: DateKey(raw: "2026-08-10")!, in: folder)
+        try Data().write(to: folder.appending(path: ".2026-08-11.md.icloud"))
+
+        let notes = try JournalFolder.notes(in: folder)
+        #expect(notes.map(\.date.raw) == ["2026-08-10"])
+    }
+
+    @Test("un fichier .icloud nu ne fait pas planter le listing")
+    func bareICloudFileDoesNotCrash() throws {
+        let folder = try makeFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        try Data().write(to: folder.appending(path: ".icloud"))
+        #expect(try JournalFolder.notes(in: folder).isEmpty)
+    }
+
+    @Test("un espace réservé pour un fichier qui n'est pas une note est ignoré")
+    func iCloudPlaceholderForNonNoteIsIgnored() throws {
+        let folder = try makeFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        try Data().write(to: folder.appending(path: ".notes.md.icloud"))
+        #expect(try JournalFolder.notes(in: folder).isEmpty)
+    }
 }
