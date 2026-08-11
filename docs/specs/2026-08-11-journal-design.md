@@ -39,11 +39,11 @@ Le coffre de référence est
    l'éditeur se demande ; une note illisible garde son écran d'indisponibilité
    et ne devient jamais éditable.
 
-   Où le curseur atterrit exactement **en entrant** dans l'éditeur — début ou
-   fin du texte — est ce que fait `TextEditor` quand `@FocusState` le désigne,
-   et reste **à constater à l'usage** : cette ligne dira laquelle des deux dès
-   qu'on l'aura regardé. Les contournements restent hors périmètre dans les
-   deux cas.
+   **En entrant** dans l'éditeur, le curseur se pose **en fin de texte** —
+   constaté au clavier le 11 août 2026. C'est ce que fait `TextEditor` quand
+   `@FocusState` le désigne, et cela tombe bien : on ajoute à la suite d'un
+   journal bien plus souvent qu'on ne reprend son milieu. Les contournements
+   restent hors périmètre.
 
    *Ce que l'usage a tranché, en revanche* (11 août 2026). Tant que l'éditeur
    tenait son texte du store — `Binding(get: { text }, set: onEdit)` —, chaque
@@ -274,7 +274,7 @@ de notes du jour Obsidian existant s'ouvre tel quel.
 | ⌘N | la note du jour — la crée si besoin, la sélectionne, place le curseur dedans |
 | `j` `k` `gg` `G` `⌃d` `⌃u` | parcourir la liste, comme partout |
 | `e` · ⏎ | passer le clavier dans l'éditeur |
-| clic dans le volet | passer en édition ; le curseur ne se pose pas à l'endroit cliqué — où il se pose alors reste à constater |
+| clic dans le volet | passer en édition ; le curseur ne se pose pas à l'endroit cliqué mais en fin de texte |
 | `/` | aller au champ de recherche |
 | `échap` | sortir de l'éditeur — la note repasse en lecture —, puis vider la recherche, puis les tags cochés, puis la sélection |
 | ⌘⌫ · `x` | supprimer la note, après confirmation |

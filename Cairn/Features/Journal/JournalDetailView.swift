@@ -16,11 +16,11 @@ import SwiftUI
 ///
 /// Going from rendered to editor does not put the caret where the click landed:
 /// they are two different views, and SwiftUI carries no click position from one
-/// to the other. Which end of the text it lands on instead is whatever
-/// `TextEditor` does when `@FocusState` reaches it, and remains to be seen at
-/// the keyboard — the one thing observed is that a text *replaced* from outside
-/// leaves the caret at the end, which is why the draft below is not replaced
-/// under the typing.
+/// to the other. It lands at the *end* of the text — what `TextEditor` does when
+/// `@FocusState` reaches it, observed at the keyboard. A text *replaced* from
+/// outside leaves the caret there too, which is why the draft below is never
+/// replaced under the typing: that is the same end-of-text jump, but arriving
+/// on every keystroke.
 struct JournalDetailView: View {
     let note: JournalNote
     /// The store's text for this note: what the reader renders, and what the

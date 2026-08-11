@@ -252,9 +252,10 @@ clique dedans, ou sur `e`, `n`, `⏎` ou ⌘N ; échap referme l'éditeur et la 
 revient rendue. Un journal se relit bien plus souvent qu'il ne s'écrit, et les
 `#` et les `-` en tête de ligne ne sont du bruit que les jours où l'on ne fait
 que lire — écrire coûte alors un clic, ou la touche qu'on tapait déjà pour
-écrire. Le curseur, lui, ne suit pas le clic : ce sont deux vues, et SwiftUI ne
-transporte pas de l'une à l'autre l'endroit où l'on a cliqué. Le frontmatter
-YAML n'est pas rendu ; il reste dans le fichier, et dans l'éditeur.
+écrire. Le curseur, lui, ne suit pas le clic : il se pose en fin de texte, ce
+sont deux vues et SwiftUI ne transporte pas de l'une à l'autre l'endroit où l'on
+a cliqué. Le frontmatter YAML n'est pas rendu ; il reste dans le fichier, et
+dans l'éditeur.
 
 L'enregistrement est automatique : 0,7 s après la dernière frappe, et tout de
 suite quand vous changez de note, quittez la section, passez à une autre
