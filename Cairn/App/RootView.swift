@@ -418,6 +418,13 @@ struct RootView: View {
                             JournalListView(
                                 notes: journalNotes,
                                 query: journalQuery,
+                                // A folder that was renamed, or sits on a
+                                // volume nobody mounted: the setting is kept,
+                                // so the section has to be the one place that
+                                // says why it is empty. Without it the list
+                                // offered « ⌘N ouvre la note du jour », which
+                                // opens a note that cannot be written.
+                                loadError: app.journal.loadError,
                                 selection: journalSelectionBinding,
                                 focusRequest: journalListFocus,
                                 onCommand: performInJournal,

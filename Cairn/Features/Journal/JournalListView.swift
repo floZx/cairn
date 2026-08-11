@@ -10,6 +10,8 @@ struct JournalListView: View {
     /// The live search text, so a row can show the passage that matched rather
     /// than its first line.
     let query: String
+    /// Why there is nothing to list, when the folder itself is the reason.
+    let loadError: String?
     @Binding var selection: DateKey?
     var focusRequest: Int
     let onCommand: (VimCommand) -> Bool
@@ -27,15 +29,28 @@ struct JournalListView: View {
         .listStyle(.inset)
         .overlay {
             if notes.isEmpty {
-                ContentUnavailableView(
-                    "Aucune note",
-                    systemImage: "text.book.closed",
-                    description: Text(
-                        query.isEmpty
-                            ? "⌘N ouvre la note du jour."
-                            : "Aucune note ne contient « \(query) »."
+                // The folder first: an empty list because the vault is not
+                // there is not an empty journal, and inviting ⌘N would open a
+                // note nothing can write. Only when the list is empty — a
+                // deletion that would not go through also sets this message,
+                // and that one must not blank out the notes still listed.
+                if let loadError {
+                    ContentUnavailableView(
+                        "Dossier indisponible",
+                        systemImage: "folder.badge.questionmark",
+                        description: Text(loadError)
                     )
-                )
+                } else {
+                    ContentUnavailableView(
+                        "Aucune note",
+                        systemImage: "text.book.closed",
+                        description: Text(
+                            query.isEmpty
+                                ? "⌘N ouvre la note du jour."
+                                : "Aucune note ne contient « \(query) »."
+                        )
+                    )
+                }
             }
         }
         .vimKeys(focusRequest: focusRequest) { command in
