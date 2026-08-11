@@ -268,6 +268,38 @@ et pose le curseur ; cliquer un jour veut dire « montre-moi ce jour-là », et 
 note qu'on voulait relire ne doit pas s'ouvrir avec un curseur dedans. Pour le
 jour qu'on voulait écrire, l'invite du lecteur est déjà là.
 
+### Le journal réunit deux sources
+
+*Ajouté le 11 août 2026, sur demande.* La liste ne venait que des fichiers du
+coffre, si bien qu'un jour dont on n'avait écrit que sur la sortie elle-même —
+« jambes lourdes, vent de face » dans une note Strava — était dans le journal
+sans être dans sa liste, et aucune recherche ne le trouvait.
+
+`JournalDay` réunit les deux : la note du jour venue du coffre, et ce que
+portent les sorties de ce jour-là.
+
+- **Un jour sans fichier apparaît** si au moins une de ses sorties a écrit
+  quelque chose. Un jour d'entraînement muet n'entre pas : ce n'est pas une
+  entrée de journal.
+- **La recherche lit les deux**, et l'extrait vient du texte qui a répondu.
+- **Les tags des deux comptent** dans la barre latérale, et cocher un tag écrit
+  dans une sortie ramène ce jour-là.
+- **Le coffre reste la seule chose que Cairn écrit.** Une note d'activité est
+  lue ici et se modifie là où elle vit. Écrire dans un jour qui n'existait que
+  par une sortie crée le fichier — par `open(_:)`, donc rien sur le disque tant
+  qu'on n'a pas tapé — et `x` y est refusé, faute de fichier à mettre à la
+  corbeille.
+- **Toute note listée par le store est gardée, vide ou non** : le jour qu'on est
+  en train d'écrire y a une ligne vide exprès, et la faire tomber ici
+  emporterait le volet et le curseur au milieu d'une phrase.
+
+Le jour auquel une sortie appartient est le `DateKey` de son instant dans le
+calendrier du Mac — la même règle que le filtre du rappel, pour que la liste
+d'un jour et son rappel ne puissent pas être en désaccord sur ce qui lui
+appartient. Les activités sont récupérées déjà restreintes à celles qui ont
+écrit quelque chose : quarante-quatre sur huit cent quarante-sept ici, ce qui
+rend la fusion assez peu coûteuse pour tenir dans `body`.
+
 **Colonne centrale** — la liste, la plus récente en haut. Chaque ligne : la date
 en toutes lettres (« mardi 11 août 2026 »), un extrait, les pastilles de tags.
 Le champ `.searchable` cherche dans le texte entier, insensible à la casse et

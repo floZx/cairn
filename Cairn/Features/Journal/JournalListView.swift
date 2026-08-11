@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// The notes, newest first.
+/// The days, newest first.
 ///
 /// A plain `List` rather than the activity list's `Table`: a note has one
 /// column worth showing — what it says — and the tags under it are chips, not
 /// a sortable field.
 struct JournalListView: View {
-    let notes: [JournalNote]
+    let days: [JournalDay]
     /// The live search text, so a row can show the passage that matched rather
     /// than its first line.
     let query: String
@@ -30,16 +30,16 @@ struct JournalListView: View {
     /// selected. Overriding a choice the user made, or made a point of
     /// clearing, would be worse still; hence the `current == nil` guard.
     static func initialSelection(
-        notes: [JournalNote], current: DateKey?
+        days: [JournalDay], current: DateKey?
     ) -> DateKey? {
         guard current == nil else { return nil }
-        return notes.first?.date
+        return days.first?.date
     }
 
     var body: some View {
-        List(notes, selection: $selection) { note in
-            row(note)
-                .tag(note.date)
+        List(days, selection: $selection) { day in
+            row(day)
+                .tag(day.date)
         }
         .listStyle(.inset)
         // On appearance alone, which here means on entering the section: no
@@ -48,12 +48,12 @@ struct JournalListView: View {
         // The binding is the guarded one, so a note whose write failed still
         // refuses to be left.
         .onAppear {
-            if let first = Self.initialSelection(notes: notes, current: selection) {
+            if let first = Self.initialSelection(days: days, current: selection) {
                 selection = first
             }
         }
         .overlay {
-            if notes.isEmpty {
+            if days.isEmpty {
                 // The folder first: an empty list because the vault is not
                 // there is not an empty journal, and inviting ⌘N would open a
                 // note nothing can write. Only when the list is empty — a
@@ -83,10 +83,10 @@ struct JournalListView: View {
             case let .move(delta):
                 return moveSelection(by: delta)
             case .first:
-                selection = notes.first?.date
+                selection = days.first?.date
                 return true
             case .last:
-                selection = notes.last?.date
+                selection = days.last?.date
                 return true
             case let .halfPage(down):
                 return moveSelection(
@@ -97,9 +97,15 @@ struct JournalListView: View {
                 guard selection != nil else { return false }
                 onOpenEditor()
                 return true
-            // Same for `x`: the thing this screen can delete is a note.
+            // Same for `x`: the thing this screen can delete is a note *file*.
+            // A day that is in the list only because an outing wrote something
+            // has no file to trash, and an outing's note is edited where it
+            // lives. Refused rather than swallowed, so the press falls through
+            // instead of raising a dialog that would do nothing.
             case .delete:
-                guard let selection else { return false }
+                guard let selection, days.first(where: { $0.date == selection })
+                    .map({ !$0.note.isEmpty }) == true
+                else { return false }
                 onDelete(selection)
                 return true
             default:
@@ -115,26 +121,26 @@ struct JournalListView: View {
 
     private func moveSelection(by delta: Int) -> Bool {
         let current = selection.flatMap { key in
-            notes.firstIndex { $0.date == key }
+            days.firstIndex { $0.date == key }
         }
         guard let destination = VimMotion.destination(
-            from: current, delta: delta, count: notes.count
+            from: current, delta: delta, count: days.count
         ) else { return false }
-        selection = notes[destination].date
+        selection = days[destination].date
         return true
     }
 
-    private func row(_ note: JournalNote) -> some View {
+    private func row(_ day: JournalDay) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(Format.fullDate(note.date.date()))
+            Text(Format.fullDate(day.date.date()))
                 .font(.headline)
-            Text(note.excerpt(matching: query) ?? note.summary)
+            Text(day.excerpt(matching: query) ?? day.summary)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
-            if !note.tags.isEmpty {
+            if !day.tags.isEmpty {
                 FlowLayout(spacing: 4) {
-                    ForEach(note.tags.sorted()) { tag in
+                    ForEach(day.tags.sorted()) { tag in
                         JournalTagChip(tag: tag) { onSelectTag(tag) }
                     }
                 }

@@ -274,6 +274,14 @@ quoi rédiger l'entrée de mardi dernier qu'on avait sautée, sans qu'un fichier
 apparaisse si l'on se ravise. Le curseur n'est pas placé dans le texte : cliquer
 un jour veut dire « montre-moi », pas « écris » ; c'est ⌘N qui veut dire écrire.
 
+**Le journal réunit deux sources.** Un jour apparaît dans la liste s'il a une
+note dans le coffre, ou si l'une de ses sorties porte une note écrite dans
+Strava — de sorte qu'une journée dont vous n'aviez parlé que sur la sortie
+elle-même se retrouve là où vous la cherchez. La recherche lit les deux, et les
+tags des deux comptent dans la barre latérale. Le coffre reste la seule chose
+que Cairn écrit : la note d'une activité se modifie dans l'activité, et écrire
+dans un jour qui n'existait que par une sortie y crée le fichier.
+
 **Les sorties du jour** sont rappelées au-dessus de la note : l'heure, le sport,
 le nom, la distance, la durée, le dénivelé, et surtout **la note écrite sur
 l'activité elle-même**. C'est elle qui compte : on tient un journal pour avoir sous les

@@ -90,12 +90,30 @@ struct JournalNote: Identifiable, Equatable, Sendable {
     private static let locale = Locale(identifier: "fr_FR")
 
     func matches(query: String) -> Bool {
+        Self.matches(text, query: query)
+    }
+
+    /// The same search over any text, so the day's activity notes are read by
+    /// the rule that reads the day's own — one implementation, not two that
+    /// drift.
+    static func matches(_ text: String, query: String) -> Bool {
+        range(of: query, in: text) != nil
+    }
+
+    /// Where a query lands in a text, case- and accent-blind, in French.
+    ///
+    /// `range(of:options:)` rather than folding both strings by hand, so the
+    /// range it returns indexes the *original* text and an excerpt can be cut
+    /// from it. An empty query matches at the start, which is what makes an
+    /// unfiltered list keep everything.
+    static func range(
+        of query: String, in text: String
+    ) -> Range<String.Index>? {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return true }
+        guard !trimmed.isEmpty else { return text.startIndex..<text.startIndex }
         return text.range(
-            of: trimmed, options: Self.searchOptions, range: nil,
-            locale: Self.locale
-        ) != nil
+            of: trimmed, options: searchOptions, range: nil, locale: locale
+        )
     }
 
     /// The passage around the match, for the list row.
@@ -104,12 +122,13 @@ struct JournalNote: Identifiable, Equatable, Sendable {
     /// the search kept it — showing the first line instead would be worse
     /// still, since it is usually not where the match is.
     func excerpt(matching query: String) -> String? {
+        Self.excerpt(of: text, matching: query)
+    }
+
+    /// The same passage-finding over any text — see `matches(_:query:)`.
+    static func excerpt(of text: String, matching query: String) -> String? {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty,
-              let match = text.range(
-                  of: trimmed, options: Self.searchOptions, range: nil,
-                  locale: Self.locale
-              )
+        guard !trimmed.isEmpty, let match = range(of: trimmed, in: text)
         else { return nil }
 
         let before = 40

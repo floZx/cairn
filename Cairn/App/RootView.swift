@@ -74,6 +74,16 @@ struct RootView: View {
     @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
     @AppStorage(TrackColor.storageKey) private var expandedTrackColor: TrackColor = .accent
     @Query private var allActivities: [Activity]
+    /// Only the outings that wrote something down.
+    ///
+    /// Narrowed in the fetch rather than after it: the journal merges these
+    /// into its days on every pass of `body`, and that is affordable for the
+    /// few dozen outings carrying a note where it would not be for the whole
+    /// library.
+    @Query(filter: #Predicate<Activity> {
+        $0.activityDescription != nil && $0.activityDescription != ""
+    })
+    private var notedActivities: [Activity]
 
     /// The selected activities, restricted to those the list actually shows.
     ///
@@ -239,7 +249,8 @@ struct RootView: View {
             app.requestEditSelection = { if let selected { editor = .edit(selected) } }
             app.requestDeleteSelection = {
                 if showsJournal {
-                    journalPendingDeletion = journalSelection
+                    journalPendingDeletion = journalSelectionHasFile
+                        ? journalSelection : nil
                 } else {
                     pendingDeletion = selected
                 }
@@ -341,11 +352,41 @@ struct RootView: View {
 
     private var showsJournal: Bool { sidebarSelection == .journal }
 
-    /// The notes the list shows: the search and the ticked tags together.
-    private var journalNotes: [JournalNote] {
-        JournalNote.filter(
-            app.journal.notes, query: journalQuery, tags: journalTags
-        )
+    /// Every day the journal knows about: the vault's notes, and the days whose
+    /// outings carry one.
+    ///
+    /// The activities are fetched already narrowed to the ones that wrote
+    /// something (`notedActivities`), so this groups a few dozen rows rather
+    /// than the whole library. The day an outing belongs to is `DateKey` of its
+    /// instant in this Mac's calendar — the same rule `JournalDayActivities`
+    /// filters the recap by, so a day's list and a day's recap can never
+    /// disagree about which outings are its own.
+    private var journalDays: [JournalDay] {
+        var byDay: [DateKey: [String]] = [:]
+        for activity in notedActivities.sorted(by: { $0.startDate < $1.startDate }) {
+            guard let text = activity.activityDescription else { continue }
+            byDay[DateKey(activity.startDate), default: []].append(text)
+        }
+        return JournalDay.merge(notes: app.journal.notes, activityNotes: byDay)
+    }
+
+    /// What the list shows: the search and the ticked tags together.
+    private var filteredJournalDays: [JournalDay] {
+        JournalDay.filter(journalDays, query: journalQuery, tags: journalTags)
+    }
+
+    /// Whether the selected day has a file of its own to delete. A day listed
+    /// only because an outing wrote something has none.
+    private var journalSelectionHasFile: Bool {
+        guard let journalSelection,
+              let day = journalDays.first(where: { $0.date == journalSelection })
+        else { return false }
+        return !day.note.isEmpty
+    }
+
+    /// The tag list the sidebar ticks, counted over both sources.
+    private var journalTagCounts: [JournalTagTally.Row] {
+        JournalTagTally.rows(for: journalDays.map(\.tags))
     }
 
     /// The list's selection, which stays put while a write is failing.
@@ -462,7 +503,7 @@ struct RootView: View {
                             JournalEmptyView(onChooseFolder: chooseJournalFolder)
                         } else {
                             JournalListView(
-                                notes: journalNotes,
+                                days: filteredJournalDays,
                                 query: journalQuery,
                                 // A folder that was renamed, or sits on a
                                 // volume nobody mounted: the setting is kept,
@@ -910,9 +951,10 @@ struct RootView: View {
         // activity beside it, and both give the width back when nothing is
         // selected.
         if showsJournal {
-            if let date = journalSelection, let note = app.journal.note(for: date) {
+            if let date = journalSelection,
+               let day = journalDays.first(where: { $0.date == date }) {
                 JournalDetailView(
-                    note: note,
+                    day: day,
                     text: app.journal.text(for: date),
                     textRevision: app.journal.textRevision,
                     // The store's three pieces of state go in, one notice comes
@@ -924,7 +966,11 @@ struct RootView: View {
                         displayedDate: date
                     ),
                     focusRequest: journalEditorFocus,
-                    onBeginEditing: { app.journal.beginEditing(date) },
+                    // `open` rather than `beginEditing`: a day that is in the
+                    // list only because an outing wrote something has no note
+                    // in the store yet, and writing into it has to create one.
+                    // Nothing reaches the disk until a character is typed.
+                    onBeginEditing: { app.journal.open(date) },
                     onEdit: { app.journal.update($0, for: date) },
                     onSelectTag: { journalTags.insert($0) },
                     onSelectActivity: { openActivity($0) },
@@ -990,6 +1036,8 @@ struct RootView: View {
             selection: $sidebarSelection,
             filter: $filter,
             journalTags: $journalTags,
+            journalDays: journalDays,
+            journalTagCounts: journalTagCounts,
             journalDay: journalDayBinding,
             nutritionDay: $nutritionDateKey
         )
@@ -1165,7 +1213,7 @@ struct RootView: View {
                     } label: {
                         Label("Supprimer", systemImage: "trash")
                     }
-                    .disabled(journalSelection == nil)
+                    .disabled(!journalSelectionHasFile)
                     .help("Mettre la note sélectionnée à la corbeille")
                 }
             }

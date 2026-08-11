@@ -24,6 +24,16 @@ struct SidebarView: View {
     /// every other filter, so the list and this pane never disagree.
     @Binding var journalTags: Set<JournalTag>
 
+    /// Every day the journal lists — for the badge, and for the calendar's
+    /// dots, which must mark a day written about in an outing's note just as
+    /// they mark one with a file in the vault.
+    let journalDays: [JournalDay]
+
+    /// The tags to tick, with their counts. Computed by `RootView`, which is
+    /// where the vault's notes and the outings' notes are already merged —
+    /// counting them again here would mean merging them twice.
+    let journalTagCounts: [JournalTagTally.Row]
+
     /// The day the calendar shows as chosen, and opens when one is clicked.
     ///
     /// A plain `DateKey` rather than the optional selection: the calendar has
@@ -45,10 +55,6 @@ struct SidebarView: View {
 
     private var sportCounts: [SportTally.Row] {
         SportTally.rows(for: activities.map(\.sportType))
-    }
-
-    private var tagCounts: [JournalTagTally.Row] {
-        JournalTagTally.rows(for: app.journal.notes.map(\.tags))
     }
 
     /// The filter sections belong to the activity screens; beside the journal,
@@ -74,7 +80,7 @@ struct SidebarView: View {
                 Label("Statistiques", systemImage: "chart.bar")
                     .tag(SidebarItem.statistics)
                 Label("Journal", systemImage: "text.book.closed")
-                    .badge(app.journal.notes.count)
+                    .badge(journalDays.count)
                     .tag(SidebarItem.journal)
                 Label("Alimentation", systemImage: "fork.knife")
                     .tag(SidebarItem.nutrition)
@@ -111,14 +117,14 @@ struct SidebarView: View {
                 Section {
                     MiniCalendarView(
                         selected: $journalDay,
-                        loggedDays: Set(app.journal.notes.map(\.date.raw))
+                        loggedDays: Set(journalDays.map(\.date.raw))
                     )
                     .listRowInsets(Self.calendarInsets)
                 }
 
-                if !tagCounts.isEmpty {
+                if !journalTagCounts.isEmpty {
                     Section("Tags") {
-                        ForEach(tagCounts) { entry in
+                        ForEach(journalTagCounts) { entry in
                             Toggle(isOn: binding(for: entry.tag)) {
                                 HStack {
                                     // The bare name, not `displayName`: the

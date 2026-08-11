@@ -34,7 +34,9 @@ struct JournalDetailView: View {
     /// system size.
     static let noteSize: CGFloat = 15
 
-    let note: JournalNote
+    /// The day this pane is about: the vault's note for it, and what its
+    /// outings wrote. The tags shown are the day's, both sources together.
+    let day: JournalDay
     /// The store's text for this note: what the reader renders, and what the
     /// draft is seeded from. Never what the editor is bound to — see `draft`.
     let text: String
@@ -90,9 +92,9 @@ struct JournalDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
-            if !note.isReadable {
+            if !day.note.isReadable {
                 unreadable
-            } else if editing.isEditing(note.id) {
+            } else if editing.isEditing(day.id) {
                 editor
             } else {
                 reader
@@ -105,7 +107,7 @@ struct JournalDetailView: View {
         // rule rather than this view's. The focus goes with it: left standing
         // at true with no field on screen, it would make the next request a
         // no-op and the next note would not get the keyboard.
-        .onChange(of: note.id) { previous, _ in
+        .onChange(of: day.id) { previous, _ in
             editing.left(previous)
             editorFocused = false
             seedDraft()
@@ -123,7 +125,7 @@ struct JournalDetailView: View {
             // again costs nothing when the store already knows, and is what
             // keeps the rule true for the paths that rebuild no view: the same
             // folder chosen a second time is one of them.
-            if editing.isEditing(note.id) { onBeginEditing() }
+            if editing.isEditing(day.id) { onBeginEditing() }
         }
     }
 
@@ -138,11 +140,11 @@ struct JournalDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(Format.fullDate(note.date.date()))
+            Text(Format.fullDate(day.date.date()))
                 .font(.title3)
-            if !note.tags.isEmpty {
+            if !day.tags.isEmpty {
                 FlowLayout(spacing: 4) {
-                    ForEach(note.tags.sorted()) { tag in
+                    ForEach(day.tags.sorted()) { tag in
                         JournalTagChip(tag: tag) { onSelectTag(tag) }
                     }
                 }
@@ -150,7 +152,7 @@ struct JournalDetailView: View {
             // Between what identifies the note and what warns about it: the
             // day's outings belong with the date they happened on, while the
             // banners belong as close as possible to the text they are about.
-            JournalDayActivities(date: note.date, onSelect: onSelectActivity)
+            JournalDayActivities(date: day.date, onSelect: onSelectActivity)
             if let conflict = notice?.conflict { banner(conflict) }
             if let failure = notice?.failure { self.failure(failure) }
         }
@@ -193,12 +195,12 @@ struct JournalDetailView: View {
         // A new scroll view per note: kept as one, a long note read to the end
         // would hand the next one its own offset, which opens somewhere in the
         // middle of a note one has never seen.
-        .id(note.id)
+        .id(day.id)
     }
 
     /// What gets rendered: the buffer on screen, front matter left out.
     ///
-    /// The buffer rather than `note.text`, so leaving the editor shows what was
+    /// The buffer rather than the note's text, so leaving the editor shows what was
     /// just typed and not what the file said before the save.
     private var bodyText: String { JournalNote.body(of: text) }
 
@@ -210,13 +212,13 @@ struct JournalDetailView: View {
     /// today's note. Unreadable notes are refused here rather than at each call
     /// site: `e` or Return on such a row would ask for focus nothing can take.
     private func beginEditing() {
-        guard note.isReadable else { return }
+        guard day.note.isReadable else { return }
         // The store's text, as of now: it may well have moved while the note
         // was merely being read, and the draft is only ever seeded here, on a
         // change of note, and on `textRevision`.
         seedDraft()
         onBeginEditing()
-        editing.requested(for: note.id)
+        editing.requested(for: day.id)
         Task { @MainActor in editorFocused = true }
     }
 
