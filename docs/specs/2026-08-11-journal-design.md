@@ -263,6 +263,16 @@ Le champ `.searchable` cherche dans le texte entier, insensible à la casse et
 aux accents. Recherche et tags cochés se cumulent : la liste montre les notes
 qui satisfont les deux.
 
+**En arrivant dans la section, la note la plus récente est sélectionnée**
+*(ajouté le 11 août 2026)*. Pas seulement pour ne pas ouvrir sur un volet vide :
+sans sélection, `e`, `n`, `⏎` et `x` n'ont rien sur quoi agir et ne font rien du
+tout, ce qui se lit comme des raccourcis cassés plutôt que comme une absence de
+sélection. Seulement à l'apparition de la vue, donc à l'entrée dans la section —
+aucun `.id(…)` ne la reconstruit pour une recherche ou un tag, si bien qu'échap
+peut vider la sélection sans que la passe suivante la remette. Et seulement
+quand rien n'est choisi : écraser une sélection faite, ou effacée exprès, serait
+pire que le volet vide.
+
 Quand une recherche est active, **l'extrait montre le passage qui correspond**
 plutôt que le début de la note : une liste de résultats qui n'affiche nulle part
 ce qu'elle a trouvé oblige à ouvrir chaque note pour le savoir.

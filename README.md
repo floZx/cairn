@@ -274,6 +274,12 @@ quoi rédiger l'entrée de mardi dernier qu'on avait sautée, sans qu'un fichier
 apparaisse si l'on se ravise. Le curseur n'est pas placé dans le texte : cliquer
 un jour veut dire « montre-moi », pas « écris » ; c'est ⌘N qui veut dire écrire.
 
+En arrivant dans la section, la note la plus récente est sélectionnée. C'est
+moins pour éviter un volet vide que pour les touches : sans sélection, `e`, `n`,
+`⏎` et `x` n'ont rien sur quoi agir, et des raccourcis qui ne font rien se
+lisent comme cassés. Échap vide bien la sélection, et rien ne la remet tant
+qu'on ne quitte pas la section.
+
 **Les tags** sont ceux d'Obsidian : `#tag` dans le texte, ou une clé `tags:` en
 frontmatter. Un titre `# Titre` n'en est pas un, et `#2026` non plus — c'est une
 année. `#projet/cairn` compte aussi pour `#projet`, sans quoi cocher le parent ne

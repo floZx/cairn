@@ -138,3 +138,50 @@ struct JournalNoteTests {
         #expect(both.map(\.date.raw) == ["2026-08-10"])
     }
 }
+
+@Suite("Sélection à l'arrivée dans le journal")
+@MainActor
+struct JournalInitialSelectionTests {
+    private func notes(_ raws: [String]) -> [JournalNote] {
+        raws.map { JournalNote(date: DateKey(raw: $0)!, text: "x") }
+    }
+
+    @Test("la note la plus récente est retenue quand rien n'est sélectionné")
+    func picksTheNewest() {
+        // The list is already sorted newest first, so "the first row" and "the
+        // most recent note" are the same thing — which is what makes `e` work
+        // the moment one arrives.
+        let rows = notes(["2026-08-11", "2026-08-10", "2026-08-09"])
+        #expect(
+            JournalListView.initialSelection(notes: rows, current: nil)
+                == DateKey(raw: "2026-08-11")!
+        )
+    }
+
+    @Test("une sélection existante n'est jamais écrasée")
+    func leavesAnExistingSelectionAlone() {
+        let rows = notes(["2026-08-11", "2026-08-10"])
+        #expect(
+            JournalListView.initialSelection(
+                notes: rows, current: DateKey(raw: "2026-08-10")!
+            ) == nil
+        )
+    }
+
+    @Test("une liste vide ne sélectionne rien")
+    func picksNothingFromAnEmptyList() {
+        #expect(JournalListView.initialSelection(notes: [], current: nil) == nil)
+    }
+
+    @Test("la première note de la liste filtrée, pas du coffre entier")
+    func picksTheFirstOfWhatIsShown() {
+        // The view is handed `journalNotes`, already filtered by search and
+        // ticked tags, so a filter that hides the newest note must not select
+        // a row the user cannot see.
+        let shown = notes(["2026-08-09"])
+        #expect(
+            JournalListView.initialSelection(notes: shown, current: nil)
+                == DateKey(raw: "2026-08-09")!
+        )
+    }
+}

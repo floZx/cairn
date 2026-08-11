@@ -21,12 +21,37 @@ struct JournalListView: View {
     /// `x`: ask for the note to go, which the window confirms first.
     let onDelete: (DateKey) -> Void
 
+    /// The note to open on arriving in the section, or nil to leave things be.
+    ///
+    /// Only the newest, and only when nothing is chosen. A section that opens
+    /// on an empty pane wastes the window, and worse, leaves the keys that act
+    /// on the selection — `e`, `n`, `⏎`, `x` — doing nothing at all, which
+    /// reads as the shortcuts being broken rather than as nothing being
+    /// selected. Overriding a choice the user made, or made a point of
+    /// clearing, would be worse still; hence the `current == nil` guard.
+    static func initialSelection(
+        notes: [JournalNote], current: DateKey?
+    ) -> DateKey? {
+        guard current == nil else { return nil }
+        return notes.first?.date
+    }
+
     var body: some View {
         List(notes, selection: $selection) { note in
             row(note)
                 .tag(note.date)
         }
         .listStyle(.inset)
+        // On appearance alone, which here means on entering the section: no
+        // `.id(…)` rebuilds this view for a search or a tag, so Escape can
+        // clear the selection without the next pass putting it straight back.
+        // The binding is the guarded one, so a note whose write failed still
+        // refuses to be left.
+        .onAppear {
+            if let first = Self.initialSelection(notes: notes, current: selection) {
+                selection = first
+            }
+        }
         .overlay {
             if notes.isEmpty {
                 // The folder first: an empty list because the vault is not
