@@ -368,6 +368,15 @@ struct RootView: View {
     }
 
     private func selectJournalNote(_ date: DateKey?) {
+        // The flush first, then the guard. A debounce that has not fired yet
+        // is unwritten work, and it is *this* write that fails when a vault
+        // has gone: reading the flag before flushing asks about a failure that
+        // has not happened, lets the selection move, and only then discovers
+        // it — the store stays on the note it could not write while the list
+        // shows another, and everything typed into the one on screen is
+        // refused. Worse with nothing selected: the pane collapses, so the
+        // message explaining the refusal has nowhere left to render.
+        app.journal.saveNow()
         guard app.journal.pendingWriteFailure == nil else { return }
         journalSelection = date
     }

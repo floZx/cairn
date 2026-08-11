@@ -137,6 +137,93 @@ struct JournalStoreTests {
         #expect(try fileText(day, in: folder) == "ma phrase, et la suite")
     }
 
+    /// A write that failed, then someone else putting exactly that text on
+    /// disk. The edit is saved — by another hand, but saved — so the journal
+    /// has nothing left to hold on to.
+    @Test("une adoption externe purge l'échec d'écriture")
+    func anAdoptionPurgesTheWriteFailure() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+
+        store.update("à sauver", for: day)
+        try FileManager.default.removeItem(at: folder)
+        store.saveNow()
+        #expect(store.pendingWriteFailure == day)
+
+        // The folder comes back with the phone's copy of the same paragraph.
+        try FileManager.default.createDirectory(
+            at: folder, withIntermediateDirectories: true
+        )
+        try JournalFolder.write("à sauver", for: day, in: folder)
+        store.reload()
+        #expect(store.pendingWriteFailure == nil)
+        #expect(store.writeFailure == nil)
+
+        // Which is what lets the journal move on: nothing else ever clears
+        // that flag, `saveNow()` having nothing left to write.
+        store.update("une autre note", for: otherDay)
+        #expect(store.text(for: otherDay) == "une autre note")
+    }
+
+    /// The three ways of letting go of a note on purpose. Each clears the
+    /// buffer; each has to clear the message that belonged to it, or the
+    /// journal stays frozen over a note nobody is on any more.
+    @Test("changer de dossier purge l'échec d'écriture")
+    func choosingAnotherFolderPurgesTheWriteFailure() throws {
+        let folder = try makeFolder()
+        let other = try makeFolder()
+        defer { discard(folder); discard(other) }
+        let store = makeStore(in: folder)
+
+        store.update("à sauver", for: day)
+        try FileManager.default.removeItem(at: folder)
+        store.saveNow()
+        #expect(store.writeFailure != nil)
+
+        store.choose(other)
+        #expect(store.pendingWriteFailure == nil)
+        #expect(store.writeFailure == nil)
+    }
+
+    @Test("supprimer la note purge l'échec d'écriture")
+    func deletingTheNotePurgesTheWriteFailure() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+
+        store.update("à sauver", for: day)
+        try FileManager.default.removeItem(at: folder)
+        store.saveNow()
+        #expect(store.writeFailure != nil)
+
+        try FileManager.default.createDirectory(
+            at: folder, withIntermediateDirectories: true
+        )
+        store.delete(day)
+        #expect(store.pendingWriteFailure == nil)
+        #expect(store.writeFailure == nil)
+    }
+
+    @Test("recharger depuis le disque purge l'échec d'écriture")
+    func reloadingFromDiskPurgesTheWriteFailure() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+
+        store.update("à sauver", for: day)
+        try FileManager.default.removeItem(at: folder)
+        store.saveNow()
+        #expect(store.writeFailure != nil)
+
+        try FileManager.default.createDirectory(
+            at: folder, withIntermediateDirectories: true
+        )
+        store.reloadConflicted()
+        #expect(store.pendingWriteFailure == nil)
+        #expect(store.writeFailure == nil)
+    }
+
     @Test("une note enregistrée et ouverte suit le disque, sans bandeau")
     func anOpenSavedNoteFollowsTheDisk() throws {
         let folder = try makeFolder()

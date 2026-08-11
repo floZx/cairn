@@ -191,6 +191,15 @@ final class JournalStore {
             // Whoever wrote it, the edit is on disk, so nothing is pending.
             isDirty = false
             conflict = nil
+            // Including a write of ours that failed: the text it was holding
+            // the journal for is on disk now. Nothing else would ever clear
+            // this — `saveNow()` leaves on `isDirty`, which has just gone —
+            // and the journal would refuse every change of note for good,
+            // behind a message about text that is safely written.
+            pendingWriteFailure = nil
+            writeFailure = nil
+            // `fresh` already holds this text, `.adopt` being the case where
+            // the two agree word for word.
             return fresh
         case .conflict, .vanished:
             conflict = outcome
@@ -294,14 +303,19 @@ final class JournalStore {
             }
             pendingWriteFailure = nil
             writeFailure = nil
+            // A write that went through proves the folder is there, so a
+            // message saying otherwise has had its day.
             loadError = nil
         } catch {
             isDirty = true
             pendingWriteFailure = date
-            let message =
+            // Not `loadError`: that one belongs to the folder, and is shown
+            // where the folder is chosen — a note that would not save has no
+            // business appearing under « Dossier des notes » in ⌘,. The
+            // editor reads `writeFailure`, which lasts exactly as long as the
+            // block it explains.
+            writeFailure =
                 "La note n'a pas pu être enregistrée. \(error.localizedDescription)"
-            writeFailure = message
-            loadError = message
         }
     }
 
