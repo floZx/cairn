@@ -559,21 +559,28 @@ struct RootView: View {
                 }
             }
             .frame(minWidth: 480)
-            // The same frosted sheet as the detail pane, so the two content
-            // columns read as one surface and only the sidebar stands apart.
-            // At the column rather than on the list: SwiftUI paints the
-            // column's own fill above anything a child puts behind itself.
+            // The same surface as the detail pane, so the two content columns
+            // read as one and only the sidebar stands apart. At the column
+            // rather than on the list: SwiftUI paints the column's own fill
+            // above anything a child puts behind itself.
+            //
+            // Opaque, and no longer a frosted sheet. `behindWindow` blending
+            // samples everything behind the window — other applications
+            // included — so a browser under the bottom edge printed a white
+            // band across the list and a window under the middle a violet
+            // cast. Depth is worth having on chrome; on the thing being read
+            // it is someone else's window showing through the text.
             .background(
-                VisualEffectBackground(material: .underWindowBackground)
+                VisualEffectBackground.opaque
                     .ignoresSafeArea(edges: .top)
             )
         } detail: {
             detailColumn
                 // The pane has no fill of its own — with the window opened up
-                // for the sidebar's material, the desktop came straight
-                // through it and the figures sat on someone else's window.
-                // A frosted sheet of its own gives it back a surface, and the
-                // right kind of one.
+                // for the sidebar's material, what is behind came straight
+                // through it and the figures sat on someone else's window,
+                // which is exactly what it turned out to be. An opaque surface
+                // of its own gives it back a page.
                 // Deliberately not lifted the way the sidebar is: tried, and
                 // measured at 47 against the sidebar's 53 and the list's 48,
                 // which puts all three planes within five values of each
@@ -582,7 +589,7 @@ struct RootView: View {
                 // document, map and charts and photographs, and belongs with
                 // the content it describes.
                 .background(
-                    VisualEffectBackground(material: .underWindowBackground)
+                    VisualEffectBackground.opaque
                         .ignoresSafeArea(edges: .top)
                 )
         }
@@ -595,10 +602,13 @@ struct RootView: View {
         // detail pane's wash. A single sheet has no boundary to show. Only the
         // sidebar keeps a fill of its own up there, which is the one seam
         // macOS draws in a toolbar anyway.
+        //
+        // Opaque like the columns it backs: this is the strip that showed
+        // through wherever they did not reach.
         // A guard, never meant to be seen: every column paints over it. It is
         // here so that no strip of an opened-up window is ever left bare.
         .background(
-            VisualEffectBackground(material: .underWindowBackground)
+            VisualEffectBackground.opaque
                 .ignoresSafeArea()
         )
         // The toolbar's own fill was a dark opaque band laid across three

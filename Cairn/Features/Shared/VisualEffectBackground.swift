@@ -13,9 +13,50 @@ import AppKit
 /// `SwiftUI`'s own `.background(.ultraThinMaterial)` cannot do this job: its
 /// materials blend what is *inside* the window, and inside the window there is
 /// nothing behind a sidebar. Only `behindWindow` blending reaches the desktop.
-struct VisualEffectBackground: NSViewRepresentable {
+struct VisualEffectBackground: View {
     var material: NSVisualEffectView.Material = .sidebar
     var blending: NSVisualEffectView.BlendingMode = .behindWindow
+
+    /// How much of the window's own colour is laid over the material.
+    ///
+    /// `windowBackgroundColor` rather than a fixed grey, so the veil is pale
+    /// over a light theme and dark over a dark one without being told.
+    ///
+    /// Note what this cannot do. `behindWindow` blending samples *everything*
+    /// behind the window, and other applications' windows are part of
+    /// everything: a browser under the bottom edge showed as a white band, a
+    /// window under the middle as a violet cast. A veil dilutes that, it does
+    /// not decide what is sampled — the surfaces that must not show it use
+    /// `.opaque` below instead.
+    var veil: Double = 0
+
+    var body: some View {
+        Material(material: material, blending: blending)
+            .overlay(Color(nsColor: .windowBackgroundColor).opacity(veil))
+    }
+
+    /// A content surface: the window's own colour, and nothing sampled.
+    ///
+    /// What macOS itself does, and for this reason. A translucent sidebar is
+    /// chrome and reads as a pane floating over the desktop; a translucent
+    /// *document* reads as whatever happens to be behind the window, which on a
+    /// normal desktop is other applications. The list and the detail pane are
+    /// documents.
+    ///
+    /// A view rather than the window's own opacity: the sidebar still blends,
+    /// so the window has to stay non-opaque, and every surface that must not
+    /// show through therefore has to paint itself.
+    static var opaque: some View {
+        Color(nsColor: .windowBackgroundColor)
+    }
+}
+
+/// The slab itself. Kept apart so the veil above can sit on top of it in
+/// SwiftUI, where a colour is one modifier rather than a second subview to
+/// place and resize by hand.
+private struct Material: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blending: NSVisualEffectView.BlendingMode
 
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = TransparencyClaimingEffectView()
