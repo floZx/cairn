@@ -20,8 +20,13 @@ struct ActivityCard: View {
     /// instead of having to measure (and mis-measure — see the probe).
     static let rowInsets = EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16)
     static var rowHeight: CGFloat { height + rowInsets.top + rowInsets.bottom }
-    private static let thumbnailWidth: CGFloat = 52
-    private var inner: CGFloat { Self.height - 10 }
+    /// Was 52 × 32. A trace is a shape to recognise, not a map to read, and at
+    /// the old size it was the loudest thing in a row whose subject is the name
+    /// and the figures. The two are tuned together: the box keeps roughly its
+    /// proportions, and the glyph that stands in for a missing trace is derived
+    /// from the width rather than fixed, so one number moves the whole thing.
+    private static let thumbnailWidth: CGFloat = 44
+    private var inner: CGFloat { Self.height - 14 }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -97,8 +102,9 @@ struct ActivityCard: View {
                     // against the text: it stands in for the whole thumbnail,
                     // and at body size it was a small mark adrift in it. Now
                     // that the name carries no glyph of its own, this is what
-                    // says which sport a gym session was.
-                    .font(.system(size: 22))
+                    // says which sport a gym session was. A fraction of the
+                    // width so it follows whenever that is tuned.
+                    .font(.system(size: Self.thumbnailWidth * 0.42))
                     // A touch stronger than it was: it used to sit on a tinted
                     // tile that framed it, and without one at the old opacity
                     // a gym session's grey glyph all but vanished.
