@@ -25,6 +25,22 @@ struct JournalListView: View {
     /// list along behind it.
     @State private var scroller = TableScroller()
 
+    /// Where the keyboard cursor is, kept here rather than read back from
+    /// `selection`.
+    ///
+    /// This is what makes a held `j` walk rather than take one step. The key
+    /// handler is a closure built when the body was last evaluated, and SwiftUI
+    /// does not re-evaluate it between the repeats of a held key: `selection`
+    /// is a `Binding` whose getter captures that same stale copy, so every
+    /// repeat read the position from before the first move and wrote the same
+    /// destination back. `@State` is a reference into live storage — read here,
+    /// it is always the row the cursor actually reached. The activity list has
+    /// carried the same pair for the same reason.
+    @State private var cursor: Int?
+    /// The selection this cursor stands for, so a selection made elsewhere — a
+    /// click, the calendar, ⌘N — is recognised as not ours and re-derived.
+    @State private var cursorSelection: DateKey?
+
     /// The note to open on arriving in the section, or nil to leave things be.
     ///
     /// Only the newest, and only when nothing is chosen. A section that opens
@@ -49,6 +65,12 @@ struct JournalListView: View {
         // Row heights are left alone here: a day carrying tags is taller than
         // one without, and pinning them to the first row's would clip the rest.
         .background(TableBridge(pinsRowHeight: false, scroller: scroller))
+        // A selection that is not the one we wrote came from somewhere else —
+        // a click, the sidebar's calendar, ⌘N — so the remembered cursor is
+        // stale and the next motion re-derives it from the selection.
+        .onChange(of: selection) { _, new in
+            if new != cursorSelection { cursor = nil }
+        }
         // On appearance alone, which here means on entering the section: no
         // `.id(…)` rebuilds this view for a search or a tag, so Escape can
         // clear the selection without the next pass putting it straight back.
@@ -124,27 +146,36 @@ struct JournalListView: View {
         }
     }
 
-    /// Straight to a row — `gg` and `G`, which have no delta to travel.
+    /// Moves the cursor and the selection to a row, and takes the list there.
     private func moveTo(_ index: Int) -> Bool {
         guard days.indices.contains(index) else { return false }
-        selection = days[index].date
+        let date = days[index].date
+        cursor = index
+        cursorSelection = date
+        selection = date
+        // And the list follows. Without this a held `j` walks the selection off
+        // the bottom of the window: the rows keep moving, but out of sight.
         scroller.scroll(toRow: index)
         return true
     }
 
     private func moveSelection(by delta: Int) -> Bool {
-        let current = selection.flatMap { key in
+        guard let destination = VimMotion.destination(
+            from: startingPoint, delta: delta, count: days.count
+        ) else { return false }
+        return moveTo(destination)
+    }
+
+    /// Where the next motion starts from: the remembered cursor while it still
+    /// stands for what is selected, the selection otherwise.
+    private var startingPoint: Int? {
+        if let cursor, days.indices.contains(cursor),
+           days[cursor].date == cursorSelection {
+            return cursor
+        }
+        return selection.flatMap { key in
             days.firstIndex { $0.date == key }
         }
-        guard let destination = VimMotion.destination(
-            from: current, delta: delta, count: days.count
-        ) else { return false }
-        selection = days[destination].date
-        // And the list follows. Without this a held `j` walks the selection off
-        // the bottom of the window: the rows keep moving, but out of sight, so
-        // the key looks as though it fired once and stopped.
-        scroller.scroll(toRow: destination)
-        return true
     }
 
     private func row(_ day: JournalDay) -> some View {

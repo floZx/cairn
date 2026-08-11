@@ -306,6 +306,21 @@ Le champ `.searchable` cherche dans le texte entier, insensible à la casse et
 aux accents. Recherche et tags cochés se cumulent : la liste montre les notes
 qui satisfont les deux.
 
+**Le curseur du clavier est en `@State`, pas relu dans la sélection**
+*(corrigé le 11 août 2026, après mesure)*. Un `j` maintenu n'avançait que d'un
+cran. Deux hypothèses ont été fausses avant qu'une trace temporaire ne tranche :
+les répétitions **arrivaient** bien — quarante-cinq `phase=.repeat`, focus
+intact. Le défaut était en aval.
+
+Le gestionnaire de touches est une fermeture construite à la dernière
+évaluation du corps, et SwiftUI ne réévalue pas le corps entre les répétitions
+d'une touche maintenue. `selection` est un `Binding` dont le getter capture
+cette même copie figée : chaque répétition relisait donc la position d'avant le
+premier mouvement et réécrivait la même destination. Une `@State` est une
+référence vers un stockage vivant — lue là, elle donne toujours la ligne que le
+curseur a réellement atteinte. La liste d'activités porte la même paire
+(`cursor`, `cursorSelection`) depuis toujours, pour cette raison.
+
 **Les pastilles de tags ne prennent jamais le clavier** *(corrigé le 11 août
 2026)*. Elles sont cliquables mais `focusable(false)` : un contrôle focalisable
 dans une ligne de `List` prend le clavier dès que cette ligne est sélectionnée.
