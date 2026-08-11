@@ -2,6 +2,11 @@ import SwiftUI
 
 /// suivinut's mini calendar: dots on logged days, click to travel. The
 /// displayed month follows the selection but can be browsed independently.
+///
+/// Shared since the journal arrived: the food log puts it in the right-hand
+/// panel, the journal in the sidebar, and "which days have something on them,
+/// and take me there" is the same question in both. It knows nothing of either
+/// — a bound day and a set of marked ones is the whole contract.
 struct MiniCalendarView: View {
     @Binding var selected: DateKey
     let loggedDays: Set<String>

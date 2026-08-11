@@ -267,6 +267,13 @@ après confirmation, y met le fichier, d'où il reste récupérable. La ligne, e
 reste dans la liste tant que c'est la note où vous écrivez : tout effacer pour
 recommencer ne doit pas fermer le volet sous le curseur.
 
+**Un calendrier** occupe le haut de la barre latérale, le même que celui du
+journal alimentaire : une pastille sur les jours qui portent une note, un clic
+pour y aller. Cliquer un jour vide ouvre une note blanche pour ce jour-là — de
+quoi rédiger l'entrée de mardi dernier qu'on avait sautée, sans qu'un fichier
+apparaisse si l'on se ravise. Le curseur n'est pas placé dans le texte : cliquer
+un jour veut dire « montre-moi », pas « écris » ; c'est ⌘N qui veut dire écrire.
+
 **Les tags** sont ceux d'Obsidian : `#tag` dans le texte, ou une clé `tags:` en
 frontmatter. Un titre `# Titre` n'en est pas un, et `#2026` non plus — c'est une
 année. `#projet/cairn` compte aussi pour `#projet`, sans quoi cocher le parent ne

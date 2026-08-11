@@ -414,12 +414,21 @@ final class JournalStore {
     /// takes the pane with it.
     @discardableResult
     func openToday() -> DateKey {
-        let today = DateKey(Date())
-        if note(for: today) == nil {
-            notes = Self.placing(JournalNote(date: today, text: ""), in: notes)
+        open(DateKey(Date()))
+    }
+
+    /// The same for any day, which is what the sidebar's calendar clicks.
+    ///
+    /// A day with no note gets an empty one in memory and nothing on disk —
+    /// so clicking last Tuesday to write the entry one forgot costs nothing if
+    /// one thinks better of it, exactly as ⌘N on today does.
+    @discardableResult
+    func open(_ date: DateKey) -> DateKey {
+        if note(for: date) == nil {
+            notes = Self.placing(JournalNote(date: date, text: ""), in: notes)
         }
-        beginEditing(today)
-        return today
+        beginEditing(date)
+        return date
     }
 
     /// Puts the note in the trash, and only then lets go of it.

@@ -23,6 +23,13 @@ struct SidebarView: View {
     /// The ticked tags, when the journal is showing. Held by `RootView` like
     /// every other filter, so the list and this pane never disagree.
     @Binding var journalTags: Set<JournalTag>
+
+    /// The day the calendar shows as chosen, and opens when one is clicked.
+    ///
+    /// A plain `DateKey` rather than the optional selection: the calendar has
+    /// to mark *some* month even when nothing is open. `RootView` maps it onto
+    /// `journalSelection` and onto the store — see `journalDayBinding`.
+    @Binding var journalDay: DateKey
     @Environment(AppEnvironment.self) private var app
     @Query private var activities: [Activity]
 
@@ -77,6 +84,19 @@ struct SidebarView: View {
             }
 
             if selection == .journal {
+                // Above the tags, because it answers the question one arrives
+                // with — "what did I write on the 6th?" — where the tags answer
+                // the one that comes after, "what have I written about Sam?".
+                Section {
+                    MiniCalendarView(
+                        selected: $journalDay,
+                        loggedDays: Set(app.journal.notes.map(\.date.raw))
+                    )
+                    // The grid is not a row: without this it inherits the
+                    // list's row insets and loses a column to them.
+                    .listRowInsets(EdgeInsets(top: 4, leading: 6, bottom: 4, trailing: 6))
+                }
+
                 if !tagCounts.isEmpty {
                     Section("Tags") {
                         ForEach(tagCounts) { entry in

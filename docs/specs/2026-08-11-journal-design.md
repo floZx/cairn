@@ -236,6 +236,27 @@ sont exactement ceux que la barre latérale liste, et le resteront.
 `SidebarItem.journal`, entre `.statistics` et `.nutrition`, icône
 `text.book.closed`, badge = nombre de notes.
 
+**Barre latérale** *(ajouté le 11 août 2026)* — un `MiniCalendarView`, le même
+que celui du journal alimentaire, au-dessus de la section Tags : il répond à la
+question qu'on a en arrivant — « qu'est-ce que j'ai écrit le 6 ? » — là où les
+tags répondent à celle qui vient ensuite. Une pastille marque les jours qui
+portent une note.
+
+Cliquer un jour l'ouvre. Un jour **sans note** en reçoit une, vide et en mémoire
+seulement : rien n'est écrit tant qu'on n'a pas tapé, ce qui donne l'écriture
+rétroactive sans laisser de fichier derrière si l'on se ravise — la règle de
+`open(_:)`, dont `openToday()` n'est plus que le cas d'aujourd'hui.
+
+Le passage par `selectJournalNote` est obligatoire, et l'ordre l'est aussi : la
+sélection est demandée d'abord, le jour n'est ouvert dans le store *que si* elle
+a bougé. Ouvrir en premier insérerait une ligne et confierait au store une note
+sur laquelle la liste n'est jamais allée.
+
+L'éditeur n'est délibérément pas focalisé. ⌘N veut dire « écrire aujourd'hui »
+et pose le curseur ; cliquer un jour veut dire « montre-moi ce jour-là », et une
+note qu'on voulait relire ne doit pas s'ouvrir avec un curseur dedans. Pour le
+jour qu'on voulait écrire, l'invite du lecteur est déjà là.
+
 **Colonne centrale** — la liste, la plus récente en haut. Chaque ligne : la date
 en toutes lettres (« mardi 11 août 2026 »), un extrait, les pastilles de tags.
 Le champ `.searchable` cherche dans le texte entier, insensible à la casse et

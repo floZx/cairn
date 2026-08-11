@@ -367,6 +367,28 @@ struct RootView: View {
         )
     }
 
+    /// The sidebar calendar's day: the open note, or today when none is.
+    ///
+    /// Setting it goes the long way round on purpose. `selectJournalNote`
+    /// flushes and may refuse — a note whose write failed is not one the list
+    /// may leave — so the day is only opened in the store once the move has
+    /// actually been agreed. Opening first would insert a row and hand the
+    /// store a note the list never moved to.
+    ///
+    /// The editor is deliberately not focused. ⌘N means "write today", so it
+    /// puts the caret in; clicking a day means "show me that day", and a note
+    /// one wanted to read should not open with a cursor in it. The reader's
+    /// own invitation is there for the day one meant to write.
+    private var journalDayBinding: Binding<DateKey> {
+        Binding(
+            get: { journalSelection ?? DateKey(Date()) },
+            set: { day in
+                selectJournalNote(day)
+                if journalSelection == day { app.journal.open(day) }
+            }
+        )
+    }
+
     private func selectJournalNote(_ date: DateKey?) {
         // The flush first, then the guard. A debounce that has not fired yet
         // is unwritten work, and it is *this* write that fails when a vault
@@ -951,7 +973,8 @@ struct RootView: View {
         SidebarView(
             selection: $sidebarSelection,
             filter: $filter,
-            journalTags: $journalTags
+            journalTags: $journalTags,
+            journalDay: journalDayBinding
         )
             .frame(minWidth: 260)
             .sportWash(washColor, strength: SportWashStrength.sidebar)
