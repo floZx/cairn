@@ -13,8 +13,18 @@ struct MarkdownText: View {
     /// fills its pane and is read for minutes at a time, so it asks for more.
     var baseSize: CGFloat?
 
-    /// Whether `#tag` is picked out. Off for an activity note, whose text is a
-    /// database field where a `#` is a character someone typed.
+    /// Whether `#tag` is picked out and its hash dropped.
+    ///
+    /// On wherever a note is *read*, journal and activity alike: the two are
+    /// written by the same person in the same habit, and one of them showing a
+    /// bare `#Sam` beside the other's coloured `Sam` was the kind of difference
+    /// nothing justified. Off by default all the same, because the flag also
+    /// removes characters from what is displayed, and that should be asked for
+    /// rather than inherited.
+    ///
+    /// It is only a colour. An activity's note is a database field, not a file
+    /// in the vault, so a tag picked out in one is not a tag the sidebar lists
+    /// or the journal can filter on.
     var highlightsTags = false
 
     private var blocks: [MarkdownBlock] { MarkdownParser.blocks(from: markdown) }

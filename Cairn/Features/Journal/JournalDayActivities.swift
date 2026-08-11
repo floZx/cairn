@@ -85,7 +85,9 @@ struct JournalDayActivities: View {
 
             let note = Self.note(of: activity)
             if !note.isEmpty {
-                MarkdownText(markdown: note, baseSize: Self.noteSize)
+                MarkdownText(
+                    markdown: note, baseSize: Self.noteSize, highlightsTags: true
+                )
                     .textSelection(.enabled)
                     .foregroundStyle(.secondary)
             }

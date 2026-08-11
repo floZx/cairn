@@ -231,6 +231,15 @@ La reconnaissance passe par `JournalTag.isAllowed` et `JournalTag.init?(name:)`,
 et non par une seconde copie des règles : les tags mis en couleur dans la note
 sont exactement ceux que la barre latérale liste, et le resteront.
 
+*Étendu le 11 août 2026 aux notes d'activité*, partout où elles se lisent — le
+détail, l'aperçu de la fenêtre d'édition, et le rappel au-dessus d'une note du
+jour. Les deux sortes de notes s'écrivent de la même main ; un `#Sam` nu à côté
+d'un `Sam` coloré ne se justifiait par rien. Ce n'est qu'une couleur : la note
+d'une activité est un champ de la base et non un fichier du coffre, donc un tag
+coloré là n'entre dans aucun décompte et ne filtre rien. L'option reste inactive
+par défaut sur `MarkdownText`, parce qu'elle retire aussi des caractères de ce
+qui s'affiche, et que cela se demande plutôt que cela ne s'hérite.
+
 ## 3. L'écran
 
 `SidebarItem.journal`, entre `.statistics` et `.nutrition`, icône

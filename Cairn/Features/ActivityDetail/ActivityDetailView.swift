@@ -2,6 +2,15 @@ import SwiftUI
 import SwiftData
 
 struct ActivityDetailView: View {
+    /// The size an activity's note is read at, here and in the editor's
+    /// preview — the same text in the same context, so one value for both.
+    ///
+    /// A point above the system size. The note sits among figures and charts
+    /// rather than filling a pane, so it stays well under the journal's 15;
+    /// but at the system 13 it read as one more label in a column of labels,
+    /// when it is the only prose on the screen.
+    static let noteSize: CGFloat = 14
+
     let activity: Activity
     var onExpandMap: (() -> Void)?
     /// Opens the editor. The notes section calls it, which is what turns an
@@ -234,8 +243,10 @@ struct ActivityDetailView: View {
                 .buttonStyle(.plain)
                 .disabled(onEdit == nil)
             } else {
-                MarkdownText(markdown: note)
-                    .textSelection(.enabled)
+                MarkdownText(
+                    markdown: note, baseSize: Self.noteSize, highlightsTags: true
+                )
+                .textSelection(.enabled)
             }
         }
     }
