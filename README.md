@@ -274,6 +274,14 @@ quoi rédiger l'entrée de mardi dernier qu'on avait sautée, sans qu'un fichier
 apparaisse si l'on se ravise. Le curseur n'est pas placé dans le texte : cliquer
 un jour veut dire « montre-moi », pas « écris » ; c'est ⌘N qui veut dire écrire.
 
+**Les sorties du jour** sont rappelées au-dessus de la note : sport, nom,
+distance, durée, dénivelé. Écrire l'entrée du 11 août en ayant sous les yeux les
+12 km courus ce jour-là est le genre de rappel pour lequel on tient un journal.
+Un chiffre qui serait un mensonge est omis plutôt que tiré — une natation n'a
+pas de dénivelé, une séance en salle pas de distance — et un jour sans sortie
+n'affiche rien. Un clic ouvre l'activité dans « Mes activités », ce qui quitte le
+journal : c'est là que vivent sa carte et ses courbes.
+
 En arrivant dans la section, la note la plus récente est sélectionnée. C'est
 moins pour éviter un volet vide que pour les touches : sans sélection, `e`, `n`,
 `⏎` et `x` n'ont rien sur quoi agir, et des raccourcis qui ne font rien se

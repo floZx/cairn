@@ -277,6 +277,30 @@ Quand une recherche est active, **l'extrait montre le passage qui correspond**
 plutôt que le début de la note : une liste de résultats qui n'affiche nulle part
 ce qu'elle a trouvé oblige à ouvrir chaque note pour le savoir.
 
+**Les activités du jour** *(ajouté le 11 août 2026)* — entre les pastilles de
+tags et le bandeau d'alerte, la ou les sorties faites ce jour-là : symbole du
+sport, nom, distance, durée, dénivelé. Écrire l'entrée du 11 août en ayant sous
+les yeux les 12 km courus ce jour-là est le genre de rappel pour lequel on tient
+un journal. Un chiffre qui serait un mensonge est omis plutôt que tiré : une
+natation n'a pas de dénivelé, une séance en salle pas de distance, et une
+rangée de tirets ne dit rien qu'une absence ne dise mieux. Un jour sans sortie
+n'affiche rien du tout — un titre annonçant une liste vide est pire que pas de
+titre, et la plupart des jours n'ont pas de sortie.
+
+Un clic ouvre l'activité dans « Mes activités ». La section change forcément
+avec : le volet du journal *est* la note, donc une activité sélectionnée pendant
+qu'il s'affiche n'allumerait rien. La sélection est posée **avant** le
+changement de section, pour que la sélection d'ouverture de la liste trouve le
+volet déjà pris et n'y touche pas.
+
+`JournalDayActivities` porte sa propre `@Query` plutôt que de recevoir une liste
+filtrée : le volet de la note se reconstruit à chaque frappe — le brouillon y
+vit — et refiltrer toute la bibliothèque par caractère voudrait dire construire
+un `DateKey` pour chacune des centaines d'activités afin de le jeter aussitôt.
+Les bornes du jour passent par `DateKey.advanced(by:)` et non par 86 400
+secondes, sans quoi un changement d'heure les décalerait d'une heure — un jour
+fait 23 ou 25 heures deux fois par an.
+
 **Volet de droite** — un en-tête (la date, les pastilles de tags) puis, sur
 toute la hauteur restante, la note rendue par `MarkdownText`, le composant qui
 sert déjà les notes d'activité, ou le `TextEditor` quand on écrit.

@@ -389,6 +389,21 @@ struct RootView: View {
         )
     }
 
+    /// Leaves the journal for an activity, from the day's recap above a note.
+    ///
+    /// The section has to change with the selection: the journal's own pane is
+    /// the note, so an activity selected while it is showing would light up
+    /// nothing. Selecting *before* switching, so the list's opening selection
+    /// finds the pane already claimed and leaves it alone.
+    ///
+    /// The buffer is flushed by `onChange(of: sidebarSelection)`, which fires
+    /// on the switch below — an outing opened mid-sentence must not cost the
+    /// sentence.
+    private func openActivity(_ id: PersistentIdentifier) {
+        selectedActivities = [id]
+        sidebarSelection = .all
+    }
+
     private func selectJournalNote(_ date: DateKey?) {
         // The flush first, then the guard. A debounce that has not fired yet
         // is unwritten work, and it is *this* write that fails when a vault
@@ -912,6 +927,7 @@ struct RootView: View {
                     onBeginEditing: { app.journal.beginEditing(date) },
                     onEdit: { app.journal.update($0, for: date) },
                     onSelectTag: { journalTags.insert($0) },
+                    onSelectActivity: { openActivity($0) },
                     onReloadFromDisk: { app.journal.reloadConflicted() },
                     onDismissConflict: { app.journal.dismissConflict() },
                     onLeaveEditor: { journalListFocus += 1 }

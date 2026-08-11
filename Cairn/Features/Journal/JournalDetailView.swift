@@ -1,4 +1,8 @@
 import SwiftUI
+// For `PersistentIdentifier` alone: the note itself is a file, and nothing in
+// this view touches the database. It is how the day's outings are named on the
+// way back to `RootView`.
+import SwiftData
 
 /// The note, read as Markdown and edited on a click.
 ///
@@ -48,6 +52,9 @@ struct JournalDetailView: View {
     let onBeginEditing: () -> Void
     let onEdit: (String) -> Void
     let onSelectTag: (JournalTag) -> Void
+    /// Opening one of the day's outings, which leaves the journal for the
+    /// section that can actually show a map and a set of charts.
+    let onSelectActivity: (PersistentIdentifier) -> Void
     let onReloadFromDisk: () -> Void
     let onDismissConflict: () -> Void
     let onLeaveEditor: () -> Void
@@ -140,6 +147,10 @@ struct JournalDetailView: View {
                     }
                 }
             }
+            // Between what identifies the note and what warns about it: the
+            // day's outings belong with the date they happened on, while the
+            // banners belong as close as possible to the text they are about.
+            JournalDayActivities(date: note.date, onSelect: onSelectActivity)
             if let conflict = notice?.conflict { banner(conflict) }
             if let failure = notice?.failure { self.failure(failure) }
         }
