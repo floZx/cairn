@@ -295,8 +295,13 @@ final class JournalStore {
     /// never torn down — today's note opened with ⌘N is exactly that note.
     /// And a change arriving from the phone while the note sits open and
     /// untouched goes through `merged(_:)` like any other: the buffer takes it
-    /// and `textRevision` moves, where before the editor kept showing the old
-    /// text and wrote it back over the new one at the next keystroke.
+    /// and `textRevision` moves.
+    ///
+    /// That second one is the price of the editor holding its own text. It
+    /// used to read `text(for:)` live, so such a change did reach the screen
+    /// on its own — at the cost of the caret, which is the bug that started
+    /// all this. With the read-back gone, only a note the store knows to be
+    /// open gets told, so the editor has to say that it is.
     ///
     /// Refused while a write is pending, exactly as `update(_:for:)` is: the
     /// text that would not reach the disk has to stay where the message about
@@ -417,26 +422,49 @@ final class JournalStore {
         return today
     }
 
+    /// Puts the note in the trash, and only then lets go of it.
+    ///
+    /// That order matters twice over. A deletion that does not go through must
+    /// not have thrown away the unsaved text of a note that is still there —
+    /// the buffer used to go first, so a locked vault cost a paragraph. And it
+    /// must not leave the editor open on a note the store no longer holds:
+    /// `discardBuffer()` clears `editingDate`, and the pane only goes away
+    /// because the row does, which is the line below. Nothing can slip in
+    /// between the two — no suspension point, one actor.
     func delete(_ date: DateKey) {
         guard let folder else { return }
-        // Whatever would not write is being thrown away on purpose here, and
-        // so is any banner: both belonged to the note about to go.
-        if editingDate == date { discardBuffer() }
         do {
             try JournalFolder.remove(date, in: folder, toTrash: true)
-            notes.removeAll { $0.date == date }
-            loadError = nil
         } catch {
             loadError = "La note n'a pas pu être supprimée. \(error.localizedDescription)"
+            return
         }
+        // Whatever would not write is being thrown away on purpose here, and
+        // so is any banner: both belonged to the note that has just gone.
+        if editingDate == date { discardBuffer() }
+        notes.removeAll { $0.date == date }
+        loadError = nil
     }
 
     // MARK: - Conflicts
 
     /// Drops the buffer and takes the file, dismissing the banner.
+    ///
+    /// The note is handed back at the end, because **Recharger** does not
+    /// close the editor: the pane is not rebuilt, the caret does not move, the
+    /// reader is still writing in that note a second later. `discardBuffer()`
+    /// clears `editingDate` — it has to, the buffer it named is gone — so
+    /// without this the store would go on thinking nobody holds the text while
+    /// the editor holds it. The next change arriving from the phone would then
+    /// land in `notes` alone: no `textRevision`, nothing said to the editor,
+    /// which would write its own copy of a text nobody has seen since over the
+    /// file, with no banner. That is the ownership rule the whole draft
+    /// mechanism rests on, and it is only true if it is restored here.
     func reloadConflicted() {
+        let held = editingDate
         discardBuffer()
         reload()
+        if let held { beginEditing(held) }
     }
 
     /// Keeps the buffer, dismisses the banner — and writes it.

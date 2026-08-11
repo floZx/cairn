@@ -62,10 +62,21 @@ Le coffre de référence est
    l'éditeur, une autre note arrivant dans le volet, et `textRevision`, le
    compteur par lequel le store annonce qu'il a remplacé le texte lui-même
    (reprise d'une modification externe sur une note propre, ou **Recharger**).
-   Corollaire : l'éditeur prévient le store qu'il prend la note
-   (`beginEditing(_:)`), sans quoi une modification arrivée du téléphone pendant
-   qu'une note est ouverte sans avoir été touchée resterait invisible et serait
-   réécrite par-dessus à la frappe suivante.
+
+   **La règle a une condition, et c'est elle qu'il faut tenir** : le store
+   n'annonce le texte que d'une note qu'il *sait* ouverte. L'éditeur le prévient
+   donc qu'il la prend (`beginEditing(_:)`) — sans quoi une modification arrivée
+   du téléphone pendant qu'une note est ouverte sans avoir été touchée
+   n'atteindrait plus l'écran, l'ancien montage la faisant passer par la
+   relecture continue qu'on vient de supprimer. Et tout ce qui fait lâcher le
+   tampon au store (`discardBuffer()` : **Recharger**, suppression, changement
+   de dossier) lui fait aussi oublier la note, alors que le volet, lui, ne
+   bouge pas : **Recharger** ne referme pas l'éditeur et ne déplace pas le
+   curseur. Ces chemins-là rendent donc la note tout de suite, et l'éditeur se
+   réannonce à chaque avancée de `textRevision` s'il est toujours dedans. Sans
+   cela, la modification suivante arrivait dans la liste sans un mot pour
+   l'éditeur, qui écrivait ensuite par-dessus, sans bandeau, un texte que
+   personne n'avait vu.
 3. **Tags dans la barre latérale**, en cases à cocher avec leur nombre, à la
    place des filtres d'activité.
 4. **Uniquement les notes du jour** : seuls les fichiers `AAAA-MM-JJ.md` à la
@@ -157,6 +168,13 @@ ailleurs demanderait un troisième endroit où vit une note, dans un coffre qui
 est justement celui d'Obsidian, et pour un état qui dure le temps de lire deux
 lignes. Une seconde ligne sous le bandeau l'annonce donc, comme la ligne d'échec
 d'écriture annonce le sien.
+
+Quitter n'est pas le seul chemin : **changer de dossier sous un bandeau coûte la
+même chose** — `choose(_:)` purge le tampon après un `saveNow()` qui, justement,
+ne fait rien tant que la question est ouverte. La ligne du bandeau ne nomme que
+le fait de quitter, et c'est voulu : c'est le cas qu'on rencontre, désigner un
+autre coffre en pleine réponse à un conflit n'arrive pas ; l'écrire ici suffit
+et évite un bandeau à rallonge. Recharger, Garder, ou répondre avant de partir.
 
 ### Sauvegarde iCloud
 

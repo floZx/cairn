@@ -240,9 +240,11 @@ qui tranche, et non la temporisation de 0,7 s, qui écrirait votre texte
 par-dessus le fichier dont le bandeau vient de vous prévenir. « Garder » écrit
 alors ce que vous avez tapé ; changer de note revient au même. Quitter Cairn
 sans avoir répondu laisse en revanche le fichier tel que l'autre écriture l'a
-fait, et le bandeau le dit sous la question plutôt que de choisir pour vous. Un fichier illisible est tout de même listé — une note invisible est
-une note perdue — mais l'éditeur le refuse, plutôt que d'écrire par-dessus ce
-qu'il n'a pas su lire.
+fait, et le bandeau le dit sous la question plutôt que de choisir pour vous.
+
+Un fichier illisible est tout de même listé — une note invisible est une note
+perdue — mais l'éditeur le refuse, plutôt que d'écrire par-dessus ce qu'il n'a
+pas su lire.
 
 **On lit la note rendue, on écrit dedans au clic.** Le volet de droite affiche
 les titres, les listes et les citations, et devient un champ de texte dès qu'on

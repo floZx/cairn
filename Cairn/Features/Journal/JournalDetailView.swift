@@ -99,7 +99,17 @@ struct JournalDetailView: View {
         // note with nothing unsaved, or **Recharger** dropping the buffer.
         // This is the one moment the caret is allowed to move on its own —
         // the text it was in is not there any more.
-        .onChange(of: textRevision) { _, _ in seedDraft() }
+        .onChange(of: textRevision) { _, _ in
+            seedDraft()
+            // And we are still the ones holding it. Some of the reasons the
+            // store replaces a text are also reasons it stops considering the
+            // note open — dropping the buffer clears that — while this pane
+            // stays exactly where it is, editor and caret included. Saying so
+            // again costs nothing when the store already knows, and is what
+            // keeps the rule true for the paths that rebuild no view: the same
+            // folder chosen a second time is one of them.
+            if editing.isEditing(note.id) { onBeginEditing() }
+        }
     }
 
     /// Takes the store's text, unless the editor already holds exactly it.

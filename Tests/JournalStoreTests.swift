@@ -224,6 +224,58 @@ struct JournalStoreTests {
         #expect(store.writeFailure == nil)
     }
 
+    /// **Recharger** does not close the editor: the pane is not rebuilt, the
+    /// caret stays where it is. So the store has to go on knowing that the
+    /// note is held, or the next change arriving from the phone lands in
+    /// `notes` without a word to the editor — which then writes its own copy
+    /// of a text nobody has seen since, over the file, with no banner.
+    ///
+    /// The editor's rule is played out here in three lines, because the whole
+    /// point is what the *view* does with what the store says: it takes the
+    /// store's text when `textRevision` moves, and never otherwise.
+    @Test("après Recharger, la note reste tenue par l'éditeur")
+    func afterReloadingTheNoteIsStillHeld() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+
+        var editorText = ""
+        var seenRevision = -1
+        func editorFollows() {
+            guard store.textRevision != seenRevision else { return }
+            seenRevision = store.textRevision
+            editorText = store.text(for: day)
+        }
+
+        store.update("ma phrase", for: day)
+        store.saveNow()
+        editorFollows()
+        store.update("ma phrase, et la suite", for: day)
+        editorText = "ma phrase, et la suite"
+        try JournalFolder.write("celle du téléphone", for: day, in: folder)
+        store.reload()
+        #expect(store.conflict == .conflict)
+
+        // The reader takes the file. The editor is still on this note.
+        store.reloadConflicted()
+        editorFollows()
+        #expect(editorText == "celle du téléphone")
+
+        // The rest of the sync arrives — an iCloud burst delivers a vault in
+        // several goes — and has to reach the editor.
+        try JournalFolder.write("celle du téléphone, suite", for: day, in: folder)
+        store.reload()
+        editorFollows()
+        #expect(editorText == "celle du téléphone, suite")
+
+        // One letter typed into it: what the editor sends is what the editor
+        // holds, and nothing typed can rescue a text it was never shown.
+        store.update(editorText + " et moi", for: day)
+        store.saveNow()
+        let onDisk = try fileText(day, in: folder)
+        #expect(onDisk.contains("suite"))
+    }
+
     @Test("une note enregistrée et ouverte suit le disque, sans bandeau")
     func anOpenSavedNoteFollowsTheDisk() throws {
         let folder = try makeFolder()
