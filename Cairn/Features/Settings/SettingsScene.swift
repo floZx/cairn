@@ -7,7 +7,8 @@ import SwiftUI
 /// and what they store. Track colour and the tile cache used to live in the
 /// sync tab, where nobody would look for them. Nutrition holds the food
 /// journal's own configuration: macro and weight targets, day types, per-meal
-/// shares, catalog status, and the one-shot suivinut import.
+/// shares, catalog status, and the one-shot suivinut import. Journal holds the
+/// one thing the daily notes need: which folder they live in.
 struct SettingsScene: View {
     var body: some View {
         TabView {
@@ -21,6 +22,8 @@ struct SettingsScene: View {
                 .tabItem { Label("Cartes", systemImage: "map") }
             NutritionSettingsView()
                 .tabItem { Label("Nutrition", systemImage: "fork.knife") }
+            JournalSettingsView()
+                .tabItem { Label("Journal", systemImage: "text.book.closed") }
             BackupSettingsView()
                 .tabItem { Label("Sauvegarde", systemImage: "externaldrive.badge.icloud") }
         }
