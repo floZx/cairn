@@ -82,7 +82,13 @@ struct SidebarView: View {
                         ForEach(tagCounts) { entry in
                             Toggle(isOn: binding(for: entry.tag)) {
                                 HStack {
-                                    Text(entry.tag.displayName)
+                                    // The bare name, not `displayName`: the
+                                    // section is already titled "Tags", so the
+                                    // `#` says nothing here that the header has
+                                    // not said once for the whole list. It
+                                    // stays on the chips, where a tag sits in
+                                    // running text with nothing to announce it.
+                                    Text(entry.tag.name)
                                         .lineLimit(1)
                                         .truncationMode(.middle)
                                     Spacer(minLength: 8)
