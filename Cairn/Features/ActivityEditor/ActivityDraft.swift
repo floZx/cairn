@@ -11,7 +11,17 @@ import Foundation
 struct ActivityDraft: Equatable {
     var name: String
     var sport: SportType
-    var startLocalDate: Date
+    /// The true instant, not the wall-clock stamp.
+    ///
+    /// The sheet used to bind its picker to `startLocalDate`, which holds the
+    /// hour that was on the clock encoded as if it were UTC. A picker reads its
+    /// value in a time zone, so that hour came back out with the offset applied
+    /// a second time: an outing at 06:52 in Paris opened for editing at 08:52,
+    /// and saving it moved the activity two hours later.
+    var startDate: Date
+    /// The clock this instant is shown on — the activity's own. Not edited, so
+    /// it takes no part in `changedFields`.
+    let timeZone: TimeZone
     var distanceKm: Double
     var movingMinutes: Double
     var elevationGain: Double
@@ -25,7 +35,8 @@ struct ActivityDraft: Equatable {
     init(_ activity: Activity) {
         name = activity.name
         sport = activity.sportType
-        startLocalDate = activity.startLocalDate
+        startDate = activity.startDate
+        timeZone = activity.timeZone
         distanceKm = activity.distance / 1000
         movingMinutes = Double(activity.movingTime) / 60
         elevationGain = activity.totalElevationGain
@@ -39,7 +50,9 @@ struct ActivityDraft: Equatable {
     init(startingOn date: Date) {
         name = ""
         sport = .workout
-        startLocalDate = date
+        startDate = date
+        // Entered by hand, so it happened wherever the person entering it is.
+        timeZone = .current
         distanceKm = 0
         movingMinutes = 0
         elevationGain = 0
@@ -93,7 +106,7 @@ struct ActivityDraft: Equatable {
         let original = ActivityDraft(activity)
         if trimmedName != original.trimmedName { changed.insert(.name) }
         if sport != original.sport { changed.insert(.sportType) }
-        if startLocalDate != original.startLocalDate { changed.insert(.startDate) }
+        if startDate != original.startDate { changed.insert(.startDate) }
         if distanceKm != original.distanceKm { changed.insert(.distance) }
         if movingMinutes != original.movingMinutes { changed.insert(.movingTime) }
         if elevationGain != original.elevationGain {
@@ -138,17 +151,22 @@ struct ActivityDraft: Equatable {
     private func write(to activity: Activity) {
         activity.name = trimmedName
         activity.sportType = sport
-        // `startDate` is the UTC instant, `startLocalDate` the wall time where
-        // the activity happened. Assigning one to the other silently drops the
-        // offset — two hours, for an outing recorded in UTC+2 — on a value the
-        // list sorts by, the period filter bounds with, and the sync cursor
-        // rewinds to. Shifting by the delta keeps the offset whatever it was,
-        // and this reduces to a plain assignment for a brand-new activity,
-        // whose `startDate` and `startLocalDate` start out equal.
-        activity.startDate = activity.startDate.addingTimeInterval(
-            startLocalDate.timeIntervalSince(activity.startLocalDate)
-        )
-        activity.startLocalDate = startLocalDate
+        // `startDate` is the instant, `startLocalDate` the wall time where the
+        // activity happened, stored as if that hour were UTC. Both move by the
+        // same delta, which keeps the offset between them whatever it was and
+        // reduces to a plain assignment for a brand-new activity, whose two
+        // dates start out equal. Assigning one to the other would silently drop
+        // that offset — two hours for an outing recorded in UTC+2 — on a value
+        // the list sorts by and the sync cursor rewinds to.
+        let shift = startDate.timeIntervalSince(activity.startDate)
+        activity.startDate = startDate
+        activity.startLocalDate = activity.startLocalDate.addingTimeInterval(shift)
+        // Said outright for an activity entered by hand, which has no zone from
+        // anywhere else. Never overwritten: a synced outing knows where it
+        // happened, and this sheet is not where that changes.
+        if activity.timezoneIdentifier == nil {
+            activity.timezoneIdentifier = timeZone.identifier
+        }
 
         let previousDistance = activity.distance
         let previousMovingTime = activity.movingTime

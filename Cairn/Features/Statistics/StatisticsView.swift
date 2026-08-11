@@ -238,7 +238,7 @@ struct StatisticsView: View {
                         SportLabel(record.activityName, sport: record.sport)
                             .lineLimit(1)
                         Spacer(minLength: 8)
-                        Text(Format.dateOnly(record.date))
+                        Text(record.formattedDate)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

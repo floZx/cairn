@@ -72,7 +72,12 @@ struct ActivityEditorSheet: View {
                                 .tag(sport)
                         }
                     }
-                    DatePicker("Date", selection: $draft.startLocalDate)
+                    // Read on the activity's own clock: a picker formats and
+                    // parses in a time zone, and the environment's is this
+                    // Mac's. Left alone, an outing recorded in Paris opened
+                    // two hours late here in summer, and saving moved it.
+                    DatePicker("Date", selection: $draft.startDate)
+                        .environment(\.timeZone, draft.timeZone)
                 }
 
                 Section("Chiffres") {

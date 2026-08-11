@@ -359,11 +359,10 @@ sorties faites ce jour-là : l'heure, le symbole du sport, le nom, la distance,
 la durée, le dénivelé — et **la note de l'activité**, rendue.
 
 L'heure vient en tête et seule : les lignes sont dans l'ordre où la journée
-s'est déroulée, et c'est elle qui y place chacune. Elle est prise sur
-`startLocalDate`, comme partout où l'application affiche une heure — celle qui
-était à la pendule là où la sortie a eu lieu. Le filtrage du jour, lui, porte
-sur `startDate`, ce que fait déjà `ActivityFilter` : deux conventions, mais les
-deux existantes, et elles ne divergent qu'en voyage.
+s'est déroulée, et c'est elle qui y place chacune. Elle est lue sur `startDate`,
+le vrai instant, dans le fuseau de l'activité — celle qui était à la pendule là
+où la sortie a eu lieu. Le filtrage du jour porte sur le même champ, ce que fait
+déjà `ActivityFilter`.
 
 Cette note est le sujet du bloc, pas sa garniture : on tient un journal pour
 avoir sous les yeux, en écrivant sa journée, les sensations notées le soir même

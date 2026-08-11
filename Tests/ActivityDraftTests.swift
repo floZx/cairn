@@ -233,7 +233,7 @@ struct ActivityDraftTests {
         var draft = ActivityDraft(activity)
         draft.name = "Autre nom"
         draft.sport = .swim
-        draft.startLocalDate = activity.startLocalDate.addingTimeInterval(3_600)
+        draft.startDate = activity.startDate.addingTimeInterval(3_600)
         draft.distanceKm = activity.distance / 1_000 + 1
         draft.movingMinutes = Double(activity.movingTime) / 60 + 1
         draft.elevationGain = activity.totalElevationGain + 1

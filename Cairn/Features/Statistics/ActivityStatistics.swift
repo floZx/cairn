@@ -84,9 +84,13 @@ struct ActivityStatistics: Equatable {
         let activityID: PersistentIdentifier
         let activityName: String
         let sport: SportType
+        /// The instant, with the clock it is read on beside it — the outing's
+        /// own, so a record set abroad shows the date it was set there.
         let date: Date
+        let timeZone: TimeZone
 
         var id: String { kind.rawValue }
+        var formattedDate: String { Format.dateOnly(date, in: timeZone) }
         var formattedValue: String { kind.formatted(value) }
     }
 
@@ -136,7 +140,8 @@ struct ActivityStatistics: Equatable {
 
         let bySlot = totals(for: activities, unit: unit)
         let inPeriod = activities.filter { activity in
-            guard let slot = startOfSlot(of: activity.startLocalDate, unit: unit)
+            guard let day = day(of: activity),
+                  let slot = startOfSlot(of: day, unit: unit)
             else { return false }
             return slot >= firstSlot && slot <= currentSlot
         }
@@ -182,7 +187,8 @@ struct ActivityStatistics: Equatable {
     ) -> [Date: SlotSums] {
         var totals: [Date: SlotSums] = [:]
         for activity in activities {
-            guard let slot = startOfSlot(of: activity.startLocalDate, unit: unit)
+            guard let day = day(of: activity),
+                  let slot = startOfSlot(of: day, unit: unit)
             else { continue }
             totals[slot, default: .zero].distance += activity.distance
             totals[slot, default: .zero].elevation += activity.totalElevationGain
@@ -224,7 +230,8 @@ struct ActivityStatistics: Equatable {
                 activityID: best.id,
                 activityName: best.name,
                 sport: best.sportType,
-                date: best.startLocalDate
+                date: best.startDate,
+                timeZone: best.timeZone
             )
         }
     }
@@ -234,5 +241,36 @@ struct ActivityStatistics: Equatable {
         of date: Date, unit: Calendar.Component
     ) -> Date? {
         calendar.dateInterval(of: unit, for: date)?.start
+    }
+
+    /// The calendar day an outing happened on, placed in the reader's calendar.
+    ///
+    /// Two clocks meet here and neither can be dropped. *Which day* an outing
+    /// belongs to is a question for the clock it happened on — a run at 23:30
+    /// belongs to that evening, wherever one reads it from later. *Which week
+    /// or month* that day falls in is a question for the reader's calendar,
+    /// because that is what the histogram's bars are.
+    ///
+    /// So the day is read in the activity's zone and rebuilt in ours, at noon:
+    /// only the date matters, and midday is the hour furthest from both edges
+    /// of a daylight-saving change.
+    ///
+    /// `startLocalDate` used to stand in for this, and could not: it holds the
+    /// wall clock encoded as if it were UTC, so read in the reader's calendar
+    /// it lands offset by that calendar's own shift — a 23:30 outing in UTC+2
+    /// was filed on the following day, and at the end of a month or a week, in
+    /// the following bar.
+    static func day(of activity: Activity) -> Date? {
+        var there = Calendar(identifier: .gregorian)
+        there.timeZone = activity.timeZone
+        let parts = there.dateComponents(
+            [.year, .month, .day], from: activity.startDate
+        )
+        var here = DateComponents()
+        here.year = parts.year
+        here.month = parts.month
+        here.day = parts.day
+        here.hour = 12
+        return calendar.date(from: here)
     }
 }
