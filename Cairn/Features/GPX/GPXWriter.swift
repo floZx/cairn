@@ -29,10 +29,6 @@ enum GPXWriter {
 
     /// A file name that is safe on disk and still says which outing it is.
     static func fileName(for activity: Activity) -> String {
-        let date = DateFormatter()
-        date.dateFormat = "yyyy-MM-dd"
-        date.locale = Locale(identifier: "en_US_POSIX")
-
         // Slashes and colons are the two characters the file system objects to,
         // and an activity named "12/07 — sortie" is entirely ordinary.
         let cleaned = activity.name
@@ -40,7 +36,7 @@ enum GPXWriter {
             .joined(separator: "-")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let name = cleaned.isEmpty ? "activité" : cleaned
-        return "\(date.string(from: activity.startLocalDate)) \(name).gpx"
+        return "\(Format.fileDate(activity.startDate, in: activity.timeZone)) \(name).gpx"
     }
 
     /// The best track available, richest source first.

@@ -2,6 +2,81 @@ import Foundation
 
 /// Display formatting, centralised so the same distance never appears two ways.
 enum Format {
+    /// Dates and times of an *activity*, read in the zone it happened in.
+    ///
+    /// Separate from the functions below, which format an instant in this Mac's
+    /// zone — right for a backup's timestamp, wrong for an outing. An activity
+    /// carries the zone its clock was on (`Activity.timeZone`), and a run at
+    /// 06:52 in Paris is a run at 06:52 whether it is read from Paris or from
+    /// Nouméa.
+    ///
+    /// `Date.FormatStyle` rather than the cached `DateFormatter`s below: a
+    /// format style is a value, so a zone can be applied per call without
+    /// mutating anything shared.
+    private static let french = Locale(identifier: "fr_FR")
+
+    /// `.timeZone` the property, not `.timeZone(_:)` the modifier: the modifier
+    /// chooses how a zone's *name* is printed, while what is wanted here is
+    /// which zone the clock is read in.
+    private static func style(
+        date: Date.FormatStyle.DateStyle = .omitted,
+        time: Date.FormatStyle.TimeStyle = .omitted,
+        in zone: TimeZone
+    ) -> Date.FormatStyle {
+        var style = Date.FormatStyle(date: date, time: time)
+        style.locale = french
+        style.timeZone = zone
+        return style
+    }
+
+    /// « mardi 11 août 2026 à 06:52 »
+    ///
+    /// Composed rather than asked for in one go: `Date.FormatStyle`'s
+    /// `.shortened` time drops the leading zero — « à 6:52 » — where the
+    /// `DateFormatter` this replaces kept it, and every other time in the app
+    /// still has it. The « à » is written out for the same reason the
+    /// formatters are pinned to `fr_FR`: this interface is in French and in no
+    /// other language.
+    static func longDate(_ date: Date, in zone: TimeZone) -> String {
+        "\(date.formatted(style(date: .complete, in: zone))) à \(time(date, in: zone))"
+    }
+
+    /// « 11 août 2026 »
+    static func dateOnly(_ date: Date, in zone: TimeZone) -> String {
+        date.formatted(style(date: .abbreviated, in: zone))
+    }
+
+    /// « 11/08/2026 » — fixed width, for a table column.
+    static func numericDate(_ date: Date, in zone: TimeZone) -> String {
+        date.formatted(style(date: .numeric, in: zone))
+    }
+
+    /// « 06:52 »
+    ///
+    /// The hour is pinned to two digits rather than left to `.shortened`, which
+    /// yields « 6:52 » here: these times are set in monospaced digits and read
+    /// down a column, and a missing leading zero shifts every morning row half
+    /// a character against the afternoon ones.
+    static func time(_ date: Date, in zone: TimeZone) -> String {
+        var style = Date.FormatStyle.dateTime
+            .hour(.twoDigits(amPM: .omitted))
+            .minute(.twoDigits)
+        style.locale = french
+        style.timeZone = zone
+        return date.formatted(style)
+    }
+
+    /// « 2026-08-11 », for a file name: sortable, and the same string whoever
+    /// exports it.
+    static func fileDate(_ date: Date, in zone: TimeZone) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d", parts.year!, parts.month!, parts.day!
+        )
+    }
+
     private static let oneDecimal: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.locale = Locale(identifier: "fr_FR")

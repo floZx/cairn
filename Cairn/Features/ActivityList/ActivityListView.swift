@@ -289,7 +289,7 @@ struct ActivityListView: View {
             columnCustomization: $columnCustomization
         ) {
             TableColumn("Date", value: \.startLocalDate) { activity in
-                Text(Format.numericDate(activity.startLocalDate))
+                Text(Format.numericDate(activity.startDate, in: activity.timeZone))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }

@@ -50,7 +50,7 @@ struct ActivityCard: View {
                     }
                 }
                 HStack(spacing: 4) {
-                    Text(Format.longDate(activity.startLocalDate))
+                    Text(Format.longDate(activity.startDate, in: activity.timeZone))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

@@ -113,9 +113,10 @@ struct JournalDayActivities: View {
             // First, and on its own: the rows are in the order the day
             // happened, and the hour is what places each one in it — before
             // knowing what the outing was, one wants to know when it fell.
-            // `startLocalDate`, as everywhere the app shows a time: the hour
-            // that was on the clock where the outing took place.
-            Text(Format.time(activity.startLocalDate))
+            // The instant, read in the zone the outing happened in: a run at
+            // 06:52 in Paris is a run at 06:52 whether it is read from Paris
+            // or from Nouméa.
+            Text(Format.time(activity.startDate, in: activity.timeZone))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
             Image(systemName: activity.sportType.symbolName)

@@ -195,7 +195,7 @@ struct SameRouteSection: View {
             // sideways. The heart rate lives in the tooltip instead of a
             // column — the gap and the pace are what the comparison is about.
             HStack(spacing: 8) {
-                Text(Format.dateOnly(row.startLocalDate))
+                Text(Format.dateOnly(row.startDate, in: row.timeZone))
                     .frame(width: 80, alignment: .leading)
                 HStack(spacing: 4) {
                     Text(Format.durationCompact(row.movingTime))

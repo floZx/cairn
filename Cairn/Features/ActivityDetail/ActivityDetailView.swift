@@ -130,7 +130,7 @@ struct ActivityDetailView: View {
             // whole pane is the same colour. Three ways of saying "trail"
             // before the name of the outing is read.
             Text(activity.name).font(.largeTitle.weight(.semibold))
-            Text(Format.longDate(activity.startLocalDate))
+            Text(Format.longDate(activity.startDate, in: activity.timeZone))
                 .foregroundStyle(.secondary)
 
             if !headerLabels.isEmpty {
