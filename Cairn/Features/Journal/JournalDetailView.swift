@@ -170,13 +170,21 @@ struct JournalDetailView: View {
     /// The file moved under an unsaved edit. What is on screen is the typing,
     /// never the file — losing a sentence to a sync is the one failure this
     /// whole mechanism exists to prevent.
+    ///
+    /// Two lines, like the failure below it: nothing writes while this is up,
+    /// so the second one says what leaving the question unanswered costs.
     @ViewBuilder
     private func banner(_ conflict: JournalNotice.Conflict) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
-            Text(conflict.message)
-                .font(.callout)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(conflict.message)
+                    .font(.callout)
+                Text(conflict.consequence)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Spacer(minLength: 8)
             if conflict.offersReload {
                 Button("Recharger", action: onReloadFromDisk)

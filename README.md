@@ -235,7 +235,12 @@ modifiée ailleurs apparaît sans qu'on ait rien à faire ; si elle change penda
 que vous tapez dedans, c'est votre texte qui reste à l'écran, et un bandeau
 propose de recharger le fichier ou de garder ce que vous avez écrit — de le
 garder seulement, si le fichier a été supprimé ailleurs : il n'y a plus rien à
-recharger. Un fichier illisible est tout de même listé — une note invisible est
+recharger. **Tant que ce bandeau est là, rien ne s'écrit** : c'est votre réponse
+qui tranche, et non la temporisation de 0,7 s, qui écrirait votre texte
+par-dessus le fichier dont le bandeau vient de vous prévenir. « Garder » écrit
+alors ce que vous avez tapé ; changer de note revient au même. Quitter Cairn
+sans avoir répondu laisse en revanche le fichier tel que l'autre écriture l'a
+fait, et le bandeau le dit sous la question plutôt que de choisir pour vous. Un fichier illisible est tout de même listé — une note invisible est
 une note perdue — mais l'éditeur le refuse, plutôt que d'écrire par-dessus ce
 qu'il n'a pas su lire.
 

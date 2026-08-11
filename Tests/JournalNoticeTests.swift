@@ -53,6 +53,24 @@ struct JournalNoticeTests {
         )
     }
 
+    /// Nothing is written while the banner is up — that is what keeps the
+    /// debounce from answering the question for the reader — so the text held
+    /// there lives in memory only. The banner has to say what that costs, and
+    /// the two cases do not cost the same thing.
+    @Test("le bandeau dit ce que coûte une question sans réponse")
+    func theBannerSaysWhatLeavingItUnansweredCosts() {
+        #expect(
+            JournalNotice.Conflict.changedElsewhere.consequence.contains(
+                "quitter Cairn garderait la version du fichier"
+            )
+        )
+        #expect(
+            JournalNotice.Conflict.deletedElsewhere.consequence.contains(
+                "quitter Cairn laisserait la note supprimée"
+            )
+        )
+    }
+
     /// `.adopt` is the silent case: the store never publishes it, and a notice
     /// for it would say a change was pending when it has already been taken.
     @Test("une reprise silencieuse ne dit rien")

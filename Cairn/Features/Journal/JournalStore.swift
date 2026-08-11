@@ -270,6 +270,13 @@ final class JournalStore {
     func saveNow() {
         saveTask?.cancel()
         saveTask = nil
+        // A banner is a question put to the reader, and writing would answer
+        // it: the buffer would go over the very file the banner is warning
+        // about, while the banner stayed up offering a **Recharger** that now
+        // reloads the reader's own text. Every caller comes through here — the
+        // debounce, ⌘-Tab, quitting, changing note — so this is where the
+        // banner is protected. `dismissConflict()` is what releases it.
+        guard conflict == nil else { return }
         guard isDirty, let folder, let date = editingDate else { return }
         isDirty = false
         do {
@@ -347,9 +354,21 @@ final class JournalStore {
         reload()
     }
 
-    /// Keeps the buffer and dismisses the banner.
+    /// Keeps the buffer, dismisses the banner — and writes it.
+    ///
+    /// The writing is the point: **Garder** is the reader answering the
+    /// question, and while the banner is up nothing else may write. `baseline`
+    /// is already the file's text — `merged(_:)` set it when it raised the
+    /// banner — so the save that follows is a change against what is on disk
+    /// and not a conflict against it.
+    ///
+    /// Also what a change of note means, deliberately: leaving is keeping.
+    /// The text typed here goes to its file, and the reader is not carrying an
+    /// unanswered question onto the next note.
     func dismissConflict() {
+        guard conflict != nil else { return }
         conflict = nil
+        saveNow()
     }
 
     // MARK: - Watching

@@ -105,6 +105,26 @@ affiche un bandeau « Modifiée ailleurs — Recharger ». Écraser silencieusem
 ferait disparaître une phrase sous le curseur ; écraser dans l'autre sens ferait
 perdre ce qui a été écrit sur le téléphone.
 
+**Rien ne s'écrit tant que le bandeau est levé.** Il ne peut se lever que sur un
+tampon non enregistré, c'est-à-dire alors qu'un enregistrement est déjà en
+attente : sans cette règle, la temporisation de 0,7 s écrivait le tampon
+par-dessus le fichier même dont le bandeau prévenait — et le laissait debout,
+offrant un **Recharger** qui rechargeait désormais votre propre texte. La phrase
+écrite sur le téléphone disparaissait sans que rien ne le dise. Un ⌘-Tab hors de
+la fenêtre et un clic sur une autre note passaient par le même chemin.
+`saveNow()` renonce donc tant que `conflict` n'est pas nil, et c'est **Garder**
+qui écrit : c'est le bouton par lequel on répond à la question. Changer de note
+vaut « Garder », de propos délibéré — partir, c'est conserver ce qu'on a tapé,
+et non emporter une question sans réponse sur la note suivante.
+
+Le prix est **dit dans le bandeau plutôt que réglé en douce** : tant que la
+question est sans réponse, le texte n'est qu'en mémoire, et quitter Cairn le
+laisse partir — le fichier reste tel que l'autre écriture l'a fait. Le persister
+ailleurs demanderait un troisième endroit où vit une note, dans un coffre qui
+est justement celui d'Obsidian, et pour un état qui dure le temps de lire deux
+lignes. Une seconde ligne sous le bandeau l'annonce donc, comme la ligne d'échec
+d'écriture annonce le sien.
+
 ### Sauvegarde iCloud
 
 Le journal **n'entre pas** dans la sauvegarde de `BackupService`. Le dossier est

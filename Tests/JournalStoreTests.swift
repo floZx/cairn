@@ -41,6 +41,14 @@ struct JournalStoreTests {
     private let day = DateKey(raw: "2026-08-01")!
     private let otherDay = DateKey(raw: "2026-07-31")!
 
+    /// What the file actually holds, which is the only thing a test about
+    /// losing someone else's sentence can believe.
+    private func fileText(_ date: DateKey, in folder: URL) throws -> String {
+        try String(
+            contentsOf: JournalFolder.url(for: date, in: folder), encoding: .utf8
+        )
+    }
+
     @Test("notre propre écriture qui revient ne lève pas de conflit")
     func ourOwnWriteComingBackIsSilent() throws {
         let folder = try makeFolder()
@@ -80,6 +88,53 @@ struct JournalStoreTests {
         store.reload()
         #expect(store.conflict == nil)
         #expect(store.text(for: day) == "ma phrase, et la suite")
+    }
+
+    /// The banner asks a question; nothing but the answer may settle it.
+    ///
+    /// A banner can only go up while something is unsaved, which is to say
+    /// while a save is already pending: the debounce firing 600 ms later, a ⌘-Tab
+    /// away from the window, or a click on another note would otherwise write
+    /// the buffer over the very file the banner is warning about — and leave
+    /// the banner up, still offering a **Recharger** that now reloads the
+    /// reader's own text over the sentence written on the phone.
+    @Test("le bandeau de conflit suspend l'enregistrement du tampon")
+    func aConflictHoldsTheSaveBack() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+
+        store.update("ma phrase", for: day)
+        store.saveNow()
+        store.update("ma phrase, et la suite", for: day)
+        try JournalFolder.write("celle du téléphone", for: day, in: folder)
+        store.reload()
+        #expect(store.conflict == .conflict)
+
+        // The debounce fires, the window loses focus, the app is quit: all
+        // three come here, and none of them may answer for the reader.
+        store.saveNow()
+        #expect(try fileText(day, in: folder) == "celle du téléphone")
+        #expect(store.conflict == .conflict)
+        #expect(store.text(for: day) == "ma phrase, et la suite")
+    }
+
+    @Test("« Garder » écrit le tampon et retire le bandeau")
+    func keepingWritesTheBuffer() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+
+        store.update("ma phrase", for: day)
+        store.saveNow()
+        store.update("ma phrase, et la suite", for: day)
+        try JournalFolder.write("celle du téléphone", for: day, in: folder)
+        store.reload()
+        #expect(store.conflict == .conflict)
+
+        store.dismissConflict()
+        #expect(store.conflict == nil)
+        #expect(try fileText(day, in: folder) == "ma phrase, et la suite")
     }
 
     @Test("une note enregistrée et ouverte suit le disque, sans bandeau")

@@ -27,6 +27,25 @@ struct JournalNotice: Equatable {
             }
         }
 
+        /// What an unanswered banner costs, which the message never says.
+        ///
+        /// Nothing writes while the banner is up — that is what stops the
+        /// debounce, or quitting, from answering for the reader — so the text
+        /// held here lives in memory only, and quitting drops it. Saying so is
+        /// the price of not resolving the question silently: the alternative
+        /// was to keep writing the buffer over a file the reader had just been
+        /// warned about, which is what the banner exists to prevent.
+        var consequence: String {
+            let end = switch self {
+            case .changedElsewhere: "garderait la version du fichier"
+            case .deletedElsewhere: "laisserait la note supprimée"
+            }
+            return """
+                Il n'est pas enregistré tant que vous n'avez pas choisi : \
+                quitter Cairn \(end).
+                """
+        }
+
         /// There is nothing to reload from a file that is gone.
         var offersReload: Bool { self == .changedElsewhere }
     }
