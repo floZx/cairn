@@ -218,6 +218,65 @@ une natation, une sortie en vélo électrique et un trail donne un nombre qui
 n'informe sur rien. Seuls le nombre d'activités, le temps et le dénivelé sont
 cumulés globalement ; la distance se lit par sport.
 
+## Journal
+
+Une note Markdown par jour, dans un dossier que vous choisissez. Le format est
+celui des notes du jour d'Obsidian — `AAAA-MM-JJ.md` à la racine du dossier —,
+donc un coffre existant s'ouvre tel quel et une note écrite ici s'ouvre là-bas.
+Le reste du dossier est ignoré, sous-dossiers compris. Il se choisit au premier
+écran de la section, ou dans les réglages, qui affichent le nombre de notes
+trouvées : c'est la seule confirmation immédiate qu'on a bien montré le dossier
+des notes et non son parent.
+
+**Le dossier est la base.** Rien n'est recopié dans celle de Cairn : un miroir
+serait une seconde source, qui divergerait dès la première note écrite depuis le
+téléphone. Cairn lit, écrit et surveille des fichiers, c'est tout. Une note
+modifiée ailleurs apparaît sans qu'on ait rien à faire ; si elle change pendant
+que vous tapez dedans, c'est votre texte qui reste à l'écran, et un bandeau
+propose de recharger le fichier ou de garder ce que vous avez écrit. Un fichier
+illisible est tout de même listé — une note invisible est une note perdue — mais
+l'éditeur le refuse, plutôt que d'écrire par-dessus ce qu'il n'a pas su lire.
+
+**On lit la note rendue, on écrit dedans au clic.** Le volet de droite affiche
+les titres, les listes et les citations, et devient un champ de texte dès qu'on
+clique dedans, ou sur `e`, `n`, `⏎` ou ⌘N ; échap referme l'éditeur et la note
+revient rendue. Un journal se relit bien plus souvent qu'il ne s'écrit, et les
+`#` et les `-` en tête de ligne ne sont du bruit que les jours où l'on ne fait
+que lire — écrire coûte alors un clic, ou la touche qu'on tapait déjà pour
+écrire. Le curseur, lui, ne suit pas le clic : ce sont deux vues, et SwiftUI ne
+transporte pas de l'une à l'autre l'endroit où l'on a cliqué. Le frontmatter
+YAML n'est pas rendu ; il reste dans le fichier, et dans l'éditeur.
+
+L'enregistrement est automatique : 0,7 s après la dernière frappe, et tout de
+suite quand vous changez de note, quittez la section, passez à une autre
+application ou quittez Cairn. Une note ouverte et laissée vide n'est jamais
+écrite — un fichier vide dans un coffre est une ligne de plus à ignorer. Vider
+une note existante la supprime donc du disque, et **ce fichier-là ne passe pas
+par la corbeille**, à la différence d'une suppression demandée (`x`, ⌘⌫) qui,
+après confirmation, y met le fichier, d'où il reste récupérable.
+
+**Les tags** sont ceux d'Obsidian : `#tag` dans le texte, ou une clé `tags:` en
+frontmatter. Un titre `# Titre` n'en est pas un, et `#2026` non plus — c'est une
+année. `#projet/cairn` compte aussi pour `#projet`, sans quoi cocher le parent ne
+montrerait rien. La barre latérale les liste avec leur nombre, les plus employés
+d'abord, et plusieurs tags cochés se combinent en **ET** — à l'inverse des
+sports, où le ET ne donnerait jamais rien puisqu'une activité n'en a qu'un. Les
+pastilles, sur la ligne de la liste comme au-dessus de la note, cochent le tag
+d'un clic.
+
+La recherche porte sur le texte entier de toutes les notes, sans index : dix ans
+de journal tiennent en quelques mégaoctets, et une recherche sur des données déjà
+en mémoire n'a rien à indexer. Elle ignore la casse et les accents, se cumule
+avec les tags cochés, et chaque ligne montre alors le passage qui correspond
+plutôt que son début.
+
+La largeur du volet de droite est retenue pour le journal seul : un éditeur qui
+occupe toute la hauteur n'appelle pas la même largeur que la carte et les
+chiffres d'une activité.
+
+Ces notes ne partent pas dans la sauvegarde iCloud de Cairn : le dossier y est
+déjà, et l'y recopier ne protégerait de rien.
+
 ## Alimentation et poids
 
 Deux sections de la barre latérale, portage d'un carnet en console que
@@ -369,10 +428,11 @@ vouloir dire « va à la carte ». D'où le préfixe `g`.
 | | |
 |---|---|
 | `ga` `gm` `gs` | mes activités / carte globale / statistiques |
+| `gj` | journal |
 | `gn` `gp` | alimentation / poids |
 | `t` · ⌥⌘L | basculer entre le tableau et les fiches |
 | `h` · ⌥⌘I | fermer le volet de droite |
-| `échap` | revenir à aujourd'hui (journal), vider la recherche, sinon la sélection |
+| `échap` | revenir à aujourd'hui (alimentation), vider la recherche, sinon la sélection |
 
 ⌥⌘I est le raccourci de l'inspecteur du Finder : le même volet, du même côté.
 Les deux raccourcis à ⌥⌘ emploient une lettre et non un chiffre, parce que sur un
@@ -410,6 +470,18 @@ retour à la ligne.
 | `h` `l` | jour précédent / suivant (aussi `←` `→`) — échap : aujourd'hui |
 | `↓` `↑` · `⌃J` `⌃K` | parcourir les résultats de recherche d'aliment |
 
+### Journal
+
+| | |
+|---|---|
+| `j` `k` | note suivante / précédente |
+| `e` `n` · ⏎ | écrire dans la note sélectionnée |
+| `échap` | quitter l'éditeur, puis vider la recherche, puis les tags, puis la sélection |
+| `x` · ⌘⌫ | mettre la note à la corbeille, après confirmation |
+| `h` · ⌥⌘I | fermer le volet de droite |
+| ⌘N | la note du jour, créée au besoin |
+| `/` | aller au champ de recherche |
+
 ### Fichiers et synchronisation
 
 | | |
@@ -432,6 +504,10 @@ Tout vit dans `~/Library/Application Support/Cairn/` :
 
 Les deux premiers sont irremplaçables et partent dans la sauvegarde iCloud ; le
 troisième non, puisqu'il se reconstruit.
+
+Les notes du journal font exception : elles vivent dans le dossier que vous avez
+désigné, et nulle part ailleurs. Cairn n'en garde aucune copie — ni ici, ni dans
+la sauvegarde.
 
 ## Licence
 
