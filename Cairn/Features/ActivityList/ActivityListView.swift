@@ -156,7 +156,7 @@ struct ActivityListView: View {
         // otherwise pay for automatic row heights. See the probe's own note.
         // Keyed on the presentation: switching builds a different table, and a
         // probe that ran once would go on holding the destroyed one.
-        .background(FixedTableRowHeight(scroller: scroller).id(style))
+        .background(TableBridge(scroller: scroller).id(style))
         // Clicking the selected row again clears it — the detail pane closes
         // and the list gets the width back, without reaching for ⌥⌘I.
         .background(DeselectOnRepeatClick {

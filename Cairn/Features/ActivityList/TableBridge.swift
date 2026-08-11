@@ -42,7 +42,7 @@ final class TableScroller {
     fileprivate var probe: NSView?
 
     fileprivate var tableView: NSTableView? {
-        probe.flatMap { FixedTableRowHeight.tableView(near: $0) }
+        probe.flatMap { TableBridge.tableView(near: $0) }
     }
     /// A focus request waiting for a table to exist.
     ///
@@ -100,9 +100,19 @@ final class TableScroller {
     }
 }
 
-struct FixedTableRowHeight: NSViewRepresentable {
+struct TableBridge: NSViewRepresentable {
+    /// Whether to pin the row height as well as hand over the table.
+    ///
+    /// True for the activity table, whose rows are all the same and whose
+    /// automatic heights cost a measuring pass each. False for the journal's
+    /// list, where a day with tags is taller than one without and a pinned
+    /// height would clip them — there the bridge exists only to scroll and to
+    /// hand the keyboard back.
+    var pinsRowHeight = true
+
     /// Filled in once the table is found, if the caller wants to scroll it.
     var scroller: TableScroller?
+
 
     // No row-height parameter, and deliberately so: on the cards `List`,
     // AppKit-level pinning is powerless — SwiftUI's own delegate serves the
@@ -128,7 +138,9 @@ struct FixedTableRowHeight: NSViewRepresentable {
                 // outgoing one, which resolves to no table at all — measured,
                 // and exactly why `j` stopped scrolling after a toggle.
                 scroller?.attach(probe)
-                await Self.applyWhenReady(from: probe, scroller: scroller)
+                if pinsRowHeight {
+                    await Self.applyWhenReady(from: probe, scroller: scroller)
+                }
                 // A focus request may have been made while this table was still
                 // being built; now that it exists, it can be honoured.
                 scroller?.retryPendingFocus()
@@ -185,7 +197,7 @@ private final class RowHeightProbeView: NSView {
     }
 }
 
-extension FixedTableRowHeight {
+extension TableBridge {
     /// The first table view in the subtree of the closest ancestor that has one.
     ///
     /// `.background()` makes the probe a *sibling* of the view it decorates, so

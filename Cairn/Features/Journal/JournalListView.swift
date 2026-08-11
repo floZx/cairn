@@ -21,6 +21,10 @@ struct JournalListView: View {
     /// `x`: ask for the note to go, which the window confirms first.
     let onDelete: (DateKey) -> Void
 
+    /// The bridge to the list's own `NSTableView`, so a motion can drag the
+    /// list along behind it.
+    @State private var scroller = TableScroller()
+
     /// The note to open on arriving in the section, or nil to leave things be.
     ///
     /// Only the newest, and only when nothing is chosen. A section that opens
@@ -42,6 +46,9 @@ struct JournalListView: View {
                 .tag(day.date)
         }
         .listStyle(.inset)
+        // Row heights are left alone here: a day carrying tags is taller than
+        // one without, and pinning them to the first row's would clip the rest.
+        .background(TableBridge(pinsRowHeight: false, scroller: scroller))
         // On appearance alone, which here means on entering the section: no
         // `.id(…)` rebuilds this view for a search or a tag, so Escape can
         // clear the selection without the next pass putting it straight back.
@@ -83,11 +90,9 @@ struct JournalListView: View {
             case let .move(delta):
                 return moveSelection(by: delta)
             case .first:
-                selection = days.first?.date
-                return true
+                return moveTo(0)
             case .last:
-                selection = days.last?.date
-                return true
+                return moveTo(days.count - 1)
             case let .halfPage(down):
                 return moveSelection(
                     by: down ? VimMotion.halfPageRows : -VimMotion.halfPageRows
@@ -119,6 +124,14 @@ struct JournalListView: View {
         }
     }
 
+    /// Straight to a row — `gg` and `G`, which have no delta to travel.
+    private func moveTo(_ index: Int) -> Bool {
+        guard days.indices.contains(index) else { return false }
+        selection = days[index].date
+        scroller.scroll(toRow: index)
+        return true
+    }
+
     private func moveSelection(by delta: Int) -> Bool {
         let current = selection.flatMap { key in
             days.firstIndex { $0.date == key }
@@ -127,6 +140,10 @@ struct JournalListView: View {
             from: current, delta: delta, count: days.count
         ) else { return false }
         selection = days[destination].date
+        // And the list follows. Without this a held `j` walks the selection off
+        // the bottom of the window: the rows keep moving, but out of sight, so
+        // the key looks as though it fired once and stopped.
+        scroller.scroll(toRow: destination)
         return true
     }
 

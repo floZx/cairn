@@ -81,7 +81,7 @@ struct DeselectOnRepeatClick: NSViewRepresentable {
                   event.modifierFlags
                       .intersection([.command, .shift, .option, .control]).isEmpty,
                   let probe,
-                  let table = FixedTableRowHeight.tableView(near: probe),
+                  let table = TableBridge.tableView(near: probe),
                   let window = table.window,
                   event.window === window,
                   // Hit-tested rather than merely converted: the sidebar is an

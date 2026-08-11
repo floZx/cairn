@@ -306,6 +306,15 @@ Le champ `.searchable` cherche dans le texte entier, insensible à la casse et
 aux accents. Recherche et tags cochés se cumulent : la liste montre les notes
 qui satisfont les deux.
 
+**La liste suit le curseur** *(corrigé le 11 août 2026)*. Un `j` maintenu
+promenait la sélection hors de l'écran : les lignes défilaient bien, mais sous
+le bord de la fenêtre, si bien que la touche semblait n'avoir agi qu'une fois.
+La liste emprunte donc le `TableScroller` de la liste d'activités, qui atteint
+le `NSTableView` sous la `List` et le fait défiler après chaque mouvement,
+`gg` et `G` compris. Le pont ne fixe pas les hauteurs de ligne ici — un jour
+portant des tags est plus haut qu'un autre, et une hauteur épinglée sur la
+première ligne rognerait les suivantes.
+
 **En arrivant dans la section, la note la plus récente est sélectionnée**
 *(ajouté le 11 août 2026)*. Pas seulement pour ne pas ouvrir sur un volet vide :
 sans sélection, `e`, `n`, `⏎` et `x` n'ont rien sur quoi agir et ne font rien du

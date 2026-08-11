@@ -4,7 +4,7 @@ import AppKit
 
 @Suite("Hauteur de ligne fixée sur le tableau")
 @MainActor
-struct FixedTableRowHeightTests {
+struct TableBridgeTests {
     /// A container view holding the given subviews, in order.
     private func container(_ subviews: [NSView]) -> NSView {
         let view = NSView()
@@ -33,7 +33,7 @@ struct FixedTableRowHeightTests {
         let table = NSTableView()
         inWindow(container([container([table]), probe]))
 
-        #expect(FixedTableRowHeight.tableView(near: probe) === table)
+        #expect(TableBridge.tableView(near: probe) === table)
     }
 
     @Test("c'est le tableau le plus proche qui est retenu")
@@ -49,7 +49,7 @@ struct FixedTableRowHeightTests {
             container([container([listTable]), probe]),
         ]))
 
-        #expect(FixedTableRowHeight.tableView(near: probe) === listTable)
+        #expect(TableBridge.tableView(near: probe) === listTable)
     }
 
     @Test("sans tableau nulle part, la sonde ne trouve rien")
@@ -57,7 +57,7 @@ struct FixedTableRowHeightTests {
         let probe = NSView()
         inWindow(container([container([NSView()]), probe]))
 
-        #expect(FixedTableRowHeight.tableView(near: probe) == nil)
+        #expect(TableBridge.tableView(near: probe) == nil)
     }
 
     @Test("une table détachée de sa fenêtre est ignorée")
@@ -72,14 +72,14 @@ struct FixedTableRowHeightTests {
         let root = container([container([detached, live]), probe])
 
         // Nothing is in a window yet, so nothing qualifies.
-        #expect(FixedTableRowHeight.tableView(near: probe) == nil)
+        #expect(TableBridge.tableView(near: probe) == nil)
 
         inWindow(root)
         // Both are in the window now, and the first one wins as before.
-        #expect(FixedTableRowHeight.tableView(near: probe) === detached)
+        #expect(TableBridge.tableView(near: probe) === detached)
 
         detached.removeFromSuperview()
-        #expect(FixedTableRowHeight.tableView(near: probe) === live)
+        #expect(TableBridge.tableView(near: probe) === live)
     }
 
     @Test("le défilement ne sort jamais des lignes existantes")
@@ -128,7 +128,7 @@ struct FixedTableRowHeightTests {
 
         // False means "retry": pinning the height now would freeze whatever
         // AppKit answers for a table with nothing in it.
-        #expect(FixedTableRowHeight.apply(to: table) == false)
+        #expect(TableBridge.apply(to: table) == false)
         #expect(table.usesAutomaticRowHeights)
     }
 
@@ -140,7 +140,7 @@ struct FixedTableRowHeightTests {
 
         // True means "done, stop retrying" — and the height AppKit or SwiftUI
         // chose must survive untouched.
-        #expect(FixedTableRowHeight.apply(to: table) == true)
+        #expect(TableBridge.apply(to: table) == true)
         #expect(table.rowHeight == 42)
     }
 }
