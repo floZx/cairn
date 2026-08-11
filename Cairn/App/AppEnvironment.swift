@@ -12,6 +12,10 @@ final class AppEnvironment {
     let oauth: OAuthFlow
     let engine: SyncEngine
     let progress: SyncProgress
+    /// The journal's folder, notes and watcher. Held here like every other
+    /// long-lived piece of the app, so the window and the Settings scene get
+    /// the same instance rather than two views of one folder.
+    let journal = JournalStore()
 
     var isAuthenticated: Bool
     var hasCredentials: Bool
