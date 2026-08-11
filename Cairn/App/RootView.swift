@@ -493,6 +493,19 @@ struct RootView: View {
         .onChange(of: sidebarSelection) { _, newValue in
             if newValue == .statistics { selectedActivities = [] }
         }
+        // A pending debounce is unwritten work: leaving the note or the section
+        // has to flush it, not race it.
+        .onChange(of: journalSelection) { _, _ in
+            app.journal.saveNow()
+            // The banner belongs to the note it was raised over, and the flush
+            // above has just settled it the way "Garder" would — the buffer
+            // went to the file. Left standing it would sit over the next note
+            // and say something untrue about it. Only on a change of note:
+            // leaving the section keeps the same note selected, so coming back
+            // to a banner still up is right.
+            app.journal.dismissConflict()
+        }
+        .onChange(of: sidebarSelection) { _, _ in app.journal.saveNow() }
         .toolbar { syncToolbar }
     }
 
@@ -780,9 +793,36 @@ struct RootView: View {
         // activity beside it, and both give the width back when nothing is
         // selected.
         if showsJournal {
-            // The editor arrives at the next task; until then the notes have
-            // the whole width.
-            collapsedDetailColumn
+            if let date = journalSelection, let note = app.journal.note(for: date) {
+                JournalDetailView(
+                    note: note,
+                    text: app.journal.text(for: date),
+                    conflict: app.journal.conflict,
+                    // Gated on the pending failure rather than on the message
+                    // alone: `loadError` also carries a folder that went
+                    // missing and a deletion that would not go through, and
+                    // neither of those belongs over an open note.
+                    //
+                    // Not on `pendingWriteFailure == date` though. The failing
+                    // note is nearly always the one on screen — the selection
+                    // cannot leave it — but it can be left by the one route
+                    // that opens while it is being taken: a flush that fails
+                    // on the way out. The note that is then on screen refuses
+                    // every keystroke, and that is exactly when the reason has
+                    // to be readable.
+                    writeFailure: app.journal.pendingWriteFailure == nil
+                        ? nil : app.journal.loadError,
+                    focusRequest: journalEditorFocus,
+                    onEdit: { app.journal.update($0, for: date) },
+                    onSelectTag: { journalTags.insert($0) },
+                    onReloadFromDisk: { app.journal.reloadConflicted() },
+                    onDismissConflict: { app.journal.dismissConflict() },
+                    onLeaveEditor: { journalListFocus += 1 }
+                )
+                .frame(minWidth: Self.detailMinWidth)
+            } else {
+                collapsedDetailColumn
+            }
         } else if showsNutrition {
             // The food journal claims the pane: the side panel replaces
             // whatever activity was left selected behind it — unless the user
