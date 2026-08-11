@@ -611,19 +611,20 @@ struct RootView: View {
             VisualEffectBackground.opaque
                 .ignoresSafeArea()
         )
-        // The toolbar's own fill was a dark opaque band laid across three
-        // frosted columns — 28 where the sidebar under it reads 58. Hidden, it
-        // lets each column's material rise into it, so the bar carries the
-        // tone of whatever it sits above.
+        // The toolbar keeps its own fill, and that is what makes scrolling
+        // read properly: the system bar is a material, so rows passing under
+        // it dissolve into a blur instead of sliding out from behind the
+        // title as though the window had no top.
         //
-        // The cost, and it is a real one: that fill was also what covered the
-        // split view's dividers, which now run the full height of the window,
-        // toolbar included. Every replacement tried — a thin material, a
-        // lighter sheet behind it — turns out to impose its own tone on the
-        // whole width, which puts a band back over the sidebar. One uniform
-        // strip cannot match two different columns; this way round at least
-        // the tones are right.
-        .toolbarBackground(.hidden, for: .windowToolbar)
+        // It was hidden for a while, and the reason no longer holds. That fill
+        // was a dark opaque band laid across three *frosted* columns — 28
+        // where the sidebar under it read 58 — so hiding it let each column's
+        // material rise into the bar and carry its tone. The columns are
+        // opaque now and all one colour, so the band matches what it sits on
+        // and there is nothing left to hide it for. Restoring it also puts
+        // back the cover the split view's dividers had lost, so the mask that
+        // stood in for it — clipping each divider to stop at the bottom of the
+        // bar — went with it.
         .background(SplitViewHoldingPriorities(
             paneKind: showsJournal ? .journal
                 : (showsNutrition ? .nutrition : .activity)
