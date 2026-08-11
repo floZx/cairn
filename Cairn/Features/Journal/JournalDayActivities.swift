@@ -110,6 +110,14 @@ struct JournalDayActivities: View {
 
     private func row(_ activity: Activity) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
+            // First, and on its own: the rows are in the order the day
+            // happened, and the hour is what places each one in it — before
+            // knowing what the outing was, one wants to know when it fell.
+            // `startLocalDate`, as everywhere the app shows a time: the hour
+            // that was on the clock where the outing took place.
+            Text(Format.time(activity.startLocalDate))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
             Image(systemName: activity.sportType.symbolName)
                 .foregroundStyle(activity.sportType.color)
                 // A gutter, so every name starts at the same place whatever

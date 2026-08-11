@@ -290,8 +290,15 @@ ce qu'elle a trouvé oblige à ouvrir chaque note pour le savoir.
 
 **Les activités du jour** *(ajouté le 11 août 2026)* — entre les pastilles de
 tags et le bandeau d'alerte, sous un titre « Activité(s) du jour », la ou les
-sorties faites ce jour-là : symbole du sport, nom, distance, durée, dénivelé —
-et **la note de l'activité**, rendue.
+sorties faites ce jour-là : l'heure, le symbole du sport, le nom, la distance,
+la durée, le dénivelé — et **la note de l'activité**, rendue.
+
+L'heure vient en tête et seule : les lignes sont dans l'ordre où la journée
+s'est déroulée, et c'est elle qui y place chacune. Elle est prise sur
+`startLocalDate`, comme partout où l'application affiche une heure — celle qui
+était à la pendule là où la sortie a eu lieu. Le filtrage du jour, lui, porte
+sur `startDate`, ce que fait déjà `ActivityFilter` : deux conventions, mais les
+deux existantes, et elles ne divergent qu'en voyage.
 
 Cette note est le sujet du bloc, pas sa garniture : on tient un journal pour
 avoir sous les yeux, en écrivant sa journée, les sensations notées le soir même

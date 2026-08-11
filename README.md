@@ -274,9 +274,9 @@ quoi rédiger l'entrée de mardi dernier qu'on avait sautée, sans qu'un fichier
 apparaisse si l'on se ravise. Le curseur n'est pas placé dans le texte : cliquer
 un jour veut dire « montre-moi », pas « écris » ; c'est ⌘N qui veut dire écrire.
 
-**Les sorties du jour** sont rappelées au-dessus de la note : sport, nom,
-distance, durée, dénivelé, et surtout **la note écrite sur l'activité
-elle-même**. C'est elle qui compte : on tient un journal pour avoir sous les
+**Les sorties du jour** sont rappelées au-dessus de la note : l'heure, le sport,
+le nom, la distance, la durée, le dénivelé, et surtout **la note écrite sur
+l'activité elle-même**. C'est elle qui compte : on tient un journal pour avoir sous les
 yeux, en écrivant sa journée, les sensations notées le soir même de la sortie.
 Les chiffres sont le rappel qui les remet en situation.
 Un chiffre qui serait un mensonge est omis plutôt que tiré — une natation n'a
