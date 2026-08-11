@@ -224,18 +224,20 @@ Une note Markdown par jour, dans un dossier que vous choisissez. Le format est
 celui des notes du jour d'Obsidian — `AAAA-MM-JJ.md` à la racine du dossier —,
 donc un coffre existant s'ouvre tel quel et une note écrite ici s'ouvre là-bas.
 Le reste du dossier est ignoré, sous-dossiers compris. Il se choisit au premier
-écran de la section, ou dans les réglages, qui affichent le nombre de notes
-trouvées : c'est la seule confirmation immédiate qu'on a bien montré le dossier
-des notes et non son parent.
+écran de la section, ou dans les réglages. Le nombre de notes trouvées s'affiche
+aussitôt, dans les réglages comme en pastille de la barre latérale : c'est ce
+qui confirme qu'on a montré le dossier des notes et non son parent.
 
 **Le dossier est la base.** Rien n'est recopié dans celle de Cairn : un miroir
 serait une seconde source, qui divergerait dès la première note écrite depuis le
 téléphone. Cairn lit, écrit et surveille des fichiers, c'est tout. Une note
 modifiée ailleurs apparaît sans qu'on ait rien à faire ; si elle change pendant
 que vous tapez dedans, c'est votre texte qui reste à l'écran, et un bandeau
-propose de recharger le fichier ou de garder ce que vous avez écrit. Un fichier
-illisible est tout de même listé — une note invisible est une note perdue — mais
-l'éditeur le refuse, plutôt que d'écrire par-dessus ce qu'il n'a pas su lire.
+propose de recharger le fichier ou de garder ce que vous avez écrit — de le
+garder seulement, si le fichier a été supprimé ailleurs : il n'y a plus rien à
+recharger. Un fichier illisible est tout de même listé — une note invisible est
+une note perdue — mais l'éditeur le refuse, plutôt que d'écrire par-dessus ce
+qu'il n'a pas su lire.
 
 **On lit la note rendue, on écrit dedans au clic.** Le volet de droite affiche
 les titres, les listes et les citations, et devient un champ de texte dès qu'on
@@ -270,9 +272,9 @@ en mémoire n'a rien à indexer. Elle ignore la casse et les accents, se cumule
 avec les tags cochés, et chaque ligne montre alors le passage qui correspond
 plutôt que son début.
 
-La largeur du volet de droite est retenue pour le journal seul : un éditeur qui
-occupe toute la hauteur n'appelle pas la même largeur que la carte et les
-chiffres d'une activité.
+Le volet de droite retient une largeur propre au journal : un éditeur qui occupe
+toute la hauteur n'appelle pas la même largeur que la carte et les chiffres
+d'une activité.
 
 Ces notes ne partent pas dans la sauvegarde iCloud de Cairn : le dossier y est
 déjà, et l'y recopier ne protégerait de rien.
@@ -318,7 +320,7 @@ contre laquelle on sauvegarde le plus souvent. Trois versions datées sont
 conservées.
 
 Les deux moitiés sont traitées différemment parce qu'elles se comportent
-différemment. Le journal est un fichier SQLite que l'application tient ouvert :
+différemment. La base est un fichier SQLite que l'application tient ouvert :
 il est extrait par `VACUUM INTO` sur une connexion en lecture seule, ce qui
 donne une copie cohérente sans toucher au fichier en service, puis compressé —
 112 Mo deviennent 39. Les photos sont des milliers de fichiers jamais modifiés
@@ -404,8 +406,9 @@ qui fausserait la conversion en filtre géographique.
 
 Deux jeux qui ne se marchent pas dessus. Les combinaisons avec ⌘ vivent dans les
 menus, disponibles partout, et suivent les conventions de macOS. Les touches
-seules sont des mouvements à la vim : elles n'agissent que lorsque la liste, la
-carte ou les statistiques ont le clavier, ce qui les rend inoffensives ailleurs.
+seules sont des mouvements à la vim : elles n'agissent que lorsque la vue
+centrale a le clavier — liste, carte, statistiques, journal, alimentation ou
+poids —, ce qui les rend inoffensives ailleurs.
 
 **`?` ouvre l'aide-mémoire dans l'app**, qui est la version qui ne peut pas se
 désynchroniser de ce qui est réellement câblé.
@@ -498,7 +501,7 @@ Tout vit dans `~/Library/Application Support/Cairn/` :
 
 | | |
 |---|---|
-| `Cairn.store` | le journal : activités, alimentation, pesées |
+| `Cairn.store` | la base : activités, alimentation, pesées |
 | `.Cairn_SUPPORT/` | les photos, que SwiftData stocke hors de la base |
 | `off.db` | le catalogue Open Food Facts, retéléchargeable |
 
