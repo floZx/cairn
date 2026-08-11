@@ -1,4 +1,5 @@
 import Testing
+import SwiftUI
 @testable import Cairn
 
 @Suite("Markdown des notes")
@@ -96,5 +97,81 @@ struct MarkdownTests {
             MarkdownParser.blocks(from: "3. troisième")
                 == [.numbered(number: 3, text: "troisième")]
         )
+    }
+}
+
+@Suite("Tags rendus dans une note")
+struct MarkdownTaggedTests {
+    private func tagged(_ text: String) -> AttributedString {
+        MarkdownText.tagged(AttributedString(text))
+    }
+
+    private func plain(_ attributed: AttributedString) -> String {
+        String(attributed.characters)
+    }
+
+    /// The colour the runs are checked against — read from the same place the
+    /// renderer sets it, so a change of colour never turns into a test failure.
+    private let accent = Color.accentColor
+
+    @Test("un tag perd son dièse et prend la couleur d'accent")
+    func aTagLosesItsHashAndTakesTheColour() {
+        let result = tagged("Promenade avec #Sam pendant midi.")
+        #expect(plain(result) == "Promenade avec Sam pendant midi.")
+        let coloured = result.runs
+            .filter { $0.foregroundColor == accent }
+            .map { String(result[$0.range].characters) }
+        #expect(coloured == ["Sam"])
+    }
+
+    @Test("le texte autour du tag n'est pas coloré")
+    func onlyTheTagIsColoured() {
+        let result = tagged("Vu #Sam hier.")
+        let uncoloured = result.runs
+            .filter { $0.foregroundColor == nil }
+            .map { String(result[$0.range].characters) }
+            .joined()
+        #expect(uncoloured == "Vu  hier.")
+    }
+
+    @Test("plusieurs tags sur une ligne sont tous traités")
+    func severalTagsOnOneLine() {
+        let result = tagged("Sortie #vélo puis #repos, enfin.")
+        #expect(plain(result) == "Sortie vélo puis repos, enfin.")
+        let coloured = result.runs
+            .filter { $0.foregroundColor == accent }
+            .map { String(result[$0.range].characters) }
+        #expect(coloured == ["vélo", "repos"])
+    }
+
+    @Test("un tag imbriqué garde ses barres obliques")
+    func aNestedTagKeepsItsSlashes() {
+        let result = tagged("#projet/cairn avance")
+        #expect(plain(result) == "projet/cairn avance")
+    }
+
+    @Test("un tag entièrement numérique n'en est pas un")
+    func aNumericTagIsLeftAlone() {
+        let result = tagged("Objectif #2026 tenu.")
+        #expect(plain(result) == "Objectif #2026 tenu.")
+        #expect(result.runs.allSatisfy { $0.foregroundColor == nil })
+    }
+
+    @Test("un dièse collé à un mot est laissé tel quel")
+    func aHashInsideAWordIsLeftAlone() {
+        let result = tagged("code#4 du portail")
+        #expect(plain(result) == "code#4 du portail")
+    }
+
+    @Test("un dièse suivi d'une espace est laissé tel quel")
+    func aLoneHashIsLeftAlone() {
+        let result = tagged("# pas un tag")
+        #expect(plain(result) == "# pas un tag")
+    }
+
+    @Test("un texte sans tag traverse sans changer")
+    func textWithoutTagsIsUnchanged() {
+        let source = "Rien à signaler aujourd'hui."
+        #expect(plain(tagged(source)) == source)
     }
 }

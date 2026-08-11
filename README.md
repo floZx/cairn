@@ -276,6 +276,11 @@ sports, où le ET ne donnerait jamais rien puisqu'une activité n'en a qu'un. Le
 pastilles, sur la ligne de la liste comme au-dessus de la note, cochent le tag
 d'un clic.
 
+Le dièse ne s'affiche nulle part : ni dans la barre latérale, ni sur les
+pastilles, ni dans la note lue, où le tag prend simplement la couleur d'accent.
+C'est de la syntaxe, pas de la lecture — elle reste dans le fichier, qu'Obsidian
+attend ainsi, et dans l'éditeur, où l'on écrit du Markdown.
+
 La recherche porte sur le texte entier de toutes les notes, sans index : dix ans
 de journal tiennent en quelques mégaoctets, et une recherche sur des données déjà
 en mémoire n'a rien à indexer. Elle ignore la casse et les accents, se cumule

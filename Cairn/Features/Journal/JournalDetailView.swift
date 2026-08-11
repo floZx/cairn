@@ -22,6 +22,14 @@ import SwiftUI
 /// replaced under the typing: that is the same end-of-text jump, but arriving
 /// on every keystroke.
 struct JournalDetailView: View {
+    /// The note's text size, in both modes.
+    ///
+    /// Two points above the system body, which is 13 here. A journal note has
+    /// the pane to itself and is read for minutes at a stretch, unlike an
+    /// activity's note, which is one field among the figures and keeps the
+    /// system size.
+    static let noteSize: CGFloat = 15
+
     let note: JournalNote
     /// The store's text for this note: what the reader renders, and what the
     /// draft is seeded from. Never what the editor is bound to — see `draft`.
@@ -150,9 +158,14 @@ struct JournalDetailView: View {
             Group {
                 if bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text("Cliquez pour écrire")
+                        .font(.system(size: Self.noteSize))
                         .foregroundStyle(.tertiary)
                 } else {
-                    MarkdownText(markdown: bodyText)
+                    MarkdownText(
+                        markdown: bodyText,
+                        baseSize: Self.noteSize,
+                        highlightsTags: true
+                    )
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -212,7 +225,10 @@ struct JournalDetailView: View {
                 onEdit(newValue)
             }
         ))
-            .font(.body)
+            // The same size as the reader, and that is the whole point: the
+            // two modes swap under the pointer, and text that grew or shrank
+            // on the click would make the swap the thing you notice.
+            .font(.system(size: Self.noteSize))
             .scrollContentBackground(.hidden)
             .focused($editorFocused)
             .padding(.horizontal, 12)

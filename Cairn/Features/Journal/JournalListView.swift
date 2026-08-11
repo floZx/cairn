@@ -128,7 +128,9 @@ struct JournalTagChip: View {
 
     var body: some View {
         Button(action: onSelect) {
-            Text(tag.displayName)
+            // The bare name: the capsule already says this is a tag, and the
+            // sidebar dropped its hash for the same reason.
+            Text(tag.name)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 6)
@@ -136,6 +138,6 @@ struct JournalTagChip: View {
                 .background(.quaternary, in: .capsule)
         }
         .buttonStyle(.plain)
-        .help("Ne garder que les notes portant \(tag.displayName)")
+        .help("Ne garder que les notes portant \(tag.name)")
     }
 }

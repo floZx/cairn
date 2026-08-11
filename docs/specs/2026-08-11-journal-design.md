@@ -219,6 +219,18 @@ sont **en pastilles** : sur la ligne de la liste, et dans l'en-tête au-dessus d
 la note. Un clic sur une pastille coche le tag correspondant dans la barre
 latérale.
 
+### Le dièse ne s'affiche pas
+
+*Ajouté le 11 août 2026, à l'usage.* Ni dans la barre latérale, dont la section
+s'intitule déjà « Tags », ni sur les pastilles, que leur capsule annonce déjà,
+ni dans la note lue, où le tag prend la couleur d'accent — la couleur dit « tag »
+toute seule. C'est de la syntaxe : elle reste dans le fichier, qu'Obsidian attend
+ainsi, et dans l'éditeur, où l'on écrit bien du Markdown.
+
+La reconnaissance passe par `JournalTag.isAllowed` et `JournalTag.init?(name:)`,
+et non par une seconde copie des règles : les tags mis en couleur dans la note
+sont exactement ceux que la barre latérale liste, et le resteront.
+
 ## 3. L'écran
 
 `SidebarItem.journal`, entre `.statistics` et `.nutrition`, icône
@@ -237,6 +249,15 @@ ce qu'elle a trouvé oblige à ouvrir chaque note pour le savoir.
 **Volet de droite** — un en-tête (la date, les pastilles de tags) puis, sur
 toute la hauteur restante, la note rendue par `MarkdownText`, le composant qui
 sert déjà les notes d'activité, ou le `TextEditor` quand on écrit.
+
+Le texte y est à **15 points**, deux au-dessus du corps système : la note a le
+volet pour elle et se lit par minutes entières, là où celle d'une activité est
+un champ parmi des chiffres et garde la taille du système. `MarkdownText` prend
+donc une taille de base optionnelle — nulle, il ne change rien, ce qui laisse
+les notes d'activité exactement où elles étaient — et en dérive ses titres,
+sans quoi un titre de niveau 3 passerait *sous* le texte qu'il introduit. Les
+deux modes partagent cette taille : ils s'échangent sous le pointeur, et un
+texte qui grandirait au clic ferait de l'échange la chose qu'on remarque.
 
 Toute la surface du volet prend le clic, pas seulement le texte : une note vide
 n'offre rien à viser, et une invite discrète — « Cliquez pour écrire » — le dit,
