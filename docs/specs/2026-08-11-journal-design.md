@@ -39,10 +39,33 @@ Le coffre de référence est
    l'éditeur se demande ; une note illisible garde son écran d'indisponibilité
    et ne devient jamais éditable.
 
-   Où le curseur atterrit exactement — début ou fin du texte — est ce que fait
-   `TextEditor` quand `@FocusState` le désigne, et reste **à constater à
-   l'usage** : cette ligne dira laquelle des deux dès qu'on l'aura regardé. Les
-   contournements restent hors périmètre dans les deux cas.
+   Où le curseur atterrit exactement **en entrant** dans l'éditeur — début ou
+   fin du texte — est ce que fait `TextEditor` quand `@FocusState` le désigne,
+   et reste **à constater à l'usage** : cette ligne dira laquelle des deux dès
+   qu'on l'aura regardé. Les contournements restent hors périmètre dans les
+   deux cas.
+
+   *Ce que l'usage a tranché, en revanche* (11 août 2026). Tant que l'éditeur
+   tenait son texte du store — `Binding(get: { text }, set: onEdit)` —, chaque
+   frappe repassait par `update(_:for:)`, qui reconstruit `notes`, que la vue
+   lit : le corps était réévalué et `TextEditor` recevait sa chaîne de
+   l'extérieur. Un `TextEditor` dont la valeur liée est remplacée du dehors perd
+   sa sélection : la lettre s'insérait bien là où était le curseur, puis le
+   curseur sautait **à la fin de la note**. Corriger une phrase — l'essentiel de
+   ce qu'on fait dans un journal — était impossible.
+
+   **Tant que l'éditeur détient le texte, le texte est à lui.** Il le garde en
+   état local, l'écrit vers le store à chaque frappe — l'extrait de la ligne,
+   les tags, le décompte de la barre latérale et la réconciliation suivent donc
+   toujours la frappe et non la temporisation — et ne le relit jamais en
+   continu. Il le reprend à trois moments, et à ceux-là seulement : entrer dans
+   l'éditeur, une autre note arrivant dans le volet, et `textRevision`, le
+   compteur par lequel le store annonce qu'il a remplacé le texte lui-même
+   (reprise d'une modification externe sur une note propre, ou **Recharger**).
+   Corollaire : l'éditeur prévient le store qu'il prend la note
+   (`beginEditing(_:)`), sans quoi une modification arrivée du téléphone pendant
+   qu'une note est ouverte sans avoir été touchée resterait invisible et serait
+   réécrite par-dessus à la frappe suivante.
 3. **Tags dans la barre latérale**, en cases à cocher avec leur nombre, à la
    place des filtres d'activité.
 4. **Uniquement les notes du jour** : seuls les fichiers `AAAA-MM-JJ.md` à la
@@ -89,6 +112,16 @@ Les tags sont dérivés de `text` à la lecture, jamais stockés sur disque.
   listerait pour rien. Le critère est « vide après suppression des blancs ».
   Ce fichier-là est effacé directement, sans passer par la corbeille : il ne
   contient rien, et une corbeille pleine de notes jamais écrites est du bruit.
+  Le *fichier* seulement : la ligne, elle, reste dans la liste tant que la note
+  est celle qu'on écrit. Tout sélectionner, effacer, puis réfléchir sept
+  dixièmes de seconde à la phrase suivante est une pause au milieu de
+  l'écriture, et c'est de cette ligne qu'est construit le volet où se trouve le
+  curseur.
+- **Le jour ouvert garde sa ligne**, même sans fichier derrière lui, tant que
+  c'est celui qu'on écrit. La note du jour créée par ⌘N n'existe qu'en mémoire :
+  sans cette règle, la première rafale d'événements du coffre — et un coffre
+  iCloud en produit sans qu'on lui demande — reprenait la ligne, donc le volet,
+  donc le curseur qui venait d'y être posé.
 - **La suppression demandée met à la corbeille** (`FileManager.trashItem`),
   elle ne détruit pas. Ce sont les fichiers de l'utilisateur dans son propre coffre, pas
   les lignes d'une base dont l'app est propriétaire.
@@ -223,7 +256,7 @@ de notes du jour Obsidian existant s'ouvre tel quel.
 | ⌘N | la note du jour — la crée si besoin, la sélectionne, place le curseur dedans |
 | `j` `k` `gg` `G` `⌃d` `⌃u` | parcourir la liste, comme partout |
 | `e` · ⏎ | passer le clavier dans l'éditeur |
-| clic dans le volet | passer en édition ; le curseur ne se pose pas à l'endroit cliqué |
+| clic dans le volet | passer en édition ; le curseur ne se pose pas à l'endroit cliqué — où il se pose alors reste à constater |
 | `/` | aller au champ de recherche |
 | `échap` | sortir de l'éditeur — la note repasse en lecture —, puis vider la recherche, puis les tags cochés, puis la sélection |
 | ⌘⌫ · `x` | supprimer la note, après confirmation |
@@ -306,6 +339,17 @@ suite. La logique est presque toute en valeurs pures, donc en tests rapides :
 - **Mode lecture/écriture** (`JournalEditing`) : les deux ordres d'arrivée de
   ⌘N finissent tous deux dans l'éditeur, revenir sur une note qu'on éditait
   l'ouvre en lecture, échap termine.
+- **Bandeau de conflit** : la temporisation n'écrit rien tant qu'il est levé ;
+  **Garder** écrit le tampon et le retire ; le bandeau annonce ce que coûte une
+  question laissée sans réponse.
+- **Révision du texte** : taper ne la fait jamais avancer — c'est ce qui tient
+  le curseur en place —, une reprise du disque sur note propre la fait avancer
+  une fois, un conflit ne la fait pas avancer.
+- **Ligne tenue** : une note vidée, comme la note du jour ouverte par ⌘N,
+  gardent leur ligne à travers une relecture du dossier.
+- **Purges** : l'échec d'écriture disparaît à l'adoption externe, au changement
+  de dossier, à la suppression et au rechargement — nulle part ailleurs, et un
+  drapeau qui reste bloque la section entière.
 - **`JournalFolder`**, sur un dossier temporaire : aller-retour lecture /
   écriture, nom de fichier produit pour une date, rejet de ce qui n'est pas une
   note du jour (`notes.md`, `2026-13-01.md`, un sous-dossier).

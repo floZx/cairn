@@ -45,6 +45,22 @@ final class JournalStore {
     /// with `pendingWriteFailure`, and only with it.
     private(set) var writeFailure: String?
     private(set) var folder: URL?
+    /// Moves every time the store has replaced the text of the note being
+    /// edited itself, rather than taken it from the editor.
+    ///
+    /// The editor owns the text while it holds it: it keeps it in local state
+    /// and writes through to `update(_:for:)`, because a `TextEditor` handed
+    /// its string again from outside loses its selection — which put the caret
+    /// at the end of the note after every letter typed anywhere else. So it
+    /// cannot read the store's text back continuously; it needs to be told the
+    /// two moments when the store's copy is the one to show: an external change
+    /// adopted on a note with nothing unsaved (`merged(_:)`), and a buffer
+    /// dropped on purpose (**Recharger**, a deletion, another folder).
+    ///
+    /// A counter and not the text itself: what the editor has to know is *that*
+    /// its text was replaced, and it already has `text(for:)` to read it from.
+    /// Typing never moves it, which is the whole point.
+    private(set) var textRevision = 0
 
     private let defaults: UserDefaults
     /// The note being typed into, and its text. Kept apart from `notes` so the
@@ -107,6 +123,23 @@ final class JournalStore {
         saveNow()
         self.folder = folder
         defaults.set(folder?.path ?? "", forKey: JournalSettings.folderPathKey)
+        discardBuffer()
+        reload()
+        startWatching()
+    }
+
+    /// Lets go of what is being typed without writing it, and of everything
+    /// said about it.
+    ///
+    /// The three callers all mean the same thing — this note is not the one
+    /// being written in any more: another folder was chosen, the note was
+    /// deleted, or **Recharger** took the file instead. The message about a
+    /// write that failed goes with the text it belonged to, and so does the
+    /// banner: left standing, either would sit over the next note and say
+    /// something untrue about it.
+    private func discardBuffer() {
+        saveTask?.cancel()
+        saveTask = nil
         editingDate = nil
         buffer = ""
         isDirty = false
@@ -114,8 +147,9 @@ final class JournalStore {
         conflict = nil
         pendingWriteFailure = nil
         writeFailure = nil
-        reload()
-        startWatching()
+        // The editor is showing that buffer: it has to be told to take the
+        // store's text again rather than keep the one it was given.
+        textRevision += 1
     }
 
     // MARK: - Reading
@@ -163,9 +197,20 @@ final class JournalStore {
             //
             // A file that has gone leaves an empty note rather than a
             // remembered one: the day holds nothing everywhere else too.
-            buffer = diskText ?? ""
+            if buffer != diskText ?? "" {
+                buffer = diskText ?? ""
+                // Only when it really changed: the watcher fires for every
+                // note in the folder, and telling the editor to take its text
+                // again for someone else's file would move the caret to the
+                // end on an iCloud sync that has nothing to do with this note.
+                textRevision += 1
+            }
             baseline = (editingDate, buffer)
-            return fresh
+            // The day being written in keeps its row even with no file behind
+            // it — today's note just opened, or one emptied a moment ago. The
+            // pane is built from that row, and taking it away would tear down
+            // the editor the caret is sitting in.
+            return keepingBuffer(over: fresh, at: editingDate)
         }
 
         // Nothing has happened to this note's file — the event was our own
@@ -243,6 +288,31 @@ final class JournalStore {
 
     // MARK: - Writing
 
+    /// The editor has this note's text now, before a single key is pressed.
+    ///
+    /// Told rather than guessed, because two things follow from it. The note
+    /// keeps a row even with no file behind it, so the pane the caret is in is
+    /// never torn down — today's note opened with ⌘N is exactly that note.
+    /// And a change arriving from the phone while the note sits open and
+    /// untouched goes through `merged(_:)` like any other: the buffer takes it
+    /// and `textRevision` moves, where before the editor kept showing the old
+    /// text and wrote it back over the new one at the next keystroke.
+    ///
+    /// Refused while a write is pending, exactly as `update(_:for:)` is: the
+    /// text that would not reach the disk has to stay where the message about
+    /// it is. Refused under a banner for the same reason — the buffer it is
+    /// asking about would go with no answer given — though a change of note
+    /// settles the banner first, so that door is closed already.
+    func beginEditing(_ date: DateKey) {
+        guard editingDate != date else { return }
+        saveNow()
+        guard pendingWriteFailure == nil, conflict == nil else { return }
+        editingDate = date
+        buffer = note(for: date)?.text ?? ""
+        isDirty = false
+        baseline = (date, buffer)
+    }
+
     func update(_ text: String, for date: DateKey) {
         if editingDate != date {
             saveNow()
@@ -293,9 +363,12 @@ final class JournalStore {
                 // Opening today's note and typing nothing must not leave an
                 // empty file in the vault. Straight out, not to the trash: it
                 // never held anything.
+                //
+                // The file goes; the note does not. This is a pause in the
+                // middle of writing — select-all, delete, think — and the row
+                // is what the pane under the caret is built from. It leaves
+                // the list on its own once another note is written in.
                 try JournalFolder.remove(date, in: folder, toTrash: false)
-                notes.removeAll { $0.date == date }
-                editingDate = nil
                 baseline = (date, "")
             } else {
                 try JournalFolder.write(buffer, for: date, in: folder)
@@ -322,28 +395,25 @@ final class JournalStore {
     /// Inserts today's note in memory if it is not there, and returns its key.
     ///
     /// Nothing is written: a file appears the moment something is typed, and
-    /// disappears again if the text is taken back out.
+    /// disappears again if the text is taken back out. The day is opened for
+    /// writing straight away, which is what keeps that fileless row through
+    /// the next folder event — ⌘N puts the caret in it, and a row that goes
+    /// takes the pane with it.
     @discardableResult
     func openToday() -> DateKey {
         let today = DateKey(Date())
         if note(for: today) == nil {
             notes = Self.placing(JournalNote(date: today, text: ""), in: notes)
         }
+        beginEditing(today)
         return today
     }
 
     func delete(_ date: DateKey) {
         guard let folder else { return }
-        if editingDate == date {
-            saveTask?.cancel()
-            editingDate = nil
-            buffer = ""
-            isDirty = false
-            baseline = nil
-            // Whatever would not write is being thrown away on purpose here.
-            pendingWriteFailure = nil
-            writeFailure = nil
-        }
+        // Whatever would not write is being thrown away on purpose here, and
+        // so is any banner: both belonged to the note about to go.
+        if editingDate == date { discardBuffer() }
         do {
             try JournalFolder.remove(date, in: folder, toTrash: true)
             notes.removeAll { $0.date == date }
@@ -357,14 +427,7 @@ final class JournalStore {
 
     /// Drops the buffer and takes the file, dismissing the banner.
     func reloadConflicted() {
-        conflict = nil
-        saveTask?.cancel()
-        editingDate = nil
-        buffer = ""
-        isDirty = false
-        baseline = nil
-        pendingWriteFailure = nil
-        writeFailure = nil
+        discardBuffer()
         reload()
     }
 

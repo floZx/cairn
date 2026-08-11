@@ -260,7 +260,9 @@ application ou quittez Cairn. Une note ouverte et laissée vide n'est jamais
 écrite — un fichier vide dans un coffre est une ligne de plus à ignorer. Vider
 une note existante la supprime donc du disque, et **ce fichier-là ne passe pas
 par la corbeille**, à la différence d'une suppression demandée (`x`, ⌘⌫) qui,
-après confirmation, y met le fichier, d'où il reste récupérable.
+après confirmation, y met le fichier, d'où il reste récupérable. La ligne, elle,
+reste dans la liste tant que c'est la note où vous écrivez : tout effacer pour
+recommencer ne doit pas fermer le volet sous le curseur.
 
 **Les tags** sont ceux d'Obsidian : `#tag` dans le texte, ou une clé `tags:` en
 frontmatter. Un titre `# Titre` n'en est pas un, et `#2026` non plus — c'est une

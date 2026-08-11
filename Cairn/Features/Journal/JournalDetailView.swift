@@ -14,17 +14,30 @@ import SwiftUI
 /// front of every line are noise on the days one only reads. Writing still
 /// costs one click, or the key one already presses to write.
 ///
-/// Going from rendered to editor puts the caret at the end of the text and not
-/// where the click landed: they are two different views, and SwiftUI carries no
-/// click position from one to the other.
+/// Going from rendered to editor does not put the caret where the click landed:
+/// they are two different views, and SwiftUI carries no click position from one
+/// to the other. Which end of the text it lands on instead is whatever
+/// `TextEditor` does when `@FocusState` reaches it, and remains to be seen at
+/// the keyboard — the one thing observed is that a text *replaced* from outside
+/// leaves the caret at the end, which is why the draft below is not replaced
+/// under the typing.
 struct JournalDetailView: View {
     let note: JournalNote
+    /// The store's text for this note: what the reader renders, and what the
+    /// draft is seeded from. Never what the editor is bound to — see `draft`.
     let text: String
+    /// Moves when the store replaced that text itself rather than took it from
+    /// here. The signal the draft waits for.
+    let textRevision: Int
     /// What the header has to say about this note, decided by `JournalNotice`
     /// rather than here: which wording, and which buttons, is the one thing in
     /// this view where being wrong loses text.
     let notice: JournalNotice?
     var focusRequest: Int
+    /// The editor is taking this note's text: the store holds the day open
+    /// from here on, so its row survives a folder event and a change arriving
+    /// from the phone reaches the editor instead of being written over.
+    let onBeginEditing: () -> Void
     let onEdit: (String) -> Void
     let onSelectTag: (JournalTag) -> Void
     let onReloadFromDisk: () -> Void
@@ -35,6 +48,28 @@ struct JournalDetailView: View {
     /// Reading or writing, and on which note. The rules are `JournalEditing`'s,
     /// and tested there: what is left here is the focus plumbing.
     @State private var editing = JournalEditing()
+    /// The text the editor holds, which the editor owns while it holds it.
+    ///
+    /// It used to be bound straight to the store — `Binding(get: { text },
+    /// set: onEdit)` — and every keystroke went through `update(_:for:)`,
+    /// which rebuilds `notes`, which this pane's parent reads, so the body ran
+    /// again and handed `TextEditor` its string back. A `TextEditor` whose
+    /// bound value is replaced from outside loses its selection: the letter
+    /// was typed where the caret was, then the caret jumped to the end of the
+    /// note. Correcting a sentence — most of what a journal is — was
+    /// impossible.
+    ///
+    /// So the text lives here while it is being typed, and goes *out* to the
+    /// store on every keystroke: the row's excerpt, the tags, the tag counts
+    /// in the sidebar and the reconciliation all still follow the typing
+    /// rather than the debounce. What does not happen is the read back.
+    ///
+    /// It is seeded on the three transitions where the store's copy is the one
+    /// to show, and only there: entering the editor, another note arriving in
+    /// the pane, and the store saying it replaced the text itself
+    /// (`textRevision`) — an external change adopted on a note with nothing
+    /// unsaved, or **Recharger**.
+    @State private var draft = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -58,7 +93,22 @@ struct JournalDetailView: View {
         .onChange(of: note.id) { previous, _ in
             editing.left(previous)
             editorFocused = false
+            seedDraft()
         }
+        // The store replaced the text under us: an external change taken on a
+        // note with nothing unsaved, or **Recharger** dropping the buffer.
+        // This is the one moment the caret is allowed to move on its own —
+        // the text it was in is not there any more.
+        .onChange(of: textRevision) { _, _ in seedDraft() }
+    }
+
+    /// Takes the store's text, unless the editor already holds exactly it.
+    ///
+    /// The comparison is not an optimisation: seeding an identical string is
+    /// still a value replaced from outside as far as `TextEditor` is
+    /// concerned, and the caret would move for nothing.
+    private func seedDraft() {
+        if draft != text { draft = text }
     }
 
     private var header: some View {
@@ -127,6 +177,11 @@ struct JournalDetailView: View {
     /// site: `e` or Return on such a row would ask for focus nothing can take.
     private func beginEditing() {
         guard note.isReadable else { return }
+        // The store's text, as of now: it may well have moved while the note
+        // was merely being read, and the draft is only ever seeded here, on a
+        // change of note, and on `textRevision`.
+        seedDraft()
+        onBeginEditing()
         editing.requested(for: note.id)
         Task { @MainActor in editorFocused = true }
     }
@@ -135,7 +190,18 @@ struct JournalDetailView: View {
         // Explicit closure rather than `set: onEdit`: passing the stored
         // closure straight in converts a non-Sendable function value into the
         // `@Sendable` one `Binding` asks for, which Swift 6 warns about.
-        TextEditor(text: Binding(get: { text }, set: { onEdit($0) }))
+        //
+        // One way only. The getter reads the draft this view holds, never the
+        // store, so nothing the store does to `notes` while a key is being
+        // pressed can replace the text under the caret — see `draft`.
+        TextEditor(text: Binding(
+            get: { draft },
+            set: { newValue in
+                guard newValue != draft else { return }
+                draft = newValue
+                onEdit(newValue)
+            }
+        ))
             .font(.body)
             .scrollContentBackground(.hidden)
             .focused($editorFocused)

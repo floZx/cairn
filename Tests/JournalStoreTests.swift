@@ -309,8 +309,13 @@ struct JournalStoreTests {
         #expect(store.writeFailure == nil)
     }
 
-    @Test("une note réduite à des blancs quitte le dossier")
-    func aNoteEmptiedToWhitespaceLeavesTheFolder() throws {
+    /// The file goes; the note being written in stays.
+    ///
+    /// Select-all, delete, then a pause to think about the next sentence: the
+    /// file must not be left empty in the vault, and the row under the caret
+    /// must not go with it — the pane showing it would be torn down mid-edit.
+    @Test("une note réduite à des blancs quitte le dossier, pas la liste")
+    func aNoteEmptiedToWhitespaceLeavesTheFolderButNotTheList() throws {
         let folder = try makeFolder()
         defer { discard(folder) }
         let store = makeStore(in: folder)
@@ -323,7 +328,11 @@ struct JournalStoreTests {
         store.update("  \n  ", for: day)
         store.saveNow()
         #expect(!FileManager.default.fileExists(atPath: file.path))
-        #expect(store.note(for: day) == nil)
+        #expect(store.note(for: day) != nil)
+
+        // And it survives the watcher noticing the file we just removed.
+        store.reload()
+        #expect(store.note(for: day) != nil)
     }
 
     @Test("la note du jour seule n'écrit rien")
@@ -337,5 +346,106 @@ struct JournalStoreTests {
 
         #expect(store.note(for: today) != nil)
         #expect(try JournalFolder.notes(in: folder).isEmpty)
+    }
+
+    /// The signal the editor waits on to take the store's text again.
+    ///
+    /// It must not move under the typing: the editor holds its own copy
+    /// precisely so that a `TextEditor` is never handed its string back from
+    /// outside, which is what threw the caret to the end of the note after
+    /// every letter typed in the middle of a sentence. Our own save coming
+    /// back through the watcher is the case that would have moved it.
+    @Test("taper ne fait pas avancer la révision du texte")
+    func typingNeverMovesTheTextRevision() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+        let start = store.textRevision
+
+        store.update("un", for: day)
+        store.update("un, deux", for: day)
+        store.saveNow()
+        store.reload()
+        store.update("un, deux, trois", for: day)
+
+        #expect(store.textRevision == start)
+    }
+
+    /// A note open in the editor, nothing typed into it, and the phone's
+    /// version lands. The buffer takes it — there is nothing to arbitrate —
+    /// and the editor has to be told, or it would keep the old text on screen
+    /// and write it back over the new one at the next keystroke.
+    @Test("le texte arrivé du téléphone fait avancer la révision")
+    func anAdoptedDiskTextMovesTheTextRevision() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        try JournalFolder.write("du matin", for: day, in: folder)
+        let store = makeStore(in: folder)
+
+        store.beginEditing(day)
+        #expect(store.text(for: day) == "du matin")
+        let opened = store.textRevision
+
+        try JournalFolder.write("écrit sur le téléphone", for: day, in: folder)
+        store.reload()
+        #expect(store.text(for: day) == "écrit sur le téléphone")
+        #expect(store.textRevision == opened + 1)
+
+        // And an event about a folder that has not moved since leaves it be:
+        // an iCloud sync must not walk the caret to the end of the note.
+        store.reload()
+        #expect(store.textRevision == opened + 1)
+    }
+
+    /// The one case where the text on screen is deliberately *not* the file's:
+    /// the banner keeps the typing, so the editor must not be re-seeded.
+    @Test("un conflit ne fait pas avancer la révision du texte")
+    func aConflictNeverMovesTheTextRevision() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+
+        store.update("ma phrase", for: day)
+        store.saveNow()
+        store.update("ma phrase, et la suite", for: day)
+        let typed = store.textRevision
+
+        try JournalFolder.write("celle du téléphone", for: day, in: folder)
+        store.reload()
+        #expect(store.conflict == .conflict)
+        #expect(store.textRevision == typed)
+    }
+
+    @Test("recharger depuis le disque fait avancer la révision")
+    func reloadingFromDiskMovesTheTextRevision() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+
+        store.update("ma phrase", for: day)
+        store.saveNow()
+        store.update("ma phrase, et la suite", for: day)
+        try JournalFolder.write("celle du téléphone", for: day, in: folder)
+        store.reload()
+        let typed = store.textRevision
+
+        store.reloadConflicted()
+        #expect(store.text(for: day) == "celle du téléphone")
+        #expect(store.textRevision > typed)
+    }
+
+    /// ⌘N puts today's note in the list without writing a file. The folder is
+    /// watched, and an iCloud vault delivers events for its own reasons: a
+    /// re-read must not take back the note the caret was just placed in.
+    @Test("la note du jour ouverte survit à une relecture du dossier")
+    func todaysOpenNoteSurvivesAReload() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+
+        let today = store.openToday()
+        store.reload()
+
+        #expect(store.note(for: today) != nil)
     }
 }

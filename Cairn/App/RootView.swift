@@ -877,6 +877,7 @@ struct RootView: View {
                 JournalDetailView(
                     note: note,
                     text: app.journal.text(for: date),
+                    textRevision: app.journal.textRevision,
                     // The store's three pieces of state go in, one notice comes
                     // out — the mapping is `JournalNotice`'s, and tested there.
                     notice: JournalNotice.notice(
@@ -886,6 +887,7 @@ struct RootView: View {
                         displayedDate: date
                     ),
                     focusRequest: journalEditorFocus,
+                    onBeginEditing: { app.journal.beginEditing(date) },
                     onEdit: { app.journal.update($0, for: date) },
                     onSelectTag: { journalTags.insert($0) },
                     onReloadFromDisk: { app.journal.reloadConflicted() },
