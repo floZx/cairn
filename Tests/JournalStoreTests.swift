@@ -397,6 +397,31 @@ struct JournalStoreTests {
         #expect(store.textRevision == opened + 1)
     }
 
+    /// A keystroke the store turns down has to be taken back off the screen.
+    ///
+    /// While another note's write is pending, `update(_:for:)` refuses every
+    /// change: the text that would not reach the disk has to stay where the
+    /// message about it is. The editor holds its own copy now, so without a
+    /// word from the store it would go on showing letters this store has never
+    /// had — and drop them silently at the next change of note, having just
+    /// told the reader, in the notice above, that they are not being kept.
+    @Test("une frappe refusée est reprise à l'éditeur")
+    func arefusedKeystrokeIsTakenBack() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+
+        store.update("à sauver", for: day)
+        try FileManager.default.removeItem(at: folder)
+        store.saveNow()
+        #expect(store.pendingWriteFailure == day)
+        let held = store.textRevision
+
+        store.update("une autre note", for: otherDay)
+        #expect(store.text(for: otherDay) == "")
+        #expect(store.textRevision > held)
+    }
+
     /// The one case where the text on screen is deliberately *not* the file's:
     /// the banner keeps the typing, so the editor must not be re-seeded.
     @Test("un conflit ne fait pas avancer la révision du texte")

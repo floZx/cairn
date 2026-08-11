@@ -319,7 +319,15 @@ final class JournalStore {
             // The note being left could not be written: stay on it. Replacing
             // the buffer here would leave the paragraph that failed to reach
             // the disk nowhere at all, with only a message to say so.
-            guard pendingWriteFailure == nil else { return }
+            guard pendingWriteFailure == nil else {
+                // And the editor must not keep what has just been turned down:
+                // it holds its own copy of the text, so it would go on showing
+                // letters this store has never had, and drop them without a
+                // word at the next change of note — while the notice above it
+                // says, correctly, that nothing typed here is being kept.
+                textRevision += 1
+                return
+            }
             // What the folder's last read says this note holds, which is what
             // its file held: the buffer only ever stands in for the note being
             // edited, and that is the one being left behind here.
