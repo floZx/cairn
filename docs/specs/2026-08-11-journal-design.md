@@ -156,7 +156,8 @@ de notes du jour Obsidian existant s'ouvre tel quel.
 | ⌘N | la note du jour — la crée si besoin, la sélectionne, place le curseur dedans |
 | `j` `k` `gg` `G` `⌃d` `⌃u` | parcourir la liste, comme partout |
 | `e` · ⏎ | passer le clavier dans l'éditeur |
-| `échap` | sortir de l'éditeur, puis vider la recherche, puis la sélection |
+| `/` | aller au champ de recherche |
+| `échap` | sortir de l'éditeur, puis vider la recherche, puis les tags cochés, puis la sélection |
 | ⌘⌫ · `x` | supprimer la note, après confirmation |
 
 ⌘N veut déjà dire « nouvelle activité » : dans la section Journal il change de
