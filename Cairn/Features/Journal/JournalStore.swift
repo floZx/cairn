@@ -32,6 +32,18 @@ final class JournalStore {
     /// selection reads this so the two do not drift apart — the store having
     /// stayed on a note the sidebar has left is a worse state than either.
     private(set) var pendingWriteFailure: DateKey?
+    /// Why that last write failed, in French, for the editor to show.
+    ///
+    /// Its own property rather than `loadError`, which it would otherwise be
+    /// read from: `loadError` is cleared by any successful folder read, and the
+    /// watcher re-reads the folder on every event — an iCloud sync, a note
+    /// arriving, Obsidian touching its workspace file. The message would go
+    /// while the failure it explains was still in force, leaving an editor that
+    /// refuses to move with nothing on screen to say why. It also carries a
+    /// folder that went missing and a deletion that would not go through,
+    /// neither of which belongs over an open note. Set and cleared in lockstep
+    /// with `pendingWriteFailure`, and only with it.
+    private(set) var writeFailure: String?
     private(set) var folder: URL?
 
     private let defaults: UserDefaults
@@ -101,6 +113,7 @@ final class JournalStore {
         baseline = nil
         conflict = nil
         pendingWriteFailure = nil
+        writeFailure = nil
         reload()
         startWatching()
     }
@@ -273,11 +286,15 @@ final class JournalStore {
                 baseline = (date, buffer)
             }
             pendingWriteFailure = nil
+            writeFailure = nil
             loadError = nil
         } catch {
             isDirty = true
             pendingWriteFailure = date
-            loadError = "La note n'a pas pu être enregistrée. \(error.localizedDescription)"
+            let message =
+                "La note n'a pas pu être enregistrée. \(error.localizedDescription)"
+            writeFailure = message
+            loadError = message
         }
     }
 
@@ -304,6 +321,7 @@ final class JournalStore {
             baseline = nil
             // Whatever would not write is being thrown away on purpose here.
             pendingWriteFailure = nil
+            writeFailure = nil
         }
         do {
             try JournalFolder.remove(date, in: folder, toTrash: true)
@@ -325,6 +343,7 @@ final class JournalStore {
         isDirty = false
         baseline = nil
         pendingWriteFailure = nil
+        writeFailure = nil
         reload()
     }
 

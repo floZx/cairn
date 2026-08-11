@@ -9,13 +9,10 @@ import SwiftUI
 struct JournalDetailView: View {
     let note: JournalNote
     let text: String
-    let conflict: JournalReconciliation.Outcome?
-    /// The message left by a save that did not go through, if any.
-    ///
-    /// A separate piece of state from `conflict`, and a separate line on
-    /// screen: a conflict is two versions of a note to choose between, this is
-    /// a note that did not reach the disk at all.
-    let writeFailure: String?
+    /// What the header has to say about this note, decided by `JournalNotice`
+    /// rather than here: which wording, and which buttons, is the one thing in
+    /// this view where being wrong loses text.
+    let notice: JournalNotice?
     var focusRequest: Int
     let onEdit: (String) -> Void
     let onSelectTag: (JournalTag) -> Void
@@ -35,7 +32,12 @@ struct JournalDetailView: View {
                 unreadable
             }
         }
-        .onChange(of: focusRequest) { _, _ in editorFocused = true }
+        // Only where there is a field to aim at: `e` or Return on an unreadable
+        // row would otherwise ask for focus nothing can take.
+        .onChange(of: focusRequest) { _, _ in
+            guard note.isReadable else { return }
+            editorFocused = true
+        }
     }
 
     private var header: some View {
@@ -49,8 +51,8 @@ struct JournalDetailView: View {
                     }
                 }
             }
-            if let conflict { banner(conflict) }
-            if let writeFailure { failure(writeFailure) }
+            if let conflict = notice?.conflict { banner(conflict) }
+            if let failure = notice?.failure { self.failure(failure) }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -94,18 +96,14 @@ struct JournalDetailView: View {
     /// never the file — losing a sentence to a sync is the one failure this
     /// whole mechanism exists to prevent.
     @ViewBuilder
-    private func banner(_ conflict: JournalReconciliation.Outcome) -> some View {
+    private func banner(_ conflict: JournalNotice.Conflict) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
-            Text(
-                conflict == .vanished
-                    ? "Le fichier a été supprimé ailleurs. Votre texte est conservé ici."
-                    : "La note a été modifiée ailleurs. Votre texte est conservé ici."
-            )
-            .font(.callout)
+            Text(conflict.message)
+                .font(.callout)
             Spacer(minLength: 8)
-            if conflict == .conflict {
+            if conflict.offersReload {
                 Button("Recharger", action: onReloadFromDisk)
             }
             Button("Garder", action: onDismissConflict)
@@ -117,24 +115,19 @@ struct JournalDetailView: View {
     /// The last save did not go through.
     ///
     /// Two lines and no buttons, deliberately: there is nothing to choose here,
-    /// only something to know. The second line is the one that matters — while
-    /// a save is pending the journal refuses to change note, and a list that
-    /// will not respond with nothing said is read as a broken app rather than
-    /// as a note held back for its own safety.
-    private func failure(_ message: String) -> some View {
+    /// only something to know. The second line is the one that matters — a
+    /// journal that has stopped taking a keystroke, or stopped changing note,
+    /// with nothing said is read as a broken app rather than as text held back
+    /// for its own safety. Which of the two it is, `JournalNotice` decides.
+    private func failure(_ failure: JournalNotice.Failure) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(systemName: "exclamationmark.circle.fill")
                     .foregroundStyle(.red)
-                Text(message)
+                Text(failure.message)
             }
-            Text(
-                """
-                Le journal ne peut pas changer de note tant que ce texte n'est \
-                pas enregistré.
-                """
-            )
-            .foregroundStyle(.secondary)
+            Text(failure.consequence)
+                .foregroundStyle(.secondary)
         }
         .font(.caption)
     }

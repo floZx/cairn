@@ -797,21 +797,14 @@ struct RootView: View {
                 JournalDetailView(
                     note: note,
                     text: app.journal.text(for: date),
-                    conflict: app.journal.conflict,
-                    // Gated on the pending failure rather than on the message
-                    // alone: `loadError` also carries a folder that went
-                    // missing and a deletion that would not go through, and
-                    // neither of those belongs over an open note.
-                    //
-                    // Not on `pendingWriteFailure == date` though. The failing
-                    // note is nearly always the one on screen — the selection
-                    // cannot leave it — but it can be left by the one route
-                    // that opens while it is being taken: a flush that fails
-                    // on the way out. The note that is then on screen refuses
-                    // every keystroke, and that is exactly when the reason has
-                    // to be readable.
-                    writeFailure: app.journal.pendingWriteFailure == nil
-                        ? nil : app.journal.loadError,
+                    // The store's three pieces of state go in, one notice comes
+                    // out — the mapping is `JournalNotice`'s, and tested there.
+                    notice: JournalNotice.notice(
+                        conflict: app.journal.conflict,
+                        writeFailure: app.journal.writeFailure,
+                        failingDate: app.journal.pendingWriteFailure,
+                        displayedDate: date
+                    ),
                     focusRequest: journalEditorFocus,
                     onEdit: { app.journal.update($0, for: date) },
                     onSelectTag: { journalTags.insert($0) },

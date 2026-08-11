@@ -134,6 +134,39 @@ struct JournalStoreTests {
         #expect(store.text(for: day) == "à sauver")
     }
 
+    /// The message has to last exactly as long as the block it explains.
+    ///
+    /// `loadError` cannot carry it: any successful folder read clears that one,
+    /// and the watcher re-reads the folder on every event — an iCloud sync, a
+    /// note arriving, another app touching a file. The editor would go quiet
+    /// while still refusing to move.
+    @Test("le message d'échec survit à une relecture du dossier")
+    func aFailureMessageOutlivesAReload() throws {
+        let folder = try makeFolder()
+        defer { discard(folder) }
+        let store = makeStore(in: folder)
+
+        store.update("à sauver", for: day)
+        try FileManager.default.removeItem(at: folder)
+        store.saveNow()
+        #expect(store.writeFailure != nil)
+
+        // The folder comes back — a volume remounted — and the watcher fires.
+        // Nothing has been saved yet: the note is still held.
+        try FileManager.default.createDirectory(
+            at: folder, withIntermediateDirectories: true
+        )
+        store.reload()
+        #expect(store.loadError == nil)
+        #expect(store.pendingWriteFailure == day)
+        #expect(store.writeFailure != nil)
+
+        // Written at last, and only then does the message go.
+        store.saveNow()
+        #expect(store.pendingWriteFailure == nil)
+        #expect(store.writeFailure == nil)
+    }
+
     @Test("une note réduite à des blancs quitte le dossier")
     func aNoteEmptiedToWhitespaceLeavesTheFolder() throws {
         let folder = try makeFolder()
