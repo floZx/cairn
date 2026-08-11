@@ -123,6 +123,7 @@ struct VimKeyBuffer: Equatable {
             case "a": return .section(.all)
             case "m": return .section(.globalMap)
             case "s": return .section(.statistics)
+            case "j": return .section(.journal)
             case "n": return .section(.nutrition)
             case "p": return .section(.weight)
             // An unknown second key cancels rather than falling through to the

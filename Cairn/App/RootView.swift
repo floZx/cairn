@@ -176,6 +176,30 @@ struct RootView: View {
             // for why the two sources cannot share one text.
             Text(pendingDeletion?.source.deleteConfirmationMessage ?? "")
         }
+        .confirmationDialog(
+            journalPendingDeletion.map {
+                "Supprimer la note du \(Format.fullDate($0.date())) ?"
+            } ?? "",
+            isPresented: Binding(
+                get: { journalPendingDeletion != nil },
+                set: { if !$0 { journalPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Supprimer", role: .destructive) {
+                if let date = journalPendingDeletion {
+                    // Deleted first: `delete` clears any failed-write flag on
+                    // that date, and only then will `selectJournalNote` agree
+                    // to leave it.
+                    app.journal.delete(date)
+                    if journalSelection == date { selectJournalNote(nil) }
+                }
+                journalPendingDeletion = nil
+            }
+            Button("Annuler", role: .cancel) { journalPendingDeletion = nil }
+        } message: {
+            Text("Le fichier part à la corbeille : il reste récupérable.")
+        }
         .alert(
             "Échec de l'enregistrement",
             isPresented: Binding(
@@ -202,9 +226,24 @@ struct RootView: View {
             KeyboardHelpSheet { showsKeyboardHelp = false }
         }
         .onAppear {
-            app.requestNewActivity = { editor = .create }
+            // ⌘N means "make the thing this section is about": an activity in
+            // the list, today's note in the journal. One shortcut rather than
+            // two, since the two can never both apply.
+            app.requestNewActivity = {
+                if showsJournal {
+                    openTodaysNote()
+                } else {
+                    editor = .create
+                }
+            }
             app.requestEditSelection = { if let selected { editor = .edit(selected) } }
-            app.requestDeleteSelection = { pendingDeletion = selected }
+            app.requestDeleteSelection = {
+                if showsJournal {
+                    journalPendingDeletion = journalSelection
+                } else {
+                    pendingDeletion = selected
+                }
+            }
             app.requestToggleFavorite = { toggleFavorite() }
             app.requestImportGPX = { chooseGPXFilesToImport() }
             app.requestExportGPX = { exportGPX(selection) }
@@ -672,6 +711,21 @@ struct RootView: View {
         app.journal.choose(url)
     }
 
+    /// Opens today's note, creating it if it is not there. Nothing is written
+    /// until something is typed — see `JournalStore.openToday`.
+    private func openTodaysNote() {
+        guard app.journal.folder != nil else {
+            chooseJournalFolder()
+            return
+        }
+        // Through `selectJournalNote`, never by assigning `journalSelection`:
+        // the store refuses to leave a note whose write failed, and a direct
+        // write here would move the list while the store stayed behind — the
+        // desynchronisation task 6 built that guard to prevent.
+        selectJournalNote(app.journal.openToday())
+        journalEditorFocus += 1
+    }
+
     private func chooseGPXFilesToImport() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
@@ -1009,6 +1063,25 @@ struct RootView: View {
                     }
                     .disabled(selected == nil)
                     .help("Supprimer l'activité sélectionnée")
+                }
+            }
+
+            if showsJournal {
+                ToolbarItemGroup {
+                    Button {
+                        openTodaysNote()
+                    } label: {
+                        Label("Note du jour", systemImage: "square.and.pencil")
+                    }
+                    .help("Ouvrir la note d'aujourd'hui (⌘N)")
+
+                    Button {
+                        journalPendingDeletion = journalSelection
+                    } label: {
+                        Label("Supprimer", systemImage: "trash")
+                    }
+                    .disabled(journalSelection == nil)
+                    .help("Mettre la note sélectionnée à la corbeille")
                 }
             }
     }

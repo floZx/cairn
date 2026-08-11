@@ -57,9 +57,10 @@ struct VimKeyBufferTests {
 
     @Test("une séquence g inconnue est annulée, pas interprétée à moitié")
     func anUnknownGSequenceIsCancelled() {
-        // `gj` must not fall through to the one-key table and move a row: a
-        // half-recognised prefix is worse than a dead one.
-        #expect(run("gj").isEmpty)
+        // `gz` must not fall through to the one-key table: a half-recognised
+        // prefix is worse than a dead one. (`gj` used to stand here; it is a
+        // section shortcut now, so an unbound letter takes its place.)
+        #expect(run("gz").isEmpty)
         // And the buffer is left clean, so the next key starts fresh.
         var buffer = VimKeyBuffer()
         _ = buffer.accept("g")
@@ -112,6 +113,19 @@ struct VimKeyBufferTests {
     func gPrefixReachesJournalSections() {
         #expect(run("gn") == [.section(.nutrition)])
         #expect(run("gp") == [.section(.weight)])
+    }
+
+    @Test("gj va au journal")
+    func gjGoesToTheJournal() {
+        var buffer = VimKeyBuffer()
+        #expect(buffer.accept("g") == nil)
+        #expect(buffer.accept("j") == .section(.journal))
+    }
+
+    @Test("j seul reste un déplacement")
+    func jAloneIsStillAMotion() {
+        var buffer = VimKeyBuffer()
+        #expect(buffer.accept("j") == .move(1))
     }
 
     @Test("a et w déclenchent l'ajout, le compte est ignoré")

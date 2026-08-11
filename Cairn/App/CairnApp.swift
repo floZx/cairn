@@ -41,13 +41,19 @@ struct CairnApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(after: .newItem) {
-                Button("Nouvelle activité") { app.requestNewActivity?() }
+                // These two now depend on the section: an activity in the
+                // list, today's note in the journal. Named for what they do
+                // rather than for one of the two things they act on — a
+                // « Supprimer l'activité » that sends a note to the trash is
+                // the worst kind of label. The two below stay activity-worded
+                // because they stayed activity-only.
+                Button("Nouvel élément") { app.requestNewActivity?() }
                     .keyboardShortcut("n")
                     .disabled(app.requestNewActivity == nil)
                 Button("Modifier l'activité") { app.requestEditSelection?() }
                     .keyboardShortcut("e")
                     .disabled(app.requestEditSelection == nil)
-                Button("Supprimer l'activité") { app.requestDeleteSelection?() }
+                Button("Supprimer l'élément") { app.requestDeleteSelection?() }
                     .keyboardShortcut(.delete, modifiers: .command)
                     .disabled(app.requestDeleteSelection == nil)
                 Button("Favori") { app.requestToggleFavorite?() }
