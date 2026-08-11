@@ -71,6 +71,46 @@ struct DetailPaneWidthTests {
         #expect(1_537 - (position ?? 0) - 1 == 487)
     }
 
+    @Test("la colonne qui se rouvre redemande sa largeur")
+    func asksAgainOnReopening() {
+        // Le volet du journal se ferme et se rouvre sans changer de section :
+        // c'est cette transition, et elle seule, qui doit redemander la largeur.
+        #expect(DetailPaneWidth.shouldRestore(previousWidth: 0, newWidth: 320))
+    }
+
+    @Test("une réouverture au plancher redemande quand même")
+    func asksAgainEvenWhenAppKitReopensNarrow() {
+        // C'est tout le symptôme : AppKit rouvre la colonne à sa largeur
+        // minimale. Une réouverture étroite est justement celle qu'il faut
+        // corriger, pas celle qu'il faut laisser passer.
+        #expect(DetailPaneWidth.shouldRestore(previousWidth: 0, newWidth: 40))
+    }
+
+    @Test("le repli n'est pas une réouverture")
+    func theCollapseIsNotAReopening() {
+        // `RootView` ferme la colonne en lui donnant zéro, et cela arrive comme
+        // un redimensionnement ordinaire. Le prendre pour une réouverture
+        // rouvrirait le volet que l'app vient de fermer.
+        #expect(!DetailPaneWidth.shouldRestore(previousWidth: 487, newWidth: 0))
+    }
+
+    @Test("un glissement ordinaire ne redemande rien")
+    func anOrdinaryDragAsksNothing() {
+        // Sinon la largeur enregistrée reviendrait sous les doigts de
+        // l'utilisateur à chaque tiraillement du séparateur.
+        #expect(!DetailPaneWidth.shouldRestore(previousWidth: 487, newWidth: 520))
+        // Y compris quand le glissement approche de zéro sans l'atteindre :
+        // la colonne était ouverte, elle le reste.
+        #expect(!DetailPaneWidth.shouldRestore(previousWidth: 5, newWidth: 40))
+    }
+
+    @Test("une colonne restée fermée ne redemande rien")
+    func aShutColumnAsksNothing() {
+        // Deux redimensionnements de suite pendant que le volet est fermé :
+        // rien à rouvrir, et surtout aucune largeur de zéro à ressusciter.
+        #expect(!DetailPaneWidth.shouldRestore(previousWidth: 0, newWidth: 0))
+    }
+
     @Test("une fenêtre trop étroite laisse AppKit décider")
     func givesUpWhenItDoesNotFit() {
         // Restoring a width the window can no longer hold would squeeze the list

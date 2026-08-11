@@ -80,6 +80,24 @@ enum DetailPaneWidth {
         return width >= kind.minimumSaved ? width : nil
     }
 
+    /// Whether a resize that took the column from `previousWidth` to `newWidth`
+    /// is the moment to ask for the pane's remembered width again.
+    ///
+    /// The column shuts and reopens without ever changing pane: the journal's
+    /// list selects nothing on arrival, so its column is shut when the section
+    /// opens and again at every deselection. A hand-over is therefore not the
+    /// only moment a width has to be asked for — a reopening is one too, and
+    /// without this the pane came back at whatever width AppKit chose.
+    ///
+    /// Shut means exactly zero, which is what `RootView` gives the column when
+    /// it has nothing to show. A divider dragged down to a few points is still
+    /// open, and must stay where the user put it rather than spring back.
+    /// Reopened means any width at all, deliberately not one above the pane's
+    /// floor: reopening at the floor is precisely the case being corrected.
+    static func shouldRestore(previousWidth: Double, newWidth: Double) -> Bool {
+        previousWidth <= 0 && newWidth > 0
+    }
+
     /// Where the last divider goes so the detail pane gets `width`, or nil when
     /// it cannot without squeezing the middle pane past `minimumMiddle`.
     ///

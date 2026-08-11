@@ -94,6 +94,10 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         /// good.
         private var isSettling = false
 
+        /// How wide the column was at the last resize, so the one that reopens
+        /// it can be told from the rest.
+        private var lastWidth: Double = 0
+
         /// Hands the column from one pane to the other: what the user left
         /// behind is filed under the pane they dragged it for, and the pane
         /// arriving comes back at its own width.
@@ -130,8 +134,35 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
             SplitViewHoldingPriorities.setDetailWidth(width, of: splitView)
         }
 
+        /// Takes a resize into account: the column may have just reopened, and
+        /// a pane whose column reopens is owed the width it was left at.
+        ///
+        /// Hand-overs are not the only moment a width has to be asked for
+        /// again. The journal's column shuts at every deselection and reopens
+        /// at the next note, all without changing pane, so `handOver` never
+        /// runs and the width posted at the section switch was spent on the
+        /// first note opened. Everything after that came back at whatever
+        /// width AppKit chose.
+        fileprivate func columnDidResize(_ splitView: NSSplitView) {
+            guard splitView.arrangedSubviews.count >= 3 else { return }
+            let width = splitView.arrangedSubviews[2].frame.width
+            if DetailPaneWidth.shouldRestore(
+                previousWidth: lastWidth, newWidth: width
+            ), let saved = DetailPaneWidth.saved(for: kind) {
+                pendingWidth = saved
+            }
+            // Before applying, not after: setting the position posts another
+            // resize, and the width read back then is the restored one — which
+            // must not read as a second reopening.
+            lastWidth = width
+            applyPendingWidth(to: splitView)
+        }
+
         /// Called at startup, once the split view has been found.
         fileprivate func restoreOnLaunch(_ splitView: NSSplitView) {
+            if splitView.arrangedSubviews.count >= 3 {
+                lastWidth = splitView.arrangedSubviews[2].frame.width
+            }
             pendingWidth = DetailPaneWidth.saved(for: kind)
             applyPendingWidth(to: splitView)
         }
@@ -250,8 +281,10 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
                 // different things depending on what the column holds.
                 if isDrag { coordinator?.saveCurrentWidth(of: splitView) }
                 // Whatever the cause: this may be the resize that reopens the
-                // column, and the width it is owed has been waiting for it.
-                coordinator?.applyPendingWidth(to: splitView)
+                // column, which owes its pane the width it was left at —
+                // whether it was posted at a hand-over or is only asked for
+                // now, the column having reopened without changing pane.
+                coordinator?.columnDidResize(splitView)
                 // The dividers were just resized along with everything else,
                 // so the mask has to follow or it clips the wrong slice.
                 clipDividersUnderToolbar(of: splitView)
