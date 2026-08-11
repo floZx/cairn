@@ -861,7 +861,11 @@ struct RootView: View {
     }
 
     private var sidebar: some View {
-        SidebarView(selection: $sidebarSelection, filter: $filter)
+        SidebarView(
+            selection: $sidebarSelection,
+            filter: $filter,
+            journalTags: $journalTags
+        )
             .frame(minWidth: 260)
             .sportWash(washColor, strength: SportWashStrength.sidebar)
             // `ignoresSafeArea` so the material runs up behind the toolbar:

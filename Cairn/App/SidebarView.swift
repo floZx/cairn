@@ -20,11 +20,18 @@ enum SidebarItem: Hashable {
 struct SidebarView: View {
     @Binding var selection: SidebarItem?
     @Binding var filter: ActivityFilter
+    /// The ticked tags, when the journal is showing. Held by `RootView` like
+    /// every other filter, so the list and this pane never disagree.
+    @Binding var journalTags: Set<JournalTag>
     @Environment(AppEnvironment.self) private var app
     @Query private var activities: [Activity]
 
     private var sportCounts: [SportTally.Row] {
         SportTally.rows(for: activities.map(\.sportType))
+    }
+
+    private var tagCounts: [JournalTagTally.Row] {
+        JournalTagTally.rows(for: app.journal.notes.map(\.tags))
     }
 
     /// The filter sections belong to the activity screens; beside the journal,
@@ -66,6 +73,32 @@ struct SidebarView: View {
                         Label("Retirer la zone", systemImage: "xmark.circle")
                     }
                     .help("Retirer le filtre géographique dessiné sur la carte")
+                }
+            }
+
+            if selection == .journal, !tagCounts.isEmpty {
+                Section("Tags") {
+                    ForEach(tagCounts) { entry in
+                        Toggle(isOn: binding(for: entry.tag)) {
+                            HStack {
+                                Text(entry.tag.displayName)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Spacer(minLength: 8)
+                                Text("\(entry.count)")
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
+                        }
+                        .toggleStyle(.checkbox)
+                    }
+                }
+                if !journalTags.isEmpty {
+                    Section {
+                        Button("Retirer les tags (\(journalTags.count))") {
+                            journalTags = []
+                        }
+                    }
                 }
             }
 
@@ -161,6 +194,22 @@ struct SidebarView: View {
                     filter.sports.insert(sport)
                 } else {
                     filter.sports.remove(sport)
+                }
+            }
+        )
+    }
+
+    /// Ticked tags narrow rather than widen: a note carries several, so the
+    /// point of ticking a second one is to combine them. Sports work the other
+    /// way round because an activity has exactly one — see `JournalNote.has`.
+    private func binding(for tag: JournalTag) -> Binding<Bool> {
+        Binding(
+            get: { journalTags.contains(tag) },
+            set: { isOn in
+                if isOn {
+                    journalTags.insert(tag)
+                } else {
+                    journalTags.remove(tag)
                 }
             }
         )
