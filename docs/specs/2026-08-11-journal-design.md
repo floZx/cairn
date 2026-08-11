@@ -278,10 +278,23 @@ plutôt que le début de la note : une liste de résultats qui n'affiche nulle p
 ce qu'elle a trouvé oblige à ouvrir chaque note pour le savoir.
 
 **Les activités du jour** *(ajouté le 11 août 2026)* — entre les pastilles de
-tags et le bandeau d'alerte, la ou les sorties faites ce jour-là : symbole du
-sport, nom, distance, durée, dénivelé. Écrire l'entrée du 11 août en ayant sous
-les yeux les 12 km courus ce jour-là est le genre de rappel pour lequel on tient
-un journal. Un chiffre qui serait un mensonge est omis plutôt que tiré : une
+tags et le bandeau d'alerte, sous un titre « Activité(s) du jour », la ou les
+sorties faites ce jour-là : symbole du sport, nom, distance, durée, dénivelé —
+et **la note de l'activité**, rendue.
+
+Cette note est le sujet du bloc, pas sa garniture : on tient un journal pour
+avoir sous les yeux, en écrivant sa journée, les sensations notées le soir même
+de la sortie. Les chiffres sont le rappel qui les remet en situation. Les tailles se lisent contre les 15 points de la note du
+jour : **14 pour la note rappelée, 13 pour la ligne qui la nomme**. Le premier
+essai était à 11 et 12, et le bloc passait pour des mentions légales plutôt que
+pour une voix secondaire — un cran en dessous suffit à les classer, deux rendent
+le bloc pénible. Une note faite de blancs compte pour vide : une carte qui s'ouvre
+sur une ligne blanche dit moins qu'une carte qui ne s'ouvre pas.
+
+**Seul l'en-tête est le bouton**, pas la carte entière : une note d'activité peut
+faire un paragraphe, et une cible de clic de cette hauteur est une cible dans
+laquelle le pointeur tombe plutôt qu'une qu'il vise. Cela laisse aussi la note
+sélectionnable, ce que le contenu d'un bouton n'est pas. Un chiffre qui serait un mensonge est omis plutôt que tiré : une
 natation n'a pas de dénivelé, une séance en salle pas de distance, et une
 rangée de tirets ne dit rien qu'une absence ne dise mieux. Un jour sans sortie
 n'affiche rien du tout — un titre annonçant une liste vide est pire que pas de

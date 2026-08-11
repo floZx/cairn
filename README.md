@@ -275,8 +275,10 @@ apparaisse si l'on se ravise. Le curseur n'est pas placé dans le texte : clique
 un jour veut dire « montre-moi », pas « écris » ; c'est ⌘N qui veut dire écrire.
 
 **Les sorties du jour** sont rappelées au-dessus de la note : sport, nom,
-distance, durée, dénivelé. Écrire l'entrée du 11 août en ayant sous les yeux les
-12 km courus ce jour-là est le genre de rappel pour lequel on tient un journal.
+distance, durée, dénivelé, et surtout **la note écrite sur l'activité
+elle-même**. C'est elle qui compte : on tient un journal pour avoir sous les
+yeux, en écrivant sa journée, les sensations notées le soir même de la sortie.
+Les chiffres sont le rappel qui les remet en situation.
 Un chiffre qui serait un mensonge est omis plutôt que tiré — une natation n'a
 pas de dénivelé, une séance en salle pas de distance — et un jour sans sortie
 n'affiche rien. Un clic ouvre l'activité dans « Mes activités », ce qui quitte le

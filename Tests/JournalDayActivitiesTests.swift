@@ -1,4 +1,5 @@
 import Testing
+import SwiftData
 import Foundation
 @testable import Cairn
 
@@ -87,5 +88,47 @@ struct JournalDayActivitiesTests {
             #expect(DateKey(end) == day.advanced(by: 1))
             #expect(Calendar.current.component(.hour, from: end) == 0)
         }
+    }
+}
+
+@Suite("La note de l'activité rappelée")
+@MainActor
+struct JournalDayActivityNoteTests {
+    private func activity(note: String?) throws -> Activity {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let activity = Activity(stravaID: 1, name: "Sortie", sportType: .run)
+        activity.activityDescription = note
+        context.insert(activity)
+        try context.save()
+        return activity
+    }
+
+    @Test("la note est rendue telle qu'elle a été écrite")
+    func theNoteComesThrough() throws {
+        #expect(
+            JournalDayActivities.note(of: try activity(note: "Jambes lourdes."))
+                == "Jambes lourdes."
+        )
+    }
+
+    @Test("une activité sans note n'en montre pas")
+    func noNoteAtAll() throws {
+        #expect(JournalDayActivities.note(of: try activity(note: nil)).isEmpty)
+    }
+
+    @Test("une note faite de blancs compte pour vide")
+    func whitespaceOnlyCountsAsEmpty() throws {
+        // An editor that left a stray newline behind must not open a card on a
+        // blank line.
+        #expect(JournalDayActivities.note(of: try activity(note: "  \n\n ")).isEmpty)
+    }
+
+    @Test("les blancs autour d'une vraie note sont retirés")
+    func surroundingWhitespaceIsTrimmed() throws {
+        #expect(
+            JournalDayActivities.note(of: try activity(note: "\n  Vent de face.  \n"))
+                == "Vent de face."
+        )
     }
 }

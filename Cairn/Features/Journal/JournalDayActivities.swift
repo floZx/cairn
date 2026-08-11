@@ -1,7 +1,13 @@
 import SwiftUI
 import SwiftData
 
-/// What the body did on the day the note is about.
+/// What the body did on the day the note is about — and what was written about
+/// it at the time.
+///
+/// The activity's own note is the point of the block, not a garnish: one keeps
+/// a journal to have "sensations, météo, matériel" from the evening of the run
+/// in front of one while writing about the day. The figures are the reminder
+/// that puts it in context.
 ///
 /// A view of its own rather than a list handed down from `RootView`: the note's
 /// pane rebuilds on every keystroke — the draft lives there — and re-filtering
@@ -14,6 +20,17 @@ import SwiftData
 struct JournalDayActivities: View {
     let date: DateKey
     let onSelect: (PersistentIdentifier) -> Void
+
+    /// Sizes, read against `JournalDetailView.noteSize` — the note this pane is
+    /// for, at 15.
+    ///
+    /// The recap is secondary and should look it, but the first pass put it at
+    /// 11 and 12 against that 15 and it read as fine print rather than as a
+    /// lesser voice. One point under the note for what was written about the
+    /// outing, two for the line that names it: enough of a step to rank them,
+    /// not enough to make the block hard to read.
+    private static let noteSize: CGFloat = 14
+    private static let headingSize: CGFloat = 13
 
     @Query private var activities: [Activity]
 
@@ -42,17 +59,51 @@ struct JournalDayActivities: View {
     var body: some View {
         if !activities.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
+                Text(activities.count > 1 ? "Activités du jour" : "Activité du jour")
+                    .font(.system(size: Self.headingSize, weight: .semibold))
+                    .foregroundStyle(.secondary)
                 ForEach(activities) { activity in
-                    Button {
-                        onSelect(activity.persistentModelID)
-                    } label: {
-                        row(activity)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Ouvrir « \(activity.name) » dans Mes activités")
+                    entry(activity)
                 }
             }
         }
+    }
+
+    private func entry(_ activity: Activity) -> some View {
+        // The heading is the button, not the whole card: an activity's note can
+        // run to a paragraph, and a click target that tall is one the pointer
+        // falls into rather than one it aims at. It also leaves the note
+        // selectable, which a button's label is not.
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                onSelect(activity.persistentModelID)
+            } label: {
+                row(activity)
+            }
+            .buttonStyle(.plain)
+            .help("Ouvrir « \(activity.name) » dans Mes activités")
+
+            let note = Self.note(of: activity)
+            if !note.isEmpty {
+                MarkdownText(markdown: note, baseSize: Self.noteSize)
+                    .textSelection(.enabled)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 5))
+    }
+
+    /// The activity's own note, or empty when it has none worth showing.
+    ///
+    /// Trimmed before the emptiness test: a note left as a stray newline by an
+    /// editor is a note with nothing in it, and a card opening on a blank line
+    /// says less than one that never opened.
+    static func note(of activity: Activity) -> String {
+        activity.activityDescription?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private func row(_ activity: Activity) -> some View {
@@ -75,11 +126,8 @@ struct JournalDayActivities: View {
                 .monospacedDigit()
                 .layoutPriority(1)
         }
-        .font(.caption)
-        .padding(.vertical, 3)
-        .padding(.horizontal, 8)
+        .font(.system(size: Self.headingSize))
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 5))
         .contentShape(.rect)
     }
 
