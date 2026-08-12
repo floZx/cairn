@@ -71,11 +71,37 @@ struct NutritionDayView: View {
             || noteTargetSlot != nil || entryPendingDeletion != nil
     }
 
-    /// Rows per meal for the CURRENT day — the cursor's coordinate system.
+    /// The day the keyboard is on.
+    ///
+    /// A `@State` mirror of the binding rather than the binding itself, for the
+    /// reason the journal's list already carries: a key handler is a closure
+    /// built when the body was last evaluated, and `dateKey` read through it
+    /// answers with the day that was on screen when the closure was made.
+    ///
+    /// Measured on 12 August 2026, instrumented rather than guessed at. The
+    /// screen showed the 11th — seven, seven, nothing, twelve — while the row
+    /// counts came back `[4, 0, 0, 0]`, the 12th's. The cursor therefore
+    /// stopped at the last position the *12th* had, the dinner header, with a
+    /// dozen lines visible underneath it and no way to reach them. `@State` is
+    /// a reference into live storage: read here, it is always the day shown.
+    ///
+    /// Nil until the view first appears, which is why every read goes through
+    /// `day` rather than touching this directly.
+    @State private var keyboardDay: DateKey?
+
+    /// The day every keyboard-side computation works from.
+    private var day: DateKey { keyboardDay ?? dateKey }
+
+    /// Rows per meal for the day under the cursor — its coordinate system.
     /// Recomputed on demand: cheap, and always consistent with what the
     /// screen shows.
-    private var currentRowCounts: [Int] {
-        let dayEntries = entries.filter { $0.dateKeyRaw == dateKey.raw }
+    private var currentRowCounts: [Int] { rowCounts(for: day) }
+
+    /// Taken as a parameter as well as read from `day`, because a handler that
+    /// has just written the new day cannot read it back: a `@State` write is
+    /// only visible to the next pass of the body.
+    private func rowCounts(for day: DateKey) -> [Int] {
+        let dayEntries = entries.filter { $0.dateKeyRaw == day.raw }
         return slots
             .sorted { $0.sortOrder < $1.sortOrder }
             .map { slot in
@@ -101,7 +127,7 @@ struct NutritionDayView: View {
               let slot = cursorSlot else { return nil }
         let rows = entries
             .filter {
-                $0.dateKeyRaw == dateKey.raw
+                $0.dateKeyRaw == day.raw
                     && $0.mealSlot?.persistentModelID == slot.persistentModelID
             }
             .sorted { $0.sortOrder < $1.sortOrder }
@@ -123,10 +149,10 @@ struct NutritionDayView: View {
             // `.closePane`, which is meaningless here: the journal's pane is
             // the side panel, and it is not closable.
             case .closePane:
-                dateKey = dateKey.advanced(by: -1)
+                dateKey = day.advanced(by: -1)
                 return true
             case .dayForward:
-                dateKey = dateKey.advanced(by: 1)
+                dateKey = day.advanced(by: 1)
                 return true
             case let .move(delta):
                 cursor = DayCursorModel.move(
@@ -189,7 +215,7 @@ struct NutritionDayView: View {
                     cursor = nil
                     return true
                 }
-                if dateKey != DateKey(Date()) {
+                if day != DateKey(Date()) {
                     dateKey = DateKey(Date())
                     return true
                 }
@@ -205,12 +231,12 @@ struct NutritionDayView: View {
         .onKeyPress(.downArrow) { moveCursor(by: 1) }
         .onKeyPress(.leftArrow) {
             guard !isPresentingModal else { return .ignored }
-            dateKey = dateKey.advanced(by: -1)
+            dateKey = day.advanced(by: -1)
             return .handled
         }
         .onKeyPress(.rightArrow) {
             guard !isPresentingModal else { return .ignored }
-            dateKey = dateKey.advanced(by: 1)
+            dateKey = day.advanced(by: 1)
             return .handled
         }
         .onKeyPress(.return) {
@@ -220,8 +246,16 @@ struct NutritionDayView: View {
             editingEntry = entry
             return .handled
         }
-        .onChange(of: dateKey) { _, _ in
-            cursor = DayCursorModel.clamp(cursor, rowCounts: currentRowCounts)
+        // Seeded here and kept in step below: `day` answers for the binding
+        // until the view has appeared, and for live storage afterwards.
+        .onAppear { keyboardDay = dateKey }
+        .onChange(of: dateKey) { _, arrived in
+            keyboardDay = arrived
+            // `arrived`, not `day`: the mirror above was just written, and a
+            // `@State` write is only visible to the next pass of the body.
+            cursor = DayCursorModel.clamp(
+                cursor, rowCounts: rowCounts(for: arrived)
+            )
         }
         .onChange(of: entries.count) { _, _ in
             cursor = DayCursorModel.clamp(cursor, rowCounts: currentRowCounts)
@@ -306,14 +340,29 @@ struct NutritionDayView: View {
             favoriteKeys: favorites
         )
         return ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                header(model)
-                summary(model)
-                Divider()
-                ForEach(
-                    Array(model.meals.enumerated()), id: \.element.slotID
-                ) { mealIndex, meal in
-                    mealSection(meal, mealIndex: mealIndex)
+            // The cursor walks a plain stack here, not the rows of a table, so
+            // nothing brings it back into sight on its own: `j` held down ran
+            // the selection off the bottom of the window while the screen sat
+            // still. The lists elsewhere reach into their `NSTableView` for
+            // this; a stack has `scrollTo`, and every position carries its own
+            // identity to be scrolled to.
+            ScrollViewReader { scroller in
+                VStack(alignment: .leading, spacing: 24) {
+                    header(model)
+                    summary(model)
+                    Divider()
+                    ForEach(
+                        Array(model.meals.enumerated()), id: \.element.slotID
+                    ) { mealIndex, meal in
+                        mealSection(meal, mealIndex: mealIndex)
+                    }
+                }
+                // No anchor: scrolls the least it can to uncover the row,
+                // rather than yanking it to the middle of the window at every
+                // step of a walk that was already visible.
+                .onChange(of: cursor) { _, moved in
+                    guard let moved else { return }
+                    scroller.scrollTo(moved)
                 }
             }
             .padding(24)
@@ -563,6 +612,7 @@ struct NutritionDayView: View {
             .onTapGesture {
                 cursor = DayCursor(mealIndex: mealIndex, rowIndex: nil)
             }
+            .id(DayCursor(mealIndex: mealIndex, rowIndex: nil))
             if meal.rows.isEmpty {
                 Text("Rien de consigné")
                     .font(.body)
@@ -637,6 +687,11 @@ struct NutritionDayView: View {
                                 mealIndex: mealIndex, rowIndex: rowIndex
                             )
                         }
+                        // Like the `.background` above it, this lands on each
+                        // cell of the row: they share one identity and one
+                        // line, so scrolling to any of them is scrolling to
+                        // the row.
+                        .id(DayCursor(mealIndex: mealIndex, rowIndex: rowIndex))
                         .contextMenu {
                             Button("Éditer…") {
                                 editingEntry = entry(for: row.entryID)

@@ -3,7 +3,9 @@ import Foundation
 /// A position in the day's meal list: a meal header, or a food row in it.
 /// suivinut's day table had exactly these two kinds of rows — the header is
 /// selectable so `a`, `n`, `c`, `s` have a target even in an empty meal.
-struct DayCursor: Equatable {
+/// `Hashable` so a position can be a view's identity: that is what lets the
+/// scroll view be told to bring the cursor into sight.
+struct DayCursor: Equatable, Hashable {
     var mealIndex: Int
     var rowIndex: Int?
 }
