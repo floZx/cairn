@@ -119,57 +119,45 @@ struct ActivityCard: View {
         .ambientGlow(activity.sportType.color, cornerRadius: 6, blurRadius: 18)
     }
 
-    /// The figures, as a row of blocks rather than a line of small grey text.
+    /// The figures, one line, no labels.
     ///
-    /// Value above label, the value at reading size: four identical captions
-    /// made the card say everything at the same volume, which is the same as
-    /// saying nothing. Heart rate drops out when there is none rather than
-    /// leaving a hole.
+    /// The labels went because every value already carries its unit: "9,0 km"
+    /// under a caption reading "Distance" said the same thing twice, twenty
+    /// times down a list, and cost half the height of the card. The eye now
+    /// runs down a column of figures instead of re-reading four words.
+    ///
+    /// All five, always, in the same order. They used to drop out one by one
+    /// through a `ViewThatFits` as the pane narrowed, which made two rows side
+    /// by side carry different columns — the reader cannot tell a figure
+    /// withheld for want of room from one the activity never recorded. The
+    /// name absorbs the shortfall instead; see its frame above.
     private var figures: some View {
-        // All four, always. They used to drop out one by one through a
-        // `ViewThatFits` as the pane narrowed, which made two rows side by
-        // side carry different columns — the reader cannot tell a figure
-        // withheld for want of room from one the activity never recorded.
-        // The name absorbs the shortfall instead; see its frame above.
         HStack(spacing: 0) {
-            distanceBlock
-            durationBlock
-            elevationBlock
-            heartrateBlock
+            ForEach(Array(Self.figures(for: activity).enumerated()), id: \.offset) {
+                _, figure in
+                Text(figure.value ?? "")
+                    // Emphasis by weight alone: over twenty rows it is enough
+                    // to bring out the month's three long outings, where a
+                    // larger body would break the alignment of the columns and
+                    // shout.
+                    .font(
+                        .subheadline
+                            .weight(figure.isLeading ? .semibold : .regular)
+                            .monospacedDigit()
+                    )
+                    .lineLimit(1)
+                    // Rather than truncating: a number cut short reads as
+                    // another number, where a slightly smaller one reads as
+                    // itself.
+                    .minimumScaleFactor(0.7)
+                    .frame(width: Self.columnWidth, alignment: .leading)
+            }
         }
     }
 
-    private var distanceBlock: some View {
-        block(Format.distance(activity.distance), "Distance")
-    }
-    private var durationBlock: some View {
-        block(Format.durationCompact(activity.movingTime), "Durée")
-    }
-    private var elevationBlock: some View {
-        block(Format.elevation(activity.totalElevationGain), "D+")
-    }
-    @ViewBuilder
-    private var heartrateBlock: some View {
-        if let heartrate = activity.averageHeartrate {
-            block(Format.heartrate(heartrate), "FC moy.")
-        }
-    }
-
-    private func block(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(value)
-                .font(.subheadline.weight(.medium).monospacedDigit())
-                .lineLimit(1)
-                // Rather than truncating: a number cut short reads as another
-                // number, where a slightly smaller one reads as itself.
-                .minimumScaleFactor(0.7)
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-        }
-        .frame(width: 72, alignment: .leading)
-    }
+    /// Five columns where there were four, and no labels under them: each one
+    /// gives up a little width, and the name gains what is left over.
+    private static let columnWidth: CGFloat = 62
 }
 
 extension ActivityCard {
