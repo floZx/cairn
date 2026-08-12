@@ -153,6 +153,7 @@ struct JournalDetailView: View {
             // day's outings belong with the date they happened on, while the
             // banners belong as close as possible to the text they are about.
             JournalDayActivities(date: day.date, onSelect: onSelectActivity)
+            JournalDayNutrition(date: day.date)
             if let conflict = notice?.conflict { banner(conflict) }
             if let failure = notice?.failure { self.failure(failure) }
         }
