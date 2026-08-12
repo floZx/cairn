@@ -256,27 +256,74 @@ struct ActivityDetailView: View {
             columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 4),
             spacing: 16
         ) {
-            StatTile("Distance", Format.distance(activity.distance))
-            StatTile("Temps en mouvement", Format.duration(activity.movingTime))
-            StatTile("Temps total", Format.duration(activity.elapsedTime))
-            StatTile("Dénivelé +", Format.elevation(activity.totalElevationGain))
-            StatTile(
+            ForEach(Self.statTiles(for: activity)) { tile in
+                StatTile(tile.title, tile.value)
+            }
+        }
+    }
+
+    struct StatTileModel: Identifiable, Equatable {
+        let title: String
+        let value: String
+        var id: String { title }
+    }
+
+    /// The statistics grid, as a list rather than a fixed layout.
+    ///
+    /// A tile with nothing to say is left out entirely instead of printing a
+    /// dash: the grid was written for a ride, and on a swim or a gym session
+    /// half of it said only that. Two figures are also dropped when they merely
+    /// repeat the one beside them — Strava sends a run's estimated power as its
+    /// own normalised power, and a watch that never paused makes elapsed time
+    /// the moving time again.
+    static func statTiles(for activity: Activity) -> [StatTileModel] {
+        var tiles: [StatTileModel] = [
+            StatTileModel(title: "Distance", value: Format.distance(activity.distance)),
+            StatTileModel(
+                title: "Temps en mouvement", value: Format.duration(activity.movingTime)
+            ),
+        ]
+        func add(_ title: String, _ value: String) {
+            tiles.append(StatTileModel(title: title, value: value))
+        }
+
+        if activity.elapsedTime != activity.movingTime {
+            add("Temps total", Format.duration(activity.elapsedTime))
+        }
+        add("Dénivelé +", Format.elevation(activity.totalElevationGain))
+
+        if activity.averageSpeed > 0 {
+            add(
                 "Vitesse moyenne",
                 Format.speed(activity.averageSpeed, sport: activity.sportType)
             )
-            StatTile(
-                "Vitesse max",
-                Format.speed(activity.maxSpeed, sport: activity.sportType)
-            )
-            StatTile("FC moyenne", Format.heartrate(activity.averageHeartrate))
-            StatTile("FC max", Format.heartrate(activity.maxHeartrate))
-            StatTile("Puissance moyenne", Format.power(activity.averageWatts))
-            StatTile("Puissance normalisée", Format.power(activity.weightedAverageWatts))
-            StatTile("Cadence", Format.cadence(activity.averageCadence))
-            if let gear = activity.gear {
-                StatTile("Matériel", gear.name)
-            }
         }
+        if activity.maxSpeed > 0 {
+            add("Vitesse max", Format.speed(activity.maxSpeed, sport: activity.sportType))
+        }
+        if let average = activity.averageHeartrate, average > 0 {
+            add("FC moyenne", Format.heartrate(average))
+        }
+        if let max = activity.maxHeartrate, max > 0 {
+            add("FC max", Format.heartrate(max))
+        }
+        if let watts = activity.averageWatts, watts > 0 {
+            add("Puissance moyenne", Format.power(watts))
+        }
+        if let normalised = activity.weightedAverageWatts, normalised > 0,
+           normalised.rounded() != (activity.averageWatts ?? 0).rounded() {
+            add("Puissance normalisée", Format.power(normalised))
+        }
+        if let cadence = activity.averageCadence, cadence > 0 {
+            add("Cadence", Format.cadence(cadence, sport: activity.sportType))
+        }
+        if let calories = activity.calories, calories > 0 {
+            add("Calories", Format.calories(calories))
+        }
+        if let gear = activity.gear {
+            add("Matériel", gear.name)
+        }
+        return tiles
     }
 
     private var laps: some View {

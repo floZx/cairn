@@ -66,4 +66,19 @@ enum SportType: String, Codable, CaseIterable, Sendable, Identifiable {
         case .other: "sparkles"
         }
     }
+
+    /// What one unit of Strava's cadence is worth here, and what to call it.
+    ///
+    /// Only a crank turns at the rate Strava reports. A runner's cadence comes
+    /// back counted one leg at a time — 89 for a minute of 178 steps — and a
+    /// swimmer's counts strokes. Reading it as rpm everywhere printed a number
+    /// twice too small under a unit that means nothing on foot, so the tile,
+    /// the chart and anything else showing a cadence go through this.
+    var cadence: (factor: Double, unit: String) {
+        switch self {
+        case .run, .trailRun, .walk, .hike: (2, "ppm")
+        case .swim: (1, "coups/min")
+        default: (1, "rpm")
+        }
+    }
 }

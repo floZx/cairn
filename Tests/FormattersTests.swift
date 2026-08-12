@@ -66,6 +66,24 @@ struct FormattersTests {
         #expect(Format.power(156.3) == "156 W")
     }
 
+    @Test("la cadence se lit dans l'unité du sport, jambe par jambe à pied")
+    func formatsCadenceBySport() {
+        // Strava compte une jambe : 89 pour une minute à 178 pas.
+        #expect(Format.cadence(89, sport: .run) == "178 ppm")
+        #expect(Format.cadence(89, sport: .trailRun) == "178 ppm")
+        #expect(Format.cadence(89, sport: .ride) == "89 rpm")
+        #expect(Format.cadence(34, sport: .swim) == "34 coups/min")
+        #expect(Format.cadence(nil, sport: .run) == "—")
+        #expect(Format.cadence(0, sport: .ride) == "—")
+    }
+
+    @Test("les calories sont des kcal, absentes ou nulles un tiret")
+    func formatsCalories() {
+        #expect(Format.calories(812.4) == "812 kcal")
+        #expect(Format.calories(nil) == "—")
+        #expect(Format.calories(0) == "—")
+    }
+
     @Test("le dénivelé au kilomètre s'arrondit et gère l'absence de distance")
     func formatsElevationPerKilometre() {
         #expect(Format.elevationPerKilometre(23.4) == "23 m/km")

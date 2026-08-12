@@ -33,22 +33,27 @@ enum StreamSeriesBuilder {
     ///   with the streams. When it is empty or misaligned the samples are spread
     ///   evenly over `totalDistance` instead — good enough for a steady outing,
     ///   but it drifts wherever the pace does.
+    /// - Parameter sport: only read for the cadence stream, which Strava counts
+    ///   per leg on foot — see `SportType.cadence`. The tile above the chart and
+    ///   the trace have to agree, so both scale the same way.
     static func series(
         from streams: ActivityStreams?,
         totalDistance: Double,
-        distancesMetres: [Double] = []
+        distancesMetres: [Double] = [],
+        sport: SportType = .other
     ) -> [StreamSeries] {
         guard let streams else { return [] }
         // A colour per measurement, chosen for what it measures rather than for
         // variety: red is heart rate everywhere, and the ground is green.
-        let definitions: [(String, String, String, Color, Data?)] = [
-            ("altitude", "Altitude", "m", .green, streams.altitude),
-            ("heartrate", "Fréquence cardiaque", "bpm", .red, streams.heartrate),
-            ("watts", "Puissance", "W", .orange, streams.watts),
-            ("cadence", "Cadence", "rpm", .purple, streams.cadence),
+        let cadence = sport.cadence
+        let definitions: [(String, String, String, Double, Color, Data?)] = [
+            ("altitude", "Altitude", "m", 1, .green, streams.altitude),
+            ("heartrate", "Fréquence cardiaque", "bpm", 1, .red, streams.heartrate),
+            ("watts", "Puissance", "W", 1, .orange, streams.watts),
+            ("cadence", "Cadence", cadence.unit, cadence.factor, .purple, streams.cadence),
         ]
 
-        return definitions.compactMap { id, label, unit, color, blob in
+        return definitions.compactMap { id, label, unit, factor, color, blob in
             guard let blob else { return nil }
             let rawValues = TrackBlob.decodeScalars(blob)
             guard !rawValues.isEmpty else { return nil }
@@ -70,7 +75,9 @@ enum StreamSeriesBuilder {
                 } else {
                     distanceKm = 0
                 }
-                return StreamPoint(id: index, distanceKm: distanceKm, value: Double(value))
+                return StreamPoint(
+                    id: index, distanceKm: distanceKm, value: Double(value) * factor
+                )
             }
             return StreamSeries(
                 id: id, label: label, unit: unit, color: color, points: points

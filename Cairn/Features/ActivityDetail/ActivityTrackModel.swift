@@ -46,7 +46,8 @@ struct ActivityTrackModel {
             series: StreamSeriesBuilder.series(
                 from: activity.streams,
                 totalDistance: activity.distance,
-                distancesMetres: distances
+                distancesMetres: distances,
+                sport: activity.sportType
             )
         )
     }
@@ -66,12 +67,16 @@ enum ActivityTrackModelCache {
         let simplifiedByteCount: Int
         let hasDistanceStream: Bool
         let totalDistance: Double
+        /// Here because the cadence series is scaled by sport: correcting a
+        /// ride imported as a run has to redraw it, not serve the rpm version.
+        let sportRaw: String
 
         init(of activity: Activity) {
             pointCount = activity.streams?.pointCount ?? -1
             simplifiedByteCount = activity.simplifiedTrack?.count ?? 0
             hasDistanceStream = activity.streams?.distance != nil
             totalDistance = activity.distance
+            sportRaw = activity.sportTypeRaw
         }
     }
 

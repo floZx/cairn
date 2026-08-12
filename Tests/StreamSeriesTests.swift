@@ -17,6 +17,25 @@ struct StreamSeriesTests {
         return streams
     }
 
+    @Test("la cadence d'une course est tracée en ppm, jambes comptées ensemble")
+    func scalesRunningCadence() {
+        let streams = ActivityStreams()
+        streams.pointCount = 2
+        streams.cadence = TrackBlob.encode(scalars: [88, 90])
+
+        let run = StreamSeriesBuilder.series(
+            from: streams, totalDistance: 1000, sport: .run
+        )
+        #expect(run[0].unit == "ppm")
+        #expect(run[0].points.map(\.value) == [176, 180])
+
+        let ride = StreamSeriesBuilder.series(
+            from: streams, totalDistance: 1000, sport: .ride
+        )
+        #expect(ride[0].unit == "rpm")
+        #expect(ride[0].points.map(\.value) == [88, 90])
+    }
+
     @Test("sans streams, aucune série")
     func noStreamsNoSeries() {
         #expect(StreamSeriesBuilder.series(from: nil, totalDistance: 1000).isEmpty)

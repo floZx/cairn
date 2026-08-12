@@ -245,8 +245,18 @@ enum Format {
         return "\(Int(metresPerKilometre.rounded())) m/km"
     }
 
-    static func cadence(_ rpm: Double?) -> String {
-        rpm.map { "\(Int($0.rounded())) rpm" } ?? "—"
+    /// Strava's raw cadence, read the way the sport counts it. See
+    /// `SportType.cadence`.
+    static func cadence(_ raw: Double?, sport: SportType) -> String {
+        guard let raw, raw > 0 else { return "—" }
+        let (factor, unit) = sport.cadence
+        return "\(Int((raw * factor).rounded())) \(unit)"
+    }
+
+    /// Strava's `calories`, which are kilocalories whatever the sport.
+    static func calories(_ kilocalories: Double?) -> String {
+        guard let kilocalories, kilocalories > 0 else { return "—" }
+        return "\(Int(kilocalories.rounded())) kcal"
     }
 
     private static let signedTwoDecimalsFormatter: NumberFormatter = {
