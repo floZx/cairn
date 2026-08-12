@@ -5,11 +5,13 @@ import Foundation
 /// The list used to be the folder's files and nothing else, so a day one had
 /// written about only on the outing itself — "jambes lourdes, vent de face" in
 /// a Strava note — was in the journal but nowhere in the journal's list, and no
-/// search would find it. This is the two sources read as one memory: the day's
-/// own note from the vault, and what the day's activities carry.
+/// search would find it. This is the vault and everywhere else read as one
+/// memory: the day's own note from the vault, and whatever was written about
+/// it elsewhere in the app the same day — an outing's note, a meal's, a
+/// weigh-in's comment.
 ///
-/// The vault stays the only thing Cairn *writes*. An activity's note is read
-/// here and edited where it lives, in the activity itself.
+/// The vault stays the only thing Cairn *writes*. Those other texts are read
+/// here and edited where they live, each in the place that wrote it.
 struct JournalDay: Identifiable, Equatable, Sendable {
     let date: DateKey
     /// The vault's file for this day. Its text is empty when there is none —
@@ -35,9 +37,9 @@ struct JournalDay: Identifiable, Equatable, Sendable {
         self.elsewhereNotes = elsewhereNotes
     }
 
-    /// The tags of both sources together.
+    /// The tags of every source together.
     ///
-    /// An activity's note is a database field rather than a file in the vault,
+    /// An elsewhere note is a database field rather than a file in the vault,
     /// but the person writing `#Sam` in one meant the same thing as in the
     /// other, and a tag list that answered only for half of them would be a
     /// tag list one cannot trust.
@@ -50,8 +52,9 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     /// The line that stands for the day when nothing is being searched for.
     ///
     /// The day's own note first: it is the one written *about* the day, where
-    /// an outing's note is written about the outing. A day that exists only
-    /// because of an outing falls back to what that outing said.
+    /// an elsewhere note is written about the outing, the meal or the
+    /// weigh-in it belongs to. A day that exists only because of one of those
+    /// falls back to what it said.
     var summary: String {
         note.isEmpty
             ? (elsewhereNotes.first.map { JournalNote(date: date, text: $0).summary } ?? "")
@@ -75,17 +78,17 @@ struct JournalDay: Identifiable, Equatable, Sendable {
         required.isSubset(of: tags)
     }
 
-    /// The two sources merged, newest first.
+    /// The vault and everywhere else merged, newest first.
     ///
     /// `notes` wins on identity: a day with a file keeps that file's note and
-    /// gains its outings' notes beside it. **Every note the store lists is
-    /// kept, empty or not** — the store holds an empty row on purpose for the
-    /// day being written, and dropping it here would take the pane, and the
-    /// caret in it, away mid-sentence.
+    /// gains what was written elsewhere about it beside it. **Every note the
+    /// store lists is kept, empty or not** — the store holds an empty row on
+    /// purpose for the day being written, and dropping it here would take
+    /// the pane, and the caret in it, away mid-sentence.
     ///
-    /// A day that exists only because something was written elsewhere is added only
-    /// when that text says something: a day trained on, eaten through and weighed in
-    /// silence is not a journal entry.
+    /// A day that exists only because something was written elsewhere is
+    /// added only when that text says something: a day trained on, eaten
+    /// through and weighed in silence is not a journal entry.
     static func merge(
         notes: [JournalNote], elsewhereNotes: [DateKey: [String]]
     ) -> [JournalDay] {

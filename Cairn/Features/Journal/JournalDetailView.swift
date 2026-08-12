@@ -34,8 +34,9 @@ struct JournalDetailView: View {
     /// system size.
     static let noteSize: CGFloat = 15
 
-    /// The day this pane is about: the vault's note for it, and what its
-    /// outings wrote. The tags shown are the day's, both sources together.
+    /// The day this pane is about: the vault's note for it, and what was
+    /// written about it elsewhere. The tags shown are the day's, every
+    /// source together.
     let day: JournalDay
     /// The store's text for this note: what the reader renders, and what the
     /// draft is seeded from. Never what the editor is bound to — see `draft`.
@@ -150,8 +151,9 @@ struct JournalDetailView: View {
                 }
             }
             // Between what identifies the note and what warns about it: the
-            // day's outings belong with the date they happened on, while the
-            // banners belong as close as possible to the text they are about.
+            // day's outings and its food journal belong with the date they
+            // happened on, while the banners belong as close as possible to
+            // the text they are about.
             JournalDayActivities(date: day.date, onSelect: onSelectActivity)
             JournalDayNutrition(date: day.date)
             if let conflict = notice?.conflict { banner(conflict) }

@@ -7,14 +7,14 @@ import Foundation
 /// rule worth testing. `RootView` holds the queries; this holds the meaning.
 @MainActor
 enum JournalDaySources {
+    /// Blank texts never enter: a meal note opened and closed without a word
+    /// must not make a day appear, and a weigh-in is a figure, not a sentence.
+    /// The weigh-in's own comment is a sentence, and does count.
+    ///
     /// - Returns: the texts of a day, in the order the day was lived — the
     ///   outings first, then the meals in the order they are eaten, the
     ///   weigh-in last. `JournalDay.summary` takes the first of them for a day
     ///   with no file, so this order is what a row reads.
-    ///
-    /// Blank texts never enter: a meal note opened and closed without a word
-    /// must not make a day appear, and a weigh-in is a figure, not a sentence.
-    /// The weigh-in's own comment is a sentence, and does count.
     static func elsewhereNotes(
         activities: [Activity], mealNotes: [MealNote], weights: [WeightEntry]
     ) -> [DateKey: [String]] {

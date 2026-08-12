@@ -383,7 +383,7 @@ struct RootView: View {
     }
 
     /// Whether the selected day has a file of its own to delete. A day listed
-    /// only because an outing wrote something has none.
+    /// only because an outing, a meal or a weigh-in wrote something has none.
     private var journalSelectionHasFile: Bool {
         guard let journalSelection,
               let day = journalDays.first(where: { $0.date == journalSelection })

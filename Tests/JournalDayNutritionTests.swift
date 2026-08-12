@@ -29,8 +29,8 @@ struct JournalDayNutritionTests {
         let orphan = MealNote(dateKey: key("2026-08-12"), mealSlot: nil, note: "Sushi.")
         context.insert(orphan)
 
-        // Supprimer un repas dans les réglages laisse ses notes derrière lui ;
-        // une puce sans nom serait plus déroutante qu'un mot générique.
+        // `mealSlot` est optionnel dans le modèle ; une ligne de titre sans
+        // nom serait plus déroutante qu'un mot générique.
         #expect(JournalDayNutrition.label(for: orphan) == "Repas")
     }
 
@@ -105,5 +105,46 @@ struct JournalDayNutritionTests {
 
         #expect(JournalDayNutrition.spokenMeals(among: [blankNote]).isEmpty)
         #expect(JournalDayNutrition.spokenWeight(among: [weight]) == nil)
+    }
+
+    @Test("le texte affiché est élagué de ses blancs de tête et de queue")
+    func thedisplayedTextIsTrimmed() throws {
+        let context = try makeContext()
+        let lunch = MealSlot(name: "Déjeuner", sortOrder: 1, targetPct: 39)
+        context.insert(lunch)
+        let mealNote = MealNote(
+            dateKey: key("2026-08-12"), mealSlot: lunch, note: "\nSushi.  \n"
+        )
+        let weight = WeightEntry(
+            dateKey: key("2026-08-12"), weightKg: 70, note: "  Bien dormi.\n"
+        )
+        context.insert(mealNote)
+        context.insert(weight)
+
+        #expect(JournalDayNutrition.note(of: mealNote) == "Sushi.")
+        #expect(JournalDayNutrition.note(of: weight) == "Bien dormi.")
+    }
+
+    @Test("le balisage Markdown traverse note(of:) sans être interprété")
+    func themarkdownSurvivesUntouched() throws {
+        let context = try makeContext()
+        let lunch = MealSlot(name: "Déjeuner", sortOrder: 1, targetPct: 39)
+        context.insert(lunch)
+        let raw = "  __gras__ et #Sam  "
+        let mealNote = MealNote(
+            dateKey: key("2026-08-12"), mealSlot: lunch, note: raw
+        )
+        let weight = WeightEntry(
+            dateKey: key("2026-08-12"), weightKg: 70, note: raw
+        )
+        context.insert(mealNote)
+        context.insert(weight)
+
+        // Interpréter le Markdown ici reviendrait à le faire deux fois :
+        // c'est `MarkdownText(hidesTagHashes: true)` qui s'en charge à
+        // l'affichage, et ce test garde `note(of:)` à sa seule tâche :
+        // élaguer.
+        #expect(JournalDayNutrition.note(of: mealNote) == "__gras__ et #Sam")
+        #expect(JournalDayNutrition.note(of: weight) == "__gras__ et #Sam")
     }
 }

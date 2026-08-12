@@ -55,9 +55,26 @@ struct JournalDayNutrition: View {
         (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// The name a meal note is announced by. Never empty: deleting a meal in
-    /// the settings leaves its notes behind, and a nameless chip would puzzle
-    /// more than a generic word.
+    /// The meal's own note, trimmed of the leading and trailing blanks that
+    /// triage by `isBlank` but that `MarkdownText` does not: an import from
+    /// suivinut can start on a stray newline, and a card should not open on
+    /// a blank line for it. The Markdown itself is left alone — trimming
+    /// inside a line would be interpreting it, which is `MarkdownText`'s job.
+    static func note(of note: MealNote) -> String {
+        note.note.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The weigh-in's own comment, trimmed the same way.
+    /// `spokenWeight(among:)` already keeps only entries with a comment, so
+    /// this never has to stand in for a missing one.
+    static func note(of entry: WeightEntry) -> String {
+        (entry.note ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The name a meal note is announced by. Never empty: `mealSlot` is
+    /// optional in the model, so this must answer something even when a note
+    /// has none, and a blank title line would puzzle more than a generic
+    /// word.
     static func label(for note: MealNote) -> String {
         let name = note.mealSlot?.name ?? ""
         return name.isEmpty ? "Repas" : name
@@ -78,10 +95,11 @@ struct JournalDayNutrition: View {
                     .font(.system(size: Self.headingSize, weight: .semibold))
                     .foregroundStyle(.secondary)
                 ForEach(spokenMeals) { note in
-                    block(Self.label(for: note), note.note)
+                    block(Self.label(for: note), Self.note(of: note))
                 }
                 if let spokenWeight {
-                    block(Self.weightLine(spokenWeight), spokenWeight.note ?? "")
+                    let heading = Self.weightLine(spokenWeight)
+                    block(heading, Self.note(of: spokenWeight))
                 }
             }
         }

@@ -145,10 +145,11 @@ struct JournalListView: View {
                 onOpenEditor()
                 return true
             // Same for `x`: the thing this screen can delete is a note *file*.
-            // A day that is in the list only because an outing wrote something
-            // has no file to trash, and an outing's note is edited where it
-            // lives. Refused rather than swallowed, so the press falls through
-            // instead of raising a dialog that would do nothing.
+            // A day that is in the list only because an outing, a meal or a
+            // weigh-in wrote something has no file to trash, and that text is
+            // edited where it lives. Refused rather than swallowed, so the
+            // press falls through instead of raising a dialog that would do
+            // nothing.
             case .delete:
                 guard let selection, days.first(where: { $0.date == selection })
                     .map({ !$0.note.isEmpty }) == true
