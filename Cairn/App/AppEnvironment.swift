@@ -35,6 +35,7 @@ final class AppEnvironment {
     var requestToggleFavorite: (() -> Void)?
     var requestImportGPX: (() -> Void)?
     var requestExportGPX: (() -> Void)?
+    var requestExportJournalPDF: (() -> Void)?
     var requestToggleListStyle: (() -> Void)?
 
     init(container: ModelContainer) {

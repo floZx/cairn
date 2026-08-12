@@ -70,6 +70,11 @@ struct RootView: View {
     /// a failed save, and telling the user their work was lost when it was not
     /// is its own kind of wrong.
     @State private var fileMessage: String?
+    /// Non-nil while the export sheet is up; the dates it opened on.
+    @State private var journalExport: (from: DateKey, to: DateKey)?
+    /// Non-nil while the book is being drawn — the sheet shows it rather than
+    /// closing on a window that has stopped answering.
+    @State private var journalExportProgress: ExportJournalSheet.Progress?
     /// Shared with every map so the chosen background and colour carry over.
     @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
     @AppStorage(TrackColor.storageKey) private var expandedTrackColor: TrackColor = .accent
@@ -92,6 +97,11 @@ struct RootView: View {
     /// carrying a note.
     @Query private var mealNotes: [MealNote]
     @Query private var weightEntries: [WeightEntry]
+    /// For the exported book, which gathers a meal's totals the way the day
+    /// screen does. Unfiltered like the two above: the period is applied by
+    /// `JournalBook.build`, not by the fetch.
+    @Query private var foodEntries: [FoodEntry]
+    @Query(sort: \MealSlot.sortOrder) private var mealSlots: [MealSlot]
 
     /// The selected activities, restricted to those the list actually shows.
     ///
@@ -243,6 +253,22 @@ struct RootView: View {
         .sheet(isPresented: $showsKeyboardHelp) {
             KeyboardHelpSheet { showsKeyboardHelp = false }
         }
+        .sheet(
+            isPresented: Binding(
+                get: { journalExport != nil },
+                set: { if !$0 { journalExport = nil } }
+            )
+        ) {
+            ExportJournalSheet(
+                from: journalExport?.from ?? DateKey(Date()).monthStart,
+                to: journalExport?.to ?? DateKey(Date()).monthEnd(),
+                progress: journalExportProgress,
+                onExport: { from, to in
+                    Task { await exportJournalPDF(from: from, to: to) }
+                },
+                onCancel: { journalExport = nil }
+            )
+        }
         .onAppear {
             // ⌘N means "make the thing this section is about": an activity in
             // the list, today's note in the journal. One shortcut rather than
@@ -266,6 +292,13 @@ struct RootView: View {
             app.requestToggleFavorite = { toggleFavorite() }
             app.requestImportGPX = { chooseGPXFilesToImport() }
             app.requestExportGPX = { exportGPX(selection) }
+            app.requestExportJournalPDF = {
+                // Pre-filled on the month being read: that is the period one
+                // has in mind when the menu is opened from the journal.
+                let day = journalSelection ?? DateKey(Date())
+                journalExportProgress = nil
+                journalExport = (day.monthStart, day.monthEnd())
+            }
             app.requestToggleListStyle = { listStyle = listStyle.toggled }
         }
     }
@@ -907,6 +940,51 @@ struct RootView: View {
             ? "Aucun fichier n'a pu être importé."
             : "\(imported) activité\(imported > 1 ? "s importées" : " importée"), les autres non :"
         return ([head] + failures).joined(separator: "\n")
+    }
+
+    /// Writes the book: gather, draw, paginate, save.
+    ///
+    /// The order matters. The days are gathered first so an empty period can be
+    /// refused before anything slow starts — and before a save panel asks where
+    /// to put a PDF that would hold nothing but its cover.
+    private func exportJournalPDF(from: DateKey, to: DateKey) async {
+        let book = JournalBook.build(
+            from: from, to: to, notes: app.journal.notes,
+            activities: allActivities, entries: foodEntries, slots: mealSlots,
+            mealNotes: mealNotes, weights: weightEntries
+        )
+        guard !book.days.isEmpty else {
+            journalExport = nil
+            fileMessage = "Aucune journée à exporter sur cette période."
+            return
+        }
+
+        journalExportProgress = ExportJournalSheet.Progress(done: 0, total: 1)
+        let illustrations = await JournalBookAssets.illustrations(for: book) {
+            done, total in
+            journalExportProgress = ExportJournalSheet.Progress(
+                done: done, total: total
+            )
+        }
+
+        do {
+            let data = try await JournalBookExporter.pdf(
+                from: JournalBookHTML.document(book, illustrations: illustrations)
+            )
+            journalExportProgress = nil
+            journalExport = nil
+
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.pdf]
+            panel.nameFieldStringValue = "Carnet \(from.raw) — \(to.raw).pdf"
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            try data.write(to: url)
+        } catch {
+            journalExportProgress = nil
+            journalExport = nil
+            writeFailureMessage =
+                "Le carnet n'a pas pu être écrit. \(error.localizedDescription)"
+        }
     }
 
     private func exportGPX(_ activities: [Activity]) {
