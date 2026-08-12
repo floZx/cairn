@@ -50,6 +50,17 @@ struct SidebarView: View {
     private static let calendarInsets = EdgeInsets(
         top: 4, leading: 6, bottom: 4, trailing: 6
     )
+    /// Whether the tag list is open, remembered between launches.
+    ///
+    /// Closed to begin with: the list grows by one row per person, place and
+    /// project ever written about, and it pushed the calendar — the question
+    /// one arrives with — off the top of the pane. Ticking a tag is the second
+    /// question, and it can afford a click.
+    ///
+    /// The button that unticks them all sits *outside* the section, so a
+    /// filtered list never hides why behind a closed disclosure triangle.
+    @AppStorage("journalTagsExpanded") private var tagsExpanded = false
+
     @Environment(AppEnvironment.self) private var app
     @Query private var activities: [Activity]
 
@@ -123,7 +134,7 @@ struct SidebarView: View {
                 }
 
                 if !journalTagCounts.isEmpty {
-                    Section("Tags") {
+                    Section(isExpanded: $tagsExpanded) {
                         ForEach(journalTagCounts) { entry in
                             Toggle(isOn: binding(for: entry.tag)) {
                                 HStack {
@@ -144,6 +155,20 @@ struct SidebarView: View {
                             }
                             .toggleStyle(.checkbox)
                         }
+                    } header: {
+                        // The word opens the section too. On its own, the list
+                        // style only listens to the triangle it draws at the
+                        // far end of the header — a target the width of a
+                        // fingernail, several centimetres from the word that
+                        // names what it opens.
+                        //
+                        // The gesture stays on the text rather than on the
+                        // whole header: the triangle is the style's own
+                        // control, and a tap area laid over it would arrive
+                        // twice for one click.
+                        Text("Tags")
+                            .contentShape(.rect)
+                            .onTapGesture { tagsExpanded.toggle() }
                     }
                 }
                 // Outside the section above, and deliberately: point the
