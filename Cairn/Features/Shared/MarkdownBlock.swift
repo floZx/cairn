@@ -17,6 +17,21 @@ enum MarkdownBlock: Equatable, Identifiable, Sendable {
     case numbered(number: Int, text: String)
     case quote(String)
 
+    /// What the block says, without the marker that made it one.
+    ///
+    /// For anywhere a note has to be shown as a line of prose — a list row —
+    /// rather than laid out block by block: there, a leading `#` or `- ` is
+    /// how the line was typed, not what it says.
+    var text: String {
+        switch self {
+        case let .heading(_, text): text
+        case let .paragraph(text): text
+        case let .bullet(text): text
+        case let .numbered(_, text): text
+        case let .quote(text): text
+        }
+    }
+
     var id: String {
         switch self {
         case let .heading(level, text): "h\(level)-\(text)"

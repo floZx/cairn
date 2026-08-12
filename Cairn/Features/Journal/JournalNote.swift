@@ -73,12 +73,19 @@ struct JournalNote: Identifiable, Equatable, Sendable {
     ///
     /// Front matter is skipped: `tags: [sam]` is metadata, and a list of rows
     /// all reading "---" says nothing about any of them.
+    ///
+    /// The line goes through the block parser on the way out, so a day whose
+    /// note opens on a title or a bullet is announced by what it says rather
+    /// than by how it was typed. One line goes in, so nothing is joined to it —
+    /// the row stands for the day, it does not summarise the note.
     var summary: String {
         guard isReadable else { return "contenu illisible" }
         let first = Self.body(of: text)
             .components(separatedBy: .newlines)
             .first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? ""
-        return String(first.trimmingCharacters(in: .whitespaces).prefix(160))
+        let spoken = MarkdownParser.blocks(from: first).first?.text
+            ?? first.trimmingCharacters(in: .whitespaces)
+        return String(spoken.prefix(160))
     }
 
     /// How every comparison in this type is made: case- and accent-blind, in

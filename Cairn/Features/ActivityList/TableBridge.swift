@@ -98,6 +98,26 @@ final class TableScroller {
         guard let tableView, index >= 0, index < tableView.numberOfRows else { return }
         tableView.scrollRowToVisible(index)
     }
+
+    /// Tells the table that these rows may not be the height it measured.
+    ///
+    /// A row whose identity does not change is updated in place — SwiftUI
+    /// swaps the content, AppKit keeps the height it measured the first time.
+    /// A note being typed is exactly that row: it grows a second line, then its
+    /// first tag, into a frame measured before either existed, and everything
+    /// past the old height is clipped. Nothing re-measures it until something
+    /// else invalidates the table, which is why it comes right on its own a
+    /// moment later, at a moment nobody can point to.
+    ///
+    /// Only the rows named, never the lot: with automatic heights AppKit
+    /// measures a row by building it, so re-measuring everything on a keystroke
+    /// would instantiate a view per note in the vault.
+    func remeasureRows(at indexes: IndexSet) {
+        guard !indexes.isEmpty, let tableView else { return }
+        let existing = indexes.filteredIndexSet { $0 < tableView.numberOfRows }
+        guard !existing.isEmpty else { return }
+        tableView.noteHeightOfRows(withIndexesChanged: existing)
+    }
 }
 
 struct TableBridge: NSViewRepresentable {

@@ -27,6 +27,21 @@ struct JournalNoteTests {
         #expect(note("2026-08-11", text).summary == "Promenade avec #Sam.")
     }
 
+    @Test("le résumé dit ce que la ligne dit, sans la marque qui l'a formée")
+    func summaryDropsBlockMarkers() {
+        // Une ligne de liste ou un titre : le marqueur raconte comment la note
+        // a été tapée, pas ce que la journée a été.
+        #expect(note("2026-08-11", "# Mardi de repos").summary == "Mardi de repos")
+        #expect(note("2026-08-11", "- Footing tranquille").summary == "Footing tranquille")
+        #expect(note("2026-08-11", "> Jambes lourdes").summary == "Jambes lourdes")
+        // Le balisage en ligne reste dans le texte : c'est le rendu de la
+        // rangée qui l'interprète, et le couper ici casserait le gras.
+        #expect(
+            note("2026-08-11", "Sortie __« Entre Pôtes »__").summary
+                == "Sortie __« Entre Pôtes »__"
+        )
+    }
+
     @Test("le corps rendu ne montre pas le frontmatter")
     func bodyDropsFrontmatter() {
         // Rendered, a note carrying front matter would otherwise open on a
@@ -171,6 +186,35 @@ struct JournalInitialSelectionTests {
     @Test("une liste vide ne sélectionne rien")
     func picksNothingFromAnEmptyList() {
         #expect(JournalListView.initialSelection(days: [], current: nil) == nil)
+    }
+
+    @Test("seule la ligne dont le texte a changé est à remesurer")
+    func namesOnlyTheChangedRow() {
+        let before = days(["2026-08-12", "2026-08-11", "2026-08-10"])
+        var after = before
+        after[1] = JournalDay(
+            date: DateKey(raw: "2026-08-11")!,
+            note: JournalNote(date: DateKey(raw: "2026-08-11")!, text: "x et y")
+        )
+
+        #expect(JournalListView.changedRows(from: before, to: after) == IndexSet([1]))
+        #expect(JournalListView.changedRows(from: before, to: before).isEmpty)
+    }
+
+    @Test("une note qui apparaît décale les suivantes, toutes à remesurer")
+    func namesEverythingBelowAnInsertion() {
+        let before = days(["2026-08-11", "2026-08-10"])
+        let after = days(["2026-08-12", "2026-08-11", "2026-08-10"])
+
+        // La nouvelle note prend la place 0 : à partir de là, chaque ligne
+        // affiche autre chose que ce qui y était mesuré.
+        #expect(
+            JournalListView.changedRows(from: before, to: after) == IndexSet(0..<3)
+        )
+        // Et dans l'autre sens, il ne reste rien à remesurer au-delà de la fin.
+        #expect(
+            JournalListView.changedRows(from: after, to: before) == IndexSet(0..<2)
+        )
     }
 
     @Test("la première note de la liste filtrée, pas du coffre entier")

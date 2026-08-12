@@ -56,6 +56,21 @@ struct JournalListView: View {
         return days.first?.date
     }
 
+    /// The rows whose content changed between two lists of days.
+    ///
+    /// Compared position by position, since a day's row *is* its position:
+    /// typing never reorders the list, and a day appearing or disappearing is
+    /// an insertion the table measures for itself. When the count moves, every
+    /// row from the first difference on has shifted onto other content, so they
+    /// are all named — a fresh reload of the folder, not a keystroke.
+    static func changedRows(from old: [JournalDay], to new: [JournalDay]) -> IndexSet {
+        guard old.count == new.count else {
+            let firstDifference = zip(old, new).prefix { $0 == $1 }.count
+            return IndexSet(integersIn: firstDifference..<max(new.count, firstDifference))
+        }
+        return IndexSet(new.indices.filter { old[$0] != new[$0] })
+    }
+
     var body: some View {
         List(days, selection: $selection) { day in
             row(day)
@@ -65,6 +80,11 @@ struct JournalListView: View {
         // Row heights are left alone here: a day carrying tags is taller than
         // one without, and pinning them to the first row's would clip the rest.
         .background(TableBridge(pinsRowHeight: false, scroller: scroller))
+        // A row that keeps its identity keeps the height AppKit measured for
+        // it, and a note being typed changes under one: see `remeasureRows`.
+        .onChange(of: days) { old, new in
+            scroller.remeasureRows(at: Self.changedRows(from: old, to: new))
+        }
         // A selection that is not the one we wrote came from somewhere else —
         // a click, the sidebar's calendar, ⌘N — so the remembered cursor is
         // stale and the next motion re-derives it from the selection.
@@ -182,7 +202,13 @@ struct JournalListView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(Format.fullDate(day.date.date()))
                 .font(.headline)
-            Text(day.excerpt(matching: query) ?? day.summary)
+            // Rendered, not shown raw: `__« Entre Pôtes »__` in a row is the
+            // note's typing showing through, and the reader has no use for it.
+            // The same call the pane uses to read a note, hashes dropped for
+            // the same reason there — the chips below already say the tags.
+            MarkdownText.inline(
+                day.excerpt(matching: query) ?? day.summary, hidingTagHashes: true
+            )
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
