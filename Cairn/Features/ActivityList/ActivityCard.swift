@@ -171,3 +171,55 @@ struct ActivityCard: View {
         .frame(width: 72, alignment: .leading)
     }
 }
+
+extension ActivityCard {
+    /// One column of the figures row. `nil` where the activity has no such
+    /// measurement — an empty column, never a zero: a gym session has no
+    /// distance, which is not the same as having a distance of zero.
+    struct Figure: Equatable {
+        var value: String?
+        /// True on the first figure actually written, and only on a notable
+        /// outing. See `isNotable`.
+        var isLeading = false
+    }
+
+    /// What makes an outing stand out in a list of twenty.
+    ///
+    /// Two thresholds and not one, because one sport is not measured like
+    /// another: three hours of cycling and 25 km of trail are both an outing
+    /// one remembers, an hour of jogging is not. Written side by side so that
+    /// moving the line takes a second.
+    static let notableMovingTime = 90 * 60
+    static let notableDistance: Double = 20_000
+
+    static func isNotable(_ activity: Activity) -> Bool {
+        activity.movingTime >= notableMovingTime
+            || activity.distance >= notableDistance
+    }
+
+    /// The five columns, always in the same order, so two neighbouring rows
+    /// line up whatever they carry.
+    static func figures(for activity: Activity) -> [Figure] {
+        var values: [String?] = [
+            activity.distance > 0 ? Format.distance(activity.distance) : nil,
+            // The one measurement an activity always has.
+            Format.durationCompact(activity.movingTime),
+            activity.totalElevationGain > 0
+                ? Format.elevation(activity.totalElevationGain) : nil,
+            activity.averageSpeed > 0
+                ? Format.speed(activity.averageSpeed, sport: activity.sportType)
+                : nil,
+            activity.averageHeartrate.map(Format.heartrate),
+        ]
+        // `Format.heartrate` answers with a dash for the zero Strava sends on
+        // some manual entries; here that means the column is simply empty.
+        if values[4] == "—" { values[4] = nil }
+
+        var figures = values.map { Figure(value: $0) }
+        if isNotable(activity),
+           let first = figures.firstIndex(where: { $0.value != nil }) {
+            figures[first].isLeading = true
+        }
+        return figures
+    }
+}
