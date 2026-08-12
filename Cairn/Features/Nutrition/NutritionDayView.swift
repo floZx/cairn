@@ -552,11 +552,8 @@ struct NutritionDayView: View {
                 mealTotals(meal)
             }
             .background(
-                // `.selection` rather than `.quaternary`: the cursor is a
-                // selection, and the system's own row-selection style is the
-                // one contrast the eye already knows.
                 cursor == DayCursor(mealIndex: mealIndex, rowIndex: nil)
-                    ? AnyShapeStyle(.selection) : AnyShapeStyle(.clear),
+                    ? Self.cursorFill : AnyShapeStyle(.clear),
                 in: RoundedRectangle(cornerRadius: 4)
             )
             // The cursor is a selection and looks like one, so it has to be
@@ -626,7 +623,7 @@ struct NutritionDayView: View {
                             cursor == DayCursor(
                                 mealIndex: mealIndex, rowIndex: rowIndex
                             )
-                                ? AnyShapeStyle(.selection)
+                                ? Self.cursorFill
                                 : AnyShapeStyle(.clear),
                             in: RoundedRectangle(cornerRadius: 4)
                         )
@@ -674,6 +671,20 @@ struct NutritionDayView: View {
     private func entry(for id: PersistentIdentifier) -> FoodEntry? {
         entries.first { $0.persistentModelID == id }
     }
+
+    /// What the cursor's row is painted with.
+    ///
+    /// Not `.selection`, which was here first and came out grey: that style
+    /// picks between the emphasised and unemphasised selection colours, and
+    /// outside a `List` SwiftUI has nothing telling it this row is the focused
+    /// one — so it always chose the quiet half of the pair. The meals are a
+    /// `Grid`, not a list, and there is no list to inherit the answer from.
+    ///
+    /// The accent colour, then, but laid on thin: a solid selection blue wants
+    /// white labels on it, and the row carries a starred favourite and a line
+    /// of figures that are read at a glance. Tinted, the band says "here"
+    /// without repainting everything inside it.
+    private static let cursorFill = AnyShapeStyle(.tint.opacity(0.28))
 
     private func moveCursor(by delta: Int) -> KeyPress.Result {
         guard !isPresentingModal else { return .ignored }
