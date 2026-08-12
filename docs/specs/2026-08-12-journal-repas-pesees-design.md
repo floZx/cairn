@@ -91,6 +91,13 @@ Les tailles de texte sont celles du bloc des activités (`noteSize` 14,
 `headingSize` 13), lues contre la note à 15 : le rappel est secondaire et doit
 en avoir l'air.
 
+**Le texte des notes est rendu, pas affiché brut.** `MarkdownText(markdown:
+baseSize:hidesTagHashes: true)`, exactement comme la note d'une activité dans
+le bloc au-dessus : une note écrite avec une liste ou un mot en gras se lit
+comme telle, et le `#` d'un tag disparaît partout où une note se lit. Ce qui
+précède le texte — le nom du repas, le poids — reste un `Text` : ce n'est pas
+de la prose écrite par quelqu'un, c'est l'étiquette de la ligne.
+
 ## Tests
 
 - Une note de repas fait apparaître un jour qui n'a pas de fichier ; une pesée
@@ -102,6 +109,8 @@ en avoir l'air.
   il y en a une, celle du repas sinon.
 - Le bloc du volet reste muet un jour sans note de repas ni commentaire de
   pesée.
+- Le texte d'une note de repas passe par le rendu Markdown : le balisage n'y
+  apparaît pas tel quel, et le `#` d'un tag non plus.
 
 ## Hors périmètre
 
