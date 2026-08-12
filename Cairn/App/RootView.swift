@@ -86,8 +86,9 @@ struct RootView: View {
     private var notedActivities: [Activity]
 
     /// The journal reads what was written in the food journal too — a meal's
-    /// note, a weigh-in's comment. Unfiltered: both tables hold one row per
-    /// day at most, where the activities needed narrowing to the few dozen
+    /// note, a weigh-in's comment. Unfiltered: both tables are small enough to
+    /// read whole — at most one weigh-in per day, and one note per meal and
+    /// per day — where the activities needed narrowing to the few dozen
     /// carrying a note.
     @Query private var mealNotes: [MealNote]
     @Query private var weightEntries: [WeightEntry]

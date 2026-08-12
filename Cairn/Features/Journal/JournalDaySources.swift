@@ -1,5 +1,4 @@
 import Foundation
-import SwiftData
 
 /// Everything written about a day outside the vault, gathered per day.
 ///
