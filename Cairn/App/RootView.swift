@@ -85,6 +85,13 @@ struct RootView: View {
     })
     private var notedActivities: [Activity]
 
+    /// The journal reads what was written in the food journal too — a meal's
+    /// note, a weigh-in's comment. Unfiltered: both tables hold one row per
+    /// day at most, where the activities needed narrowing to the few dozen
+    /// carrying a note.
+    @Query private var mealNotes: [MealNote]
+    @Query private var weightEntries: [WeightEntry]
+
     /// The selected activities, restricted to those the list actually shows.
     ///
     /// Resolved against the filtered set rather than the whole library: a filter
@@ -352,22 +359,21 @@ struct RootView: View {
 
     private var showsJournal: Bool { sidebarSelection == .journal }
 
-    /// Every day the journal knows about: the vault's notes, and the days whose
-    /// outings carry one.
+    /// Every day the journal knows about: the vault's notes, and the days
+    /// something was written about elsewhere — an outing, a meal, a weigh-in.
     ///
-    /// The activities are fetched already narrowed to the ones that wrote
-    /// something (`notedActivities`), so this groups a few dozen rows rather
-    /// than the whole library. The day an outing belongs to is `DateKey` of its
-    /// instant in this Mac's calendar — the same rule `JournalDayActivities`
-    /// filters the recap by, so a day's list and a day's recap can never
-    /// disagree about which outings are its own.
+    /// The activities arrive already narrowed to the ones that wrote something
+    /// (`notedActivities`), so this groups a few dozen rows rather than the
+    /// whole library. Where each text belongs is `JournalDaySources`'s
+    /// business, not this view's.
     private var journalDays: [JournalDay] {
-        var byDay: [DateKey: [String]] = [:]
-        for activity in notedActivities.sorted(by: { $0.startDate < $1.startDate }) {
-            guard let text = activity.activityDescription else { continue }
-            byDay[DateKey(activity.startDate), default: []].append(text)
-        }
-        return JournalDay.merge(notes: app.journal.notes, elsewhereNotes: byDay)
+        JournalDay.merge(
+            notes: app.journal.notes,
+            elsewhereNotes: JournalDaySources.elsewhereNotes(
+                activities: notedActivities, mealNotes: mealNotes,
+                weights: weightEntries
+            )
+        )
     }
 
     /// What the list shows: the search and the ticked tags together.
