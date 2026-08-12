@@ -39,6 +39,48 @@ struct NutritionJournalTests {
         #expect(saved.count == 3)
     }
 
+    @Test("un aliment ajouté sous une ligne se place juste après elle")
+    func insertsUnderTheAnchor() throws {
+        let context = try makeContext()
+        let slot = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        context.insert(slot)
+        let a = try addFood("A", to: slot, context: context)
+        let b = try addFood("B", to: slot, context: context)
+
+        let inserted = try NutritionJournal.addEntry(
+            in: context, dateKey: DateKey(raw: "2026-08-08")!, slot: slot,
+            foodName: "A bis", kcal100: 100, protein100: 10, carbs100: 20,
+            fat100: 5, grams: 100, after: a
+        )
+
+        let order = try context.fetch(FetchDescriptor<FoodEntry>())
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .map(\.foodName)
+        #expect(order == ["A", "A bis", "B"])
+        // Le repas est renuméroté d'un bloc, sans trou où glisser deux fois.
+        let renumbered: [Int] = [a.sortOrder, inserted.sortOrder, b.sortOrder]
+        #expect(renumbered == [0, 1, 2])
+    }
+
+    @Test("une ancre d'un autre repas laisse l'ajout en fin de repas")
+    func ignoresAnAnchorFromAnotherMeal() throws {
+        let context = try makeContext()
+        let breakfast = MealSlot(name: "Petit-déj", sortOrder: 0, targetPct: 28)
+        let dinner = MealSlot(name: "Dîner", sortOrder: 1, targetPct: 39)
+        context.insert(breakfast)
+        context.insert(dinner)
+        let elsewhere = try addFood("A", to: breakfast, context: context)
+        let first = try addFood("B", to: dinner, context: context)
+
+        let added = try NutritionJournal.addEntry(
+            in: context, dateKey: DateKey(raw: "2026-08-08")!, slot: dinner,
+            foodName: "C", kcal100: 100, protein100: 10, carbs100: 20,
+            fat100: 5, grams: 100, after: elsewhere
+        )
+
+        #expect(first.sortOrder < added.sortOrder)
+    }
+
     @Test("monter échange avec le voisin du dessus, no-op en tête")
     func moveUpSwapsWithNeighbour() throws {
         let context = try makeContext()

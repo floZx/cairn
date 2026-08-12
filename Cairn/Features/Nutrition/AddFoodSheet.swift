@@ -7,6 +7,12 @@ import SwiftData
 struct AddFoodSheet: View {
     let slot: MealSlot
     let dateKey: DateKey
+    /// The row the new food goes under, when one is selected in this meal.
+    var after: FoodEntry?
+    /// The entry that was just written, so the caller can put the cursor on
+    /// it: without that, a second food added straight after would go *above*
+    /// the first, the anchor never having moved.
+    var onAdded: (FoodEntry) -> Void = { _ in }
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -34,13 +40,14 @@ struct AddFoodSheet: View {
 
     private func add(_ pick: FoodPick) {
         do {
-            try NutritionJournal.addEntry(
+            let entry = try NutritionJournal.addEntry(
                 in: modelContext, dateKey: dateKey, slot: slot,
                 foodName: pick.foodName, kcal100: pick.kcal100,
                 protein100: pick.protein100, carbs100: pick.carbs100,
                 fat100: pick.fat100, grams: pick.grams,
-                productCode: pick.productCode
+                productCode: pick.productCode, after: after
             )
+            onAdded(entry)
             dismiss()
         } catch {
             errorMessage =

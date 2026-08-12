@@ -54,6 +54,8 @@ struct NutritionDayView: View {
     /// activities: an accidental `x` must cost one Escape, not a food.
     @State private var entryPendingDeletion: FoodEntry?
     @State private var cursor: DayCursor?
+    /// An entry to put the cursor on once the query has caught up with it.
+    @State private var pendingSelection: PersistentIdentifier?
     // Sorted the way suivinut lists day types: by target then name, so the
     // menu reads from rest day to biggest day.
     @Query(sort: [
@@ -196,6 +198,11 @@ struct NutritionDayView: View {
                 return onCommand(command)
             }
         }
+        // The arrows walk the rows, as j and k do. Both, and not one or the
+        // other: the keys are there for hands that know vi, and nobody else
+        // should have to learn it to move down a list.
+        .onKeyPress(.upArrow) { moveCursor(by: -1) }
+        .onKeyPress(.downArrow) { moveCursor(by: 1) }
         .onKeyPress(.leftArrow) {
             guard !isPresentingModal else { return .ignored }
             dateKey = dateKey.advanced(by: -1)
@@ -218,6 +225,10 @@ struct NutritionDayView: View {
         }
         .onChange(of: entries.count) { _, _ in
             cursor = DayCursorModel.clamp(cursor, rowCounts: currentRowCounts)
+            if let pendingSelection, let position = position(of: pendingSelection) {
+                cursor = position
+                self.pendingSelection = nil
+            }
         }
         .sheet(isPresented: $isAddingWeight) {
             WeightEntrySheet(
@@ -309,7 +320,12 @@ struct NutritionDayView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .sheet(item: $addTargetSlot) { slot in
-            AddFoodSheet(slot: slot, dateKey: dateKey)
+            AddFoodSheet(slot: slot, dateKey: dateKey, after: anchor(in: slot)) { added in
+                // Resolved on the next pass rather than here: the query behind
+                // `entries` has not seen the insertion yet, so the row index
+                // asked for now would be the one from before it.
+                pendingSelection = added.persistentModelID
+            }
         }
         .sheet(item: $editingEntry) { entry in
             EditEntrySheet(entry: entry)
@@ -543,6 +559,13 @@ struct NutritionDayView: View {
                     ? AnyShapeStyle(.selection) : AnyShapeStyle(.clear),
                 in: RoundedRectangle(cornerRadius: 4)
             )
+            // The cursor is a selection and looks like one, so it has to be
+            // clickable like one: it could only be moved with j and k, which
+            // is a rule nothing on screen states.
+            .contentShape(.rect)
+            .onTapGesture {
+                cursor = DayCursor(mealIndex: mealIndex, rowIndex: nil)
+            }
             if meal.rows.isEmpty {
                 Text("Rien de consigné")
                     .font(.body)
@@ -607,6 +630,16 @@ struct NutritionDayView: View {
                                 : AnyShapeStyle(.clear),
                             in: RoundedRectangle(cornerRadius: 4)
                         )
+                        // Placed like the `.background` just above it: a
+                        // modifier on a `GridRow` applies to each of its
+                        // cells, so what can be clicked is exactly what the
+                        // highlight covers, no more.
+                        .contentShape(.rect)
+                        .onTapGesture {
+                            cursor = DayCursor(
+                                mealIndex: mealIndex, rowIndex: rowIndex
+                            )
+                        }
                         .contextMenu {
                             Button("Éditer…") {
                                 editingEntry = entry(for: row.entryID)
@@ -640,6 +673,51 @@ struct NutritionDayView: View {
 
     private func entry(for id: PersistentIdentifier) -> FoodEntry? {
         entries.first { $0.persistentModelID == id }
+    }
+
+    private func moveCursor(by delta: Int) -> KeyPress.Result {
+        guard !isPresentingModal else { return .ignored }
+        cursor = DayCursorModel.move(
+            from: cursor, by: delta, rowCounts: currentRowCounts
+        )
+        return .handled
+    }
+
+    /// The row a new food lands under in this meal, or nil to append.
+    ///
+    /// Only when the cursor is on a row of *that* meal: adding to a meal from
+    /// its own `+` while the cursor rests three meals below must not scatter
+    /// the food into the meal one happened to be reading.
+    private func anchor(in slot: MealSlot) -> FoodEntry? {
+        guard let entry = cursorEntry,
+              entry.mealSlot?.persistentModelID == slot.persistentModelID
+        else { return nil }
+        return entry
+    }
+
+    /// Where an entry sits on screen, in the cursor's coordinates.
+    ///
+    /// The same ordering the rows are drawn in — slots by `sortOrder`, rows by
+    /// theirs — because a cursor that disagrees with the grid points at the
+    /// wrong food.
+    private func position(of id: PersistentIdentifier) -> DayCursor? {
+        let ordered = slots.sorted { $0.sortOrder < $1.sortOrder }
+        guard let entry = entry(for: id),
+              let slotID = entry.mealSlot?.persistentModelID,
+              let mealIndex = ordered.firstIndex(where: {
+                  $0.persistentModelID == slotID
+              })
+        else { return nil }
+        let rows = entries
+            .filter {
+                $0.dateKeyRaw == entry.dateKeyRaw
+                    && $0.mealSlot?.persistentModelID == slotID
+            }
+            .sorted { $0.sortOrder < $1.sortOrder }
+        guard let rowIndex = rows.firstIndex(where: {
+            $0.persistentModelID == id
+        }) else { return nil }
+        return DayCursor(mealIndex: mealIndex, rowIndex: rowIndex)
     }
 
     private func slotModel(for id: PersistentIdentifier) -> MealSlot? {

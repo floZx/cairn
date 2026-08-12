@@ -17,12 +17,18 @@ enum NutritionJournal {
     /// Appends at the end of the (day, meal): suivinut used the row id as
     /// sort order for the same effect; here the per-meal max + 1 gives the
     /// identical ordering without depending on an autoincrement.
+    ///
+    /// - Parameter after: the row the new food goes under. A meal is read in
+    ///   the order it was eaten, so a food added while a row is selected
+    ///   belongs beneath that row — landing at the bottom of the meal meant
+    ///   dragging it back up every time. Nil appends, which is what a meal
+    ///   header, another meal's `+`, or an untouched screen ask for.
     @MainActor @discardableResult
     static func addEntry(
         in context: ModelContext, dateKey: DateKey, slot: MealSlot,
         foodName: String, kcal100: Double, protein100: Double,
         carbs100: Double, fat100: Double, grams: Double,
-        productCode: String? = nil
+        productCode: String? = nil, after: FoodEntry? = nil
     ) throws -> FoodEntry {
         let last = try siblings(of: dateKey.raw, slot: slot, in: context)
             .map(\.sortOrder).max() ?? 0
@@ -34,6 +40,12 @@ enum NutritionJournal {
         )
         context.insert(entry)
         try context.save()
+        // Appended first, then re-seated: `placeEntry` is the one piece that
+        // knows how a meal is renumbered, and it refuses on its own an anchor
+        // from another meal or another day.
+        if let after {
+            try placeEntry(entry, after: after, in: context)
+        }
         return entry
     }
 
