@@ -367,7 +367,7 @@ struct RootView: View {
             guard let text = activity.activityDescription else { continue }
             byDay[DateKey(activity.startDate), default: []].append(text)
         }
-        return JournalDay.merge(notes: app.journal.notes, activityNotes: byDay)
+        return JournalDay.merge(notes: app.journal.notes, elsewhereNotes: byDay)
     }
 
     /// What the list shows: the search and the ticked tags together.

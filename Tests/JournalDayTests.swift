@@ -16,17 +16,17 @@ struct JournalDayTests {
     func avaultDayGainsItsOutings() {
         let days = JournalDay.merge(
             notes: [note("2026-08-11", "Journée calme.")],
-            activityNotes: [key("2026-08-11"): ["Jambes lourdes."]]
+            elsewhereNotes: [key("2026-08-11"): ["Jambes lourdes."]]
         )
         #expect(days.count == 1)
         #expect(days[0].note.text == "Journée calme.")
-        #expect(days[0].activityNotes == ["Jambes lourdes."])
+        #expect(days[0].elsewhereNotes == ["Jambes lourdes."])
     }
 
     @Test("un jour sans fichier existe si une sortie a écrit quelque chose")
     func anOutingAloneMakesADay() {
         let days = JournalDay.merge(
-            notes: [], activityNotes: [key("2026-08-09"): ["Vent de face."]]
+            notes: [], elsewhereNotes: [key("2026-08-09"): ["Vent de face."]]
         )
         #expect(days.map(\.date.raw) == ["2026-08-09"])
         #expect(days[0].note.text.isEmpty)
@@ -38,7 +38,7 @@ struct JournalDayTests {
         // A day trained on without a word is not a journal entry.
         #expect(
             JournalDay.merge(
-                notes: [], activityNotes: [key("2026-08-09"): ["", "  \n "]]
+                notes: [], elsewhereNotes: [key("2026-08-09"): ["", "  \n "]]
             ).isEmpty
         )
     }
@@ -49,7 +49,7 @@ struct JournalDayTests {
         // with nothing yet. Dropping it here would take the pane away, and the
         // caret with it, in the middle of a sentence.
         let days = JournalDay.merge(
-            notes: [note("2026-08-11", "")], activityNotes: [:]
+            notes: [note("2026-08-11", "")], elsewhereNotes: [:]
         )
         #expect(days.map(\.date.raw) == ["2026-08-11"])
     }
@@ -58,7 +58,7 @@ struct JournalDayTests {
     func daysComeOutNewestFirst() {
         let days = JournalDay.merge(
             notes: [note("2026-08-09", "a"), note("2026-08-11", "b")],
-            activityNotes: [key("2026-08-10"): ["c"]]
+            elsewhereNotes: [key("2026-08-10"): ["c"]]
         )
         #expect(days.map(\.date.raw) == ["2026-08-11", "2026-08-10", "2026-08-09"])
     }
@@ -71,7 +71,7 @@ struct JournalDayTests {
         let day = JournalDay(
             date: key("2026-08-11"),
             note: note("2026-08-11", "Journée calme."),
-            activityNotes: ["Jambes lourdes."]
+            elsewhereNotes: ["Jambes lourdes."]
         )
         #expect(day.summary == "Journée calme.")
     }
@@ -81,7 +81,7 @@ struct JournalDayTests {
         let day = JournalDay(
             date: key("2026-08-11"),
             note: note("2026-08-11", "Promenade avec #Sam."),
-            activityNotes: ["Sortie #vélo, #projet/cairn en tête."]
+            elsewhereNotes: ["Sortie #vélo, #projet/cairn en tête."]
         )
         #expect(
             day.tags == Set([
@@ -100,7 +100,7 @@ struct JournalDayTests {
         let day = JournalDay(
             date: key("2026-08-11"),
             note: note("2026-08-11", "Journée calme."),
-            activityNotes: ["Jambes lourdes, vent de face."]
+            elsewhereNotes: ["Jambes lourdes, vent de face."]
         )
         #expect(day.matches(query: "calme"))
         #expect(day.matches(query: "jambes lourdes"))
@@ -110,7 +110,7 @@ struct JournalDayTests {
     @Test("un jour né d'une sortie répond aux recherches")
     func anOutingOnlyDayIsSearchable() {
         let day = JournalDay(
-            date: key("2026-08-09"), activityNotes: ["Vent de face."]
+            date: key("2026-08-09"), elsewhereNotes: ["Vent de face."]
         )
         #expect(day.matches(query: "VENT"))
         #expect(day.excerpt(matching: "vent") == "Vent de face.")
@@ -121,7 +121,7 @@ struct JournalDayTests {
         let day = JournalDay(
             date: key("2026-08-11"),
             note: note("2026-08-11", "Journée calme."),
-            activityNotes: ["Jambes lourdes."]
+            elsewhereNotes: ["Jambes lourdes."]
         )
         #expect(day.excerpt(matching: "calme") == "Journée calme.")
         #expect(day.excerpt(matching: "lourdes") == "Jambes lourdes.")
@@ -131,7 +131,7 @@ struct JournalDayTests {
     func filterCombinesBoth() {
         let days = JournalDay.merge(
             notes: [note("2026-08-11", "Journée calme.")],
-            activityNotes: [
+            elsewhereNotes: [
                 key("2026-08-11"): ["Jambes lourdes avec #Sam."],
                 key("2026-08-09"): ["Vent de face."],
             ]
