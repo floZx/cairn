@@ -70,10 +70,14 @@ struct RootView: View {
     /// a failed save, and telling the user their work was lost when it was not
     /// is its own kind of wrong.
     @State private var fileMessage: String?
-    /// Non-nil while the export sheet is up; the dates it opened on.
-    @State private var journalExport: (from: DateKey, to: DateKey)?
-    /// Non-nil while the book is being drawn — the sheet shows it rather than
-    /// closing on a window that has stopped answering.
+    /// The exported book's period, and whether its sheet is up. Held here
+    /// rather than in the sheet so the estimate below can follow the dates as
+    /// they are picked.
+    @State private var showsJournalExport = false
+    @State private var journalExportFrom = DateKey(Date()).monthStart
+    @State private var journalExportTo = DateKey(Date()).monthEnd()
+    /// Non-nil while the book is being made — the sheet stays up and shows it
+    /// rather than closing on a window that has stopped answering.
     @State private var journalExportProgress: ExportJournalSheet.Progress?
     /// Shared with every map so the chosen background and colour carry over.
     @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
@@ -253,20 +257,17 @@ struct RootView: View {
         .sheet(isPresented: $showsKeyboardHelp) {
             KeyboardHelpSheet { showsKeyboardHelp = false }
         }
-        .sheet(
-            isPresented: Binding(
-                get: { journalExport != nil },
-                set: { if !$0 { journalExport = nil } }
-            )
-        ) {
+        .sheet(isPresented: $showsJournalExport) {
             ExportJournalSheet(
-                from: journalExport?.from ?? DateKey(Date()).monthStart,
-                to: journalExport?.to ?? DateKey(Date()).monthEnd(),
+                from: $journalExportFrom,
+                to: $journalExportTo,
+                imageCount: JournalBookAssets.imageEstimate(
+                    for: allActivities, from: journalExportFrom,
+                    to: journalExportTo
+                ),
                 progress: journalExportProgress,
-                onExport: { from, to in
-                    Task { await exportJournalPDF(from: from, to: to) }
-                },
-                onCancel: { journalExport = nil }
+                onExport: { Task { await exportJournalPDF() } },
+                onCancel: { showsJournalExport = false }
             )
         }
         .onAppear {
@@ -297,7 +298,9 @@ struct RootView: View {
                 // has in mind when the menu is opened from the journal.
                 let day = journalSelection ?? DateKey(Date())
                 journalExportProgress = nil
-                journalExport = (day.monthStart, day.monthEnd())
+                journalExportFrom = day.monthStart
+                journalExportTo = day.monthEnd()
+                showsJournalExport = true
             }
             app.requestToggleListStyle = { listStyle = listStyle.toggled }
         }
@@ -947,32 +950,35 @@ struct RootView: View {
     /// The order matters. The days are gathered first so an empty period can be
     /// refused before anything slow starts — and before a save panel asks where
     /// to put a PDF that would hold nothing but its cover.
-    private func exportJournalPDF(from: DateKey, to: DateKey) async {
+    private func exportJournalPDF() async {
+        let from = journalExportFrom
+        let to = journalExportTo
         let book = JournalBook.build(
             from: from, to: to, notes: app.journal.notes,
             activities: allActivities, entries: foodEntries, slots: mealSlots,
             mealNotes: mealNotes, weights: weightEntries
         )
         guard !book.days.isEmpty else {
-            journalExport = nil
+            showsJournalExport = false
             fileMessage = "Aucune journée à exporter sur cette période."
             return
         }
 
-        journalExportProgress = ExportJournalSheet.Progress(done: 0, total: 1)
+        journalExportProgress = .drawing(done: 0, total: 1)
         let illustrations = await JournalBookAssets.illustrations(for: book) {
             done, total in
-            journalExportProgress = ExportJournalSheet.Progress(
-                done: done, total: total
-            )
+            journalExportProgress = .drawing(done: done, total: total)
         }
 
         do {
+            // Said out loud, because it is the phase nobody expects: every
+            // picture is drawn and WebKit still has a book to paginate.
+            journalExportProgress = .layingOut
             let data = try await JournalBookExporter.pdf(
                 from: JournalBookHTML.document(book, illustrations: illustrations)
             )
             journalExportProgress = nil
-            journalExport = nil
+            showsJournalExport = false
 
             let panel = NSSavePanel()
             panel.allowedContentTypes = [.pdf]
@@ -981,7 +987,7 @@ struct RootView: View {
             try data.write(to: url)
         } catch {
             journalExportProgress = nil
-            journalExport = nil
+            showsJournalExport = false
             writeFailureMessage =
                 "Le carnet n'a pas pu être écrit. \(error.localizedDescription)"
         }

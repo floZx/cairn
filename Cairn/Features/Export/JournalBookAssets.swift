@@ -17,6 +17,23 @@ enum JournalBookAssets {
     private static let mapSize = CGSize(width: 1000, height: 560)
     private static let chartSize = CGSize(width: 1000, height: 220)
 
+    /// Roughly how many pictures a period will need — for saying so before the
+    /// slow part starts, not for driving the progress bar.
+    ///
+    /// Read from the stored `photoCount` rather than the relationship: faulting
+    /// a photo per outing to guess how long an export will take would cost more
+    /// than the guess is worth. Two curves per outing is the usual case, and an
+    /// outing without streams simply needs fewer.
+    static func imageEstimate(
+        for activities: [Activity], from: DateKey, to: DateKey
+    ) -> Int {
+        activities.reduce(into: 0) { total, activity in
+            let date = DateKey(activity.startDate)
+            guard date >= from, date <= to else { return }
+            total += 1 + 2 + (activity.photoCount ?? 0)
+        }
+    }
+
     /// - Parameter progress: called after each picture, `(done, total)`, on the
     ///   main actor — the sheet stays up and shows it, because ten seconds of a
     ///   window saying nothing reads as a freeze.
@@ -82,7 +99,10 @@ enum JournalBookAssets {
         guard coordinates.count > 1 else { return nil }
         let color = NSColor(activity.sportType.color)
         if let image = await snapshot(of: coordinates, color: color),
-           let uri = pngDataURI(image) {
+           // JPEG and not PNG: a map is a photograph of the ground, the format
+           // is made for it, and a whole year of PNG maps is what makes a book
+           // WebKit cannot paginate in reasonable time.
+           let uri = jpegDataURI(image, quality: 0.8) {
             return uri
         }
         return JournalBookTrackSVG.svg(
@@ -154,8 +174,9 @@ enum JournalBookAssets {
                 width: chartSize.width, height: chartSize.height
             )
         )
-        // Twice the size, so the curve stays smooth when the PDF is zoomed.
-        renderer.scale = 2
+        // Enough to stay smooth when the PDF is zoomed, not enough to weigh
+        // as much as the photograph beside it: a chart is flat colour.
+        renderer.scale = 1.5
         guard let image = renderer.nsImage else { return nil }
         return pngDataURI(image)
     }
@@ -213,10 +234,23 @@ enum JournalBookAssets {
 
     // MARK: - Les photos
 
-    /// The bytes as they are stored — Strava sends JPEG, and re-encoding a
-    /// photograph to put it in a book would only lose detail.
+    /// Brought down to the width a page can actually show.
+    ///
+    /// The stored bytes are what Strava sent — several thousand pixels wide,
+    /// for a page that is 1 000 across. Passing them through untouched is what
+    /// turned a long period into a document WebKit chews on for minutes: the
+    /// whole book is one string, and every photo carries a third more again
+    /// once base64-encoded. Re-encoding loses a little detail no printed page
+    /// could have shown.
+    ///
+    /// Bytes that will not decode are still worth keeping as they are: a photo
+    /// this cannot read may still be one the renderer can.
     private static func photo(_ data: Data) -> String? {
         guard !data.isEmpty else { return nil }
+        if let image = NSImage(data: data),
+           let uri = jpegDataURI(image, quality: 0.7, maxWidth: photoWidth) {
+            return uri
+        }
         let png: [UInt8] = [0x89, 0x50, 0x4E, 0x47]
         let isPNG = data.count > 4 && Array(data.prefix(4)) == png
         return "data:image/\(isPNG ? "png" : "jpeg");base64,"
@@ -224,6 +258,41 @@ enum JournalBookAssets {
     }
 
     // MARK: - Les petites briques
+
+    /// A photograph wider than this shows no more on an A4 page.
+    private static let photoWidth: CGFloat = 1200
+
+    private static func jpegDataURI(
+        _ image: NSImage, quality: Double, maxWidth: CGFloat? = nil
+    ) -> String? {
+        let source = maxWidth.map { scaled(image, toWidth: $0) } ?? image
+        guard let tiff = source.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff),
+              let jpeg = bitmap.representation(
+                  using: .jpeg, properties: [.compressionFactor: quality]
+              )
+        else { return nil }
+        return "data:image/jpeg;base64," + jpeg.base64EncodedString()
+    }
+
+    /// Untouched when it is already narrow enough — enlarging a photograph to
+    /// fill a page would only make it soft.
+    private static func scaled(_ image: NSImage, toWidth width: CGFloat) -> NSImage {
+        guard image.size.width > width, image.size.width > 0 else { return image }
+        let size = NSSize(
+            width: width, height: image.size.height * width / image.size.width
+        )
+        let scaled = NSImage(size: size)
+        scaled.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        image.draw(
+            in: NSRect(origin: .zero, size: size),
+            from: NSRect(origin: .zero, size: image.size),
+            operation: .copy, fraction: 1
+        )
+        scaled.unlockFocus()
+        return scaled
+    }
 
     private static func pngDataURI(_ image: NSImage) -> String? {
         guard let tiff = image.tiffRepresentation,
