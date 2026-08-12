@@ -201,7 +201,12 @@ struct WeightView: View {
                         .monospacedDigit()
                         .frame(width: 70, alignment: .trailing)
                     if let note = entry.note {
-                        Text(note)
+                        // The inline half of the renderer, not the block one:
+                        // this is a row of a table held to one line, and
+                        // `MarkdownText` lays paragraphs out vertically. Bold
+                        // and italics survive, the tag loses its hash, and the
+                        // row keeps its height.
+                        MarkdownText.inline(note, hidingTagHashes: true)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }

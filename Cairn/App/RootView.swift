@@ -391,7 +391,9 @@ struct RootView: View {
         return !day.note.isEmpty
     }
 
-    /// The tag list the sidebar ticks, counted over both sources.
+    /// The tag list the sidebar ticks, counted over every source at once — a
+    /// `#Sam` weighs the same whether it was written in the vault, under an
+    /// outing, beside a meal or next to a weigh-in.
     private var journalTagCounts: [JournalTagTally.Row] {
         JournalTagTally.rows(for: journalDays.map(\.tags))
     }

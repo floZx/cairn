@@ -661,8 +661,12 @@ struct NutritionDayView: View {
                 }
             }
             if let note = meal.note {
-                Text(note)
-                    .font(.body.italic())
+                // Rendered, like every other place a note is read: what is
+                // typed into the sheet is Markdown, and a `#Tom` left with its
+                // hash here says the note is raw text — which it is not, since
+                // that tag files the day in the journal.
+                MarkdownText(markdown: note, hidesTagHashes: true)
+                    .italic()
                     .foregroundStyle(.secondary)
             }
         }
