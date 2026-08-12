@@ -33,10 +33,13 @@ struct JournalDayNutrition: View {
     /// The meals that said something, in the order they are eaten.
     ///
     /// Sorted here and not in the query: the order lives on the slot, across a
-    /// relationship, and a `SortDescriptor` cannot reach through one.
-    private var spokenMeals: [MealNote] {
-        mealNotes
-            .filter { !Self.isBlank($0.note) }
+    /// relationship, and a `SortDescriptor` cannot reach through one. Static
+    /// and taking its data as a parameter — like `JournalDayActivities.note(of:)`
+    /// and `figures(...)` — so the triage rule is reachable from a test without
+    /// standing up a `@Query`.
+    static func spokenMeals(among notes: [MealNote]) -> [MealNote] {
+        notes
+            .filter { !isBlank($0.note) }
             .sorted {
                 ($0.mealSlot?.sortOrder ?? .max) < ($1.mealSlot?.sortOrder ?? .max)
             }
@@ -44,8 +47,8 @@ struct JournalDayNutrition: View {
 
     /// The day's weigh-in, and only when it carries a comment: the figure
     /// alone belongs to the food journal, which shows it already.
-    private var spokenWeight: WeightEntry? {
-        weights.first { !Self.isBlank($0.note) }
+    static func spokenWeight(among weights: [WeightEntry]) -> WeightEntry? {
+        weights.first { !isBlank($0.note) }
     }
 
     private static func isBlank(_ text: String?) -> Bool {
@@ -67,6 +70,8 @@ struct JournalDayNutrition: View {
     }
 
     var body: some View {
+        let spokenMeals = Self.spokenMeals(among: mealNotes)
+        let spokenWeight = Self.spokenWeight(among: weights)
         if !spokenMeals.isEmpty || spokenWeight != nil {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Alimentation du jour")
