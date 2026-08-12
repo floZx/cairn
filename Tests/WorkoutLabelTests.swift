@@ -86,8 +86,8 @@ struct WorkoutLabelTests {
 
     @Test("seuls les trois types de séance sont proposés au choix")
     func onlyWorkoutTypesAreOffered() {
-        // `manual` and `isPrivate` say where an activity came from; letting the
-        // user claim either by hand would make the badge a lie.
+        // `manual` says where an activity came from; letting the user claim it
+        // by hand would make the badge a lie.
         #expect(ActivityLabel.workoutTypes == [.race, .longRun, .workout])
     }
 }

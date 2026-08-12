@@ -2,8 +2,8 @@ import Foundation
 
 /// The markers Strava lets you put on an activity.
 ///
-/// Two sources: plain booleans on the summary (commute, trainer, manual,
-/// private), and `workout_type`, whose codes differ by sport — a run uses
+/// Two sources: plain booleans on the summary (commute, trainer, manual), and
+/// `workout_type`, whose codes differ by sport — a run uses
 /// 1/2/3 for race, long run and workout, while a ride uses 11/12 for race and
 /// workout. Reading a ride's `1` as "race" would be wrong, hence the explicit
 /// mapping rather than arithmetic.
@@ -23,15 +23,14 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
     /// badge on every length of breaststroke.
     case trainer
     case manual
-    case isPrivate
 
     var id: String { rawValue }
 
     /// The three the user can actually choose between.
     ///
-    /// `commute` and `trainer` are plain toggles in the editor, and `manual` and
-    /// `isPrivate` describe where an activity came from rather than what it was
-    /// — nothing the user should be able to claim by hand.
+    /// `commute` and `trainer` are plain toggles in the editor, and `manual`
+    /// describes where an activity came from rather than what it was — nothing
+    /// the user should be able to claim by hand.
     static let workoutTypes: [ActivityLabel] = [.race, .longRun, .workout]
 
     var displayName: String {
@@ -43,7 +42,6 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
         case .commute: "Trajet"
         case .trainer: "Intérieur"
         case .manual: "Manuelle"
-        case .isPrivate: "Privée"
         }
     }
 
@@ -57,7 +55,6 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
         case .commute: "Trajet"
         case .trainer: "Intérieur"
         case .manual: "Manuelle"
-        case .isPrivate: "Privée"
         }
     }
 
@@ -70,7 +67,6 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
         case .commute: "arrow.triangle.swap"
         case .trainer: "house"
         case .manual: "hand.raised"
-        case .isPrivate: "lock"
         }
     }
 

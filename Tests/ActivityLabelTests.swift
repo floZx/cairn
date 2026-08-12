@@ -45,6 +45,17 @@ struct ActivityLabelTests {
         #expect(activity.labels == [.race, .commute, .trainer])
     }
 
+    @Test("une activité privée sur Strava ne porte pas d'étiquette ici")
+    func privacyIsNotALabel() throws {
+        let activity = Activity(stravaID: 1, name: "Sortie", sportType: .run)
+        activity.isPrivate = true
+
+        // Le drapeau reste synchronisé, il ne se voit simplement nulle part :
+        // qui peut lire une sortie est une question de page Strava.
+        #expect(activity.isPrivate)
+        #expect(activity.labels.isEmpty)
+    }
+
     @Test("le filtre exige toutes les étiquettes cochées")
     func filterRequiresEveryLabel() throws {
         let context = ModelContext(try AppModelContainer.inMemory())

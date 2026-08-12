@@ -44,6 +44,10 @@ final class Activity {
     var isCommute: Bool = false
     var isTrainer: Bool = false
     var isManual: Bool = false
+    /// Synced and stored, deliberately never shown. Who can see an outing is a
+    /// question about a Strava page; in a library that lives on one Mac the
+    /// padlock said nothing about the outing itself, and it sat among badges
+    /// that all describe what was done.
     var isPrivate: Bool = false
     /// Strava's `workout_type`. Kept raw because its meaning depends on the
     /// sport; `ActivityLabel.fromWorkoutType` does the interpretation.
@@ -195,7 +199,6 @@ final class Activity {
         if isCommute { found.append(.commute) }
         if isTrainer { found.append(.trainer) }
         if isManual { found.append(.manual) }
-        if isPrivate { found.append(.isPrivate) }
         return found
     }
 
