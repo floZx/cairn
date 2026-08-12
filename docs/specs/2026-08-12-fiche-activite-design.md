@@ -1,7 +1,12 @@
 # La fiche d'une activité, resserrée
 
+> **Statut** : abandonné le 12 août 2026 — mis en œuvre, essayé, et annulé.
+> Les libellés retirés, l'allure ajoutée, l'alignement à droite, un en-tête, des
+> fiches sur fond propre : rien de tout cela n'a rendu la liste plus belle à
+> l'usage. Le code est revenu à ce qu'il était. La spec reste pour ce qu'elle
+> documente — les pistes essayées et pourquoi elles ne suffisent pas.
+
 **Date** : 2026-08-12
-**Statut** : validé
 
 ## Objectif
 

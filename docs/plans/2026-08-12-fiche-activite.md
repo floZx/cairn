@@ -1,5 +1,8 @@
 # La fiche d'une activité, resserrée — plan d'implémentation
 
+> **Statut** : abandonné le 12 août 2026. Le plan a été exécuté puis annulé —
+> voir la spec pour ce qui a été essayé.
+
 > **Pour un agent :** SOUS-COMPÉTENCE REQUISE — `superpowers:subagent-driven-development`
 > (recommandé) ou `superpowers:executing-plans` pour dérouler ce plan tâche par
 > tâche. Les étapes sont des cases à cocher (`- [ ]`).

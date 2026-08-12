@@ -119,95 +119,55 @@ struct ActivityCard: View {
         .ambientGlow(activity.sportType.color, cornerRadius: 6, blurRadius: 18)
     }
 
-    /// The figures, one line, no labels.
+    /// The figures, as a row of blocks rather than a line of small grey text.
     ///
-    /// The labels went because every value already carries its unit: "9,0 km"
-    /// under a caption reading "Distance" said the same thing twice, twenty
-    /// times down a list, and cost half the height of the card. The eye now
-    /// runs down a column of figures instead of re-reading four words.
-    ///
-    /// All five, always, in the same order. They used to drop out one by one
-    /// through a `ViewThatFits` as the pane narrowed, which made two rows side
-    /// by side carry different columns — the reader cannot tell a figure
-    /// withheld for want of room from one the activity never recorded. The
-    /// name absorbs the shortfall instead; see its frame above.
+    /// Value above label, the value at reading size: four identical captions
+    /// made the card say everything at the same volume, which is the same as
+    /// saying nothing. Heart rate drops out when there is none rather than
+    /// leaving a hole.
     private var figures: some View {
+        // All four, always. They used to drop out one by one through a
+        // `ViewThatFits` as the pane narrowed, which made two rows side by
+        // side carry different columns — the reader cannot tell a figure
+        // withheld for want of room from one the activity never recorded.
+        // The name absorbs the shortfall instead; see its frame above.
         HStack(spacing: 0) {
-            ForEach(Array(Self.figures(for: activity).enumerated()), id: \.offset) {
-                _, figure in
-                Text(figure.value ?? "")
-                    // Emphasis by weight alone: over twenty rows it is enough
-                    // to bring out the month's three long outings, where a
-                    // larger body would break the alignment of the columns and
-                    // shout.
-                    .font(
-                        .subheadline
-                            .weight(figure.isLeading ? .semibold : .regular)
-                            .monospacedDigit()
-                    )
-                    .lineLimit(1)
-                    // Rather than truncating: a number cut short reads as
-                    // another number, where a slightly smaller one reads as
-                    // itself.
-                    .minimumScaleFactor(0.7)
-                    .frame(width: Self.columnWidth, alignment: .leading)
-            }
+            distanceBlock
+            durationBlock
+            elevationBlock
+            heartrateBlock
         }
     }
 
-    /// Five columns where there were four, and no labels under them: each one
-    /// gives up a little width, and the name gains what is left over.
-    private static let columnWidth: CGFloat = 62
-}
-
-extension ActivityCard {
-    /// One column of the figures row. `nil` where the activity has no such
-    /// measurement — an empty column, never a zero: a gym session has no
-    /// distance, which is not the same as having a distance of zero.
-    struct Figure: Equatable {
-        var value: String?
-        /// True on the first figure actually written, and only on a notable
-        /// outing. See `isNotable`.
-        var isLeading = false
+    private var distanceBlock: some View {
+        block(Format.distance(activity.distance), "Distance")
     }
-
-    /// What makes an outing stand out in a list of twenty.
-    ///
-    /// Two thresholds and not one, because one sport is not measured like
-    /// another: three hours of cycling and 25 km of trail are both an outing
-    /// one remembers, an hour of jogging is not. Written side by side so that
-    /// moving the line takes a second.
-    static let notableMovingTime = 90 * 60
-    static let notableDistance: Double = 20_000
-
-    static func isNotable(_ activity: Activity) -> Bool {
-        activity.movingTime >= notableMovingTime
-            || activity.distance >= notableDistance
+    private var durationBlock: some View {
+        block(Format.durationCompact(activity.movingTime), "Durée")
     }
-
-    /// The five columns, always in the same order, so two neighbouring rows
-    /// line up whatever they carry.
-    static func figures(for activity: Activity) -> [Figure] {
-        var values: [String?] = [
-            activity.distance > 0 ? Format.distance(activity.distance) : nil,
-            // The one measurement an activity always has.
-            Format.durationCompact(activity.movingTime),
-            activity.totalElevationGain > 0
-                ? Format.elevation(activity.totalElevationGain) : nil,
-            activity.averageSpeed > 0
-                ? Format.speed(activity.averageSpeed, sport: activity.sportType)
-                : nil,
-            activity.averageHeartrate.map(Format.heartrate),
-        ]
-        // `Format.heartrate` answers with a dash for the zero Strava sends on
-        // some manual entries; here that means the column is simply empty.
-        if values[4] == "—" { values[4] = nil }
-
-        var figures = values.map { Figure(value: $0) }
-        if isNotable(activity),
-           let first = figures.firstIndex(where: { $0.value != nil }) {
-            figures[first].isLeading = true
+    private var elevationBlock: some View {
+        block(Format.elevation(activity.totalElevationGain), "D+")
+    }
+    @ViewBuilder
+    private var heartrateBlock: some View {
+        if let heartrate = activity.averageHeartrate {
+            block(Format.heartrate(heartrate), "FC moy.")
         }
-        return figures
+    }
+
+    private func block(_ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(value)
+                .font(.subheadline.weight(.medium).monospacedDigit())
+                .lineLimit(1)
+                // Rather than truncating: a number cut short reads as another
+                // number, where a slightly smaller one reads as itself.
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+        }
+        .frame(width: 72, alignment: .leading)
     }
 }
