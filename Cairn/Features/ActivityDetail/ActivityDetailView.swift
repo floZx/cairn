@@ -11,6 +11,16 @@ struct ActivityDetailView: View {
     /// when it is the only prose on the screen.
     static let noteSize: CGFloat = 14
 
+    /// The header's floor, so two activities open on the same block whether or
+    /// not they carry markers.
+    ///
+    /// Its height used to be whatever its lines added up to: an outing with a
+    /// workout type and a « Modifiée » line stood a good twenty points taller
+    /// than one with neither, and moving between the two made the whole pane
+    /// jump. The floor is the taller of the two, so the shorter one gains air
+    /// rather than the taller one losing any.
+    private static let headerMinHeight: CGFloat = 104
+
     let activity: Activity
     var onExpandMap: (() -> Void)?
     /// Opens the editor. The notes section calls it, which is what turns an
@@ -63,7 +73,10 @@ struct ActivityDetailView: View {
                 // charts get: this block is the tallest thing on the page, and
                 // the same radius on it would read as a coloured panel.
                 header
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(
+                        maxWidth: .infinity, minHeight: Self.headerMinHeight,
+                        alignment: .leading
+                    )
                     .overlay(alignment: .trailing) { sportWatermark }
                     .ambientGlow(
                         activity.sportType.color, cornerRadius: 16, blurRadius: 80
@@ -213,10 +226,20 @@ struct ActivityDetailView: View {
     /// title at reading size, so repeating it solid would add no information and
     /// compete with the name of the activity. Faint, it only carries the colour.
     private var sportWatermark: some View {
-        Image(systemName: activity.sportType.symbolName)
-            .font(.system(size: 96))
-            .foregroundStyle(activity.sportType.color)
-            .opacity(0.12)
+        // Sized from the header rather than fixed at 96: a header one line
+        // shorter clipped the glyph flat across the top, which read as a
+        // drawing error rather than as a watermark. Measured against the
+        // block it sits in, it cannot be cut whatever the block holds.
+        GeometryReader { proxy in
+            Image(systemName: activity.sportType.symbolName)
+                .font(.system(size: proxy.size.height * 0.86))
+                .foregroundStyle(activity.sportType.color)
+                .opacity(0.12)
+                .frame(
+                    width: proxy.size.width, height: proxy.size.height,
+                    alignment: .trailing
+                )
+        }
             // Never a scrollbar's width of glyph hanging off the pane: the
             // header is as narrow as the user cares to drag it.
             .clipped()
