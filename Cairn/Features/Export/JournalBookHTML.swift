@@ -24,8 +24,12 @@ enum JournalBookHTML {
         }
     }
 
+    /// - Parameter noteImages: what a picture written in a note resolves to.
+    ///   Empty when the vault could not be read, which the notes then say in
+    ///   words rather than in empty frames.
     static func document(
-        _ book: JournalBook, illustrations: [Int64: Illustrations]
+        _ book: JournalBook, illustrations: [Int64: Illustrations],
+        noteImages: [String: String] = [:]
     ) -> String {
         let title = "Carnet — \(Format.dateOnly(book.from.date())) au "
             + Format.dateOnly(book.to.date())
@@ -34,7 +38,7 @@ enum JournalBookHTML {
             <html lang="fr"><head><meta charset="utf-8">\
             <title>\(escape(title))</title><style>\(stylesheet)</style></head>\
             <body>\(cover(book))\
-            \(book.days.map { day($0, illustrations: illustrations) }.joined())\
+            \(book.days.map { day($0, illustrations: illustrations, noteImages: noteImages) }.joined())\
             </body></html>
             """
     }
@@ -77,9 +81,10 @@ enum JournalBookHTML {
     // MARK: - Une journée
 
     private static func day(
-        _ day: JournalBook.Day, illustrations: [Int64: Illustrations]
+        _ day: JournalBook.Day, illustrations: [Int64: Illustrations],
+        noteImages: [String: String]
     ) -> String {
-        let note = MarkdownHTML.render(day.note)
+        let note = MarkdownHTML.render(day.note, images: noteImages)
         let tags = day.tags.map { "<li>\(escape($0.name))</li>" }.joined()
         let outings = day.activities
             .map { activity($0, illustrations: illustrations[$0.stravaID]) }
@@ -267,5 +272,10 @@ enum JournalBookHTML {
         .meals li { margin: .2em 0; }
         .meals .macros { font-variant-numeric: tabular-nums; color: #6c6c70; }
         .food .weight { font-variant-numeric: tabular-nums; }
+        figure.note-photo { margin: .7em 0; break-inside: avoid; }
+        figure.note-photo img {
+          width: 100%; height: auto; border-radius: 4pt; display: block;
+        }
+        .missing-photo { color: #6c6c70; font-style: italic; }
         """
 }

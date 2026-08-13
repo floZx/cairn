@@ -1043,12 +1043,21 @@ struct RootView: View {
             journalExportProgress = .drawing(done: done, total: total)
         }
 
+        // The pictures written in the notes themselves, read from the vault.
+        let noteImages = JournalBookAssets.noteImages(
+            for: book, vault: app.journal.folder
+        ) { done, total in
+            journalExportProgress = .drawing(done: done, total: total)
+        }
+
         do {
             // Said out loud, because it is the phase nobody expects: every
             // picture is drawn and WebKit still has a book to paginate.
             journalExportProgress = .layingOut
             let data = try await JournalBookExporter.pdf(
-                from: JournalBookHTML.document(book, illustrations: illustrations)
+                from: JournalBookHTML.document(
+                    book, illustrations: illustrations, noteImages: noteImages
+                )
             )
             journalExportProgress = nil
             showsJournalExport = false

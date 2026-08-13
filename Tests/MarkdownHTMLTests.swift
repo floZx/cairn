@@ -76,3 +76,34 @@ struct MarkdownHTMLTests {
         #expect(MarkdownHTML.render("   \n  ") == "")
     }
 }
+
+@Suite("Les images d'une note dans le carnet")
+struct MarkdownHTMLImageTests {
+    @Test("une image connue entre avec sa source")
+    func aknownImageCarriesItsSource() {
+        let html = MarkdownHTML.render(
+            "![Le sommet](pieces-jointes/2026-08-13-1.jpg)",
+            images: ["pieces-jointes/2026-08-13-1.jpg": "data:image/jpeg;base64,AAA"]
+        )
+        #expect(html.contains("<img src=\"data:image/jpeg;base64,AAA\""))
+        #expect(html.contains("alt=\"Le sommet\""))
+    }
+
+    @Test("une image inconnue rend son texte, jamais une balise vide")
+    func anunknownImageRendersItsText() {
+        let html = MarkdownHTML.render("![Le sommet](x.jpg)")
+        #expect(!html.contains("<img"))
+        #expect(html.contains("Le sommet"))
+        // Sans texte de remplacement, c'est le chemin qui reste : il dit au
+        // moins quel fichier manquait.
+        #expect(MarkdownHTML.render("![](x.jpg)").contains("x.jpg"))
+    }
+
+    @Test("le texte de remplacement est échappé comme le reste")
+    func thealtTextIsEscaped() {
+        let html = MarkdownHTML.render(
+            "![a & b](x.jpg)", images: ["x.jpg": "data:image/png;base64,AAA"]
+        )
+        #expect(html.contains("alt=\"a &amp; b\""))
+    }
+}

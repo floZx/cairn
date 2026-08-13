@@ -87,6 +87,38 @@ enum JournalBookAssets {
         return result
     }
 
+    /// The pictures a book's notes point at, path as written → `data:` URI.
+    ///
+    /// Read from the vault and encoded like an outing's photos, down to the
+    /// same page width: a book is one file, and a note's picture has to travel
+    /// in it rather than point back at a folder the reader may not have.
+    ///
+    /// A path that will not read is simply absent from the table, and the HTML
+    /// then writes the note's own words for it — the file may be an iCloud
+    /// placeholder that has not come down, which is not an error to report.
+    static func noteImages(
+        for book: JournalBook, vault: URL?, progress: @escaping (Int, Int) -> Void
+    ) -> [String: String] {
+        guard let vault else { return [:] }
+        var paths: [String] = []
+        for day in book.days {
+            for block in MarkdownParser.blocks(from: day.note) {
+                if case let .image(path, _) = block, !paths.contains(path) {
+                    paths.append(path)
+                }
+            }
+        }
+        var images: [String: String] = [:]
+        for (index, path) in paths.enumerated() {
+            defer { progress(index + 1, paths.count) }
+            guard let picture = NSImage(contentsOf: vault.appending(path: path)),
+                  let uri = jpegDataURI(picture, quality: 0.7, maxWidth: photoWidth)
+            else { continue }
+            images[path] = uri
+        }
+        return images
+    }
+
     // MARK: - La carte
 
     /// A snapshot with the track drawn over it, or the vector fallback.

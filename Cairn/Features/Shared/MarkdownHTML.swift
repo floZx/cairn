@@ -23,7 +23,14 @@ enum MarkdownHTML {
 
     /// - Parameter hidingTagHashes: on by default. A note is *read* here, and
     ///   the hash is syntax — the same call the panes make.
-    static func render(_ markdown: String, hidingTagHashes: Bool = true) -> String {
+    /// - Parameter images: what a picture's path in the note resolves to,
+    ///   already encoded. Handed in rather than read from disk, because this
+    ///   function has no disk: the book is one file, and an image nobody
+    ///   encoded would come out of it as a broken frame.
+    static func render(
+        _ markdown: String, hidingTagHashes: Bool = true,
+        images: [String: String] = [:]
+    ) -> String {
         var html = ""
         // Consecutive bullets belong to one list: a `<ul>` per line would give
         // each item its own block of air.
@@ -43,11 +50,19 @@ enum MarkdownHTML {
             case .paragraph:
                 closeList()
                 html += "<p>\(text)</p>"
-            case .image:
-                // The alt text for now: the book cannot link to a file in the
-                // vault, and embedding the picture is the next task's work.
+            case let .image(path, alt):
                 closeList()
-                html += "<p>\(text)</p>"
+                if let source = images[path] {
+                    html += "<figure class=\"note-photo\">"
+                        + "<img src=\"\(source)\" alt=\"\(escape(alt))\">"
+                        + "</figure>"
+                } else {
+                    // Its name, and nothing that looks like a picture: a book
+                    // is read away from the vault, and a frame with nothing in
+                    // it says less than the word that was written.
+                    html += "<p class=\"missing-photo\">"
+                        + "\(escape(alt.isEmpty ? path : alt))</p>"
+                }
             case .quote:
                 closeList()
                 html += "<blockquote>\(text)</blockquote>"
