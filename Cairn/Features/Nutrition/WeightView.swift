@@ -189,8 +189,15 @@ struct WeightView: View {
 
     private var list: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Pesées")
-                .font(.headline)
+            HStack(spacing: 8) {
+                Text("Pesées")
+                    .font(.headline)
+                // Said once above the list rather than left to be discovered:
+                // two gestures nobody can see are two gestures nobody uses.
+                Text("double-clic pour modifier · clic droit pour supprimer")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
             // Newest first: the row being checked or fixed is almost always
             // the latest one.
             ForEach(entries.reversed(), id: \.persistentModelID) { entry in
@@ -214,6 +221,12 @@ struct WeightView: View {
                 }
                 .padding(.vertical, 2)
                 .contentShape(.rect)
+                // A double click opens it, as a row of a Finder window does.
+                // The context menu was the only way in, and nothing on screen
+                // said so — reported as "impossible to edit a weigh-in", which
+                // is what an invisible gesture amounts to.
+                .onTapGesture(count: 2) { editingEntry = entry }
+                .help("Double-cliquez pour modifier, clic droit pour supprimer")
                 .contextMenu {
                     Button("Éditer…") { editingEntry = entry }
                     Divider()

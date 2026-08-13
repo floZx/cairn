@@ -28,10 +28,10 @@ struct EditEntrySheet: View {
                 .textFieldStyle(.roundedBorder)
             HStack(spacing: 8) {
                 Text("Quantité")
-                TextField("g", value: $grams, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 80)
-                    .focused($gramsFocused)
+                DecimalField(
+                    placeholder: "g", value: $grams, width: 80,
+                    focus: $gramsFocused
+                )
                 Text("g")
                 Spacer()
                 Text("\(Int((entry.kcal100 * grams / 100).rounded())) kcal")

@@ -387,24 +387,19 @@ struct FoodPickerView: View {
             }
             GridRow {
                 Text("kcal /100 g")
-                TextField("kcal", value: $manualKcal, format: .number)
-                    .textFieldStyle(.roundedBorder)
+                DecimalField(placeholder: "kcal", value: $manualKcal)
                 Text("Protéines /100 g")
-                TextField("g", value: $manualProtein, format: .number)
-                    .textFieldStyle(.roundedBorder)
+                DecimalField(placeholder: "g", value: $manualProtein)
             }
             GridRow {
                 Text("Glucides /100 g")
-                TextField("g", value: $manualCarbs, format: .number)
-                    .textFieldStyle(.roundedBorder)
+                DecimalField(placeholder: "g", value: $manualCarbs)
                 Text("Lipides /100 g")
-                TextField("g", value: $manualFat, format: .number)
-                    .textFieldStyle(.roundedBorder)
+                DecimalField(placeholder: "g", value: $manualFat)
             }
             GridRow {
                 Text("Quantité")
-                TextField("g", value: $grams, format: .number)
-                    .textFieldStyle(.roundedBorder)
+                DecimalField(placeholder: "g", value: $grams)
                 Text(manualPreview)
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -427,10 +422,9 @@ struct FoodPickerView: View {
     ) -> some View {
         HStack(spacing: 8) {
             Text("Quantité")
-            TextField("g", value: $grams, format: .number)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 80)
-                .focused($gramsFocused)
+            DecimalField(
+                placeholder: "g", value: $grams, width: 80, focus: $gramsFocused
+            )
             Text("g")
             Spacer()
             Text(portionSummary(

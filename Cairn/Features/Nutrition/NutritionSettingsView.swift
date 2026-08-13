@@ -25,12 +25,10 @@ struct NutritionSettingsView: View {
     var body: some View {
         Form {
             Section("Cibles") {
-                TextField(
-                    "Protéines (g/j)", value: $proteinTarget, format: .number
-                )
-                TextField("Lipides (g/j)", value: $fatTarget, format: .number)
-                TextField(
-                    "Objectif de poids (kg)", value: $weightGoal, format: .number
+                DecimalField(placeholder: "Protéines (g/j)", value: $proteinTarget)
+                DecimalField(placeholder: "Lipides (g/j)", value: $fatTarget)
+                DecimalField(
+                    placeholder: "Objectif de poids (kg)", value: $weightGoal
                 )
             }
 

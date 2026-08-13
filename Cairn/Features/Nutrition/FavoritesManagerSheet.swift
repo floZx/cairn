@@ -40,12 +40,10 @@ struct FavoritesManagerSheet: View {
                     }
                     TableColumn("Quantité") { favorite in
                         HStack(spacing: 4) {
-                            TextField(
-                                "g", value: binding(for: favorite).grams,
-                                format: .number
+                            DecimalField(
+                                placeholder: "g",
+                                value: binding(for: favorite).grams, width: 52
                             )
-                            .textFieldStyle(.plain)
-                            .frame(width: 52)
                             .monospacedDigit()
                             .onSubmit { save() }
                             Text("g").foregroundStyle(.secondary)

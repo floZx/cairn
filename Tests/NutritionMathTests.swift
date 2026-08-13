@@ -223,3 +223,51 @@ struct NutritionMathTests {
         #expect(NutritionMath.overshoot(consumed: 110.6, target: 100.4) == .heavy)
     }
 }
+
+@Suite("Le champ décimal")
+struct DecimalFieldTests {
+    @Test("la virgule et le point mènent au même nombre")
+    func bothSeparatorsParse() {
+        // Le pavé numérique donne un point, le clavier français une virgule,
+        // et un journal n'est pas l'endroit où apprendre la différence.
+        #expect(DecimalField.parse("71,05") == 71.05)
+        #expect(DecimalField.parse("71.05") == 71.05)
+        #expect(DecimalField.parse(" 71,05 ") == 71.05)
+        #expect(DecimalField.parse("71") == 71)
+    }
+
+    @Test("un champ vide ne vaut pas zéro")
+    func anemptyFieldIsNotAValue() {
+        // C'est ce qui permet d'effacer un champ et de retaper : sans ça, la
+        // valeur retomberait à zéro et le champ se réécrirait sous les doigts.
+        #expect(DecimalField.parse("") == nil)
+        #expect(DecimalField.parse("   ") == nil)
+        #expect(DecimalField.parse(",") == nil)
+    }
+
+    @Test("un séparateur fraîchement tapé ne fait pas revenir le champ en arrière")
+    func aseparatorJustTypedSurvives() {
+        // « 71, » vaut 71 pour Swift, et c'est ce qu'on veut : la valeur suit
+        // la frappe, et comme le texte s'analyse déjà en cette valeur, la vue
+        // ne le réécrit pas — la virgule reste à l'écran, les décimales
+        // peuvent être tapées. C'est très exactement ce que
+        // `TextField(value:format:)` ne fait pas.
+        #expect(DecimalField.parse("71,") == 71)
+        #expect(DecimalField.parse("71,") == DecimalField.parse("71"))
+    }
+
+    @Test("un nombre s'écrit comme on l'aurait tapé")
+    func avalueIsWrittenTheWayItWouldBeTyped() {
+        #expect(DecimalField.format(71) == "71")
+        #expect(DecimalField.format(71.05) == "71,05")
+        // Aucun « ,0 » sur un chiffre rond.
+        #expect(DecimalField.format(70.0) == "70")
+    }
+
+    @Test("aller-retour : ce qui est écrit se relit à l'identique")
+    func aroundTripKeepsTheValue() {
+        for value in [70.0, 71.05, 0.5, 123.4] {
+            #expect(DecimalField.parse(DecimalField.format(value)) == value)
+        }
+    }
+}

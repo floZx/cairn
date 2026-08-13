@@ -33,10 +33,10 @@ struct WeightEntrySheet: View {
             )
             HStack(spacing: 8) {
                 Text("Poids")
-                TextField("kg", value: $weightKg, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 80)
-                    .focused($weightFocused)
+                DecimalField(
+                    placeholder: "kg", value: $weightKg, width: 80,
+                    focus: $weightFocused
+                )
                 Text("kg")
             }
             TextField("Note (optionnelle)", text: $note)
