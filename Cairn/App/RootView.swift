@@ -11,8 +11,10 @@ struct RootView: View {
     // named from this file, so `PersistentIdentifier` is used directly.
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedActivities: Set<PersistentIdentifier> = []
-    /// Whether the list has already picked its opening row. Held here rather than
-    /// in the list, which `.id(filter)` re-instantiates on every filter change.
+    /// Whether the list has already picked its opening row. Held here rather
+    /// than in the list: it survived the days when a filter change destroyed
+    /// that view, and it still belongs to the window — the choice is made once
+    /// per launch, not once per list.
     @State private var hasAutoSelected = false
     /// Which map, if any, is filling the window.
     @State private var expandedMap: ExpandedMap?
@@ -607,7 +609,6 @@ struct RootView: View {
                         hasAutoSelected: $hasAutoSelected,
                         onCommand: perform
                     )
-                    .id(filter)
                         .searchable(
                             text: $filter.searchText,
                             prompt: "Rechercher une activité"
