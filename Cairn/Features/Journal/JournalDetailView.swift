@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 // For `PersistentIdentifier` alone: the note itself is a file, and nothing in
 // this view touches the database. It is how the day's outings are named on the
 // way back to `RootView`.
@@ -61,6 +63,16 @@ struct JournalDetailView: View {
     let onReloadFromDisk: () -> Void
     let onDismissConflict: () -> Void
     let onLeaveEditor: () -> Void
+    /// The vault, for resolving what a note's pictures point at. Nil until a
+    /// folder is chosen — the pane still reads, it simply shows no picture.
+    let attachmentsBase: URL?
+    /// The files a gesture produced, in the order they arrived. This view only
+    /// gathers them; copying into the vault and writing the line belongs to
+    /// whoever holds the store.
+    let onAddPhotos: ([URL]) -> Void
+    /// The same for pasted bytes, which carry no file at all — a screenshot is
+    /// an image on the clipboard and nothing more.
+    let onPastePhoto: (Data) -> Void
 
     @FocusState private var editorFocused: Bool
     /// Reading or writing, and on which note. The rules are `JournalEditing`'s,
@@ -90,17 +102,19 @@ struct JournalDetailView: View {
     @State private var draft = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider()
-            if !day.note.isReadable {
-                unreadable
-            } else if editing.isEditing(day.id) {
-                editor
-            } else {
-                reader
+        photoGestures(
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                Divider()
+                if !day.note.isReadable {
+                    unreadable
+                } else if editing.isEditing(day.id) {
+                    editor
+                } else {
+                    reader
+                }
             }
-        }
+        )
         // `e`, `n`, `⏎` from the list and ⌘N all land in the field: reading
         // mode holds no focus of its own, so nothing swallows them on the way.
         .onChange(of: focusRequest) { _, _ in beginEditing() }
@@ -141,8 +155,19 @@ struct JournalDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(Format.fullDate(day.date.date()))
-                .font(.title3)
+            HStack {
+                Text(Format.fullDate(day.date.date()))
+                    .font(.title3)
+                Spacer()
+                // The one gesture that shows itself: a drop and a paste are
+                // both things one has to already know about.
+                Button(action: choosePhotos) {
+                    Image(systemName: "photo.badge.plus")
+                }
+                .buttonStyle(.borderless)
+                .help("Ajouter une photo à cette note")
+                .disabled(attachmentsBase == nil)
+            }
             if !day.tags.isEmpty {
                 FlowLayout(spacing: 4) {
                     ForEach(day.tags.sorted()) { tag in
@@ -163,6 +188,60 @@ struct JournalDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Files dropped anywhere on the pane, and pictures pasted into it.
+    ///
+    /// On the whole pane rather than on the editor: one drops a photo on a
+    /// note, not into a paragraph, and the line lands at the end either way.
+    private func photoGestures(_ content: some View) -> some View {
+        content
+            .dropDestination(for: URL.self) { urls, _ in
+                guard attachmentsBase != nil else { return false }
+                onAddPhotos(urls)
+                return true
+            }
+            .onPasteCommand(of: [.fileURL, .png, .jpeg, .heic]) { providers in
+                guard attachmentsBase != nil else { return }
+                paste(providers)
+            }
+    }
+
+    /// A paste carrying files is a paste of those files — keeping what the
+    /// finder had beats re-encoding a copy. Otherwise it is raw bytes, which
+    /// is what a screenshot puts on the clipboard.
+    private func paste(_ providers: [NSItemProvider]) {
+        for provider in providers {
+            if provider.canLoadObject(ofClass: URL.self) {
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    Task { @MainActor in onAddPhotos([url]) }
+                }
+                continue
+            }
+            for type in [UTType.png, .jpeg, .heic]
+            where provider.hasItemConformingToTypeIdentifier(type.identifier) {
+                provider.loadDataRepresentation(
+                    forTypeIdentifier: type.identifier
+                ) { data, _ in
+                    guard let data else { return }
+                    Task { @MainActor in onPastePhoto(data) }
+                }
+                break
+            }
+        }
+    }
+
+    /// The file panel, for the button.
+    private func choosePhotos() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.jpeg, .png, .heic]
+        panel.prompt = "Ajouter"
+        panel.message = "Choisissez les photos à ajouter à cette note"
+        guard panel.runModal() == .OK else { return }
+        onAddPhotos(panel.urls)
+    }
+
     /// The note as one reads it.
     ///
     /// The whole surface takes the click, not only the text: an empty note has
@@ -180,7 +259,8 @@ struct JournalDetailView: View {
                     MarkdownText(
                         markdown: bodyText,
                         baseSize: Self.noteSize,
-                        hidesTagHashes: true
+                        hidesTagHashes: true,
+                        attachmentsBase: attachmentsBase
                     )
                 }
             }

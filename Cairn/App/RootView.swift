@@ -950,6 +950,79 @@ struct RootView: View {
     /// The order matters. The days are gathered first so an empty period can be
     /// refused before anything slow starts — and before a save panel asks where
     /// to put a PDF that would hold nothing but its cover.
+    /// Copies each picture into the vault and appends its link to the note.
+    ///
+    /// Through the store like any keystroke: the note stays a Markdown file
+    /// someone else can edit, and Cairn only ever adds a line to it.
+    private func addJournalPhotos(_ urls: [URL], to date: DateKey) {
+        guard let folder = app.journal.folder else {
+            fileMessage = "Aucun dossier de journal n'est choisi."
+            return
+        }
+        var links: [String] = []
+        var refused: [String] = []
+        for url in urls {
+            guard JournalAttachment.allowedExtensions
+                .contains(url.pathExtension.lowercased())
+            else {
+                refused.append(url.lastPathComponent)
+                continue
+            }
+            do {
+                let name = try JournalFolder.copyAttachment(
+                    from: url, for: date, in: folder
+                )
+                links.append(JournalAttachment.link(to: name))
+            } catch {
+                refused.append(url.lastPathComponent)
+            }
+        }
+        append(links, to: date)
+        if !refused.isEmpty {
+            // Named rather than dropped in silence: a file one believes was
+            // added is worse than one that says why it was not.
+            fileMessage = refused.count == 1
+                ? "« \(refused[0]) » n'a pas pu être ajouté : seules les images "
+                    + "JPEG, PNG et HEIC entrent dans une note."
+                : "Ces fichiers n'ont pas pu être ajoutés : "
+                    + refused.joined(separator: ", ")
+        }
+    }
+
+    /// The same from the clipboard, which carries bytes and no name. Written
+    /// as PNG: it is what a screenshot already is, and re-encoding one to JPEG
+    /// would blur the very text it was taken for.
+    private func pasteJournalPhoto(_ data: Data, to date: DateKey) {
+        guard let folder = app.journal.folder else {
+            fileMessage = "Aucun dossier de journal n'est choisi."
+            return
+        }
+        do {
+            let name = try JournalFolder.writeAttachment(
+                data, extension: "png", for: date, in: folder
+            )
+            append([JournalAttachment.link(to: name)], to: date)
+        } catch {
+            fileMessage = "La photo collée n'a pas pu être écrite. "
+                + error.localizedDescription
+        }
+    }
+
+    /// The links at the end of the note, through the store — which is what
+    /// keeps the row's excerpt, the tags and the reconciliation in step.
+    ///
+    /// `open` first, for the reason the editor's own entry point states: a day
+    /// listed only because an outing wrote something has no note in the store
+    /// yet, and writing into it has to create one.
+    private func append(_ links: [String], to date: DateKey) {
+        guard !links.isEmpty else { return }
+        app.journal.open(date)
+        app.journal.update(
+            JournalAttachment.appending(links, to: app.journal.text(for: date)),
+            for: date
+        )
+    }
+
     private func exportJournalPDF() async {
         let from = journalExportFrom
         let to = journalExportTo
@@ -1080,7 +1153,10 @@ struct RootView: View {
                     onSelectActivity: { openActivity($0) },
                     onReloadFromDisk: { app.journal.reloadConflicted() },
                     onDismissConflict: { app.journal.dismissConflict() },
-                    onLeaveEditor: { journalListFocus += 1 }
+                    onLeaveEditor: { journalListFocus += 1 },
+                    attachmentsBase: app.journal.folder,
+                    onAddPhotos: { addJournalPhotos($0, to: date) },
+                    onPastePhoto: { pasteJournalPhoto($0, to: date) }
                 )
                 .frame(minWidth: Self.detailMinWidth)
                 // Another vault is another pane. The date is the only identity
