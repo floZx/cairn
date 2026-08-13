@@ -83,6 +83,26 @@ enum NutritionMath {
         return shownConsumed > shownTarget * 1.10 ? .heavy : .moderate
     }
 
+    /// Whether a meal has landed on its plan: nine tenths of the target, and
+    /// not past it.
+    ///
+    /// The counterpart of `overshoot`, and its opposite in spirit. Overshooting
+    /// is the thing to warn about; this is the thing to say well done for, and
+    /// a journal that only ever colours a figure to scold is a journal one
+    /// stops reading. Ninety per cent rather than a hundred because a meal is
+    /// planned, not weighed to the gram: landing within a tenth of the plan is
+    /// hitting it.
+    ///
+    /// Judged on the rounded figures, like `overshoot` and for the same
+    /// reason: a colour that disagrees with the number it sits on reads as a
+    /// bug, and once was one.
+    static func isOnTarget(consumed: Double, target: Double) -> Bool {
+        guard target > 0 else { return false }
+        let shownConsumed = consumed.rounded()
+        let shownTarget = target.rounded()
+        return shownConsumed >= shownTarget * 0.90 && shownConsumed <= shownTarget
+    }
+
     /// Daily macro targets: kcal from the day type, protein and fat global,
     /// carbs deduced from what is left — `(kcal − 4P − 9L) / 4`, floored at 0.
     static func dailyTargets(

@@ -529,23 +529,29 @@ struct NutritionDayView: View {
     }
 
     /// One "consumed/target" pair — suivinut's per-macro meal accounting,
-    /// with its graduated overshoot: orange while it's still close, red
-    /// once it's frankly blown.
+    /// with its graduated overshoot: green once the meal has landed on its
+    /// plan, orange while it is still close above it, red once frankly blown.
     private func pairText(_ consumed: Double, target: Double?) -> Text {
         let consumedText = "\(Int(consumed.rounded()))"
         guard let target else {
             return Text(consumedText).foregroundStyle(Color.secondary)
         }
         return Text("\(consumedText)/\(Int(target.rounded()))")
-            .foregroundStyle(overshootColor(consumed: consumed, target: target)
+            .foregroundStyle(pairColor(consumed: consumed, target: target)
                              ?? Color.secondary)
     }
 
-    private func overshootColor(consumed: Double, target: Double) -> Color? {
+    /// Nil means "nothing to say yet" — the grey of a meal still being built.
+    ///
+    /// The overshoot is asked first: a figure past its target is past it,
+    /// whatever else it is, and the warning outranks the encouragement.
+    private func pairColor(consumed: Double, target: Double) -> Color? {
         switch NutritionMath.overshoot(consumed: consumed, target: target) {
-        case nil: nil
         case .moderate: .orange
         case .heavy: .red
+        case nil:
+            NutritionMath.isOnTarget(consumed: consumed, target: target)
+                ? .green : nil
         }
     }
 

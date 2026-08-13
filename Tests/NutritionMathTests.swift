@@ -189,6 +189,28 @@ struct NutritionMathTests {
         #expect(NutritionMath.overshoot(consumed: 50, target: 0) == nil)
     }
 
+    @Test("un repas dans les neuf dixièmes de sa cible est dans le plan")
+    func onTargetStartsAtNineTenths() {
+        // Un repas se planifie, il ne se pèse pas au gramme : tomber à un
+        // dixième près, c'est tomber juste.
+        #expect(NutritionMath.isOnTarget(consumed: 90, target: 100))
+        #expect(NutritionMath.isOnTarget(consumed: 100, target: 100))
+        #expect(!NutritionMath.isOnTarget(consumed: 89, target: 100))
+        // Au-delà de la cible, ce n'est plus l'encouragement qui parle mais
+        // le dépassement — et c'est `overshoot` qui répond.
+        #expect(!NutritionMath.isOnTarget(consumed: 101, target: 100))
+        // Sans cible, rien à atteindre.
+        #expect(!NutritionMath.isOnTarget(consumed: 50, target: 0))
+    }
+
+    @Test("le vert se lit sur les entiers affichés, comme le dépassement")
+    func onTargetFollowsTheDisplayedFigures() {
+        // « 90/100 » à l'écran, même si 89,6 n'atteint pas les neuf dixièmes.
+        #expect(NutritionMath.isOnTarget(consumed: 89.6, target: 100))
+        // « 89/100 » reste en dessous.
+        #expect(!NutritionMath.isOnTarget(consumed: 89.4, target: 100))
+    }
+
     @Test("la couleur suit les entiers affichés, pas les décimales cachées")
     func overshootFollowsTheDisplayedFigures() {
         // « 33/33 » : dépassement réel de 0,6 g, invisible à l'écran.
