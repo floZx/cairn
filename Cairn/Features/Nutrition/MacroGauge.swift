@@ -2,8 +2,10 @@
 import SwiftUI
 
 /// One "consumed / target" figure with a thin progress bar — the unit of
-/// the day's summary row. System colours only; the overshoot is graduated
-/// like suivinut's: orange while it's still close, red once frankly blown.
+/// the day's summary row. System colours only, and the same four states a
+/// meal's line carries: grey while the day is still being built, green once
+/// the target is within a tenth, orange while it is still close above it,
+/// red once frankly blown.
 struct MacroGauge: View {
     let title: String
     let consumed: Double
@@ -16,12 +18,12 @@ struct MacroGauge: View {
             Text(figure).font(.title3.monospacedDigit())
             if let target, target > 0 {
                 ProgressView(value: min(consumed / target, 1))
-                    .tint(overshootColor(target: target) ?? .accentColor)
+                    .tint(gaugeColor(target: target) ?? .accentColor)
                 // suivinut's « reste » line: the number the next meal is
                 // actually planned against, not just a bar to squint at.
                 Text(remainingLabel(target: target))
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(overshootColor(target: target)
+                    .foregroundStyle(gaugeColor(target: target)
                                      .map(AnyShapeStyle.init)
                                      ?? AnyShapeStyle(.secondary))
             }
@@ -29,11 +31,19 @@ struct MacroGauge: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func overshootColor(target: Double) -> Color? {
+    /// Nil means "nothing to say yet": the bar keeps the accent colour and the
+    /// line under it stays grey.
+    ///
+    /// The overshoot answers first, as it does on a meal's line — a figure
+    /// past its target is past it, whatever else it is, and the warning
+    /// outranks the encouragement.
+    private func gaugeColor(target: Double) -> Color? {
         switch NutritionMath.overshoot(consumed: consumed, target: target) {
-        case nil: nil
         case .moderate: .orange
         case .heavy: .red
+        case nil:
+            NutritionMath.isOnTarget(consumed: consumed, target: target)
+                ? .green : nil
         }
     }
 
