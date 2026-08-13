@@ -488,6 +488,28 @@ struct RootView: View {
         )
     }
 
+    /// Leaves the selected outing for the journal, on the day it happened.
+    ///
+    /// The mirror of `openActivity`, and it takes the same care: the note is
+    /// chosen *before* the section changes, so the journal list finds its pane
+    /// already claimed and leaves it alone rather than opening on the newest
+    /// note.
+    ///
+    /// `open` rather than a plain selection: a day nobody has written about
+    /// and whose outings said nothing has no row in the store, and this is a
+    /// key one presses precisely to write the first line about it. Nothing
+    /// reaches the disk until a character is typed.
+    private func openJournalDay() {
+        guard let activity = selected ?? selection.first else { return }
+        let date = DateKey(activity.startDate)
+        app.journal.open(date)
+        selectJournalNote(date)
+        sidebarSelection = .journal
+        // The keyboard follows: arriving in a list one cannot walk with `j`
+        // reads as the shortcuts being broken.
+        journalListFocus += 1
+    }
+
     /// Leaves the journal for an activity, from the day's recap above a note.
     ///
     /// The section has to change with the selection: the journal's own pane is
@@ -819,6 +841,8 @@ struct RootView: View {
             selectedActivities = []
         case .toggleListStyle:
             listStyle = listStyle.toggled
+        case .openJournalDay:
+            openJournalDay()
         case .showHelp:
             showsKeyboardHelp = true
         case .clear:

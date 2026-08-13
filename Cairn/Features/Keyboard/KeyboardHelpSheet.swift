@@ -37,6 +37,7 @@ struct KeyboardHelpSheet: View {
             ("x", "supprimer"),
             ("o", "ouvrir la carte en grand"),
             ("h", "fermer le volet de droite"),
+            ("gd", "ouvrir le journal au jour de l'activité"),
         ]),
         Group(title: "Journal alimentaire", rows: [
             ("j / k", "ligne ou repas suivant / précédent"),

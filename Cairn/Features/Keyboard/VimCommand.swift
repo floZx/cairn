@@ -42,6 +42,12 @@ enum VimCommand: Equatable, Sendable {
     /// which keeps producing `.closePane` — the journal reinterprets that
     /// one, since its own pane is not closable.
     case dayForward
+    /// From the selected outing to the journal, on the day it happened.
+    ///
+    /// The mirror of the recap's own link, which goes the other way: one reads
+    /// a note to find the outing it talks about, and one reads an outing to
+    /// write about the day it belongs to.
+    case openJournalDay
 
     /// Whether the command edits, deletes or presents the *selected activity*
     /// (or the activity list's own presentation). The food journal refuses
@@ -50,7 +56,7 @@ enum VimCommand: Equatable, Sendable {
     var actsOnActivities: Bool {
         switch self {
         case .edit, .editNotes, .delete, .toggleFavorite, .expandMap,
-             .toggleListStyle, .openSearch:
+             .toggleListStyle, .openSearch, .openJournalDay:
             return true
         case .move, .first, .last, .halfPage, .clear, .section, .closePane,
              .showHelp, .addFood, .newWeighIn, .moveEntryUp, .moveEntryDown,
@@ -126,6 +132,9 @@ struct VimKeyBuffer: Equatable {
             case "j": return .section(.journal)
             case "n": return .section(.nutrition)
             case "p": return .section(.weight)
+            // "Go to the day": the journal, on the selected outing's date,
+            // rather than wherever it was left.
+            case "d": return .openJournalDay
             // An unknown second key cancels rather than falling through to the
             // one-key table: `gz` must not quietly behave like `z`.
             default: return nil

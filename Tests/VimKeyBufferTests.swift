@@ -289,4 +289,20 @@ struct ToggleListStyleKeyTests {
         #expect(!VimCommand.closePane.actsOnActivities)
         #expect(!VimCommand.move(1).actsOnActivities)
     }
+
+    @Test("gd ouvre le journal au jour de l'activité")
+    func gdOpensTheJournalOnTheOutingsDay() {
+        var buffer = VimKeyBuffer()
+        #expect(buffer.accept("g") == nil)
+        #expect(buffer.accept("d") == .openJournalDay)
+        // Le préfixe est consommé : un `d` seul ne veut rien dire ici.
+        #expect(buffer.accept("d") == nil)
+    }
+
+    @Test("gd agit sur l'activité sélectionnée")
+    func gdActsOnTheSelectedActivity() {
+        // Ce qui le fait refuser par le journal alimentaire, où une sélection
+        // d'activité peut survivre invisible derrière l'écran.
+        #expect(VimCommand.openJournalDay.actsOnActivities)
+    }
 }
