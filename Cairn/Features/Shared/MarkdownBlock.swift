@@ -16,6 +16,9 @@ enum MarkdownBlock: Equatable, Identifiable, Sendable {
     /// usually a mistake, but renumbering it silently is worse than showing it.
     case numbered(number: Int, text: String)
     case quote(String)
+    /// A picture on a line of its own. Only there: an image inside a sentence
+    /// is a sentence, and this parser recognises nothing it was not asked to.
+    case image(path: String, alt: String)
 
     /// What the block says, without the marker that made it one.
     ///
@@ -29,6 +32,8 @@ enum MarkdownBlock: Equatable, Identifiable, Sendable {
         case let .bullet(text): text
         case let .numbered(_, text): text
         case let .quote(text): text
+        // The alt text: what a renderer with no picture to show must write.
+        case let .image(_, alt): alt
         }
     }
 
@@ -39,6 +44,7 @@ enum MarkdownBlock: Equatable, Identifiable, Sendable {
         case let .bullet(text): "u-\(text)"
         case let .numbered(number, text): "o\(number)-\(text)"
         case let .quote(text): "q-\(text)"
+        case let .image(path, _): "img-\(path)"
         }
     }
 }
@@ -86,6 +92,11 @@ enum MarkdownParser {
                 blocks.append(numbered)
                 continue
             }
+            if let image = image(in: line) {
+                flushParagraph()
+                blocks.append(image)
+                continue
+            }
             if line.hasPrefix(">") {
                 flushParagraph()
                 blocks.append(
@@ -110,6 +121,27 @@ enum MarkdownParser {
             level: min(hashes.count, 3),
             text: rest.trimmingCharacters(in: .whitespaces)
         )
+    }
+
+    /// `![alt](chemin)` and nothing else on the line.
+    ///
+    /// Deliberately strict: a bracket left inside the path, or anything before
+    /// or after, means this was never one picture — and a paragraph showing
+    /// its own markup is a better answer than an image drawn from a guess.
+    private static func image(in line: String) -> MarkdownBlock? {
+        guard line.hasPrefix("!["), line.hasSuffix(")"),
+              let altEnd = line.firstIndex(of: "]"),
+              line.index(after: altEnd) < line.endIndex,
+              line[line.index(after: altEnd)] == "("
+        else { return nil }
+        let alt = String(line[line.index(line.startIndex, offsetBy: 2)..<altEnd])
+        let path = String(
+            line[line.index(altEnd, offsetBy: 2)..<line.index(before: line.endIndex)]
+        )
+        guard !path.isEmpty, !path.contains("]"), !path.contains("(") else {
+            return nil
+        }
+        return .image(path: path, alt: alt)
     }
 
     private static func bullet(in line: String) -> MarkdownBlock? {

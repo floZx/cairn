@@ -43,6 +43,11 @@ enum MarkdownHTML {
             case .paragraph:
                 closeList()
                 html += "<p>\(text)</p>"
+            case .image:
+                // The alt text for now: the book cannot link to a file in the
+                // vault, and embedding the picture is the next task's work.
+                closeList()
+                html += "<p>\(text)</p>"
             case .quote:
                 closeList()
                 html += "<blockquote>\(text)</blockquote>"

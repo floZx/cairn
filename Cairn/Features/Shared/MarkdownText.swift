@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// A note, rendered.
@@ -20,6 +21,12 @@ struct MarkdownText: View {
     /// rather than inherited.
     var hidesTagHashes = false
 
+    /// The folder a picture's relative path resolves against — the vault, for
+    /// a journal note. Nil where there is none: an activity's note has no
+    /// attachments, and pretending otherwise would draw an empty frame under
+    /// every line that happens to look like a link.
+    var attachmentsBase: URL?
+
     private var blocks: [MarkdownBlock] { MarkdownParser.blocks(from: markdown) }
 
     var body: some View {
@@ -39,6 +46,8 @@ struct MarkdownText: View {
                     marker("•", text)
                 case let .numbered(number, text):
                     marker("\(number).", text)
+                case let .image(path, alt):
+                    image(path: path, alt: alt)
                 case let .quote(text):
                     HStack(alignment: .top, spacing: 8) {
                         // A rule rather than an indent: an indent alone is
@@ -55,6 +64,27 @@ struct MarkdownText: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The picture, or its name.
+    ///
+    /// A missing file is not worth a broken frame: in a vault synced by
+    /// iCloud, a picture that has not come down yet is not a picture that is
+    /// gone, and nothing here can tell the two apart. Its name says which one
+    /// is being waited for.
+    @ViewBuilder
+    private func image(path: String, alt: String) -> some View {
+        if let base = attachmentsBase,
+           let picture = NSImage(contentsOf: base.appending(path: path)) {
+            Image(nsImage: picture)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipShape(.rect(cornerRadius: 6))
+        } else {
+            sized(Text(alt.isEmpty ? path : alt))
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func marker(_ symbol: String, _ text: String) -> some View {

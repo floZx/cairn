@@ -157,3 +157,37 @@ struct MarkdownTaggedTests {
         #expect(result.runs.allSatisfy { $0.foregroundColor == nil })
     }
 }
+
+@Suite("Les images d'une note")
+struct MarkdownImageTests {
+    @Test("une ligne qui n'est qu'une image devient un bloc image")
+    func alineThatIsOnlyAnImageBecomesAnImageBlock() {
+        #expect(
+            MarkdownParser.blocks(from: "![](pieces-jointes/2026-08-13-1.jpg)")
+                == [.image(path: "pieces-jointes/2026-08-13-1.jpg", alt: "")]
+        )
+        #expect(
+            MarkdownParser.blocks(from: "![Le sommet](x.png)")
+                == [.image(path: "x.png", alt: "Le sommet")]
+        )
+    }
+
+    @Test("une image au milieu d'une phrase reste du texte")
+    func animageInsideASentenceStaysText() {
+        // La même retenue que le reste du parseur : il ne reconnaît que ce que
+        // quelqu'un tape sans penser à Markdown.
+        #expect(
+            MarkdownParser.blocks(from: "voir ![](x.jpg) ici")
+                == [.paragraph("voir ![](x.jpg) ici")]
+        )
+        // Un lien sans chemin n'est pas une image.
+        #expect(MarkdownParser.blocks(from: "![]()") == [.paragraph("![]()")])
+    }
+
+    @Test("le texte d'un bloc image est son texte de remplacement")
+    func theimageBlockTextIsItsAlt() {
+        #expect(
+            MarkdownBlock.image(path: "x.jpg", alt: "Le sommet").text == "Le sommet"
+        )
+    }
+}
