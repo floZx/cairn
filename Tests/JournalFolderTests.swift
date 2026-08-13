@@ -1,4 +1,5 @@
 import Testing
+import AppKit
 import Foundation
 @testable import Cairn
 
@@ -204,5 +205,62 @@ struct JournalFolderTests {
         )
         // Le listing est plat par nature : le sous-dossier n'y entre pas.
         #expect(try JournalFolder.notes(in: folder).count == 1)
+    }
+
+    /// Une image PNG de la taille demandée, écrite dans le dossier.
+    @MainActor
+    private func writeImage(
+        _ side: Int, named name: String, in folder: URL
+    ) throws -> URL {
+        let image = NSImage(size: NSSize(width: side, height: side))
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(x: 0, y: 0, width: side, height: side).fill()
+        image.unlockFocus()
+        let bitmap = NSBitmapImageRep(
+            data: image.tiffRepresentation!
+        )!
+        let url = folder.appending(path: name)
+        try bitmap.representation(using: .png, properties: [:])!.write(to: url)
+        return url
+    }
+
+    @MainActor
+    @Test("une grande photo est réduite en entrant dans le coffre")
+    func alargePictureIsReducedOnTheWayIn() throws {
+        let folder = try makeFolder()
+        let source = try writeImage(3000, named: "grande.png", in: folder)
+
+        let name = try JournalFolder.copyAttachment(
+            from: source, for: DateKey(raw: "2026-08-13")!, in: folder
+        )
+        // Réencodée : une photo réduite est un JPEG, quoi qu'elle fût.
+        #expect(name.hasSuffix(".jpg"))
+
+        let stored = JournalFolder.attachmentsFolder(in: folder).appending(path: name)
+        let image = NSImage(contentsOf: stored)!
+        #expect(max(image.size.width, image.size.height) <= 2048)
+        // Et bien plus légère que l'original.
+        let storedSize = try FileManager.default
+            .attributesOfItem(atPath: stored.path)[.size] as! Int
+        let sourceSize = try FileManager.default
+            .attributesOfItem(atPath: source.path)[.size] as! Int
+        #expect(storedSize < sourceSize)
+    }
+
+    @MainActor
+    @Test("une image déjà petite est copiée telle quelle")
+    func asmallPictureIsCopiedUntouched() throws {
+        let folder = try makeFolder()
+        let source = try writeImage(400, named: "petite.png", in: folder)
+
+        let name = try JournalFolder.copyAttachment(
+            from: source, for: DateKey(raw: "2026-08-13")!, in: folder
+        )
+        // Son extension survit, et ses octets aussi : réencoder ce qui ne
+        // coûte rien ne ferait que perdre du détail.
+        #expect(name.hasSuffix(".png"))
+        let stored = JournalFolder.attachmentsFolder(in: folder).appending(path: name)
+        #expect(try Data(contentsOf: stored) == (try Data(contentsOf: source)))
     }
 }

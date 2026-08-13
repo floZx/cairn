@@ -318,6 +318,24 @@ final class JournalStore {
         baseline = (date, buffer)
     }
 
+    /// A text written by something other than the editor — a photo appended to
+    /// the note, today the only case.
+    ///
+    /// `update(_:for:)` plus the one thing it deliberately never does: say so.
+    /// The editor holds its own copy while it is being typed in, and never
+    /// reads it back — that is what keeps the caret still. Which means a line
+    /// added from outside is invisible to whoever is writing, until they leave
+    /// the note and come back. Observed on 13 August 2026: the file was right,
+    /// the list row was right, and the pane showed neither.
+    ///
+    /// `textRevision` is the store's way of saying "this text is mine now";
+    /// the pane re-seeds its draft on it. The caret lands at the end of the
+    /// note, which is where the picture went.
+    func append(_ text: String, for date: DateKey) {
+        update(text, for: date)
+        textRevision += 1
+    }
+
     func update(_ text: String, for date: DateKey) {
         if editingDate != date {
             saveNow()

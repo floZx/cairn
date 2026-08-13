@@ -28,13 +28,33 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     /// weigh-in last. That order is what picks the line standing for a day
     /// with no file of its own.
     let elsewhereNotes: [String]
+    /// What the day *did*, as opposed to what was written about it: the sports
+    /// it holds and whether it was weighed. Shown as marks in the list, where
+    /// a coloured glyph says at a glance what a sentence would have to spell
+    /// out — and where an outing that wrote nothing still counts, which is the
+    /// difference between these and `elsewhereNotes`.
+    let marks: Marks
+
+    /// The day's silent facts, gathered by `JournalDaySources`.
+    struct Marks: Equatable, Sendable {
+        /// One entry per distinct sport, in the order they happened: three
+        /// runs in a day are one running glyph, not three.
+        var sports: [SportType] = []
+        var weighed = false
+
+        static let none = Marks()
+    }
 
     var id: DateKey { date }
 
-    init(date: DateKey, note: JournalNote? = nil, elsewhereNotes: [String] = []) {
+    init(
+        date: DateKey, note: JournalNote? = nil, elsewhereNotes: [String] = [],
+        marks: Marks = .none
+    ) {
         self.date = date
         self.note = note ?? JournalNote(date: date, text: "")
         self.elsewhereNotes = elsewhereNotes
+        self.marks = marks
     }
 
     /// The tags of every source together.
@@ -90,19 +110,25 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     /// added only when that text says something: a day trained on, eaten
     /// through and weighed in silence is not a journal entry.
     static func merge(
-        notes: [JournalNote], elsewhereNotes: [DateKey: [String]]
+        notes: [JournalNote], elsewhereNotes: [DateKey: [String]],
+        marks: [DateKey: Marks] = [:]
     ) -> [JournalDay] {
         var days: [JournalDay] = notes.map {
             JournalDay(
                 date: $0.date, note: $0,
-                elsewhereNotes: spoken(elsewhereNotes[$0.date])
+                elsewhereNotes: spoken(elsewhereNotes[$0.date]),
+                marks: marks[$0.date] ?? .none
             )
         }
         let written = Set(notes.map(\.date))
         for (date, texts) in elsewhereNotes where !written.contains(date) {
             let said = spoken(texts)
             guard !said.isEmpty else { continue }
-            days.append(JournalDay(date: date, elsewhereNotes: said))
+            days.append(
+                JournalDay(
+                    date: date, elsewhereNotes: said, marks: marks[date] ?? .none
+                )
+            )
         }
         return days.sorted { $0.date > $1.date }
     }

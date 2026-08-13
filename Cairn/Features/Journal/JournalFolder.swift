@@ -1,4 +1,7 @@
+import AppKit
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 /// The only place that touches the disk.
 ///
@@ -77,6 +80,14 @@ enum JournalFolder {
     static func copyAttachment(
         from source: URL, for date: DateKey, in folder: URL
     ) throws -> String {
+        // Reduced on the way in, when it is worth it: see
+        // `JournalAttachment.maxPixels`. A picture already small enough is
+        // copied byte for byte — re-encoding it would only lose detail.
+        if let reduced = reduced(at: source) {
+            return try writeAttachment(
+                reduced, extension: "jpg", for: date, in: folder
+            )
+        }
         let name = try prepareName(
             extension: source.pathExtension, for: date, in: folder
         )
@@ -84,6 +95,53 @@ enum JournalFolder {
             at: source, to: attachmentsFolder(in: folder).appending(path: name)
         )
         return name
+    }
+
+    /// The same from bytes, for what a paste hands over.
+    static func reduced(_ data: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil)
+        else { return nil }
+        return reduced(source)
+    }
+
+    /// The picture at `url`, brought down to `JournalAttachment.maxPixels`, or
+    /// nil when it is already within it.
+    ///
+    /// Through ImageIO, which makes the smaller image without ever decoding
+    /// the whole one, and which carries the EXIF orientation over — a photo
+    /// taken sideways would otherwise land on its side for good.
+    static func reduced(at url: URL) -> Data? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil)
+        else { return nil }
+        return reduced(source)
+    }
+
+    private static func reduced(_ source: CGImageSource) -> Data? {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+                  as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              max(width, height) > JournalAttachment.maxPixels,
+              let image = CGImageSourceCreateThumbnailAtIndex(
+                  source, 0,
+                  [
+                      kCGImageSourceCreateThumbnailFromImageAlways: true,
+                      kCGImageSourceCreateThumbnailWithTransform: true,
+                      kCGImageSourceThumbnailMaxPixelSize: JournalAttachment.maxPixels,
+                  ] as CFDictionary
+              )
+        else { return nil }
+
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data, UTType.jpeg.identifier as CFString, 1, nil
+        ) else { return nil }
+        CGImageDestinationAddImage(
+            destination, image,
+            [kCGImageDestinationLossyCompressionQuality: 0.85] as CFDictionary
+        )
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return data as Data
     }
 
     /// The same from bytes — what a paste hands over: the clipboard carries an

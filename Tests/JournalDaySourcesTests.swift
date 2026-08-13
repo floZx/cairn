@@ -136,4 +136,53 @@ struct JournalDaySourcesTests {
             ).isEmpty
         )
     }
+
+    @Test("les marques d'une journée disent ses sports et sa pesée")
+    func marksCarrySportsAndWeighIn() throws {
+        let context = try makeContext()
+        let run = Activity(stravaID: 1, name: "Footing", sportType: .run)
+        run.startDate = Date(timeIntervalSince1970: 1_786_435_200)
+        let secondRun = Activity(stravaID: 2, name: "Footing du soir", sportType: .run)
+        secondRun.startDate = Date(timeIntervalSince1970: 1_786_471_200)
+        let ride = Activity(stravaID: 3, name: "Vélo", sportType: .ride)
+        ride.startDate = Date(timeIntervalSince1970: 1_786_478_400)
+        [run, secondRun, ride].forEach(context.insert)
+        let weight = WeightEntry(dateKey: key("2026-08-11"), weightKg: 70.2)
+        context.insert(weight)
+
+        let marks = JournalDaySources.marks(
+            activities: [ride, run, secondRun], weights: [weight]
+        )
+        let day = marks[key("2026-08-11")]
+        // Deux courses et un vélo font deux glyphes, dans l'ordre où la
+        // journée s'est déroulée.
+        #expect(day?.sports == [.run, .ride])
+        #expect(day?.weighed == true)
+    }
+
+    @Test("une journée sans rien à marquer n'entre pas dans la table")
+    func aplainDayCarriesNoMarks() {
+        #expect(JournalDaySources.marks(activities: [], weights: []).isEmpty)
+    }
+
+    @Test("une sortie muette compte quand même comme une sortie")
+    func asilentOutingStillMarksItsDay() throws {
+        let context = try makeContext()
+        // Rien d'écrit dessus : elle n'entre pas dans les textes du jour, mais
+        // le glyphe est la seule chose de la rangée qui dira qu'elle a eu lieu.
+        let run = Activity(stravaID: 1, name: "Footing", sportType: .run)
+        run.startDate = Date(timeIntervalSince1970: 1_786_435_200)
+        context.insert(run)
+
+        #expect(
+            JournalDaySources.elsewhereNotes(
+                activities: [run], mealNotes: [], weights: []
+            ).isEmpty
+        )
+        #expect(
+            JournalDaySources.marks(activities: [run], weights: [])[
+                key("2026-08-11")
+            ]?.sports == [.run]
+        )
+    }
 }

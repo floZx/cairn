@@ -205,28 +205,39 @@ struct JournalDetailView: View {
             }
     }
 
-    /// A paste carrying files is a paste of those files — keeping what the
-    /// finder had beats re-encoding a copy. Otherwise it is raw bytes, which
-    /// is what a screenshot puts on the clipboard.
+    /// One picture per paste, whatever the clipboard offers.
+    ///
+    /// The clipboard describes the same image several ways at once — a file
+    /// URL, a PNG, a JPEG — and asking for all of them hands back one provider
+    /// each. Treating every provider as a photo wrote the same screenshot
+    /// twice: found in the vault on 13 August 2026 as a 1.6 MB `.png` and a
+    /// 437 kB `.jpg`, one second apart.
+    ///
+    /// Files win when there are any: keeping what the Finder had beats
+    /// re-encoding a copy of it. Failing that, the first form that carries
+    /// bytes, and only the first.
     private func paste(_ providers: [NSItemProvider]) {
-        for provider in providers {
-            if provider.canLoadObject(ofClass: URL.self) {
+        let files = providers.filter { $0.canLoadObject(ofClass: URL.self) }
+        if !files.isEmpty {
+            for provider in files {
                 _ = provider.loadObject(ofClass: URL.self) { url, _ in
                     guard let url else { return }
                     Task { @MainActor in onAddPhotos([url]) }
                 }
-                continue
             }
-            for type in [UTType.png, .jpeg, .heic]
-            where provider.hasItemConformingToTypeIdentifier(type.identifier) {
-                provider.loadDataRepresentation(
-                    forTypeIdentifier: type.identifier
-                ) { data, _ in
-                    guard let data else { return }
-                    Task { @MainActor in onPastePhoto(data) }
-                }
-                break
+            return
+        }
+        for type in [UTType.png, .jpeg, .heic] {
+            guard let provider = providers.first(where: {
+                $0.hasItemConformingToTypeIdentifier(type.identifier)
+            }) else { continue }
+            provider.loadDataRepresentation(
+                forTypeIdentifier: type.identifier
+            ) { data, _ in
+                guard let data else { return }
+                Task { @MainActor in onPastePhoto(data) }
             }
+            return
         }
     }
 

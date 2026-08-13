@@ -27,6 +27,42 @@ struct JournalNoteTests {
         #expect(note("2026-08-11", text).summary == "Promenade avec #Sam.")
     }
 
+    @Test("les images d'une note sortent dans l'ordre où elles sont écrites")
+    func imagePathsComeOutInOrder() {
+        let text = """
+            Belle sortie.
+
+            ![](pieces-jointes/2026-08-13-1.jpg)
+            ![Le sommet](pieces-jointes/2026-08-13-2.jpg)
+            """
+        #expect(
+            note("2026-08-13", text).imagePaths == [
+                "pieces-jointes/2026-08-13-1.jpg",
+                "pieces-jointes/2026-08-13-2.jpg",
+            ]
+        )
+    }
+
+    @Test("une note sans image n'en annonce aucune")
+    func anoteWithoutPicturesHasNone() {
+        #expect(note("2026-08-13", "Rien à signaler.").imagePaths.isEmpty)
+        // Un lien au milieu d'une phrase n'est pas une image : c'est la règle
+        // du parseur, pas une seconde lecture du texte.
+        #expect(note("2026-08-13", "voir ![](x.jpg) ici").imagePaths.isEmpty)
+    }
+
+    @Test("le frontmatter ne cache pas les images")
+    func frontmatterDoesNotHidePictures() {
+        let text = """
+            ---
+            tags: [sam]
+            ---
+
+            ![](pieces-jointes/2026-08-13-1.jpg)
+            """
+        #expect(note("2026-08-13", text).imagePaths.count == 1)
+    }
+
     @Test("le résumé dit ce que la ligne dit, sans la marque qui l'a formée")
     func summaryDropsBlockMarkers() {
         // Une ligne de liste ou un titre : le marqueur raconte comment la note
@@ -227,5 +263,31 @@ struct JournalInitialSelectionTests {
             JournalListView.initialSelection(days: shown, current: nil)
                 == DateKey(raw: "2026-08-09")!
         )
+    }
+}
+
+@Suite("Les miniatures d'une rangée")
+@MainActor
+struct JournalThumbnailsTests {
+    @Test("deux miniatures au plus, le reste devient un nombre")
+    func atmostTwoThenACount() {
+        let paths = (1...5).map { "pieces-jointes/2026-08-13-\($0).jpg" }
+        let strip = JournalThumbnails.strip(of: paths)
+        #expect(strip.shown.count == 2)
+        #expect(strip.shown.first == "pieces-jointes/2026-08-13-1.jpg")
+        #expect(strip.extra == 3)
+    }
+
+    @Test("sous la limite, rien n'est laissé de côté")
+    func belowTheLimitNothingIsLeftOut() {
+        let strip = JournalThumbnails.strip(of: ["a.jpg", "b.jpg"])
+        #expect(strip.shown.count == 2)
+        #expect(strip.extra == 0)
+        #expect(JournalThumbnails.strip(of: []).extra == 0)
+    }
+
+    @Test("sans coffre, aucune image n'est cherchée")
+    func withoutAVaultNothingIsLoaded() {
+        #expect(JournalThumbnails.image(at: "x.jpg", in: nil) == nil)
     }
 }

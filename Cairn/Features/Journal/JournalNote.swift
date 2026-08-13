@@ -88,6 +88,18 @@ struct JournalNote: Identifiable, Equatable, Sendable {
         return String(spoken.prefix(160))
     }
 
+    /// The pictures the note points at, in the order they were written.
+    ///
+    /// Derived from the text like `tags`, and through the parser rather than a
+    /// second reading of it: what counts as an image in a note is a decision
+    /// `MarkdownParser` already makes, and two answers to it would drift.
+    var imagePaths: [String] {
+        MarkdownParser.blocks(from: Self.body(of: text)).compactMap { block in
+            if case let .image(path, _) = block { return path }
+            return nil
+        }
+    }
+
     /// How every comparison in this type is made: case- and accent-blind, in
     /// French. `range(of:options:)` rather than folding both strings by hand,
     /// so the range it returns indexes the *original* text and the excerpt can

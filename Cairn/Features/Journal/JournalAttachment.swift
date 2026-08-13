@@ -14,6 +14,16 @@ enum JournalAttachment {
     /// loud — a file ignored in silence is a file one believes was added.
     static let allowedExtensions: Set<String> = ["jpg", "jpeg", "png", "heic"]
 
+    /// The longest side a picture keeps in the vault.
+    ///
+    /// A phone takes 3024 × 4032 and a journal never shows more than the width
+    /// of a pane, or of a printed page. Storing the original meant a megabyte
+    /// per line in a vault that syncs over iCloud, and a full decode every time
+    /// a row was drawn — measured at a second, on the main thread, for one
+    /// photo. Anything already smaller is copied untouched: re-encoding a file
+    /// that costs nothing would only lose detail.
+    static let maxPixels = 2048
+
     /// `AAAA-MM-JJ-N.ext`, N being the first free number of that day.
     ///
     /// The original name is dropped on purpose: it comes from a camera or a

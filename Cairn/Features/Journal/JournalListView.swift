@@ -12,6 +12,9 @@ struct JournalListView: View {
     let query: String
     /// Why there is nothing to list, when the folder itself is the reason.
     let loadError: String?
+    /// The vault, for the thumbnails a row shows. Nil until a folder is
+    /// chosen, and the rows are then text only.
+    let attachmentsBase: URL?
     @Binding var selection: DateKey?
     var focusRequest: Int
     let onCommand: (VimCommand) -> Bool
@@ -201,24 +204,54 @@ struct JournalListView: View {
 
     private func row(_ day: JournalDay) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(Format.fullDate(day.date.date()))
-                .font(.headline)
-            // Rendered, not shown raw: `__« Entre Pôtes »__` in a row is the
-            // note's typing showing through, and the reader has no use for it.
-            // The same call the pane uses to read a note, hashes dropped for
-            // the same reason there — the chips below already say the tags.
-            MarkdownText.inline(
-                day.excerpt(matching: query) ?? day.summary, hidingTagHashes: true
-            )
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-            if !day.tags.isEmpty {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(Format.fullDate(day.date.date()))
+                        .font(.headline)
+                    // Rendered, not shown raw: `__« Entre Pôtes »__` in a row
+                    // is the note's typing showing through, and the reader has
+                    // no use for it. The same call the pane uses to read a
+                    // note, hashes dropped for the same reason there — the
+                    // chips below already say the tags.
+                    MarkdownText.inline(
+                        day.excerpt(matching: query) ?? day.summary,
+                        hidingTagHashes: true
+                    )
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 8)
+                // Beside the words rather than under them: a row is a day, and
+                // two thumbnails at the end of its title line say there are
+                // pictures without costing the list a line per row.
+                JournalThumbnailStrip(
+                    paths: day.note.imagePaths, folder: attachmentsBase
+                )
+            }
+            if !day.tags.isEmpty || !day.marks.sports.isEmpty || day.marks.weighed {
                 FlowLayout(spacing: 4) {
+                    // The marks first: what the day did, then what it was
+                    // filed under. A glyph is read faster than a word, and it
+                    // is the one thing here that is true even of a day nobody
+                    // wrote a line about.
+                    ForEach(day.marks.sports) { sport in
+                        Image(systemName: sport.symbolName)
+                            .font(.caption)
+                            .foregroundStyle(sport.color)
+                            .help(sport.displayName)
+                    }
+                    if day.marks.weighed {
+                        Image(systemName: "scalemass")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .help("Pesée ce jour-là")
+                    }
                     ForEach(day.tags.sorted()) { tag in
                         JournalTagChip(tag: tag) { onSelectTag(tag) }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .padding(.vertical, 4)

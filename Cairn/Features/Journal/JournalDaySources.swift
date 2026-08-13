@@ -11,6 +11,35 @@ enum JournalDaySources {
     /// must not make a day appear, and a weigh-in is a figure, not a sentence.
     /// The weigh-in's own comment is a sentence, and does count.
     ///
+    /// What each day did, whether or not anyone wrote about it.
+    ///
+    /// Read from every outing rather than from the ones carrying a note: a day
+    /// that has a vault note and a silent run still ran, and the glyph is the
+    /// only thing in the row that would say so.
+    ///
+    /// Days with no mark are simply absent — a dictionary of empty marks would
+    /// be a dictionary of nothing.
+    static func marks(
+        activities: [Activity], weights: [WeightEntry]
+    ) -> [DateKey: JournalDay.Marks] {
+        var marks: [DateKey: JournalDay.Marks] = [:]
+        for activity in activities.sorted(by: { $0.startDate < $1.startDate }) {
+            let date = DateKey(activity.startDate)
+            var day = marks[date] ?? .none
+            if !day.sports.contains(activity.sportType) {
+                day.sports.append(activity.sportType)
+            }
+            marks[date] = day
+        }
+        for weight in weights {
+            guard let date = weight.dateKey else { continue }
+            var day = marks[date] ?? .none
+            day.weighed = true
+            marks[date] = day
+        }
+        return marks
+    }
+
     /// - Returns: the texts of a day, in the order the day was lived — the
     ///   outings first, then the meals in the order they are eaten, the
     ///   weigh-in last. `JournalDay.summary` takes the first of them for a day

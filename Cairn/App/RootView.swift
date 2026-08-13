@@ -270,6 +270,12 @@ struct RootView: View {
                 onCancel: { showsJournalExport = false }
             )
         }
+        // Another vault is another set of pictures, and a path is only unique
+        // within one: the thumbnails cached for the last folder would answer
+        // for files the new one never had.
+        .onChange(of: app.journal.folder) { _, _ in
+            JournalThumbnails.removeAll()
+        }
         .onAppear {
             // ⌘N means "make the thing this section is about": an activity in
             // the list, today's note in the journal. One shortcut rather than
@@ -409,6 +415,11 @@ struct RootView: View {
             elsewhereNotes: JournalDaySources.elsewhereNotes(
                 activities: notedActivities, mealNotes: mealNotes,
                 weights: weightEntries
+            ),
+            // From every outing, not only the ones that wrote something: a day
+            // with a vault note and a silent run still ran.
+            marks: JournalDaySources.marks(
+                activities: allActivities, weights: weightEntries
             )
         )
     }
@@ -557,6 +568,7 @@ struct RootView: View {
                                 // offered « ⌘N ouvre la note du jour », which
                                 // opens a note that cannot be written.
                                 loadError: app.journal.loadError,
+                attachmentsBase: app.journal.folder,
                                 selection: journalSelectionBinding,
                                 focusRequest: journalListFocus,
                                 onCommand: performInJournal,
@@ -998,8 +1010,13 @@ struct RootView: View {
             return
         }
         do {
+            // Reduced like a dropped file: a screenshot of a large screen
+            // goes over the limit too. Re-encoded to JPEG when it does — a
+            // photograph, which is what that size means.
+            let reduced = JournalFolder.reduced(data)
             let name = try JournalFolder.writeAttachment(
-                data, extension: "png", for: date, in: folder
+                reduced ?? data, extension: reduced == nil ? "png" : "jpg",
+                for: date, in: folder
             )
             append([JournalAttachment.link(to: name)], to: date)
         } catch {
@@ -1017,7 +1034,11 @@ struct RootView: View {
     private func append(_ links: [String], to date: DateKey) {
         guard !links.isEmpty else { return }
         app.journal.open(date)
-        app.journal.update(
+        // `append` rather than `update`: the editor holds its own copy of the
+        // text and never reads it back, so a line added from outside stays
+        // invisible to whoever is writing until they leave the note. The store
+        // has to say the text is its own again.
+        app.journal.append(
             JournalAttachment.appending(links, to: app.journal.text(for: date)),
             for: date
         )
