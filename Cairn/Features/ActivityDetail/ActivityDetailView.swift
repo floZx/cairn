@@ -20,6 +20,28 @@ struct ActivityDetailView: View {
     /// past effort on this course is one click away.
     var onSelectActivity: ((PersistentIdentifier) -> Void)?
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.modelContext) private var modelContext
+
+    /// Reading or writing the note, and what is being written.
+    ///
+    /// The journal's pattern, brought here for the same reason it was adopted
+    /// there: one re-reads an outing far more often than one writes about it,
+    /// so the pane opens rendered — and writing costs one click rather than a
+    /// link, a sheet and a form with eight other fields in it.
+    @State private var isEditingNote = false
+    /// Held here while it is being typed, exactly as the journal's pane holds
+    /// its own: bound straight to the model, every keystroke would be a write
+    /// and a re-read, and `TextEditor` loses its selection to a value replaced
+    /// from outside.
+    @State private var noteDraft = ""
+    @FocusState private var noteFocused: Bool
+    /// The pending write, so the note reaches the store a moment after the
+    /// typing stops rather than at every letter.
+    @State private var noteSaveTask: Task<Void, Never>?
+    /// Said out loud under the editor: a note that failed to save while the
+    /// screen goes on showing it is the silent loss this project exists to
+    /// prevent.
+    @State private var noteFailure: String?
 
     /// Distance under the cursor in a chart, mirrored on the map as a marker.
     @State private var hoverDistanceKm: Double?
@@ -215,16 +237,24 @@ struct ActivityDetailView: View {
             HStack(spacing: 6) {
                 Text("Notes").font(.headline)
                 Spacer()
-                if !note.isEmpty, onEdit != nil {
-                    Button("Modifier", action: { onEdit?() })
-                        .buttonStyle(.link)
+                if isEditingNote {
+                    Text("Échap pour terminer")
                         .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
             }
 
-            if note.isEmpty {
+            if let noteFailure {
+                Text(noteFailure)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            }
+
+            if isEditingNote {
+                noteEditor
+            } else if note.isEmpty {
                 Button {
-                    onEdit?()
+                    beginEditingNote()
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "square.and.pencil")
@@ -241,13 +271,91 @@ struct ActivityDetailView: View {
                     .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
-                .disabled(onEdit == nil)
             } else {
                 MarkdownText(
                     markdown: note, baseSize: Self.noteSize, hidesTagHashes: true
                 )
-                .textSelection(.enabled)
+                // No `textSelection` here, deliberately: a selectable `Text`
+                // takes the click for itself, so only the empty surface beside
+                // the words opened the editor — measured at the pointer, 13
+                // August 2026. Selecting the note is what the editor is for,
+                // and it is one click away. The journal's pane made the same
+                // trade for the same reason.
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
+                .onTapGesture { beginEditingNote() }
             }
+        }
+        // Leaving the activity commits what was typed: the pane is rebuilt for
+        // the next one, and a draft left behind would go nowhere.
+        .onChange(of: activity.persistentModelID) { _, _ in
+            if isEditingNote { endEditingNote() }
+        }
+        .onDisappear { if isEditingNote { endEditingNote() } }
+    }
+
+    private var noteEditor: some View {
+        TextEditor(text: $noteDraft)
+            .font(.system(size: Self.noteSize))
+            .scrollContentBackground(.hidden)
+            .padding(6)
+            .frame(minHeight: 120)
+            .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+            .focused($noteFocused)
+            .onChange(of: noteDraft) { _, _ in scheduleNoteSave() }
+            .onKeyPress(.escape) {
+                endEditingNote()
+                return .handled
+            }
+    }
+
+    private func beginEditingNote() {
+        noteDraft = activity.activityDescription ?? ""
+        noteFailure = nil
+        isEditingNote = true
+        noteFocused = true
+    }
+
+    private func endEditingNote() {
+        noteSaveTask?.cancel()
+        saveNote()
+        isEditingNote = false
+        noteFocused = false
+    }
+
+    /// A second after the typing stops, and again when the editor is left.
+    ///
+    /// Not on every keystroke: each one would be a write to the store, and the
+    /// journal's day list, the tag counts and the search all read this text.
+    /// Not on the way out alone either — a quit mid-sentence would take the
+    /// sentence with it.
+    private func scheduleNoteSave() {
+        noteSaveTask?.cancel()
+        noteSaveTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            saveNote()
+        }
+    }
+
+    /// Through `ActivityDraft`, never straight into the model.
+    ///
+    /// The draft is what claims the field as edited, and a note written past
+    /// it would be quietly overwritten by the next sync of that activity —
+    /// which is the whole point of `editedFields`.
+    private func saveNote() {
+        var draft = ActivityDraft(activity)
+        draft.notes = noteDraft
+        guard draft.changedFields(comparedTo: activity).contains(.notes) else {
+            return
+        }
+        draft.apply(to: activity)
+        do {
+            try modelContext.save()
+            noteFailure = nil
+        } catch {
+            noteFailure = "La note n'a pas pu être enregistrée. "
+                + error.localizedDescription
         }
     }
 
