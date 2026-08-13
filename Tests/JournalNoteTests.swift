@@ -271,23 +271,31 @@ struct JournalInitialSelectionTests {
 struct JournalThumbnailsTests {
     @Test("deux miniatures au plus, le reste devient un nombre")
     func atmostTwoThenACount() {
-        let paths = (1...5).map { "pieces-jointes/2026-08-13-\($0).jpg" }
-        let strip = JournalThumbnails.strip(of: paths)
+        let sources = (1...5).map {
+            JournalThumbnails.Source.vault(path: "pieces-jointes/2026-08-13-\($0).jpg")
+        }
+        let strip = JournalThumbnails.strip(of: sources)
         #expect(strip.shown.count == 2)
-        #expect(strip.shown.first == "pieces-jointes/2026-08-13-1.jpg")
+        #expect(strip.shown.first == .vault(path: "pieces-jointes/2026-08-13-1.jpg"))
         #expect(strip.extra == 3)
     }
 
     @Test("sous la limite, rien n'est laissé de côté")
     func belowTheLimitNothingIsLeftOut() {
-        let strip = JournalThumbnails.strip(of: ["a.jpg", "b.jpg"])
+        let strip = JournalThumbnails.strip(
+            of: [.vault(path: "a.jpg"), .vault(path: "b.jpg")]
+        )
         #expect(strip.shown.count == 2)
         #expect(strip.extra == 0)
         #expect(JournalThumbnails.strip(of: []).extra == 0)
     }
 
-    @Test("sans coffre, aucune image n'est cherchée")
+    @Test("sans coffre, aucun fichier n'est cherché")
     func withoutAVaultNothingIsLoaded() {
-        #expect(JournalThumbnails.image(at: "x.jpg", in: nil) == nil)
+        #expect(
+            JournalThumbnails.image(
+                for: .vault(path: "x.jpg"), folder: nil, context: nil
+            ) == nil
+        )
     }
 }

@@ -14,17 +14,26 @@ struct ActivityPhotosStrip: View {
     /// A `@Query` re-runs on a store change, so they appear as they arrive.
     @Query private var photos: [ActivityPhoto]
     @State private var opened: ActivityPhoto?
+    /// Off where the block around it already says what these are — the day's
+    /// recap in the journal names the outing right above them.
+    private let showsTitle: Bool
+    private let thumbnailHeight: CGFloat
 
-    init(activityUUID: String) {
+    /// Tall enough to recognise a summit or a finish line, short enough that
+    /// the figures below stay on screen with it.
+    static let defaultThumbnailHeight: CGFloat = 140
+
+    init(
+        activityUUID: String, showsTitle: Bool = true,
+        thumbnailHeight: CGFloat = ActivityPhotosStrip.defaultThumbnailHeight
+    ) {
         _photos = Query(
             filter: #Predicate<ActivityPhoto> { $0.activityUUID == activityUUID },
             sort: [SortDescriptor(\ActivityPhoto.sortIndex)]
         )
+        self.showsTitle = showsTitle
+        self.thumbnailHeight = thumbnailHeight
     }
-
-    /// Tall enough to recognise a summit or a finish line, short enough that the
-    /// figures below stay on screen with it.
-    private static let thumbnailHeight: CGFloat = 140
 
     var body: some View {
         // Its own emptiness is its business: the caller cannot know how many
@@ -34,8 +43,10 @@ struct ActivityPhotosStrip: View {
 
     private var strip: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Photos")
-                .font(.headline)
+            if showsTitle {
+                Text("Photos")
+                    .font(.headline)
+            }
 
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
@@ -61,7 +72,7 @@ struct ActivityPhotosStrip: View {
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
-                .frame(height: Self.thumbnailHeight)
+                .frame(height: thumbnailHeight)
                 // Fixed height, free width: portrait and landscape shots sit in
                 // the same row, and forcing a square would crop every one of them.
                 .fixedSize(horizontal: true, vertical: false)
@@ -72,7 +83,7 @@ struct ActivityPhotosStrip: View {
             // the next pass rather than losing the photo entirely.
             RoundedRectangle(cornerRadius: 6)
                 .fill(.quaternary)
-                .frame(width: 180, height: Self.thumbnailHeight)
+                .frame(width: 180, height: thumbnailHeight)
                 .overlay(
                     Image(systemName: "photo")
                         .foregroundStyle(.secondary)

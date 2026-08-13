@@ -31,6 +31,9 @@ struct JournalDayActivities: View {
     /// not enough to make the block hard to read.
     private static let noteSize: CGFloat = 14
     private static let headingSize: CGFloat = 13
+    /// Two thirds of the detail pane's, which is the ratio between the two
+    /// panes: this one shares its width with a note.
+    private static let photoHeight: CGFloat = 96
 
     @Query private var activities: [Activity]
 
@@ -91,6 +94,15 @@ struct JournalDayActivities: View {
                     .textSelection(.enabled)
                     .foregroundStyle(.secondary)
             }
+
+            // The outing's own photos, under what was written about it —
+            // clickable, as in its pane. Untitled and shorter here: the line
+            // above already names the outing, and this block is a recap beside
+            // a note rather than the page about the outing.
+            ActivityPhotosStrip(
+                activityUUID: activity.uuid, showsTitle: false,
+                thumbnailHeight: Self.photoHeight
+            )
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)

@@ -158,6 +158,29 @@ struct JournalDaySourcesTests {
         // journée s'est déroulée.
         #expect(day?.sports == [.run, .ride])
         #expect(day?.weighed == true)
+        // Aucune photo sur ces sorties : la journée n'en annonce pas.
+        #expect(day?.photoIDs.isEmpty == true)
+    }
+
+    @Test("les photos d'une sortie entrent dans les marques de sa journée")
+    func outingPhotosMarkTheirDay() throws {
+        let context = try makeContext()
+        let run = Activity(stravaID: 1, name: "Trail", sportType: .trailRun)
+        run.startDate = Date(timeIntervalSince1970: 1_786_435_200)
+        context.insert(run)
+        for index in 0..<2 {
+            let photo = ActivityPhoto(uniqueID: "p\(index)")
+            photo.sortIndex = index
+            photo.activity = run
+            photo.activityUUID = run.uuid
+            context.insert(photo)
+        }
+        try context.save()
+
+        let marks = JournalDaySources.marks(activities: [run], weights: [])
+        // Une photo portée par une sortie compte comme une photo de la
+        // journée : les deux disent à quoi elle a ressemblé.
+        #expect(marks[key("2026-08-11")]?.photoIDs.count == 2)
     }
 
     @Test("une journée sans rien à marquer n'entre pas dans la table")

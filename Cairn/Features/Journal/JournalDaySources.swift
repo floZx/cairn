@@ -29,6 +29,10 @@ enum JournalDaySources {
             if !day.sports.contains(activity.sportType) {
                 day.sports.append(activity.sportType)
             }
+            // The pictures an outing carries belong to the day as much as the
+            // ones typed into its note: both say what it looked like, and the
+            // row shows them in one strip.
+            day.photoIDs += activity.orderedPhotos.map(\.persistentModelID)
             marks[date] = day
         }
         for weight in weights {

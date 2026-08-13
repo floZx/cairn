@@ -1,5 +1,6 @@
 import AppKit
 import ImageIO
+import SwiftData
 import SwiftUI
 
 /// The pictures a note shows in the list, and where they come from.
@@ -21,24 +22,58 @@ enum JournalThumbnails {
     /// mixed aspect ratios reads as a broken layout rather than as a set.
     static let side: CGFloat = 34
 
-    /// What a row shows: the first few paths, and how many were left out.
-    static func strip(of paths: [String]) -> (shown: [String], extra: Int) {
-        (Array(paths.prefix(limit)), max(0, paths.count - limit))
+    /// Where one thumbnail comes from.
+    ///
+    /// Two origins, one strip: a picture written into the note is a file in
+    /// the vault, one carried by an outing is bytes in the store. What the row
+    /// says — "there are pictures here" — is the same either way, and a reader
+    /// scanning the list has no reason to be told which is which.
+    enum Source: Hashable {
+        case vault(path: String)
+        case photo(id: PersistentIdentifier)
     }
 
-    /// The picture at that path in the vault, decoded once.
+    /// What a row shows, and how many were left out.
+    ///
+    /// The note's own pictures first: they were put there on purpose, where an
+    /// outing's came with the sync.
+    static func strip(of sources: [Source]) -> (shown: [Source], extra: Int) {
+        (Array(sources.prefix(limit)), max(0, sources.count - limit))
+    }
+
+    /// The thumbnail for one source, decoded once.
     ///
     /// Nil for anything that will not read: a file still coming down from
-    /// iCloud, or a link to something that was moved. The row then shows one
-    /// thumbnail fewer rather than an empty frame, because a list is scanned
-    /// and a hole in it reads as a fault.
-    static func image(at path: String, in folder: URL?) -> NSImage? {
-        guard let folder else { return nil }
-        let url = folder.appending(path: path)
-        let key = url.path
-        if let cached = cache[key] { return cached }
+    /// iCloud, a link to something that was moved, a photo whose bytes never
+    /// arrived. The row then shows one thumbnail fewer rather than an empty
+    /// frame, because a list is scanned and a hole in it reads as a fault.
+    static func image(
+        for source: Source, folder: URL?, context: ModelContext?
+    ) -> NSImage? {
+        switch source {
+        case let .vault(path):
+            guard let folder else { return nil }
+            let url = folder.appending(path: path)
+            return cached("vault:\(url.path)") { thumbnail(from: CGImageSourceCreateWithURL(url as CFURL, nil)) }
+        case let .photo(id):
+            return cached("photo:\(id.hashValue)") {
+                // `model(for:)` reads the context's own registry rather than
+                // the disk: the photo is already there, the row only needs its
+                // bytes. They are external storage, so this is the one moment
+                // they are loaded — hence the cache above it.
+                guard let photo = context?.model(for: id) as? ActivityPhoto,
+                      let data = photo.data
+                else { return nil }
+                return thumbnail(from: CGImageSourceCreateWithData(data as CFData, nil))
+            }
+        }
+    }
 
-        let image = thumbnail(at: url)
+    private static func cached(
+        _ key: String, _ make: () -> NSImage?
+    ) -> NSImage? {
+        if let hit = cache[key] { return hit }
+        let image = make()
         cache[key] = image
         order.append(key)
         evictIfNeeded()
@@ -67,8 +102,8 @@ enum JournalThumbnails {
     /// `WithTransform` because a photo taken sideways carries its orientation
     /// in EXIF and nothing else here would apply it — `NSImage` did that part
     /// for us.
-    private static func thumbnail(at url: URL) -> NSImage? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+    private static func thumbnail(from source: CGImageSource?) -> NSImage? {
+        guard let source,
               let image = CGImageSourceCreateThumbnailAtIndex(
                   source, 0,
                   [
@@ -95,13 +130,15 @@ enum JournalThumbnails {
 
 /// The strip itself: a few squares, then how many more there are.
 struct JournalThumbnailStrip: View {
-    let paths: [String]
+    let sources: [JournalThumbnails.Source]
     let folder: URL?
 
+    @Environment(\.modelContext) private var modelContext
+
     var body: some View {
-        let strip = JournalThumbnails.strip(of: paths)
+        let strip = JournalThumbnails.strip(of: sources)
         let images = strip.shown.compactMap {
-            JournalThumbnails.image(at: $0, in: folder)
+            JournalThumbnails.image(for: $0, folder: folder, context: modelContext)
         }
         if !images.isEmpty {
             HStack(spacing: 4) {

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// A day of the journal, whatever was written about it and wherever.
 ///
@@ -41,6 +42,10 @@ struct JournalDay: Identifiable, Equatable, Sendable {
         /// runs in a day are one running glyph, not three.
         var sports: [SportType] = []
         var weighed = false
+        /// The day's outings' photos, in the order they were taken. Held as
+        /// identifiers and not as objects: this value is compared to diff the
+        /// list, and a model object is neither `Sendable` nor cheap to hold.
+        var photoIDs: [PersistentIdentifier] = []
 
         static let none = Marks()
     }

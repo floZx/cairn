@@ -226,7 +226,9 @@ struct JournalListView: View {
                 // two thumbnails at the end of its title line say there are
                 // pictures without costing the list a line per row.
                 JournalThumbnailStrip(
-                    paths: day.note.imagePaths, folder: attachmentsBase
+                    sources: day.note.imagePaths.map { .vault(path: $0) }
+                        + day.marks.photoIDs.map { .photo(id: $0) },
+                    folder: attachmentsBase
                 )
             }
             if !day.tags.isEmpty || !day.marks.sports.isEmpty || day.marks.weighed {
