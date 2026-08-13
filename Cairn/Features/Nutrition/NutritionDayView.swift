@@ -569,6 +569,33 @@ struct NutritionDayView: View {
                 .frame(width: NumericColumn.macro, alignment: .trailing)
         }
         .font(.body.monospacedDigit())
+        .help(Self.targetExplanation(meal))
+    }
+
+    /// What the second figure of each pair means, said on hover.
+    ///
+    /// Three meal targets do not add up to the day's, and cannot: a finished
+    /// meal keeps its share of the plan so it can be compared to it, while the
+    /// meal in progress carries what is actually left. Adding the three was
+    /// the natural thing to try, and it produced a number that matched nothing
+    /// — asked as "where is the error?" on 13 August 2026. There was none, and
+    /// nothing on screen said so.
+    static func targetExplanation(_ meal: NutritionDayModel.Meal) -> String {
+        guard meal.target != nil else {
+            return "Ce repas n'a pas de part du jour : ce qu'il apporte pèse "
+                + "sur le budget des autres."
+        }
+        switch meal.targetKind {
+        case .planShare:
+            return "Repas terminé : sa cible est sa part du plan, "
+                + "\(meal.pct) % de la journée, pour être comparée à ce qui a "
+                + "été mangé."
+        case .remaining:
+            return "Repas en cours ou à venir : sa cible est ce qu'il reste de "
+                + "la journée, réparti selon sa part. Manger exactement ça fait "
+                + "atterrir le jour sur son objectif — c'est pourquoi les cibles "
+                + "des repas ne s'additionnent pas à celle du jour."
+        }
     }
 
     private func mealSection(

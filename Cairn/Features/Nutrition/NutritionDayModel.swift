@@ -20,6 +20,21 @@ struct NutritionDayModel: Equatable {
         var consumed: Macros
         var target: Macros?
         var note: String?
+        /// What the target above *means*, which is not the same for every
+        /// meal of a day — and which nothing on screen said until a reader
+        /// added three of them up and asked where the error was.
+        var targetKind: TargetKind = .remaining
+        /// The meal's share of the day, in percent. In the tooltip, because a
+        /// share is what makes a plan figure readable as one.
+        var pct: Int = 0
+    }
+
+    /// A finished meal keeps its share of the plan, so it can be compared to
+    /// it; the meal in progress and those to come split what is really left.
+    /// Hence three targets that do not add up to the day's, on purpose.
+    enum TargetKind: Equatable {
+        case planShare
+        case remaining
     }
 
     var dayTypeName: String?
@@ -47,8 +62,10 @@ struct NutritionDayModel: Equatable {
             (entriesBySlot[slot.persistentModelID] ?? [])
                 .sorted { $0.sortOrder < $1.sortOrder }
         }
+        // Rounded per portion, then summed: what a row shows is what it adds
+        // to its meal. See `Macros.rounded()`.
         let mealConsumed = mealEntries.map { entries in
-            entries.map(Macros.init(of:)).reduce(.zero, +)
+            entries.map { Macros(of: $0).rounded() }.reduce(.zero, +)
         }
         let targets = NutritionMath.adaptiveMealTargets(
             daily: daily,
@@ -60,6 +77,13 @@ struct NutritionDayModel: Equatable {
                 )
             }
         )
+        let states = zip(orderedSlots, zip(mealEntries, mealConsumed)).map {
+            slot, pair in
+            NutritionMath.MealState(
+                pct: slot.targetPct, started: !pair.0.isEmpty, consumed: pair.1
+            )
+        }
+        let finished = NutritionMath.superseded(in: states)
         let meals = orderedSlots.enumerated().map { index, slot in
             Meal(
                 slotID: slot.persistentModelID,
@@ -67,7 +91,7 @@ struct NutritionDayModel: Equatable {
                 rows: mealEntries[index].map {
                     Row(
                         entryID: $0.persistentModelID, name: $0.foodName,
-                        grams: $0.grams, macros: Macros(of: $0),
+                        grams: $0.grams, macros: Macros(of: $0).rounded(),
                         isFavorite: favoriteKeys.contains(
                             FavoriteKey(
                                 foodName: $0.foodName, productCode: $0.productCode
@@ -79,7 +103,9 @@ struct NutritionDayModel: Equatable {
                 target: targets[index],
                 note: notes.first {
                     $0.mealSlot?.persistentModelID == slot.persistentModelID
-                }?.note
+                }?.note,
+                targetKind: finished[index] ? .planShare : .remaining,
+                pct: slot.targetPct
             )
         }
         return NutritionDayModel(

@@ -1,4 +1,5 @@
 import Testing
+import SwiftData
 import Foundation
 @testable import Cairn
 
@@ -176,14 +177,19 @@ struct NutritionMathTests {
 
     @Test("le dépassement est gradué : rien, modéré jusqu'à +10 %, franc au-delà")
     func overshootIsGraduated() {
-        // Dans la cible, ou à un demi-gramme près : rien à signaler.
+        // Dans la cible : rien à signaler.
         #expect(NutritionMath.overshoot(consumed: 90, target: 100) == nil)
         #expect(NutritionMath.overshoot(consumed: 100.4, target: 100) == nil)
-        // Dépassement modéré : jusqu'à +10 % de la cible inclus.
-        #expect(NutritionMath.overshoot(consumed: 101, target: 100) == .moderate)
-        #expect(NutritionMath.overshoot(consumed: 110, target: 100) == .moderate)
-        // Franc : au-delà de +10 %.
-        #expect(NutritionMath.overshoot(consumed: 110.6, target: 100) == .heavy)
+        // Et un peu au-dessus non plus : deux pour cent de tolérance, parce
+        // qu'un gramme sur 149 n'est pas un dépassement mais le même repas
+        // pesé deux fois.
+        #expect(NutritionMath.overshoot(consumed: 102, target: 100) == nil)
+        #expect(NutritionMath.overshoot(consumed: 150, target: 149) == nil)
+        // Dépassement modéré : au-delà de la tolérance.
+        #expect(NutritionMath.overshoot(consumed: 103, target: 100) == .moderate)
+        #expect(NutritionMath.overshoot(consumed: 112, target: 100) == .moderate)
+        // Franc : au-delà de +10 %, tolérance comprise.
+        #expect(NutritionMath.overshoot(consumed: 113, target: 100) == .heavy)
         #expect(NutritionMath.overshoot(consumed: 300, target: 100) == .heavy)
         // Pas de cible, pas de dépassement.
         #expect(NutritionMath.overshoot(consumed: 50, target: 0) == nil)
@@ -196,9 +202,12 @@ struct NutritionMathTests {
         #expect(NutritionMath.isOnTarget(consumed: 90, target: 100))
         #expect(NutritionMath.isOnTarget(consumed: 100, target: 100))
         #expect(!NutritionMath.isOnTarget(consumed: 89, target: 100))
-        // Au-delà de la cible, ce n'est plus l'encouragement qui parle mais
-        // le dépassement — et c'est `overshoot` qui répond.
-        #expect(!NutritionMath.isOnTarget(consumed: 101, target: 100))
+        // Un gramme passé la cible qu'on visait, c'est encore l'avoir
+        // atteinte : les deux règles partagent la même tolérance, sinon
+        // l'écran montrerait un chiffre ni dans la cible ni au-dessus.
+        #expect(NutritionMath.isOnTarget(consumed: 101, target: 100))
+        #expect(NutritionMath.isOnTarget(consumed: 150, target: 149))
+        #expect(!NutritionMath.isOnTarget(consumed: 103, target: 100))
         // Sans cible, rien à atteindre.
         #expect(!NutritionMath.isOnTarget(consumed: 50, target: 0))
     }
@@ -215,12 +224,11 @@ struct NutritionMathTests {
     func overshootFollowsTheDisplayedFigures() {
         // « 33/33 » : dépassement réel de 0,6 g, invisible à l'écran.
         #expect(NutritionMath.overshoot(consumed: 33.4, target: 32.8) == nil)
-        // Dès que les entiers diffèrent, la couleur revient.
-        #expect(NutritionMath.overshoot(consumed: 33.6, target: 32.8) == .moderate)
-        // Le seuil franc se lit lui aussi sur les entiers : 111 dépasse
-        // 110 = 100 × 1,1, mais 110 affiché ne dépasse pas.
-        #expect(NutritionMath.overshoot(consumed: 110.4, target: 100.4) == .moderate)
-        #expect(NutritionMath.overshoot(consumed: 110.6, target: 100.4) == .heavy)
+        // Un gramme d'écart reste dans la tolérance d'une petite cible.
+        #expect(NutritionMath.overshoot(consumed: 33.6, target: 32.8) == nil)
+        // Les deux seuils se lisent sur les entiers, tolérance comprise.
+        #expect(NutritionMath.overshoot(consumed: 112.4, target: 100.4) == .moderate)
+        #expect(NutritionMath.overshoot(consumed: 113.6, target: 100.4) == .heavy)
     }
 }
 
@@ -269,5 +277,57 @@ struct DecimalFieldTests {
         for value in [70.0, 71.05, 0.5, 123.4] {
             #expect(DecimalField.parse(DecimalField.format(value)) == value)
         }
+    }
+}
+
+@Suite("Ce que dit une cible de repas")
+@MainActor
+struct MealTargetKindTests {
+    private func state(pct: Int, started: Bool) -> NutritionMath.MealState {
+        NutritionMath.MealState(pct: pct, started: started, consumed: .zero)
+    }
+
+    @Test("un repas est terminé dès qu'un repas plus tard a commencé")
+    func amealIsFinishedOnceALaterOneStarts() {
+        let meals = [
+            state(pct: 28, started: true),   // petit-déj
+            state(pct: 33, started: true),   // déjeuner
+            state(pct: 0, started: false),   // collation, sautée
+            state(pct: 39, started: true),   // dîner, le dernier commencé
+        ]
+        // La collation est terminée elle aussi, bien que rien n'y ait été
+        // mangé : ce qui termine un repas est qu'un repas plus tard ait
+        // commencé, pas qu'on y ait touché.
+        #expect(NutritionMath.superseded(in: meals) == [true, true, true, false])
+    }
+
+    @Test("une journée pas encore entamée n'a aucun repas terminé")
+    func anuntouchedDayHasNoFinishedMeal() {
+        let meals = [state(pct: 28, started: false), state(pct: 39, started: false)]
+        #expect(NutritionMath.superseded(in: meals) == [false, false])
+    }
+
+    @Test("l'infobulle dit de quelle sorte est la cible")
+    func thetooltipNamesTheKind() throws {
+        // Un identifiant réel : `Meal` en porte un, et il n'y a pas de valeur
+        // vide pour ce type.
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let slot = MealSlot(name: "Déjeuner", sortOrder: 1, targetPct: 33)
+        context.insert(slot)
+        var meal = NutritionDayModel.Meal(
+            slotID: slot.persistentModelID, slotName: "Déjeuner", rows: [],
+            consumed: .zero,
+            target: Macros(kcal: 792, protein: 49, carbs: 100, fat: 22),
+            note: nil, targetKind: NutritionDayModel.TargetKind.planShare, pct: 33
+        )
+        #expect(NutritionDayView.targetExplanation(meal).contains("33 %"))
+        #expect(NutritionDayView.targetExplanation(meal).contains("terminé"))
+
+        meal.targetKind = NutritionDayModel.TargetKind.remaining
+        #expect(NutritionDayView.targetExplanation(meal).contains("ce qu'il reste"))
+
+        // Sans cible du tout — une collation à 0 % — le texte le dit aussi.
+        meal.target = nil
+        #expect(NutritionDayView.targetExplanation(meal).contains("pas de part"))
     }
 }

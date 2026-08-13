@@ -113,7 +113,9 @@ struct JournalBook: Equatable {
                 if note != nil { wroteAboutAMeal.insert(date) }
                 // The sum the day screen already computes, reached rather than
                 // written a second time.
-                let macros = rows.map(Macros.init(of:)).reduce(.zero, +)
+                let macros = rows
+                    .map { Macros(of: $0).rounded() }
+                    .reduce(.zero, +)
                 meals.append(
                     Meal(
                         name: slot.name, kcal: macros.kcal, protein: macros.protein,

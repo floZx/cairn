@@ -50,6 +50,24 @@ struct Macros: Equatable, Sendable {
         )
     }
 
+    /// Each macro at the unit, which is how every one of them is written.
+    ///
+    /// Summed from these rather than from the decimals behind them, a column
+    /// of figures adds up to the total printed under it. It did not: seven
+    /// rows of a meal read 24, 1, 5, 3, 19, 13, 0 — sixty-five — under a
+    /// heading saying 64, because the heading was the rounded sum of numbers
+    /// nobody could see. Reported 13 August 2026.
+    ///
+    /// The same choice `overshoot` makes for its colours, and for the same
+    /// reason: a screen that disagrees with itself reads as a bug, and here it
+    /// was one.
+    func rounded() -> Macros {
+        Macros(
+            kcal: kcal.rounded(), protein: protein.rounded(),
+            carbs: carbs.rounded(), fat: fat.rounded()
+        )
+    }
+
     func scaled(_ factor: Double) -> Macros {
         Macros(
             kcal: kcal * factor, protein: protein * factor,
@@ -70,6 +88,19 @@ enum NutritionMath {
         case heavy
     }
 
+    /// How much a target may be passed by before anything is said.
+    ///
+    /// A gram over 149 is not an overshoot, it is the same meal weighed twice.
+    /// Two per cent covers the large targets — a day of 2400 kcal is not blown
+    /// by 48 — and two units cover the small ones, where two per cent of 18 g
+    /// would be a fifth of a gram and the colour would fire on any rounding.
+    ///
+    /// Both nudged the same way: what the reader sees turn orange should be
+    /// something they would themselves call "over".
+    static func tolerance(for target: Double) -> Double {
+        max(target * 0.02, 2)
+    }
+
     /// Judged on the figures as displayed, not on what is behind them.
     ///
     /// Every macro in the journal is written to the unit, so a rule reading
@@ -78,12 +109,17 @@ enum NutritionMath {
     /// A colour that disagrees with its own number reads as a bug, and it
     /// was one. Rounding first also subsumes the half-gram slack ported from
     /// suivinut, which only ever guarded the same crumb from one side.
+    ///
+    /// Both bands are shifted by the tolerance rather than only the first:
+    /// otherwise a small target would jump straight from green to red, its
+    /// grace having already passed the ten-per-cent mark.
     static func overshoot(consumed: Double, target: Double) -> Overshoot? {
         guard target > 0 else { return nil }
         let shownConsumed = consumed.rounded()
         let shownTarget = target.rounded()
-        guard shownConsumed > shownTarget else { return nil }
-        return shownConsumed > shownTarget * 1.10 ? .heavy : .moderate
+        let grace = tolerance(for: shownTarget)
+        guard shownConsumed > shownTarget + grace else { return nil }
+        return shownConsumed > shownTarget * 1.10 + grace ? .heavy : .moderate
     }
 
     /// Whether a meal has landed on its plan: nine tenths of the target, and
@@ -103,7 +139,12 @@ enum NutritionMath {
         guard target > 0 else { return false }
         let shownConsumed = consumed.rounded()
         let shownTarget = target.rounded()
-        return shownConsumed >= shownTarget * 0.90 && shownConsumed <= shownTarget
+        // Up to the tolerance above it as well: a gram past a target one was
+        // aiming at is still having hit it, and `overshoot` says nothing about
+        // that gram either — the two share one rule so the screen cannot show
+        // a figure that is neither on target nor over it.
+        return shownConsumed >= shownTarget * 0.90
+            && shownConsumed <= shownTarget + tolerance(for: shownTarget)
     }
 
     /// Daily macro targets: kcal from the day type, protein and fat global,
@@ -138,6 +179,19 @@ enum NutritionMath {
         var consumed: Macros
     }
 
+    /// Which meals are finished: a meal is, as soon as a later one has been
+    /// started.
+    ///
+    /// Named and shared rather than inlined where it is used: the targets
+    /// below depend on it, and so does what the screen *says* a target is —
+    /// a finished meal shows its share of the plan, the others show what is
+    /// left. Two readings of the same rule would eventually disagree.
+    static func superseded(in meals: [MealState]) -> [Bool] {
+        (0..<meals.count).map { index in
+            meals[(index + 1)...].contains { $0.started }
+        }
+    }
+
     /// Per-meal targets that adapt to what was actually eaten.
     ///
     /// A meal is *finished* as soon as a later meal is started. Finished
@@ -152,9 +206,7 @@ enum NutritionMath {
     ) -> [Macros?] {
         guard let daily else { return meals.map { _ in nil } }
         let count = meals.count
-        let superseded = (0..<count).map { index in
-            meals[(index + 1)...].contains { $0.started }
-        }
+        let superseded = superseded(in: meals)
         // What weighs on the budget without owning a target: finished meals
         // and 0 % slots. The current/upcoming meals' own intake stays in the
         // budget — it counts against their own target.
