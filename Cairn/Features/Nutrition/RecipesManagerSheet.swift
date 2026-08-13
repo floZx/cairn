@@ -126,7 +126,7 @@ struct RecipesManagerSheet: View {
             }
         }
         .padding(20)
-        .frame(minWidth: 480, minHeight: 460)
+        .frame(minWidth: 640, minHeight: 640)
     }
 
     private func addItem(_ pick: FoodPick) {

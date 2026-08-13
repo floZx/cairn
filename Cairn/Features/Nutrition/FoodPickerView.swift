@@ -185,14 +185,20 @@ struct FoodPickerView: View {
                         list.scrollTo(first, anchor: .top)
                     }
                 }
-                .frame(minHeight: 180)
+                // Was 180, which showed six rows of a catalogue that hands
+                // back fifty. It takes what the sheet has now, and the sheet
+                // has more.
+                .frame(minHeight: 320, maxHeight: .infinity)
                 if let searchErrorMessage {
                     Text(searchErrorMessage)
                         .font(.callout)
                         .foregroundStyle(.red)
                 }
                 if let selected {
-                    gramsRow(kcal100: selected.kcal100)
+                    gramsRow(
+                        kcal100: selected.kcal100, protein100: selected.protein100,
+                        carbs100: selected.carbs100, fat100: selected.fat100
+                    )
                 }
             }
         }
@@ -334,9 +340,12 @@ struct FoodPickerView: View {
                         }
                     }
                 }
-                .frame(minHeight: 180)
-                if selectedFavorite != nil {
-                    gramsRow(kcal100: selectedFavorite?.kcal100 ?? 0)
+                .frame(minHeight: 320, maxHeight: .infinity)
+                if let favorite = selectedFavorite {
+                    gramsRow(
+                        kcal100: favorite.kcal100, protein100: favorite.protein100,
+                        carbs100: favorite.carbs100, fat100: favorite.fat100
+                    )
                 }
             }
         }
@@ -405,12 +414,17 @@ struct FoodPickerView: View {
     }
 
     private var manualPreview: String {
-        "\(Int((manualKcal * grams / 100).rounded())) kcal"
+        portionSummary(
+            kcal100: manualKcal, protein100: manualProtein,
+            carbs100: manualCarbs, fat100: manualFat
+        )
     }
 
     // MARK: - Shared grams row and add
 
-    private func gramsRow(kcal100: Double) -> some View {
+    private func gramsRow(
+        kcal100: Double, protein100: Double, carbs100: Double, fat100: Double
+    ) -> some View {
         HStack(spacing: 8) {
             Text("Quantité")
             TextField("g", value: $grams, format: .number)
@@ -419,10 +433,33 @@ struct FoodPickerView: View {
                 .focused($gramsFocused)
             Text("g")
             Spacer()
-            Text("\(Int((kcal100 * grams / 100).rounded())) kcal")
+            Text(portionSummary(
+                kcal100: kcal100, protein100: protein100,
+                carbs100: carbs100, fat100: fat100
+            ))
                 .font(.callout.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// What the quantity above amounts to, all four macros.
+    ///
+    /// The kilocalories alone answered "how much does this cost me", which is
+    /// half the question one asks while typing a quantity: the other half is
+    /// which of the day's four budgets it spends. Read through `Macros(of:)`,
+    /// so the figure previewed here and the figure stored a second later come
+    /// from the same arithmetic.
+    private func portionSummary(
+        kcal100: Double, protein100: Double, carbs100: Double, fat100: Double
+    ) -> String {
+        let macros = Macros(of: FoodPick(
+            foodName: "", kcal100: kcal100, protein100: protein100,
+            carbs100: carbs100, fat100: fat100, grams: grams
+        ))
+        return "\(Int(macros.kcal.rounded())) kcal · "
+            + "P \(Int(macros.protein.rounded())) · "
+            + "G \(Int(macros.carbs.rounded())) · "
+            + "L \(Int(macros.fat.rounded()))"
     }
 
     private var canAdd: Bool {

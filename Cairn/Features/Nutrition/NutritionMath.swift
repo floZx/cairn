@@ -14,6 +14,9 @@ protocol FoodPortion {
 extension FoodEntry: FoodPortion {}
 extension RecipeItem: FoodPortion {}
 extension FavoriteFood: FoodPortion {}
+/// The picker's own value, so the sheet computes a portion with the same
+/// arithmetic as everything that stores one.
+extension FoodPick: FoodPortion {}
 
 struct Macros: Equatable, Sendable {
     var kcal: Double
