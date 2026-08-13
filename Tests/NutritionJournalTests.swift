@@ -509,3 +509,63 @@ struct NutritionJournalTests {
         #expect(context.hasChanges == false)
     }
 }
+
+@Suite("L'ordre des ingrédients d'une recette")
+@MainActor
+struct RecipeItemOrderTests {
+    private func makeRecipe(in context: ModelContext, foods: [String]) -> Recipe {
+        let recipe = Recipe(name: "Bol du matin")
+        context.insert(recipe)
+        for (index, name) in foods.enumerated() {
+            let item = RecipeItem(
+                foodName: name, kcal100: 100, protein100: 10, carbs100: 20,
+                fat100: 5, grams: 100
+            )
+            item.sortOrder = index
+            item.recipe = recipe
+            context.insert(item)
+        }
+        return recipe
+    }
+
+    @Test("monter un ingrédient échange sa place avec celui du dessus")
+    func movingUpSwapsWithTheOneAbove() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let recipe = makeRecipe(in: context, foods: ["Flocons", "Skyr", "Miel"])
+        let skyr = recipe.orderedItems[1]
+
+        try NutritionJournal.moveRecipeItem(skyr, direction: -1, in: context)
+        #expect(recipe.orderedItems.map(\.foodName) == ["Skyr", "Flocons", "Miel"])
+    }
+
+    @Test("aux extrémités, rien ne bouge")
+    func theedgesHold() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let recipe = makeRecipe(in: context, foods: ["Flocons", "Skyr"])
+
+        try NutritionJournal.moveRecipeItem(
+            recipe.orderedItems[0], direction: -1, in: context
+        )
+        #expect(recipe.orderedItems.map(\.foodName) == ["Flocons", "Skyr"])
+        try NutritionJournal.moveRecipeItem(
+            recipe.orderedItems[1], direction: 1, in: context
+        )
+        #expect(recipe.orderedItems.map(\.foodName) == ["Flocons", "Skyr"])
+    }
+
+    @Test("des ingrédients tous à zéro se renumérotent au lieu de s'échanger")
+    func itemsAllAtZeroAreRenumbered() throws {
+        // Ceux importés avant l'existence de `sortOrder` valent tous 0 : un
+        // échange de deux zéros ne déplacerait rien.
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let recipe = makeRecipe(in: context, foods: ["Ail", "Basilic", "Cumin"])
+        for item in recipe.orderedItems { item.sortOrder = 0 }
+
+        // À égalité, l'ordre est alphabétique — c'est le repli du modèle.
+        #expect(recipe.orderedItems.map(\.foodName) == ["Ail", "Basilic", "Cumin"])
+        try NutritionJournal.moveRecipeItem(
+            recipe.orderedItems[2], direction: -1, in: context
+        )
+        #expect(recipe.orderedItems.map(\.foodName) == ["Ail", "Cumin", "Basilic"])
+    }
+}

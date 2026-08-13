@@ -48,12 +48,20 @@ struct RecipesManagerSheet: View {
             }
             HStack {
                 Spacer()
-                Button("Fermer") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
+                // Saved on the way out as well as on Return: a field left
+                // filled but not validated has already changed the object in
+                // memory, and closing on it would be the silent loss this
+                // project exists to prevent.
+                Button("Fermer") {
+                    save()
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
             }
         }
         .padding(20)
         .frame(minWidth: 640, minHeight: 420)
+        .onSubmit { save() }
         .sheet(isPresented: $isAddingItem) {
             addItemSheet
         }
@@ -63,6 +71,13 @@ struct RecipesManagerSheet: View {
         let items = recipe.orderedItems
         let total = items.map { Macros(of: $0) }.reduce(.zero, +)
         return VStack(alignment: .leading, spacing: 8) {
+            // The name is editable where the recipe is read, not only where it
+            // was born: a recipe used to keep whatever it was called at
+            // creation, so a typo meant building the whole thing again.
+            TextField("Nom de la recette", text: Bindable(recipe).name)
+                .textFieldStyle(.roundedBorder)
+                .font(.headline)
+
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
                 GridRow {
                     Text("Aliment")
@@ -74,16 +89,39 @@ struct RecipesManagerSheet: View {
                 .foregroundStyle(.secondary)
                 ForEach(items, id: \.persistentModelID) { item in
                     GridRow {
-                        Text(item.foodName).lineLimit(1)
-                        Text("\(Int(item.grams.rounded()))")
+                        // Editable in place, like the favourites manager
+                        // beside it: changing 100 g into 120 used to mean
+                        // removing the line and searching the food again.
+                        TextField("Aliment", text: Bindable(item).foodName)
+                            .textFieldStyle(.plain)
+                            .lineLimit(1)
+                        DecimalField(
+                            placeholder: "g", value: Bindable(item).grams,
+                            width: 56
+                        )
+                        // The kilocalories follow the quantity and are not
+                        // typed: they are the per-100 g values captured when
+                        // the food was picked, which stay what was eaten.
                         Text("\(Int(Macros(of: item).kcal.rounded()))")
-                        Button {
-                            delete(item)
-                        } label: {
-                            Image(systemName: "minus.circle")
+                        HStack(spacing: 2) {
+                            Button { move(item, direction: -1) } label: {
+                                Image(systemName: "chevron.up")
+                            }
+                            .help("Monter dans la recette")
+                            .disabled(item.persistentModelID
+                                == items.first?.persistentModelID)
+                            Button { move(item, direction: 1) } label: {
+                                Image(systemName: "chevron.down")
+                            }
+                            .help("Descendre dans la recette")
+                            .disabled(item.persistentModelID
+                                == items.last?.persistentModelID)
+                            Button { delete(item) } label: {
+                                Image(systemName: "minus.circle")
+                            }
+                            .help("Retirer de la recette")
                         }
                         .buttonStyle(.borderless)
-                        .help("Retirer de la recette")
                     }
                     .font(.body.monospacedDigit())
                 }
@@ -143,6 +181,31 @@ struct RecipesManagerSheet: View {
         } catch {
             addItemErrorMessage =
                 "L'aliment n'a pas pu être ajouté. \(error.localizedDescription)"
+        }
+    }
+
+    /// Written on Return, as the favourites manager does: a field one is
+    /// still typing in is not a value to store, and the sheet has no other
+    /// moment that means "done".
+    private func save() {
+        do {
+            try modelContext.save()
+            errorMessage = nil
+        } catch {
+            errorMessage = "Votre modification n'a pas pu être enregistrée. "
+                + error.localizedDescription
+        }
+    }
+
+    private func move(_ item: RecipeItem, direction: Int) {
+        do {
+            try NutritionJournal.moveRecipeItem(
+                item, direction: direction, in: modelContext
+            )
+            errorMessage = nil
+        } catch {
+            errorMessage = "Le déplacement n'a pas pu être enregistré. "
+                + error.localizedDescription
         }
     }
 

@@ -269,6 +269,32 @@ extension NutritionJournal {
         return item
     }
 
+    /// Swaps an item with its neighbour inside the recipe; nothing happens at
+    /// the edges.
+    ///
+    /// The order matters because it is the order the foods land in the meal
+    /// when the recipe is applied — the same reason the day's own rows can be
+    /// moved, and the same rule: a list that wraps silently loses your place.
+    @MainActor
+    static func moveRecipeItem(
+        _ item: RecipeItem, direction: Int, in context: ModelContext
+    ) throws {
+        guard let recipe = item.recipe else { return }
+        let ordered = recipe.orderedItems
+        guard let index = ordered.firstIndex(where: {
+            $0.persistentModelID == item.persistentModelID
+        }) else { return }
+        let target = index + (direction < 0 ? -1 : 1)
+        guard ordered.indices.contains(target) else { return }
+        // Renumbered as a block rather than swapped: items imported before
+        // `sortOrder` existed all sit at 0, and swapping two zeroes moves
+        // nothing at all.
+        var moved = ordered
+        moved.swapAt(index, target)
+        for (position, item) in moved.enumerated() { item.sortOrder = position }
+        try context.save()
+    }
+
     @MainActor
     static func deleteRecipeItem(
         _ item: RecipeItem, in context: ModelContext
