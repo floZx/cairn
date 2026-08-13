@@ -60,6 +60,58 @@ enum JournalFolder {
         return notes.sorted { $0.date > $1.date }
     }
 
+    // MARK: - Pièces jointes
+
+    static func attachmentsFolder(in folder: URL) -> URL {
+        folder.appending(path: JournalAttachment.folderName)
+    }
+
+    /// Copies a picture into the vault under a name of the journal's own.
+    ///
+    /// Copied and not moved: the photo the user dropped goes on living where
+    /// it was, in a library or a download folder, and a journal that swallowed
+    /// originals would be a journal one stops dropping things on.
+    ///
+    /// - Returns: the name written, which is what the note's link points at.
+    @discardableResult
+    static func copyAttachment(
+        from source: URL, for date: DateKey, in folder: URL
+    ) throws -> String {
+        let name = try prepareName(
+            extension: source.pathExtension, for: date, in: folder
+        )
+        try FileManager.default.copyItem(
+            at: source, to: attachmentsFolder(in: folder).appending(path: name)
+        )
+        return name
+    }
+
+    /// The same from bytes — what a paste hands over: the clipboard carries an
+    /// image far more often than it carries a file.
+    @discardableResult
+    static func writeAttachment(
+        _ data: Data, extension ext: String, for date: DateKey, in folder: URL
+    ) throws -> String {
+        let name = try prepareName(extension: ext, for: date, in: folder)
+        try data.write(to: attachmentsFolder(in: folder).appending(path: name))
+        return name
+    }
+
+    /// A free name, with the folder made ready to receive it.
+    private static func prepareName(
+        extension ext: String, for date: DateKey, in folder: URL
+    ) throws -> String {
+        let attachments = attachmentsFolder(in: folder)
+        try FileManager.default.createDirectory(
+            at: attachments, withIntermediateDirectories: true
+        )
+        let taken = Set(
+            (try? FileManager.default.contentsOfDirectory(atPath: attachments.path))
+                ?? []
+        )
+        return JournalAttachment.fileName(for: date, extension: ext, taken: taken)
+    }
+
     /// The real file behind an iCloud placeholder, or nil when this is not one.
     private static func pendingDownload(at url: URL) -> URL? {
         let name = url.lastPathComponent

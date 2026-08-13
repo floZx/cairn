@@ -146,4 +146,63 @@ struct JournalFolderTests {
         try Data().write(to: folder.appending(path: ".notes.md.icloud"))
         #expect(try JournalFolder.notes(in: folder).isEmpty)
     }
+
+    // MARK: - Pièces jointes
+
+    @Test("une pièce jointe copiée prend son nom du jour")
+    func acopiedAttachmentIsRenamed() throws {
+        let folder = try makeFolder()
+        let source = folder.appending(path: "IMG_4032.JPG")
+        try Data([0xFF, 0xD8]).write(to: source)
+
+        let name = try JournalFolder.copyAttachment(
+            from: source, for: DateKey(raw: "2026-08-13")!, in: folder
+        )
+        #expect(name == "2026-08-13-1.jpg")
+
+        let written = JournalFolder.attachmentsFolder(in: folder)
+            .appending(path: name)
+        #expect(FileManager.default.fileExists(atPath: written.path))
+        // L'original n'est pas déplacé : la photo reste où elle était.
+        #expect(FileManager.default.fileExists(atPath: source.path))
+    }
+
+    @Test("deux pièces jointes du même jour ne se marchent pas dessus")
+    func twoAttachmentsOfTheSameDayCoexist() throws {
+        let folder = try makeFolder()
+        let day = DateKey(raw: "2026-08-13")!
+        let first = try JournalFolder.writeAttachment(
+            Data([0x89]), extension: "png", for: day, in: folder
+        )
+        let second = try JournalFolder.writeAttachment(
+            Data([0x89]), extension: "png", for: day, in: folder
+        )
+        #expect(first == "2026-08-13-1.png")
+        #expect(second == "2026-08-13-2.png")
+    }
+
+    @Test("le dossier des pièces jointes se crée au besoin")
+    func theattachmentsFolderIsCreated() throws {
+        let folder = try makeFolder()
+        let attachments = JournalFolder.attachmentsFolder(in: folder)
+        #expect(!FileManager.default.fileExists(atPath: attachments.path))
+
+        _ = try JournalFolder.writeAttachment(
+            Data([0x89]), extension: "png",
+            for: DateKey(raw: "2026-08-13")!, in: folder
+        )
+        #expect(FileManager.default.fileExists(atPath: attachments.path))
+    }
+
+    @Test("une pièce jointe n'est pas une note")
+    func anattachmentIsNotANote() throws {
+        let folder = try makeFolder()
+        try JournalFolder.write("Note.", for: DateKey(raw: "2026-08-13")!, in: folder)
+        _ = try JournalFolder.writeAttachment(
+            Data([0x89]), extension: "png",
+            for: DateKey(raw: "2026-08-13")!, in: folder
+        )
+        // Le listing est plat par nature : le sous-dossier n'y entre pas.
+        #expect(try JournalFolder.notes(in: folder).count == 1)
+    }
 }
