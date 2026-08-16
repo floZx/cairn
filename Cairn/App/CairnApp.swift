@@ -15,6 +15,14 @@ struct CairnApp: App {
             fatalError("Impossible d'ouvrir la base locale : \(error)")
         }
         self.container = container
+        // Built before either write below, and deliberately so: if the mirror
+        // is configured, `AppEnvironment.init` starts `MirrorRecorder` right
+        // away, and starting it *after* `DemoData` or `StoreMaintenance` had
+        // already written to the store would leave whatever they changed
+        // invisible to the outbox forever — nothing else ever revisits it.
+        // See `MirrorRecorder`'s own "When to start it" doc comment.
+        let app = AppEnvironment(container: container)
+        _app = State(initialValue: app)
         // No-op unless STRAVALOCAL_DEMO is set, in which case the container above
         // has already opened a separate store file — the real library is never
         // touched. Failing here is not worth a crash: the app simply starts empty.
@@ -24,7 +32,6 @@ struct CairnApp: App {
         // discardable by design, but `try?` wraps it in its own `Optional` that
         // `@discardableResult` does not cover — hence the explicit `_ =`.
         _ = try? StoreMaintenance.run(ModelContext(container))
-        _app = State(initialValue: AppEnvironment(container: container))
     }
 
     var body: some Scene {

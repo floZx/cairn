@@ -17,10 +17,22 @@ final class AppEnvironment {
     /// the same instance rather than two views of one folder.
     let journal = JournalStore()
 
+    let mirrorClient: MirrorClient
+    let mirror: MirrorEngine
+    let mirrorProgress: MirrorProgress
+    /// Kept alive for the life of the app, not just through `init`: its
+    /// `start()` registers a `NotificationCenter` observer whose closure
+    /// captures no `self`, so nothing else would keep this instance around —
+    /// `deinit` would unsubscribe it the moment a purely-local variable went
+    /// out of scope. See `MirrorRecorder`'s own doc comment.
+    private let mirrorRecorder: MirrorRecorder
+    private var mirrorTask: Task<Void, Never>?
+
     var isAuthenticated: Bool
     var hasCredentials: Bool
     var athleteName: String?
     var errorMessage: String?
+    var mirrorErrorMessage: String?
 
     private var runningTask: Task<Void, Never>?
     private let defaults = UserDefaults.standard
@@ -52,6 +64,47 @@ final class AppEnvironment {
         )
         self.isAuthenticated = store.tokens() != nil
         self.hasCredentials = store.credentials() != nil
+
+        // Entirely local and synchronous: `MirrorClient.isConfigured` reads
+        // the keychain, never the network, and `MirrorBootstrapCursor` only
+        // wraps `UserDefaults`. Nothing below can delay or fail this `init` —
+        // the foundational constraint the whole mirror plan holds to, and
+        // `Tests/MirrorAutonomyTests.swift` (task 11) checks it directly.
+        let mirrorClient = MirrorClient(store: store)
+        let mirrorProgress = MirrorProgress()
+        let mirrorRecorder = MirrorRecorder(container: container)
+        self.mirrorClient = mirrorClient
+        self.mirrorProgress = mirrorProgress
+        self.mirror = MirrorEngine(
+            client: mirrorClient, container: container, progress: mirrorProgress,
+            cursor: MirrorBootstrapCursor(defaults: .standard)
+        )
+        self.mirrorRecorder = mirrorRecorder
+
+        // Only once the mirror is configured — never unconditionally — per
+        // `MirrorRecorder`'s own "When to start it" doc comment: nothing
+        // prunes the outbox until a push actually runs, so a recorder started
+        // on a Mac that never configures Supabase would grow the store by one
+        // row per write, forever, for a feature nobody uses.
+        //
+        // Called from *here*, inside `init`, and not later: `CairnApp.init`
+        // builds this environment before `DemoData.populateIfNeeded` or
+        // `StoreMaintenance.run` touch the store, specifically so the
+        // recorder — when it is going to run at all — is already listening
+        // before the very first write of the launch. Anything written to a
+        // configured mirror's store before the recorder starts is invisible
+        // to the outbox forever; nothing revisits it later.
+        if store.mirrorCredentials() != nil {
+            mirrorRecorder.start()
+        }
+
+        // `MirrorProgress` is session state, exactly like `SyncProgress`: a
+        // fresh instance starts with `lastPushAt == nil` on every launch, so
+        // without this a mirror that finished bootstrapping yesterday would
+        // read as one that has never run. A local `UserDefaults` read, never
+        // the network — safe to fire without making `init` wait on it, the
+        // same reasoning `restoreLastSyncDate()` follows for Strava.
+        Task { [mirror] in await mirror.restoreProgress() }
     }
 
     func refreshAuthenticationState() {
@@ -200,5 +253,120 @@ final class AppEnvironment {
             // says what is missing on its own.
             try? await engine.fetchStreamsIfNeeded(stravaID: stravaID)
         }
+    }
+
+    // MARK: - Mirror
+
+    /// Whether a Supabase project is on file — decided purely from the
+    /// keychain, never the network. Gates the settings screen's sign-in and
+    /// bootstrap controls, and is what `Tests/MirrorAutonomyTests.swift`
+    /// (task 11) checks stays `false`, never throws, when nothing is
+    /// configured.
+    var isMirrorConfigured: Bool { store.mirrorCredentials() != nil }
+
+    /// Whether a usable, unexpired session is on file — `MirrorClient.isSignedIn`'s
+    /// synchronous counterpart, read the same way `isMirrorConfigured` is:
+    /// straight from the keychain, so a settings screen can gate its
+    /// "amorcer" and "pousser" buttons without an `await`.
+    var isMirrorSignedIn: Bool {
+        guard let session = store.mirrorSession() else { return false }
+        return !session.isExpired
+    }
+
+    func saveMirrorCredentials(projectURL: String, anonKey: String) {
+        let trimmedURL = projectURL.trimmingCharacters(in: .whitespaces)
+        let trimmedKey = anonKey.trimmingCharacters(in: .whitespaces)
+        guard let url = URL(string: trimmedURL), !trimmedURL.isEmpty else {
+            mirrorErrorMessage = "L'URL du projet est invalide."
+            return
+        }
+        guard !trimmedKey.isEmpty else {
+            mirrorErrorMessage = "La clé anon ne peut pas être vide."
+            return
+        }
+        do {
+            try store.save(MirrorCredentials(projectURL: url, anonKey: trimmedKey))
+            mirrorErrorMessage = nil
+            // Configuring the project is exactly the moment `MirrorRecorder`
+            // is meant to start — see its own "When to start it" doc comment,
+            // and the identical guard in `init` above for a Mac that already
+            // had credentials on launch. `start()` is a no-op if it is
+            // already running, so this is safe to call again after an edit.
+            mirrorRecorder.start()
+        } catch {
+            mirrorErrorMessage =
+                "Impossible d'enregistrer les identifiants : \(error.localizedDescription)"
+        }
+    }
+
+    func signInMirror(email: String, password: String) async {
+        do {
+            try await mirrorClient.signIn(email: email, password: password)
+            mirrorErrorMessage = nil
+        } catch {
+            mirrorErrorMessage = error.localizedDescription
+        }
+    }
+
+    /// Drops the project, the session, and every trace of them from the
+    /// settings screen — the « Oublier ce miroir » button. Never touches a
+    /// single local model: the mirror is a copy, and forgetting it must not
+    /// cost the user any data.
+    func forgetMirror() {
+        cancelMirror()
+        mirrorRecorder.stop()
+        try? store.clearMirror()
+        mirrorProgress.phase = .idle
+        mirrorProgress.lastPushAt = nil
+        mirrorErrorMessage = nil
+    }
+
+    /// Uploads the whole library once, resuming wherever a previous attempt
+    /// left off — the settings screen's « Lancer l'amorçage » button.
+    func startBootstrap() {
+        runMirror { [mirror] in try await mirror.bootstrap() }
+    }
+
+    /// Replays the outbox: everything changed locally since the last
+    /// successful push.
+    func pushNow() {
+        runMirror { [mirror] in try await mirror.push() }
+    }
+
+    /// Runs one mirror operation with the same shape `runSync` gives Strava,
+    /// and for the same reason: `MirrorEngine.bootstrap()` and `.push()` are
+    /// actors, but they suspend at every request, so two calls left
+    /// unguarded — an automatic push racing a hand-started bootstrap, say —
+    /// would interleave freely instead of running one after the other.
+    /// Harmless today (both are idempotent) but doubled traffic all the same,
+    /// and worth ruling out here rather than trusting every future caller to
+    /// remember it.
+    ///
+    /// Unlike `runSync`, nothing here sets `errorMessage`: `MirrorEngine`
+    /// already records its own outcome straight into `mirrorProgress.phase`
+    /// (`.failed(message)` on failure, back to `.idle` on a clean finish or a
+    /// deliberate cancellation), which is the one place the settings screen
+    /// already reads from. A second, separate error channel here would just
+    /// be two sources of truth for the same fact.
+    private func runMirror(_ operation: @escaping @Sendable () async throws -> Void) {
+        guard mirrorTask == nil else { return }
+        let task = Task {
+            do { try await operation() } catch {}
+        }
+        mirrorTask = task
+        Task {
+            _ = await task.value
+            if mirrorTask == task { mirrorTask = nil }
+        }
+    }
+
+    /// Cancellation is cooperative, exactly as `cancelSync` explains: the slot
+    /// can only be released by the task itself once it has actually unwound,
+    /// so clearing it here would let a second bootstrap or push start
+    /// alongside the one still dying.
+    func cancelMirror() {
+        guard let task = mirrorTask else { return }
+        task.cancel()
+        Task { _ = await task.value }
     }
 }

@@ -8,7 +8,9 @@ import SwiftUI
 /// sync tab, where nobody would look for them. Nutrition holds the food
 /// journal's own configuration: macro and weight targets, day types, per-meal
 /// shares, catalog status, and the one-shot suivinut import. Journal holds the
-/// one thing the daily notes need: which folder they live in.
+/// one thing the daily notes need: which folder they live in. Miroir holds the
+/// Supabase project, the sign-in, and the hand-started bootstrap — Sauvegarde's
+/// counterpart for a copy that leaves the Mac rather than one that stays on it.
 struct SettingsScene: View {
     var body: some View {
         TabView {
@@ -26,6 +28,8 @@ struct SettingsScene: View {
                 .tabItem { Label("Journal", systemImage: "text.book.closed") }
             BackupSettingsView()
                 .tabItem { Label("Sauvegarde", systemImage: "externaldrive.badge.icloud") }
+            MirrorSettingsView()
+                .tabItem { Label("Miroir", systemImage: "icloud.and.arrow.up") }
         }
         .frame(width: 520, height: 460)
     }
