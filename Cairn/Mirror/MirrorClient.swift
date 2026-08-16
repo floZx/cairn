@@ -105,6 +105,14 @@ actor MirrorClient {
         return !session.isExpired
     }
 
+    /// The signed-in user's identifier, for stamping every mirrored row's
+    /// `user_id` — `nil` until a session is on file, expired or not: an
+    /// engine that finds one nil should ask for sign-in, not push with a
+    /// token about to be rejected anyway.
+    var userID: String? {
+        store.mirrorSession()?.userID
+    }
+
     // MARK: - Auth
 
     func signIn(email: String, password: String) async throws {
