@@ -3,7 +3,7 @@ import Foundation
 @testable import Cairn
 
 /// Records requests and replays canned responses in order.
-private final class StubTransport: HTTPTransport, @unchecked Sendable {
+private final class StravaStubTransport: HTTPTransport, @unchecked Sendable {
     struct Response { let status: Int; let body: Data; let headers: [String: String] }
 
     private let lock = NSLock()
@@ -46,7 +46,7 @@ struct StravaClientTests {
 
     @Test("sans credentials, l'appel échoue avant tout réseau")
     func requiresCredentials() async {
-        let transport = StubTransport([])
+        let transport = StravaStubTransport([])
         let client = StravaClient(store: InMemorySecretStore(), transport: transport)
         await #expect(throws: StravaError.self) {
             _ = try await client.athlete()
@@ -56,7 +56,7 @@ struct StravaClientTests {
 
     @Test("la liste d'activités passe after, page et per_page et porte le jeton")
     func buildsActivityRequest() async throws {
-        let transport = StubTransport([
+        let transport = StravaStubTransport([
             .init(status: 200, body: json("[]"), headers: quotaHeaders)
         ])
         let client = StravaClient(store: validStore(), transport: transport)
@@ -76,7 +76,7 @@ struct StravaClientTests {
 
     @Test("les streams demandent toutes les clés en une requête")
     func requestsAllStreamKeys() async throws {
-        let transport = StubTransport([
+        let transport = StravaStubTransport([
             .init(
                 status: 200,
                 body: json(#"{"altitude":{"data":[1.0,2.0]}}"#),
@@ -104,7 +104,7 @@ struct StravaClientTests {
                 expiresAt: Date().addingTimeInterval(-60)
             )
         )
-        let transport = StubTransport([
+        let transport = StravaStubTransport([
             .init(
                 status: 200,
                 body: json(
@@ -136,7 +136,7 @@ struct StravaClientTests {
                 expiresAt: Date().addingTimeInterval(-60)
             )
         )
-        let transport = StubTransport([
+        let transport = StravaStubTransport([
             .init(status: 401, body: json(#"{"message":"Unauthorized"}"#), headers: [:])
         ])
         let client = StravaClient(store: store, transport: transport)
@@ -150,7 +150,7 @@ struct StravaClientTests {
 
     @Test("une erreur HTTP est remontée avec son code")
     func surfacesHTTPErrors() async {
-        let transport = StubTransport([
+        let transport = StravaStubTransport([
             .init(status: 404, body: json(#"{"message":"Record Not Found"}"#), headers: [:])
         ])
         let client = StravaClient(store: validStore(), transport: transport)
@@ -161,7 +161,7 @@ struct StravaClientTests {
 
     @Test("le quota lu dans les en-têtes est exposé")
     func exposesQuota() async throws {
-        let transport = StubTransport([
+        let transport = StravaStubTransport([
             .init(
                 status: 200, body: json("[]"),
                 headers: ["X-RateLimit-Limit": "200,2000", "X-RateLimit-Usage": "17,342"]
@@ -177,7 +177,7 @@ struct StravaClientTests {
     @Test("un 429 est signalé au limiteur sans passer par le chemin de succès")
     func reportsThrottlingToRateLimiter() async {
         let limiter = RateLimiter(clock: { Date(timeIntervalSince1970: 0) })
-        let transport = StubTransport([
+        let transport = StravaStubTransport([
             .init(
                 status: 429, body: json(#"{"message":"Rate Limit Exceeded"}"#),
                 headers: quotaHeaders
