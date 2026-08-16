@@ -35,6 +35,15 @@ Elles s'appliquent à **toutes** les tâches, sans être répétées dans chacun
 - **Swift Testing**, jamais XCTest : 91 fichiers de tests, zéro `import XCTest`.
 - **Concurrence stricte Swift 6.** Tout ce qui traverse un `await` est `Sendable`.
 - **`xcodegen generate` après tout ajout de fichier source.**
+- **`MirrorEngine.init` prend un quatrième argument, `cursor:`, sans valeur par
+  défaut.** C'est délibéré : une valeur par défaut sur `UserDefaults.standard`
+  ferait écrire tout test dans les préférences du processus qui exécute la
+  suite, avec fuite d'état d'une exécution à l'autre. Les tests construisent
+  donc un curseur sur une suite jetable. Les fonctions `freshCursor()` et
+  `discard(_:)` vivent dans `Tests/MirrorBootstrapTests.swift` ; **la première
+  tâche qui en a besoin ailleurs les déplace dans `Tests/MirrorTestSupport.swift`**
+  — un ajout à ce fichier est permis, un renommage de ce qui s'y trouve déjà ne
+  l'est pas.
 - **Les initialiseurs de modèles cités dans les tests sont indicatifs.** Le plan
   écrit `WeightEntry(dateKey:weightKg:note:)`, `Activity(stravaID:name:sportType:)` et
   consorts ; lire la signature réelle dans `Cairn/Model/` et l'adapter. Cela vaut
@@ -965,9 +974,11 @@ struct MirrorBootstrapTests {
         try context.save()
 
         let transport = StubTransport(alwaysRespondingWith: 201)
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
         let engine = MirrorEngine(
             client: MirrorClient(store: try configuredStore(), transport: transport),
-            container: container, progress: MirrorProgress()
+            container: container, progress: MirrorProgress(), cursor: cursor
         )
 
         try await engine.bootstrap()
@@ -987,9 +998,11 @@ struct MirrorBootstrapTests {
         try context.save()
 
         let transport = StubTransport(alwaysRespondingWith: 201)
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
         let engine = MirrorEngine(
             client: MirrorClient(store: try configuredStore(), transport: transport),
-            container: container, progress: MirrorProgress()
+            container: container, progress: MirrorProgress(), cursor: cursor
         )
         try await engine.bootstrap()
 
@@ -1097,9 +1110,11 @@ struct MirrorBlobTests {
         try context.save()
 
         let transport = StubTransport(alwaysRespondingWith: 200)
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
         let engine = MirrorEngine(
             client: MirrorClient(store: try configuredStore(), transport: transport),
-            container: container, progress: MirrorProgress()
+            container: container, progress: MirrorProgress(), cursor: cursor
         )
         try await engine.uploadPendingBlobs()
 
@@ -1119,9 +1134,11 @@ struct MirrorBlobTests {
         try context.save()
 
         let transport = StubTransport(alwaysRespondingWith: 200)
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
         let engine = MirrorEngine(
             client: MirrorClient(store: try configuredStore(), transport: transport),
-            container: container, progress: MirrorProgress()
+            container: container, progress: MirrorProgress(), cursor: cursor
         )
         try await engine.uploadPendingBlobs()
 
@@ -1359,9 +1376,11 @@ struct MirrorPushTests {
         try context.save()
 
         let transport = StubTransport(alwaysRespondingWith: 201)
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
         let engine = MirrorEngine(
             client: MirrorClient(store: try configuredStore(), transport: transport),
-            container: container, progress: MirrorProgress()
+            container: container, progress: MirrorProgress(), cursor: cursor
         )
         try await engine.push()
 
@@ -1383,9 +1402,11 @@ struct MirrorPushTests {
         try context.save()
 
         let transport = StubTransport(alwaysRespondingWith: 500)
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
         let engine = MirrorEngine(
             client: MirrorClient(store: try configuredStore(), transport: transport),
-            container: container, progress: MirrorProgress()
+            container: container, progress: MirrorProgress(), cursor: cursor
         )
         _ = try? await engine.push()
 
@@ -1405,9 +1426,11 @@ struct MirrorPushTests {
         try context.save()
 
         let transport = StubTransport(alwaysRespondingWith: 201)
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
         let engine = MirrorEngine(
             client: MirrorClient(store: try configuredStore(), transport: transport),
-            container: container, progress: MirrorProgress()
+            container: container, progress: MirrorProgress(), cursor: cursor
         )
         try await engine.push()
 
