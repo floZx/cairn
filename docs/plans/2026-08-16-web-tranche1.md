@@ -1437,10 +1437,24 @@ struct MirrorPushTests {
         let sent = await transport.requests()
         let body = String(data: sent[0].httpBody ?? Data(), encoding: .utf8) ?? ""
         #expect(body.contains("deleted_at"))
-        #expect(sent[0].httpMethod == "POST")
+        // Une mise à jour, pas un upsert. Voir ci-dessous.
+        #expect(sent[0].httpMethod == "PATCH")
+        #expect(sent[0].url?.query?.contains("uuid=eq.disparue") == true)
     }
 }
 ```
+
+**Pourquoi une suppression part en `PATCH` et non en upsert.** Quatre colonnes du
+schéma sont `not null` sans valeur par défaut — `activity.start_date`,
+`activity.start_local_date`, `discarded_activity.discarded_at`,
+`discarded_activity.start_date`. Un upsert de `{uuid, user_id, deleted_at}` sur
+une ligne jamais montée tenterait un `INSERT` et se ferait refuser par Postgres.
+
+Et ce cas se produit : un objet créé puis supprimé dans la même transaction
+laisse une pierre tombale pour une ligne qui n'est jamais partie. Une mise à
+jour est de toute façon la bonne sémantique — on n'efface pas en douceur une
+ligne qui n'existe pas. `PATCH /rest/v1/<table>?uuid=eq.<uuid>` touchant zéro
+ligne est un non-événement, exactement ce qu'on veut.
 
 - [ ] **Étape 2 : Lancer les tests et les voir échouer**
 
