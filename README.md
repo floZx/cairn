@@ -379,6 +379,38 @@ après écriture : seules les manquantes sont envoyées.
 Un fichier `COMMENT-RESTAURER.txt` accompagne les copies. Le catalogue Open Food
 Facts n'est pas sauvegardé : il se retélécharge.
 
+## Miroir en ligne
+
+Cairn peut tenir une copie de la bibliothèque à jour dans un projet
+[Supabase](https://supabase.com) personnel — la brique sur laquelle une future
+PWA pourra un jour lire ces mêmes données depuis un navigateur. C'est une
+copie, jamais l'original : chaque photo ou trace que le Mac affiche existe
+d'abord dans son propre stockage externe, sur ce disque, et le miroir ne fait
+que la recopier vers Supabase après coup. Rien n'est jamais lu depuis
+Supabase — l'application n'y écrit que dans un seul sens.
+
+Cairn fonctionne intégralement sans lui. Aucun écran, aucune recherche, aucun
+export ne se soucie de savoir si un projet est configuré ; la seule trace
+visible d'un miroir qui échoue est un indicateur dans les réglages. Un Mac qui
+n'a jamais entendu parler de Supabase se comporte exactement comme un Mac dont
+le miroir est en panne depuis un mois : aucune différence, pour personne
+d'autre que ce petit indicateur.
+
+Le configurer se fait entièrement depuis les réglages, une fois qu'un projet
+existe côté Supabase — la marche à suivre, schéma compris, est détaillée dans
+`supabase/README.md`. L'URL du projet et sa clé anon s'y collent dans un
+premier champ, l'adresse et le mot de passe du compte dans un second, puis
+« Lancer l'amorçage » envoie toute la bibliothèque une première fois ; chaque
+modification locale part ensuite au fil de l'eau. L'amorçage reprend là où il
+s'était arrêté si on l'interrompt en cours de route.
+
+« Oublier ce miroir », dans les mêmes réglages, efface le projet et la session
+enregistrés sur ce Mac sans toucher à la moindre donnée locale et sans rien
+supprimer côté Supabase. Reconfigurer un projet ensuite — le même ou un
+autre — repart d'un amorçage complet plutôt que de reprendre où l'oubli
+l'a laissé : l'opération est sans risque, seulement plus longue, puisque
+chaque ligne renvoyée écrase simplement celle que Supabase avait déjà.
+
 ## Fonds de carte
 
 Trois fonds proviennent d'Apple et ne sollicitent aucun service tiers : Plan,

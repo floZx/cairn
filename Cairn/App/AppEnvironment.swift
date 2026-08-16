@@ -55,8 +55,24 @@ final class AppEnvironment {
     var requestExportJournalPDF: (() -> Void)?
     var requestToggleListStyle: (() -> Void)?
 
-    init(container: ModelContainer) {
-        let store = KeychainStore()
+    /// `store`, `mirrorTransport` and `mirrorCursor` default to the real
+    /// Keychain, `URLSession` and `UserDefaults.standard` — production never
+    /// passes them explicitly, so `CairnApp.init`'s one call site keeps
+    /// reading `AppEnvironment(container: container)` unchanged. The three
+    /// parameters exist to be overridden, not used: `Tests/MirrorAutonomyTests.swift`
+    /// (task 11) is the only caller that does, so a test can point the
+    /// mirror at a throwaway store, a scripted transport and a throwaway
+    /// `UserDefaults` suite instead of this Mac's real Keychain, real
+    /// network and real preferences — without it, a test that merely
+    /// constructed `AppEnvironment` would read whatever mirror project a
+    /// developer's own machine happens to have configured, exactly the trap
+    /// `MirrorEngine.init`'s own `cursor:` parameter documents at length.
+    init(
+        container: ModelContainer,
+        store: SecretStore = KeychainStore(),
+        mirrorTransport: MirrorTransport = URLSessionTransport(),
+        mirrorCursor: MirrorBootstrapCursor = MirrorBootstrapCursor(defaults: .standard)
+    ) {
         let progress = SyncProgress()
         let client = StravaClient(store: store)
 
@@ -75,10 +91,9 @@ final class AppEnvironment {
         // wraps `UserDefaults`. Nothing below can delay or fail this `init` —
         // the foundational constraint the whole mirror plan holds to, and
         // `Tests/MirrorAutonomyTests.swift` (task 11) checks it directly.
-        let mirrorClient = MirrorClient(store: store)
+        let mirrorClient = MirrorClient(store: store, transport: mirrorTransport)
         let mirrorProgress = MirrorProgress()
         let mirrorRecorder = MirrorRecorder(container: container)
-        let mirrorCursor = MirrorBootstrapCursor(defaults: .standard)
         self.mirrorClient = mirrorClient
         self.mirrorProgress = mirrorProgress
         self.mirrorCursor = mirrorCursor
