@@ -34,7 +34,7 @@ enum MirrorValue: Sendable, Equatable {
     }
 }
 
-enum MirrorError: Error, Equatable {
+enum MirrorError: LocalizedError, Sendable, Equatable {
     case notConfigured
     case unauthorized
     /// A refresh Supabase rejected, or one it accepted but that could not be
@@ -51,6 +51,30 @@ enum MirrorError: Error, Equatable {
     /// A session obtained from Supabase that could not be written to the
     /// local secret store.
     case storageFailed(String)
+
+    /// French, on the model of `StravaError.errorDescription` — without this,
+    /// `error.localizedDescription` falls back to `NSError`'s generic English
+    /// text ("The operation couldn't be completed…"), which is exactly what
+    /// `MirrorProgress.statusText` would otherwise put in front of the user
+    /// on the one indicator the plan concedes the mirror.
+    var errorDescription: String? {
+        switch self {
+        case .notConfigured:
+            "Aucun projet Supabase n'est configuré. Renseignez son URL et sa clé dans les réglages."
+        case .unauthorized:
+            "Vous n'êtes pas connecté au miroir Supabase."
+        case .refreshRejected:
+            "La session Supabase a expiré ou a été révoquée. Reconnectez-vous."
+        case let .http(status, body):
+            "Supabase a répondu \(status) : \(body)"
+        case let .transport(message):
+            "Erreur réseau : \(message)"
+        case let .encodingFailed(message):
+            "Impossible d'encoder les données à envoyer : \(message)"
+        case let .storageFailed(message):
+            "Impossible d'enregistrer la session localement : \(message)"
+        }
+    }
 }
 
 protocol MirrorTransport: Sendable {

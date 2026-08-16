@@ -26,6 +26,17 @@ final class MirrorProgress {
     /// Strava.
     var lastPushAt: Date?
 
+    /// Whether a bootstrap or a push is under way — `SyncProgress.isRunning`'s
+    /// counterpart, needed for the same reason: a settings screen has to
+    /// disable its own "amorcer" button while one is already running rather
+    /// than let a second overlap the first.
+    var isRunning: Bool {
+        switch phase {
+        case .idle, .failed: false
+        case .bootstrapping, .pushing: true
+        }
+    }
+
     /// What to show, in words, never silent — the same rule `SyncProgress`
     /// follows and for the same reason: a mirror never configured and one
     /// that is merely idle must not read the same way, or "nothing to report"

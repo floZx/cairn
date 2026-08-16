@@ -8,9 +8,16 @@ import SwiftData
 /// Mac's relationship with Supabase, and a JSON export or a restore of the
 /// library must never carry it along.
 ///
+/// Also holds `lastPushAt` — not a per-table cursor, but the same kind of
+/// fact (the Mac's relationship with Supabase, not the user's data) and the
+/// same storage, so a second `UserDefaults`-backed type was not worth
+/// opening for one more key.
+///
 /// Injected rather than hard-coded to `.standard`, so tests can point it at a
 /// throwaway suite instead of the suite the test *runner* itself uses —
 /// `Tests/JournalStoreTests.swift` follows the same rule for the same reason.
+/// No default value on `MirrorEngine.init` falls back to `.standard`
+/// either — see the note there.
 struct MirrorBootstrapCursor: Sendable {
     // `UserDefaults` is thread-safe by Apple's own documentation but not
     // marked `Sendable` in this SDK — the same gap `DetailPaneWidth` and
@@ -20,6 +27,8 @@ struct MirrorBootstrapCursor: Sendable {
     // the one place in the mirror that asserts, rather than lets the
     // compiler prove, that the type is safe to share.
     nonisolated(unsafe) private let defaults: UserDefaults
+
+    private static let lastPushAtKey = "mirror.lastPushAt"
 
     init(defaults: UserDefaults) {
         self.defaults = defaults
@@ -36,6 +45,19 @@ struct MirrorBootstrapCursor: Sendable {
     func setLastUUID(_ uuid: String, for table: String) {
         defaults.set(uuid, forKey: key(for: table))
     }
+
+    /// `nil` when the mirror has never finished a bootstrap or a push.
+    /// `UserDefaults.double(forKey:)` answers `0` for a missing key —
+    /// `Tests/DetailPaneWidthTests.swift` already documents the same trap —
+    /// so `0` reads back as "never", not as the epoch.
+    func lastPushAt() -> Date? {
+        let epoch = defaults.double(forKey: Self.lastPushAtKey)
+        return epoch > 0 ? Date(timeIntervalSince1970: epoch) : nil
+    }
+
+    func setLastPushAt(_ date: Date) {
+        defaults.set(date.timeIntervalSince1970, forKey: Self.lastPushAtKey)
+    }
 }
 
 /// Uploads the whole library to Supabase and keeps it there. On the pattern
@@ -46,12 +68,11 @@ actor MirrorEngine {
     private let client: MirrorClient
     private let container: ModelContainer
     private let progress: MirrorProgress
-    private let context: ModelContext
     private let cursor: MirrorBootstrapCursor
 
-    /// Rows per upsert. Small enough that a batch which fails resends little
-    /// on retry; large enough that 852 activities take five requests, not
-    /// 852 of them.
+    /// Rows per upsert, and per page fetched from SwiftData. Small enough
+    /// that a batch which fails resends little on retry; large enough that
+    /// 852 activities take five requests, not 852 of them.
     private static let batchSize = 200
 
     /// Parents before children: a `lap` whose activity is not there yet has
@@ -72,17 +93,24 @@ actor MirrorEngine {
     /// on the caller's actor, not `MirrorEngine`'s own — a `UserDefaults`
     /// crossing that boundary unwrapped is exactly what Swift 6's region
     /// checker refuses to let through. `MirrorBootstrapCursor` is `Sendable`
-    /// by construction, so building it before the call (as the default value
-    /// does with `.standard`, and as a test does with its own throwaway
-    /// suite) is what makes the crossing legal.
+    /// by construction, so building it before the call is what makes the
+    /// crossing legal.
+    ///
+    /// No default value: an earlier version defaulted this to
+    /// `MirrorBootstrapCursor(defaults: .standard)`, which meant any
+    /// three-argument call — exactly the shape every other task's test code
+    /// uses — would read and write the *test runner's own* preferences. A
+    /// stray key surviving between runs there does not just leak state, it
+    /// makes a bootstrap silently send nothing: the cursor would already
+    /// claim every table done. The composition root supplies a real
+    /// `MirrorBootstrapCursor(defaults: .standard)` explicitly instead.
     init(
         client: MirrorClient, container: ModelContainer, progress: MirrorProgress,
-        cursor: MirrorBootstrapCursor = MirrorBootstrapCursor(defaults: .standard)
+        cursor: MirrorBootstrapCursor
     ) {
         self.client = client
         self.container = container
         self.progress = progress
-        self.context = ModelContext(container)
         self.cursor = cursor
     }
 
@@ -91,17 +119,25 @@ actor MirrorEngine {
     /// idempotence, seen from two angles:
     ///
     /// - A table already fully sent costs no request the second time: its
-    ///   cursor already sits past every row on disk, so the first fetch of
-    ///   the next call comes back empty and the loop moves straight on.
+    ///   cursor already sits past every row on disk, so the fetch for the
+    ///   next call comes back empty and the loop moves straight on.
     /// - A batch that fails, or a cancellation between batches, leaves the
     ///   cursor exactly where the last *successful* batch left it. Nothing
-    ///   Supabase has already confirmed is ever sent again; nothing it never
-    ///   saw is skipped.
+    ///   Supabase has already confirmed is ever sent again.
+    ///
+    /// What this does **not** cover: a row created — or whose `uuid` sorts
+    /// before the cursor for some other reason — *between* two bootstrap
+    /// attempts is never picked up by a later `bootstrap()` call. The cursor
+    /// only ever moves forward through a fixed ascending order; it has no way
+    /// to notice a new row that lands behind it. That gap belongs to the
+    /// outbox (task 8), which watches every save going forward — bootstrap's
+    /// job is strictly the one-time initial upload, not standing outbox
+    /// coverage.
     ///
     /// `resolution=merge-duplicates` on the upsert itself (`MirrorClient`)
-    /// is the second half of this guarantee: even a row resent after a crash
-    /// mid-batch — the response lost, the write already landed — overwrites
-    /// itself rather than duplicating.
+    /// is the second half of what this *does* guarantee: even a row resent
+    /// after a crash mid-batch — the response lost, the write already landed
+    /// — overwrites itself rather than duplicating.
     func bootstrap() async throws {
         do {
             guard let userID = await client.userID else {
@@ -122,6 +158,27 @@ actor MirrorEngine {
         } catch {
             await setPhase(.failed(error.localizedDescription))
             throw error
+        }
+    }
+
+    /// Reads the persisted "last successful sync" date back into `progress`.
+    /// `MirrorProgress` is session state — a fresh instance starts with
+    /// `lastPushAt == nil` on every launch — so without this, a mirror that
+    /// finished bootstrapping yesterday reads exactly like one that has
+    /// never run: `AppEnvironment.restoreLastSyncDate()` solves the identical
+    /// problem for `SyncProgress` by reading `SyncState.lastRunAt` back out
+    /// of the store: this is the mirror's own version, reading
+    /// `MirrorBootstrapCursor.lastPushAt()` back out of `UserDefaults`
+    /// instead, since that is where this task's cursor already lives.
+    func restoreProgress() async {
+        guard let date = cursor.lastPushAt() else { return }
+        await MainActor.run {
+            // Only while still empty, the same guard `restoreLastSyncDate()`
+            // uses: a bootstrap started immediately after this call may well
+            // finish first, and a slow read landing after it must not stomp
+            // the fresher date back to an older one.
+            guard progress.lastPushAt == nil else { return }
+            progress.lastPushAt = date
         }
     }
 
@@ -160,50 +217,69 @@ actor MirrorEngine {
         }
     }
 
-    /// Sends one table's rows, oldest `uuid` first, in batches of
-    /// `batchSize`. `Task.checkCancellation()` runs before every batch, not
-    /// just once per table: a table of 852 rows is five requests, and
-    /// closing the settings window should not have to wait for all five.
+    /// Sends one table's rows, oldest `uuid` first, in pages of `batchSize`,
+    /// fetched with `fetchOffset`/`fetchLimit` rather than loaded whole into
+    /// memory. `Task.checkCancellation()` runs before every page, not just
+    /// once per table: a table of 852 rows is five requests, and closing the
+    /// settings window should not have to wait for all five.
     ///
-    /// The whole table is fetched once and sliced in Swift, rather than
-    /// re-querying SwiftData for each batch with a `uuid > cursor` predicate.
-    /// None of the sixteen tables are large enough — 852 activities, 5 672
-    /// laps at the top end — for holding one table's rows in memory to
-    /// matter next to that.
+    /// Each page opens its own `ModelContext` rather than reusing one held by
+    /// the actor across the whole bootstrap — measured, not assumed: at
+    /// roughly 12 KB per attribute, `ActivityStreams`' eleven `Data?`
+    /// properties sit **inline** in the SQLite store rather than behind
+    /// `.externalStorage`, which only takes effect above CoreData's own
+    /// externalization threshold. A single long-lived context that fetches
+    /// every `ActivityStreams` row for the whole bootstrap keeps every one of
+    /// those blobs resident until the entire run finishes, ~320 MB on the
+    /// real library, none of it ever touched — `mirrorRow` only reads
+    /// `pointCount` and writes a `storage_path` string, never the bytes
+    /// themselves. A fresh, short-lived context per page releases the
+    /// previous page's rows — blobs included — the moment the page is sent.
     ///
-    /// The sort is done here, with plain `String` `<`, rather than through
-    /// `FetchDescriptor`'s own `sortBy` — measured directly: a
-    /// `SortDescriptor(\Model.uuid)` handed to SwiftData does not reliably
-    /// return `uuid`s in strict ascending order (observed, repeatedly,
-    /// batches of three UUIDs coming back in an order plain `String`
-    /// comparison disagrees with). Cursor resumption depends on the ordering
-    /// being one true, strict order, so it cannot be left to a comparator
-    /// this code does not control.
+    /// The sort passes an explicit `.lexical` comparator rather than
+    /// `SortDescriptor(\Model.uuid)`'s default — measured, not assumed again:
+    /// `SortDescriptor` on a `String` defaults to a *localized*, numeric-aware
+    /// comparator, so `"0E9AB009…"` sorts before `"0E10DDFC…"` (9 before 10,
+    /// digit-run compared as a number) even though plain `String` `<`
+    /// disagrees. `.lexical` matches `<` exactly — checked against a full
+    /// 852-row table, not just spot-checked. Cursor resumption depends on the
+    /// ordering being the one, single order every page and every run agrees
+    /// on, so it cannot be left to whichever comparator happens to be the
+    /// default.
     private func sendBatches<Model: PersistentModel & MirrorRow>(
         _ type: Model.Type, table: String, userID: String
     ) async throws {
-        let all = try context.fetch(FetchDescriptor<Model>())
-            .sorted { $0.uuid < $1.uuid }
-        guard !all.isEmpty else { return }
+        let context = ModelContext(container)
+        let total = try context.fetchCount(FetchDescriptor<Model>())
+        guard total > 0 else { return }
 
-        let startIndex: Int
+        let startOffset: Int
         if let lastUUID = cursor.lastUUID(for: table) {
             // Everything up to and including the cursor already made it to
-            // Supabase; resume right after it.
-            startIndex = all.firstIndex { $0.uuid > lastUUID } ?? all.count
+            // Supabase; resume right after it. A count, not a fetch: nothing
+            // about "how many" needs a single row's data in memory.
+            startOffset = try context.fetchCount(
+                FetchDescriptor<Model>(predicate: #Predicate<Model> { $0.uuid <= lastUUID })
+            )
         } else {
-            startIndex = 0
+            startOffset = 0
         }
 
-        let total = all.count
-        var done = startIndex
+        var done = startOffset
         await setPhase(.bootstrapping(table: table, done: done, total: total))
 
-        var index = startIndex
-        while index < all.count {
+        var offset = startOffset
+        while offset < total {
             try Task.checkCancellation()
-            let end = min(index + Self.batchSize, all.count)
-            let batch = all[index..<end]
+
+            let pageContext = ModelContext(container)
+            var descriptor = FetchDescriptor<Model>(
+                sortBy: [SortDescriptor(\Model.uuid, comparator: .lexical)]
+            )
+            descriptor.fetchOffset = offset
+            descriptor.fetchLimit = Self.batchSize
+            let batch = try pageContext.fetch(descriptor)
+            if batch.isEmpty { break }
 
             let rows = batch.map { $0.mirrorRow(userID: userID) }
             try await client.upsert(table: table, rows: rows)
@@ -215,7 +291,7 @@ actor MirrorEngine {
                 cursor.setLastUUID(last, for: table)
             }
             done += batch.count
-            index = end
+            offset += batch.count
             await setPhase(.bootstrapping(table: table, done: done, total: total))
         }
     }
@@ -225,9 +301,11 @@ actor MirrorEngine {
     }
 
     private func finish() async {
+        let now = Date()
+        cursor.setLastPushAt(now)
         await MainActor.run {
             progress.phase = .idle
-            progress.lastPushAt = Date()
+            progress.lastPushAt = now
         }
     }
 }

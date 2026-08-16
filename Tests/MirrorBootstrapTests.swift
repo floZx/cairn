@@ -32,6 +32,46 @@ private actor FlakyTransport: MirrorTransport {
     func requests() -> [URLRequest] { sent }
 }
 
+/// Parks its very first `send` until the test explicitly releases it, so a
+/// cancellation can be timed at "a request is genuinely in flight" rather
+/// than racing the engine to see whether anything ran at all before
+/// `task.cancel()` lands. Kept local to this file for the same reason
+/// `FlakyTransport` is.
+private actor PausingTransport: MirrorTransport {
+    private var sent: [URLRequest] = []
+    private var gate: CheckedContinuation<Void, Never>?
+
+    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        sent.append(request)
+        if sent.count == 1 {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                gate = continuation
+            }
+        }
+        let response = HTTPURLResponse(
+            url: URL(string: "https://x.supabase.co")!,
+            statusCode: 201, httpVersion: nil, headerFields: nil
+        )!
+        return (Data(), response)
+    }
+
+    /// Lets the parked first `send` return its (successful) response.
+    func release() {
+        gate?.resume()
+        gate = nil
+    }
+
+    /// Blocks until `send` has been called at least once — bounded, so a
+    /// genuine regression fails the test instead of hanging the suite.
+    func waitForFirstRequest() async {
+        for _ in 0..<2000 where sent.isEmpty {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+    }
+
+    func requests() -> [URLRequest] { sent }
+}
+
 // `MirrorProgress` is `@MainActor` (task 6's own interface), so every test
 // that constructs one needs to run there too — `Tests/SyncEngineTests.swift`
 // annotates its suites the same way for `SyncProgress`.
@@ -41,10 +81,17 @@ struct MirrorBootstrapTests {
     /// A suite of its own per test, never `.standard` — that one belongs to
     /// whatever process is running the suite, exactly the trap
     /// `Tests/JournalStoreTests.swift` already avoids for `JournalStore`.
-    private func freshCursor() -> MirrorBootstrapCursor {
-        MirrorBootstrapCursor(
-            defaults: UserDefaults(suiteName: "cairn.tests.mirror.\(UUID().uuidString)")!
-        )
+    /// Returns the suite name alongside the cursor so the caller can `defer`
+    /// its cleanup, the other half of what that same file does
+    /// (`removePersistentDomain(forName:)`) and what an earlier version of
+    /// this file skipped.
+    private func freshCursor() -> (cursor: MirrorBootstrapCursor, suiteName: String) {
+        let suiteName = "cairn.tests.mirror.\(UUID().uuidString)"
+        return (MirrorBootstrapCursor(defaults: UserDefaults(suiteName: suiteName)!), suiteName)
+    }
+
+    private func discard(_ suiteName: String) {
+        UserDefaults().removePersistentDomain(forName: suiteName)
     }
 
     /// Un amorçage interrompu reprend là où il s'est arrêté, et un amorçage
@@ -61,10 +108,12 @@ struct MirrorBootstrapTests {
         }
         try context.save()
 
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
         let transport = StubTransport(alwaysRespondingWith: 201)
         let engine = MirrorEngine(
             client: MirrorClient(store: try configuredStore(), transport: transport),
-            container: container, progress: MirrorProgress(), cursor: freshCursor()
+            container: container, progress: MirrorProgress(), cursor: cursor
         )
 
         try await engine.bootstrap()
@@ -90,10 +139,12 @@ struct MirrorBootstrapTests {
         context.insert(activity)
         try context.save()
 
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
         let transport = StubTransport(alwaysRespondingWith: 201)
         let engine = MirrorEngine(
             client: MirrorClient(store: try configuredStore(), transport: transport),
-            container: container, progress: MirrorProgress(), cursor: freshCursor()
+            container: container, progress: MirrorProgress(), cursor: cursor
         )
         try await engine.bootstrap()
 
@@ -121,7 +172,8 @@ struct MirrorBootstrapTests {
         }
         try context.save()
 
-        let cursor = freshCursor()
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
         let store = try configuredStore()
 
         // First attempt: the activity batch goes through, the lap batch does
@@ -161,29 +213,81 @@ struct MirrorBootstrapTests {
 
     /// Une annulation n'est jamais un échec réseau : fermer la fenêtre de
     /// réglages pendant un amorçage doit laisser `MirrorProgress` silencieux
-    /// sur l'incident, pas afficher une erreur.
-    @Test func uneAnnulationNeMetPasEnEchec() async throws {
+    /// sur l'incident, pas afficher une erreur — et cette annulation doit
+    /// réellement couper un amorçage en train de tourner, pas juste devancer
+    /// son tout premier `Task.checkCancellation()` avant qu'une requête ne
+    /// soit partie.
+    @Test func uneAnnulationEntreDeuxTablesNeMetPasEnEchec() async throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
+        // Une seule table peuplée suffit : `bootstrapOrder` en compte quinze
+        // autres derrière "athlete", donc le `Task.checkCancellation()` qui
+        // précède la suivante est garanti d'être atteint après elle.
         context.insert(Athlete(stravaID: 1))
-        context.insert(Activity(stravaID: 1, name: "S", sportType: .run))
         try context.save()
 
-        let transport = StubTransport(alwaysRespondingWith: 201)
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let transport = PausingTransport()
         let progress = MirrorProgress()
         let engine = MirrorEngine(
             client: MirrorClient(store: try configuredStore(), transport: transport),
-            container: container, progress: progress, cursor: freshCursor()
+            container: container, progress: progress, cursor: cursor
         )
 
         let task = Task { try await engine.bootstrap() }
+        // Attend que la requête "athlete" soit réellement partie et bloquée
+        // en attente de réponse, plutôt que d'annuler à l'aveugle.
+        await transport.waitForFirstRequest()
         task.cancel()
+        // Laisse cette première requête réussir malgré tout : c'est le
+        // `Task.checkCancellation()` de la table suivante, pas une erreur
+        // réseau au milieu de celle-ci, qui doit porter l'annulation.
+        await transport.release()
+
         await #expect(throws: CancellationError.self) {
             try await task.value
         }
 
-        if case .failed = progress.phase {
-            Issue.record("une annulation ne doit pas se lire comme un échec")
-        }
+        // La ligne "athlete" est bien partie avant que l'annulation ne
+        // prenne effet — la preuve que ceci a exercé une vraie requête, pas
+        // seulement le tout premier point de contrôle avant que rien n'ait
+        // tourné.
+        #expect(await transport.requests().count == 1)
+        #expect(progress.phase == .idle)
+    }
+
+    /// La date de dernière synchro survit à un relancement de l'app :
+    /// `MirrorProgress` est un état de session qui repart à `nil` à chaque
+    /// lancement, donc sans lecture explicite du curseur persistant, un
+    /// miroir entièrement amorcé hier se lirait comme un miroir qui n'a
+    /// jamais tourné.
+    @Test func laDateDeDerniereSynchroSurvitAUnRelancement() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        context.insert(Athlete(stravaID: 1))
+        try context.save()
+
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let transport = StubTransport(alwaysRespondingWith: 201)
+        let engine = MirrorEngine(
+            client: MirrorClient(store: try configuredStore(), transport: transport),
+            container: container, progress: MirrorProgress(), cursor: cursor
+        )
+        try await engine.bootstrap()
+
+        // Un second `MirrorEngine`, avec un second `MirrorProgress` neuf —
+        // la forme exacte d'un nouveau lancement de l'app, où plus rien en
+        // mémoire ne se souvient du premier amorçage.
+        let freshProgress = MirrorProgress()
+        #expect(freshProgress.lastPushAt == nil)
+        let secondEngine = MirrorEngine(
+            client: MirrorClient(store: try configuredStore(), transport: transport),
+            container: container, progress: freshProgress, cursor: cursor
+        )
+        await secondEngine.restoreProgress()
+
+        #expect(freshProgress.lastPushAt != nil)
     }
 }
