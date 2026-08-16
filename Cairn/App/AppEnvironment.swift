@@ -396,6 +396,7 @@ final class AppEnvironment {
         mirrorCursor.clear()
         mirrorProgress.phase = .idle
         mirrorProgress.lastPushAt = nil
+        mirrorProgress.failedUploads = 0
         mirrorErrorMessage = nil
     }
 

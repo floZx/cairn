@@ -285,8 +285,14 @@ struct MirrorWiringTests {
         let afterConfigure = try ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>())
         #expect(afterConfigure.contains { $0.table == "athlete" })
 
+        // `saveMirrorCredentials` resets it on a project change; `forgetMirror()`
+        // must do the same, or the settings screen keeps showing « Jamais
+        // synchronisé — 3 fichiers non envoyés » after the mirror is gone.
+        environment.mirrorProgress.failedUploads = 3
+
         environment.forgetMirror()
         #expect(!environment.isMirrorConfigured)
+        #expect(environment.mirrorProgress.failedUploads == 0)
 
         // Purges what the write above left, so the next check is unambiguous
         // about what happened *after* `forgetMirror()`.

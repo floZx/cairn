@@ -155,12 +155,15 @@ struct MirrorBootstrapTests {
         #expect(order.filter { $0 == "activity" }.count == 1)
     }
 
-    /// L'amorçage emporte `edited_at` pour les activités qui en ont un.
-    /// Sans ça, la future application web ne pourrait afficher « modifié
-    /// le… » sur aucune des 852 lignes déjà en place, et rattraper après coup
-    /// coûterait de toutes les réécrire. C'est le moteur qui le pose, jamais
-    /// `mirrorRow` : la règle des quatre colonnes réservées reste gardée par
-    /// `Tests/MirrorRowSchemaTests.swift`.
+    /// L'amorçage emporte `edited_at` pour toute activité, éditée ou non — à
+    /// `null` pour celles qui ne l'ont jamais été, jamais en l'omettant : un
+    /// lot mélangeant les deux doit garder des clés uniformes, ce que
+    /// PostgREST exige de tout tableau d'objets envoyé en un seul POST. Sans
+    /// la colonne posée pour les lignes éditées, la future application web ne
+    /// pourrait afficher « modifié le… » sur aucune des 852 lignes déjà en
+    /// place, et rattraper après coup coûterait de toutes les réécrire. C'est
+    /// le moteur qui le pose, jamais `mirrorRow` : la règle des quatre
+    /// colonnes réservées reste gardée par `Tests/MirrorRowSchemaTests.swift`.
     @Test func lAmorcageEmporteLaDateDeDerniereEdition() async throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
@@ -196,9 +199,17 @@ struct MirrorBootstrapTests {
             byUUID[edited.uuid]?["edited_at"] as? String
                 == MirrorClient.iso8601.string(from: editedAt)
         )
-        // Une activité jamais éditée n'en reçoit pas : la décision d'horloge du
-        // registre veut que `edited_at` reste nul là où rien n'a été retouché.
-        #expect(byUUID[untouched.uuid]?["edited_at"] == nil)
+        // Une activité jamais éditée reçoit tout de même la colonne — à
+        // `null`, jamais absente : PostgREST rejette un lot dont les objets
+        // n'ont pas tous les mêmes clés, et les deux activités de ce test
+        // partent dans le même POST.
+        let untouchedRow = try #require(byUUID[untouched.uuid])
+        #expect(untouchedRow.keys.contains("edited_at"))
+        #expect(untouchedRow["edited_at"] is NSNull)
+
+        // Les deux lignes du même lot portent exactement les mêmes clés.
+        let editedRow = try #require(byUUID[edited.uuid])
+        #expect(Set(editedRow.keys) == Set(untouchedRow.keys))
     }
 
     /// Les parents partent avant les enfants — par confort de lecture, pas par

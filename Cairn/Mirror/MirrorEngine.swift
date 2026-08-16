@@ -905,15 +905,18 @@ actor MirrorEngine {
                 // `edited_at` is the engine's to stamp, never `mirrorRow`'s —
                 // the rule `Tests/MirrorRowSchemaTests.swift` guards, and the
                 // reason this sits here rather than in the conformance. Only
-                // `Activity` carries the fact locally, and only when the user
-                // actually edited the row: left out, the web could never show
-                // "modifié le…" for the 852 activities the bootstrap sends,
-                // and catching up after the fact would mean rewriting all of
-                // them. A row never edited keeps `edited_at` null, per the
-                // ledger's clock decision; a later push overwrites it with
-                // its outbox entry's `changedAt`.
-                if let activity = model as? Activity, let editedAt = activity.editedAt {
-                    row["edited_at"] = .date(editedAt)
+                // `Activity` carries the fact locally: left out, the web
+                // could never show "modifié le…" for the 852 activities the
+                // bootstrap sends, and catching up after the fact would mean
+                // rewriting all of them. The column is set for every
+                // `Activity` row, never merely skipped when unedited — a
+                // single POST carries up to `batchSize` rows, and PostgREST
+                // requires every object in the array to share the same keys.
+                // A row never edited encodes `.null`, per `MirrorRow`'s own
+                // invariant; a later push overwrites it with its outbox
+                // entry's `changedAt`.
+                if let activity = model as? Activity {
+                    row["edited_at"] = activity.editedAt.map(MirrorValue.date) ?? .null
                 }
                 return row
             }

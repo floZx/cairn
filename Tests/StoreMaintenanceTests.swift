@@ -185,7 +185,7 @@ struct StoreMaintenanceTests {
                 sharing: shared, into: context
             ),
         ]
-        #expect(pairs.count == 16)
+        #expect(Set(pairs.map(\.table)) == Set(MirrorEngine.bootstrapOrder))
         try context.save()
 
         let changed = try StoreMaintenance.run(context)
