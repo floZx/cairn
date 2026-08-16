@@ -283,7 +283,11 @@ actor MirrorEngine {
                 )
                 photo.mirroredAt = Date()
             }
-            try context.save()
+            // Bookkeeping, not a change to mirror: `ActivityPhoto` is itself a
+            // `MirrorRow`, so without this the recorder would file one outbox
+            // entry per photo uploaded and the next push would re-upsert the
+            // whole table for nothing.
+            try MirrorBookkeeping.perform { try context.save() }
         }
     }
 
@@ -335,7 +339,8 @@ actor MirrorEngine {
                 )
                 streams.mirroredAt = Date()
             }
-            try context.save()
+            // Bookkeeping, as in `uploadPendingPhotos` above.
+            try MirrorBookkeeping.perform { try context.save() }
         }
     }
 
