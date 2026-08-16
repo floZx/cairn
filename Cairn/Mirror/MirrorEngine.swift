@@ -184,11 +184,12 @@ actor MirrorEngine {
         }
     }
 
-    /// Uploads what changed locally since the last push: the outbox
-    /// (task 8), replayed table by table. `bootstrap()`'s counterpart for
-    /// everything after the initial upload — the standing coverage that
-    /// notices a row created, edited, or deleted behind the cursor, which
-    /// `bootstrap()` explicitly does not.
+    /// Uploads what changed locally since the last push: pending blobs
+    /// first (same reasoning as `bootstrap()`, see `uploadPendingBlobs()`),
+    /// then the outbox (task 8), replayed table by table. `bootstrap()`'s
+    /// counterpart for everything after the initial upload — the standing
+    /// coverage that notices a row created, edited, or deleted behind the
+    /// cursor, which `bootstrap()` explicitly does not.
     ///
     /// Safe to call again after any failure, for the same reason
     /// `bootstrap()` is: an outbox entry is deleted only once the request
@@ -198,37 +199,42 @@ actor MirrorEngine {
     /// has not already accepted is ever dropped from the trail.
     ///
     /// Grouped by `(table, uuid)` first, keeping only the most recent entry
-    /// per row: ten edits to the same row before a single push leaves ten
-    /// outbox entries (task 8 does not deduplicate), and sending all ten
-    /// would be both wasteful and, for a create-then-delete pair, wrong —
-    /// only the last one describes what Supabase should end up holding.
-    /// `changedAt` is unreliable *within* one save (several entries from the
-    /// same save land at the same microsecond) but that never matters here:
-    /// `MirrorRecorder.pendingEntries` already collapses one save down to at
-    /// most one entry per row, so two entries sharing a key only ever come
-    /// from two distinct saves, and `changedAt` orders those correctly —
-    /// exactly the create-then-delete case it exists for.
+    /// per row to *decide what to send*: ten edits to the same row before a
+    /// single push leave ten outbox entries (task 8 does not deduplicate),
+    /// and for a create-then-delete pair only the last one describes what
+    /// Supabase should end up holding. `changedAt` is unreliable *within*
+    /// one save (several entries from the same save land at the same
+    /// microsecond) but that never matters here: `MirrorRecorder.pendingEntries`
+    /// already collapses one save down to at most one entry per row, so two
+    /// entries sharing a key only ever come from two distinct saves, and
+    /// `changedAt` orders those correctly — exactly the create-then-delete
+    /// case it exists for.
     ///
-    /// Once a row's entry is resolved — sent, or found to have nothing left
-    /// to send (below) — **every** stale entry for that `(table, uuid)` is
-    /// purged, not only the one entry this call happened to pick as latest:
-    /// a row edited twice before ever being pushed otherwise leaves its
-    /// older entry behind forever, since nothing else will ever revisit it.
-    ///
-    /// A non-deletion entry whose row cannot be found locally — created and
-    /// deleted in the same transaction the recorder never saw as a deletion
-    /// because the process died first, or any other reason the outbox and
-    /// the store fell out of step — is dropped without sending anything and
-    /// without error: the outbox is written before the context it describes
-    /// finishes saving (task 8), so it is never transactional with the
-    /// write it announces, and "the row is gone" is data, not a fault.
+    /// **Every stale entry a row had *at the moment this call started
+    /// reading the outbox*** is purged once that row is resolved — not a
+    /// second, later query for `(table, uuid)`. That distinction is load-
+    /// bearing: a later query would also catch an entry `MirrorRecorder`
+    /// writes *during* the HTTP round trip this call is waiting on — the
+    /// user edits the very row this push is sending, between the request
+    /// going out and the response coming back — and erase the record of an
+    /// edit that was never actually sent. `entriesByRow` below is built once,
+    /// from the single fetch at the top of this method, and `purge` only
+    /// ever deletes objects out of that fixed set — nothing this call did
+    /// not itself read is ever at risk of being purged.
     func push() async throws {
         do {
             guard let userID = await client.userID else {
                 throw MirrorError.notConfigured
             }
-            let context = ModelContext(container)
-            let entries = try context.fetch(FetchDescriptor<MirrorOutbox>())
+            // Before any row, for the same reason `bootstrap()` does this
+            // first: a row's `storage_path` is emitted unconditionally, so a
+            // photo or a stream added after the initial bootstrap must have
+            // its bytes in Storage before its row goes out, not merely
+            // "eventually will" once some later `bootstrap()` catches up.
+            try await uploadPendingBlobs()
+
+            let outboxContext = ModelContext(container)
+            let entries = try outboxContext.fetch(FetchDescriptor<MirrorOutbox>())
 
             // An empty outbox still counts as a clean finish, on the same
             // reasoning as `bootstrap()` calling `finish()` unconditionally
@@ -236,6 +242,16 @@ actor MirrorEngine {
             // itself the caught-up state, not a reason to leave `lastPushAt`
             // stale until the next change happens to arrive.
             if !entries.isEmpty {
+                // Every entry fetched just now, grouped by row — the fixed
+                // universe `purge` is ever allowed to delete from. Built
+                // *before* anything awaits the network, so nothing recorded
+                // after this point can appear in it.
+                var entriesByRow: [String: [MirrorOutbox]] = [:]
+                for entry in entries {
+                    entriesByRow[Self.rowKey(table: entry.table, uuid: entry.rowUUID), default: []]
+                        .append(entry)
+                }
+
                 var latestByRow: [String: MirrorOutbox] = [:]
                 for entry in entries {
                     let key = Self.rowKey(table: entry.table, uuid: entry.rowUUID)
@@ -253,10 +269,11 @@ actor MirrorEngine {
                 for table in byTable.keys.sorted() {
                     try Task.checkCancellation()
                     guard let tableEntries = byTable[table] else { continue }
-                    try await pushTable(
-                        table, entries: tableEntries, userID: userID, context: context
+                    let sent = try await pushTable(
+                        table, entries: tableEntries, userID: userID,
+                        entriesByRow: entriesByRow, outboxContext: outboxContext
                     )
-                    done += tableEntries.count
+                    done += sent
                     await setPhase(.pushing(done: done, total: total))
                 }
             }
@@ -275,107 +292,235 @@ actor MirrorEngine {
 
     private static func rowKey(table: String, uuid: String) -> String { "\(table)|\(uuid)" }
 
+    /// The page size a push uses for one table's non-deletion batch — the
+    /// same two constants `bootstrap()` already picked and already
+    /// justified (`batchSize`, `blobBatchSize`), reused rather than
+    /// reinvented. `activity_streams` and `activity_photo` carry the same
+    /// inline blob columns here as they do during a bootstrap — a page of
+    /// `activity_streams` at the ordinary `batchSize` would hold the same
+    /// ~26 MB of blobs resident that `blobBatchSize`'s doc comment measures
+    /// for `bootstrap()`, and an incremental push has no more excuse to pay
+    /// that than a full one does.
+    private static func pushBatchSize(for table: String) -> Int {
+        switch table {
+        case "activity_streams", "activity_photo": blobBatchSize
+        default: batchSize
+        }
+    }
+
+    /// Splits a list into consecutive pieces of at most `size`. Plain
+    /// `Array` chunking has no standard-library spelling; a private helper
+    /// rather than pulling in anything external, on the "no new SPM
+    /// dependency" constraint the whole plan holds to.
+    private static func chunked(_ items: [String], size: Int) -> [[String]] {
+        guard size > 0, !items.isEmpty else { return items.isEmpty ? [] : [items] }
+        var pages: [[String]] = []
+        var index = items.startIndex
+        while index < items.endIndex {
+            let end = items.index(index, offsetBy: size, limitedBy: items.endIndex) ?? items.endIndex
+            pages.append(Array(items[index..<end]))
+            index = end
+        }
+        return pages
+    }
+
     /// Dispatches to the concretely-typed push for one table — the same
     /// closed `switch` as `sendTable`, for the same reason: there is no way
-    /// to spell "a `PersistentModel & MirrorRow` type" as a value.
+    /// to spell "a `PersistentModel & MirrorRow` type" as a value. Returns
+    /// how many outbox entries this table resolved, for `push()`'s progress
+    /// count.
     private func pushTable(
-        _ table: String, entries: [MirrorOutbox], userID: String, context: ModelContext
-    ) async throws {
+        _ table: String, entries: [MirrorOutbox], userID: String,
+        entriesByRow: [String: [MirrorOutbox]], outboxContext: ModelContext
+    ) async throws -> Int {
         switch table {
-        case "athlete": try await pushRows(Athlete.self, table: table, entries: entries, userID: userID, context: context)
-        case "gear": try await pushRows(Gear.self, table: table, entries: entries, userID: userID, context: context)
-        case "day_type": try await pushRows(DayType.self, table: table, entries: entries, userID: userID, context: context)
-        case "meal_slot": try await pushRows(MealSlot.self, table: table, entries: entries, userID: userID, context: context)
-        case "activity": try await pushRows(Activity.self, table: table, entries: entries, userID: userID, context: context)
+        case "athlete":
+            return try await pushRows(Athlete.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
+        case "gear":
+            return try await pushRows(Gear.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
+        case "day_type":
+            return try await pushRows(DayType.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
+        case "meal_slot":
+            return try await pushRows(MealSlot.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
+        case "activity":
+            return try await pushRows(Activity.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "activity_streams":
-            try await pushRows(ActivityStreams.self, table: table, entries: entries, userID: userID, context: context)
+            return try await pushRows(ActivityStreams.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "activity_photo":
-            try await pushRows(ActivityPhoto.self, table: table, entries: entries, userID: userID, context: context)
-        case "lap": try await pushRows(Lap.self, table: table, entries: entries, userID: userID, context: context)
+            return try await pushRows(ActivityPhoto.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
+        case "lap":
+            return try await pushRows(Lap.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "discarded_activity":
-            try await pushRows(DiscardedActivity.self, table: table, entries: entries, userID: userID, context: context)
+            return try await pushRows(DiscardedActivity.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "nutrition_day":
-            try await pushRows(NutritionDay.self, table: table, entries: entries, userID: userID, context: context)
+            return try await pushRows(NutritionDay.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "food_entry":
-            try await pushRows(FoodEntry.self, table: table, entries: entries, userID: userID, context: context)
+            return try await pushRows(FoodEntry.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "meal_note":
-            try await pushRows(MealNote.self, table: table, entries: entries, userID: userID, context: context)
-        case "recipe": try await pushRows(Recipe.self, table: table, entries: entries, userID: userID, context: context)
+            return try await pushRows(MealNote.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
+        case "recipe":
+            return try await pushRows(Recipe.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "recipe_item":
-            try await pushRows(RecipeItem.self, table: table, entries: entries, userID: userID, context: context)
+            return try await pushRows(RecipeItem.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "favorite_food":
-            try await pushRows(FavoriteFood.self, table: table, entries: entries, userID: userID, context: context)
+            return try await pushRows(FavoriteFood.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "weight_entry":
-            try await pushRows(WeightEntry.self, table: table, entries: entries, userID: userID, context: context)
+            return try await pushRows(WeightEntry.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         default:
             // Unreachable: every entry's `table` was written by
             // `MirrorRecorder` from `MirrorRow.mirrorTable`, and that
             // protocol is conformed by exactly the sixteen models this
             // `switch` covers.
             assertionFailure("table de miroir inconnue : \(table)")
+            return 0
         }
     }
 
-    /// One table's slice of a push: the non-deletion entries in a single
-    /// upsert, the deletion entries as one `PATCH` apiece — a soft delete
-    /// has no batch form, since PostgREST's `?uuid=eq.<uuid>` targets one
-    /// row.
+    /// One table's slice of a push: the non-deletion entries paged into
+    /// `pushBatchSize(for:)`-sized upserts, the deletion entries as one
+    /// `PATCH` apiece — a soft delete has no batch form, since PostgREST's
+    /// `?uuid=eq.<uuid>` targets one row.
+    ///
+    /// Both `entries` and `deletions`/`updates` derived from it are sorted
+    /// by `(changedAt, rowUUID)` before any paging or requesting happens —
+    /// not for correctness (nothing here depends on visiting rows in any
+    /// particular order) but so that which rows land in which page, and
+    /// which deletion is attempted before which, is the same on every call
+    /// with the same outbox contents rather than left to `Dictionary`'s
+    /// unspecified iteration order. `rowUUID` breaks a `changedAt` tie the
+    /// same way it would matter to: two entries from the same save share a
+    /// microsecond (see `push()`'s own doc comment), so `changedAt` alone
+    /// cannot be trusted to order them.
+    ///
+    /// Each page fetches its `Model` rows through a **fresh `ModelContext`**,
+    /// never the long-lived `outboxContext` this function also receives —
+    /// the same fix, for the same measured reason, `sendBatches`' own doc
+    /// comment explains at length: `ActivityStreams`' eleven `Data?`
+    /// properties sit inline in the SQLite store, and a context that
+    /// accumulates every page's rows across a whole table would hold every
+    /// one of those blobs resident for the rest of the push. `outboxContext`
+    /// itself stays put throughout — it is the one context every
+    /// `MirrorOutbox` object in `entriesByRow` is registered with, and
+    /// `purge` can only `delete` an object through the context that holds
+    /// it.
     ///
     /// Entries are purged from the outbox only once the request that
-    /// resolves them has actually returned success: the non-deletion batch
-    /// purges together, right after the one upsert that carried all of them
-    /// returns; each deletion purges on its own, right after its own
-    /// `PATCH` returns, so a deletion that fails midway through a table
-    /// leaves the ones before it gone from the outbox and the ones from it
-    /// onward — including itself — untouched, exactly like a batch that
-    /// throws in `sendBatches`.
+    /// resolves them has actually returned success: each page purges right
+    /// after the upsert that carried it returns, giving partial credit for
+    /// whatever page failed after — the pages before it stay purged, the one
+    /// that failed and every one after stay in the outbox; each deletion
+    /// purges on its own, right after its own `PATCH` returns, so a deletion
+    /// that fails midway through a table leaves the ones before it gone from
+    /// the outbox and the ones from it onward — including itself —
+    /// untouched.
     private func pushRows<Model: PersistentModel & MirrorRow>(
         _ type: Model.Type, table: String, entries: [MirrorOutbox], userID: String,
-        context: ModelContext
-    ) async throws {
-        let deletions = entries.filter(\.isDeletion)
-        let updates = entries.filter { !$0.isDeletion }
+        entriesByRow: [String: [MirrorOutbox]], outboxContext: ModelContext
+    ) async throws -> Int {
+        func ordered(_ items: [MirrorOutbox]) -> [MirrorOutbox] {
+            items.sorted { lhs, rhs in
+                lhs.changedAt != rhs.changedAt
+                    ? lhs.changedAt < rhs.changedAt : lhs.rowUUID < rhs.rowUUID
+            }
+        }
+        let deletions = ordered(entries.filter(\.isDeletion))
+        let updates = ordered(entries.filter { !$0.isDeletion })
+        var processed = 0
 
         if !updates.isEmpty {
-            let uuids = Set(updates.map(\.rowUUID))
-            let models = try context.fetch(
-                FetchDescriptor<Model>(predicate: #Predicate<Model> { uuids.contains($0.uuid) })
+            // `changedAt` per row, for stamping `edited_at` below — the
+            // author's own clock, read straight from the entry that decided
+            // this row needed sending, never the network's.
+            let changedAtByUUID = Dictionary(
+                uniqueKeysWithValues: updates.map { ($0.rowUUID, $0.changedAt) }
             )
-            // A row named by an entry but absent from the store — created
-            // and deleted before the recorder ever saw it as a deletion —
-            // has nothing left to send; the ones that do exist still go.
-            if !models.isEmpty {
-                try await client.upsert(table: table, rows: models.map { $0.mirrorRow(userID: userID) })
+            let pageSize = Self.pushBatchSize(for: table)
+            for page in Self.chunked(updates.map(\.rowUUID), size: pageSize) {
+                try Task.checkCancellation()
+                let pageUUIDs = Set(page)
+                let pageContext = ModelContext(container)
+                let models = try pageContext.fetch(
+                    FetchDescriptor<Model>(
+                        predicate: #Predicate<Model> { pageUUIDs.contains($0.uuid) }
+                    )
+                )
+                // A row named by an entry but absent from the store —
+                // created and deleted before the recorder ever saw it as a
+                // deletion — has nothing left to send; the ones that do
+                // exist still go.
+                if !models.isEmpty {
+                    let rows = models.map { model -> [String: MirrorValue] in
+                        var row = model.mirrorRow(userID: userID)
+                        if let changedAt = changedAtByUUID[model.uuid] {
+                            row["edited_at"] = .date(changedAt)
+                        }
+                        return row
+                    }
+                    try await client.upsert(table: table, rows: rows)
+                }
+                // Reached only once the request above actually returned
+                // success, or there was nothing to send: every entry in this
+                // page is accounted for now, found locally or not — a
+                // missing row is a non-event, not a reason to keep retrying
+                // it forever.
+                try purge(
+                    table: table, uuids: pageUUIDs, entriesByRow: entriesByRow,
+                    context: outboxContext
+                )
+                processed += page.count
             }
-            // Reached only once the request above actually returned success,
-            // or there was nothing to send: every update entry for this
-            // table is accounted for now, found locally or not — a missing
-            // row is a non-event, not a reason to keep retrying it forever.
-            try purge(table: table, uuids: uuids, context: context)
         }
 
         for deletion in deletions {
             try Task.checkCancellation()
-            try await client.softDelete(table: table, uuid: deletion.rowUUID, userID: userID)
-            try purge(table: table, uuids: [deletion.rowUUID], context: context)
+            try await client.softDelete(
+                table: table, uuid: deletion.rowUUID, userID: userID, deletedAt: deletion.changedAt
+            )
+            try purge(
+                table: table, uuids: [deletion.rowUUID], entriesByRow: entriesByRow,
+                context: outboxContext
+            )
+            processed += 1
         }
+
+        return processed
     }
 
-    /// Deletes every outbox entry for the given rows of one table — not just
-    /// the single entry a caller happened to be looking at, but every stale
-    /// duplicate a row picked up before this push (see `push()`'s doc
-    /// comment on why more than one can exist). `MirrorOutbox` is not a
-    /// `MirrorRow` (see its own doc comment), so this save needs no
-    /// `MirrorBookkeeping.perform` wrapper — only a save that stamps a
-    /// mirrored model needs that exemption, and this touches none.
-    private func purge(table: String, uuids: Set<String>, context: ModelContext) throws {
-        let stale = try context.fetch(
-            FetchDescriptor<MirrorOutbox>(
-                predicate: #Predicate<MirrorOutbox> { $0.table == table && uuids.contains($0.rowUUID) }
-            )
-        )
-        guard !stale.isEmpty else { return }
-        for entry in stale { context.delete(entry) }
+    /// Deletes every outbox entry the *initial* fetch at the top of `push()`
+    /// found for the given rows of one table — looked up in `entriesByRow`,
+    /// a fixed snapshot built once before any request went out, never by
+    /// re-querying the store here.
+    ///
+    /// That distinction is the whole point: a fresh query at this point
+    /// would also match an entry `MirrorRecorder` wrote *after* the snapshot
+    /// was taken — the row this call is about to mark resolved, edited again
+    /// by the user while the request for its *previous* state was still in
+    /// flight. Deleting that entry would erase the only record that the
+    /// second edit ever happened, since nothing else will ever revisit it:
+    /// the outbox is its sole trail. Restricting the delete to objects this
+    /// call already holds a reference to — the ones `entriesByRow` was built
+    /// from — makes that impossible: an entry that did not exist yet when
+    /// `push()` took its snapshot cannot be in `entriesByRow`, so it cannot
+    /// be purged by this push no matter how the timing lines up. It waits
+    /// for the next call, exactly like any other unpushed change.
+    ///
+    /// `MirrorOutbox` is not a `MirrorRow` (see its own doc comment), so
+    /// this save needs no `MirrorBookkeeping.perform` wrapper — only a save
+    /// that stamps a mirrored model needs that exemption, and this touches
+    /// none.
+    private func purge(
+        table: String, uuids: Set<String>, entriesByRow: [String: [MirrorOutbox]],
+        context: ModelContext
+    ) throws {
+        var any = false
+        for uuid in uuids {
+            guard let stale = entriesByRow[Self.rowKey(table: table, uuid: uuid)] else { continue }
+            for entry in stale {
+                context.delete(entry)
+                any = true
+            }
+        }
+        guard any else { return }
         try context.save()
     }
 

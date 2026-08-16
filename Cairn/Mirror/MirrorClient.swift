@@ -206,7 +206,15 @@ actor MirrorClient {
     /// The body carries only `{uuid, user_id, deleted_at}`, never the row
     /// itself: once a row is gone locally, nothing else about it has a
     /// source of truth left to send.
-    func softDelete(table: String, uuid: String, userID: String) async throws {
+    ///
+    /// `deletedAt` is the caller's to supply — the outbox entry's own
+    /// `changedAt`, the moment the human deleted the row — never `Date()`
+    /// read here: a Mac offline for three days would otherwise date the
+    /// deletion to the moment the connection came back rather than the
+    /// moment the row was actually deleted, the same author-clock-versus-
+    /// network-clock distinction the design spec draws between `edited_at`
+    /// and `updated_at`.
+    func softDelete(table: String, uuid: String, userID: String, deletedAt: Date) async throws {
         let credentials = try validCredentials()
         let token = try await validAccessToken(credentials: credentials)
 
@@ -224,7 +232,7 @@ actor MirrorClient {
         let row: [String: MirrorValue] = [
             "uuid": .string(uuid),
             "user_id": .string(userID),
-            "deleted_at": .date(Date()),
+            "deleted_at": .date(deletedAt),
         ]
         do {
             request.httpBody = try JSONSerialization.data(
