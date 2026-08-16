@@ -175,14 +175,14 @@ create index activity_sync on activity (user_id, updated_at);
 create index activity_start on activity (user_id, start_date);
 
 create table weight_entry (
-  uuid       text primary key,
-  user_id    uuid not null references auth.users on delete cascade,
-  updated_at timestamptz not null default now(),
-  edited_at  timestamptz,
-  deleted_at timestamptz,
-  day        date not null,
-  kilograms  double precision not null default 0,
-  note       text
+  uuid          text primary key,
+  user_id       uuid not null references auth.users on delete cascade,
+  updated_at    timestamptz not null default now(),
+  edited_at     timestamptz,
+  deleted_at    timestamptz,
+  date_key_raw  text not null default '',
+  weight_kg     double precision not null default 0,
+  note          text
 );
 
 create trigger weight_entry_touch before insert or update on weight_entry

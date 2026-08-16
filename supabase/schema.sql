@@ -22,7 +22,7 @@ begin
   new.updated_at = now();
   return new;
 end;
-$$ language plpgsql;
+$$ language plpgsql set search_path = pg_catalog;
 
 -- =============================================================================
 -- Activités
@@ -37,6 +37,8 @@ create table activity (
 
   strava_id       bigint not null default 0,
   source_raw      text not null default 'strava',
+  -- Seule colonne `...Raw` de ce schéma dont le suffixe disparaît (elle vient
+  -- de `editedFieldsRaw`) : l'encodeur devra traiter ce nom à part des autres.
   edited_fields   text[] not null default '{}',
   field_edited_at jsonb not null default '{}',
   name            text not null default '',
@@ -92,6 +94,10 @@ create table activity (
   detail_fetched_at timestamptz,
   photos_fetched_at timestamptz,
   photo_count     integer,
+  -- Seule relation de ce schéma qui ne passe pas par l'uuid du parent : le
+  -- résumé Strava donne l'identifiant du matériel bien avant que le matériel
+  -- lui-même ne soit récupéré, donc `gear_id` pointe vers `gear.strava_id`,
+  -- pas vers `gear.uuid`.
   gear_id         text
 );
 
@@ -400,15 +406,22 @@ create index favorite_food_sync on favorite_food (user_id, updated_at);
 -- Poids
 -- =============================================================================
 
+-- Le gabarit du plan portait `day date` / `kilograms` : des noms qui n'ont
+-- jamais existé dans le modèle Swift. `WeightEntry` réel porte
+-- `dateKeyRaw: String`, `weightKg: Double`, `note: String?` — c'est lui qui
+-- fait foi, pas le gabarit. `date_key_raw` reste `text`, comme sur les trois
+-- autres tables clées par `DateKey` (`nutrition_day`, `food_entry`,
+-- `meal_note`) : `DateKey.raw` est une chaîne validée, délibérément pas un
+-- `Date`, pour éviter les pièges de fuseau horaire (voir `DateKey.swift`).
 create table weight_entry (
-  uuid       text primary key,
-  user_id    uuid not null references auth.users on delete cascade,
-  updated_at timestamptz not null default now(),
-  edited_at  timestamptz,
-  deleted_at timestamptz,
-  day        date not null,
-  kilograms  double precision not null default 0,
-  note       text
+  uuid          text primary key,
+  user_id       uuid not null references auth.users on delete cascade,
+  updated_at    timestamptz not null default now(),
+  edited_at     timestamptz,
+  deleted_at    timestamptz,
+  date_key_raw  text not null default '',
+  weight_kg     double precision not null default 0,
+  note          text
 );
 
 create trigger weight_entry_touch before insert or update on weight_entry
