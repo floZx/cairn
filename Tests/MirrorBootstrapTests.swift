@@ -201,8 +201,11 @@ struct MirrorBootstrapTests {
         #expect(byUUID[untouched.uuid]?["edited_at"] == nil)
     }
 
-    /// Les parents partent avant les enfants. Une ligne `lap` dont l'activité
-    /// n'est pas encore là n'a rien à quoi se rattacher.
+    /// Les parents partent avant les enfants — par confort de lecture, pas par
+    /// contrainte : le schéma ne porte aucune clé étrangère entre tables du
+    /// miroir (son propre commentaire d'en-tête le dit), donc un `lap` arrivé
+    /// avant son activité serait accepté. Ce que l'ordre garantit, c'est qu'un
+    /// amorçage interrompu à mi-chemin se lise, plutôt qu'il ne se lise pas.
     @Test func lesParentsPartentAvantLesEnfants() async throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)

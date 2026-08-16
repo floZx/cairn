@@ -12,10 +12,18 @@ import Foundation
 /// as `.null`, spelled out, never dropped from the dictionary.
 ///
 /// Four columns every mirrored table carries are deliberately never produced
-/// here: `updated_at` (the Postgres trigger's own clock), `edited_at` and
-/// `deleted_at` (stamped by the engine at push time — tasks 6 and 9), and
-/// `field_edited_at` (empty until a later tranche). `uuid` and `user_id`, by
-/// contrast, are this protocol's job.
+/// here, and what actually writes each of them is worth being exact about:
+///
+/// - `updated_at` — the Postgres trigger's own clock, never this Mac's.
+/// - `edited_at` — added by `MirrorEngine`, twice over: `pushRows` stamps it
+///   from the outbox entry's `changedAt`, and `sendBatches` stamps it during a
+///   bootstrap from `Activity.editedAt`, for the one model that holds the fact
+///   locally. A row never edited keeps it null.
+/// - `deleted_at` — written only by `MirrorClient.softDelete`, on the `PATCH`
+///   a deletion sends. A bootstrap never writes one; nothing here ever does.
+/// - `field_edited_at` — empty until a later tranche writes anything to it.
+///
+/// `uuid` and `user_id`, by contrast, are this protocol's job.
 protocol MirrorRow {
     /// The Postgres table this model's rows belong to — `"activity"`,
     /// `"weight_entry"`, and so on, matching `supabase/schema.sql` exactly.

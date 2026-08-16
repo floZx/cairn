@@ -104,7 +104,7 @@ final class MirrorRecorder {
         self.container = container
     }
 
-    /// Unsubscribes an enregistreur that was dropped without `stop()`.
+    /// Unsubscribes a recorder that was dropped without `stop()`.
     ///
     /// Without this the observer outlives the object that owns it and becomes
     /// impossible to remove — the block does not retain the recorder, so the

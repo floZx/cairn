@@ -117,10 +117,23 @@ actor MirrorEngine {
     private static let photosBucket = "photos"
     private static let streamsBucket = "streams"
 
-    /// Parents before children: a `lap` whose activity is not there yet has
-    /// nothing to hang from. The order is fixed rather than derived, because
-    /// it is a fact about the schema, and reading it from the schema would be
-    /// a way of pretending it might change.
+    /// The sixteen tables, parents before children — a convenience, not a
+    /// constraint. `supabase/schema.sql` carries **no foreign key** between
+    /// mirror tables, deliberately and in its own opening comment: a link is
+    /// the child's own `activity_uuid`, `meal_slot_uuid`, and so on, precisely
+    /// so that arrival order — which no synchronisation protocol guarantees —
+    /// cannot make a row illegal. A `lap` sent before its activity is accepted
+    /// and hangs from an `activity_uuid` that resolves the moment the parent
+    /// lands.
+    ///
+    /// What the order buys is a bootstrap interrupted halfway reading like
+    /// something rather than nothing: the activities are there before the laps
+    /// that describe them. `push()` makes no such effort at all — it visits
+    /// whatever tables the outbox names, alphabetically (`byTable.keys.sorted()`),
+    /// which would be a bug if any of this were load-bearing.
+    ///
+    /// Fixed rather than derived from the schema all the same: sixteen names
+    /// in one place, read by two `switch`es that have to cover exactly them.
     static let bootstrapOrder: [String] = [
         "athlete", "gear", "day_type", "meal_slot",
         "activity", "activity_streams", "activity_photo", "lap",
@@ -836,6 +849,23 @@ actor MirrorEngine {
     /// ordering being the one, single order every page and every run agrees
     /// on, so it cannot be left to whichever comparator happens to be the
     /// default.
+    ///
+    /// Which leaves the assumption the whole of this pagination rests on, and
+    /// which had never been written down anywhere: the two halves of a page
+    /// are evaluated by different things. The `#Predicate`'s `uuid > cursor`
+    /// is translated to SQL and compared by SQLite — **byte by byte**, its
+    /// default `BINARY` collation. The sort is `.lexical`, Foundation's own
+    /// character comparison. Nothing in either API promises the two agree, and
+    /// a page whose filter disagrees with its own order skips rows silently.
+    /// They agree here because of what a `uuid` is in this store: a
+    /// `UUID().uuidString` — sixteen bytes rendered as uppercase ASCII hex and
+    /// four hyphens, nothing outside 7-bit ASCII, which is where byte order
+    /// and lexical order can begin to differ. `StoreMaintenance` is what keeps
+    /// that true of every row, reissued ones included. An identifier from
+    /// anywhere else — imported, hand-written, lowercased — would break
+    /// bootstrap, blob upload and resumption at once, without an error
+    /// anywhere. Corroborated empirically, on the 852-row check above; never
+    /// proven.
     private func sendBatches<Model: PersistentModel & MirrorRow>(
         _ type: Model.Type, table: String, userID: String
     ) async throws {

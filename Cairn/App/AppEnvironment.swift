@@ -222,7 +222,7 @@ final class AppEnvironment {
     /// Nothing else calls `pushNow()` but the settings button, and a mirror
     /// nobody ever opens the settings for would keep a trail that only ever
     /// grows: `MirrorRecorder`'s own doc comment justifies its conditional
-    /// start by "an enregistreur started at launch would grow the store by one
+    /// start by "a recorder started at launch would grow the store by one
     /// row per write, indefinitely" — a bound only an actual push can hold,
     /// never the fact that a project happens to be configured.
     ///
