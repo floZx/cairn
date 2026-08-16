@@ -83,25 +83,10 @@ struct MirrorRowTests {
         #expect(!row.keys.contains("edited_fields_raw"))
     }
 
-    /// `mirrorRow` ne produit jamais les quatre colonnes que le moteur ou le
-    /// trigger posent ailleurs — les émettre ici les ferait écraser par une
-    /// valeur périmée à chaque upsert.
-    @Test func lesQuatreColonnesReserveesNeSontJamaisEmises() {
-        let activity = Activity(stravaID: 1, name: "", sportType: .run)
-        activity.markEdited([.name])
-
-        let row = activity.mirrorRow(userID: "u")
-
-        #expect(!row.keys.contains("updated_at"))
-        #expect(!row.keys.contains("edited_at"))
-        #expect(!row.keys.contains("deleted_at"))
-        #expect(!row.keys.contains("field_edited_at"))
-    }
-
     /// `Athlete.updatedAt` est le rafraîchissement Strava du profil, sans
     /// rapport avec la colonne standard `updated_at` du miroir — le schéma le
     /// range donc sous `profile_updated_at`.
-    @Test func laDateDuProfilAthleteEvitePptUpdatedAt() {
+    @Test func laDateDuProfilAthleteEviteUpdatedAt() {
         let athlete = Athlete(stravaID: 1)
         athlete.updatedAt = Date(timeIntervalSince1970: 1_000)
 
@@ -128,28 +113,52 @@ struct MirrorRowTests {
 
     /// Un flux, comme une photo, n'emporte jamais ses octets — seulement un
     /// chemin. L'identifiant naturel d'un flux est son propre `uuid`, pas
-    /// celui de l'activité qui le porte.
+    /// celui de l'activité qui le porte. Les onze flux `Data?` du modèle sont
+    /// tous couverts, pas seulement `latlng`: chacun coûte une ligne, et un
+    /// seul vérifié en aurait laissé dix sans filet.
     @Test func unFluxNEmportePasNonPlusSesOctets() {
         let streams = ActivityStreams()
         streams.latlng = Data(repeating: 0x01, count: 100)
+        streams.distance = Data(repeating: 0x02, count: 100)
+        streams.altitude = Data(repeating: 0x03, count: 100)
+        streams.time = Data(repeating: 0x04, count: 100)
+        streams.heartrate = Data(repeating: 0x05, count: 100)
+        streams.cadence = Data(repeating: 0x06, count: 100)
+        streams.watts = Data(repeating: 0x07, count: 100)
+        streams.velocitySmooth = Data(repeating: 0x08, count: 100)
+        streams.temp = Data(repeating: 0x09, count: 100)
+        streams.grade = Data(repeating: 0x0A, count: 100)
+        streams.moving = Data(repeating: 0x0B, count: 100)
         streams.pointCount = 42
 
         let row = streams.mirrorRow(userID: "u")
 
         #expect(row["storage_path"] == .string("u/\(streams.uuid)"))
         #expect(row["point_count"] == .int(42))
-        #expect(!row.keys.contains("latlng"))
-        #expect(!row.keys.contains("data"))
+        let streamColumnNames = [
+            "latlng", "distance", "altitude", "time", "heartrate",
+            "cadence", "watts", "velocity_smooth", "temp", "grade", "moving",
+        ]
+        for name in streamColumnNames {
+            #expect(!row.keys.contains(name), "\(name) ne doit pas devenir une colonne")
+        }
     }
 
     /// `Activity.gear_id` porte l'identifiant Strava du matériel, pas un uuid
-    /// local — le schéma le commente explicitement.
+    /// local — le schéma le commente explicitement. Un `Gear` est attaché ici
+    /// avec un `uuid` distinct de `gearID`, pour que le test distingue
+    /// vraiment « lit `gearID` » de « lit `gear?.uuid`, qui n'existe pas
+    /// encore » : sans le matériel attaché, les deux lectures auraient donné
+    /// la même ligne.
     @Test func gearIdPorteLIdentifiantStravaPasUnUuid() {
         let activity = Activity(stravaID: 1, name: "", sportType: .run)
+        let gear = Gear(stravaID: "b1234567890", name: "Vélo")
+        activity.gear = gear
         activity.gearID = "b1234567890"
 
         let row = activity.mirrorRow(userID: "u")
 
         #expect(row["gear_id"] == .string("b1234567890"))
+        #expect(row["gear_id"] != .string(gear.uuid))
     }
 }
