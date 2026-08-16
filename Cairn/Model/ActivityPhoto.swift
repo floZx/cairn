@@ -9,6 +9,14 @@ import SwiftData
 /// beside the tracks.
 @Model
 final class ActivityPhoto {
+    /// Stable local identity, independent of any external service. Assigned
+    /// once, at creation, and never recomputed: it is what makes a row
+    /// recognisable from one store to the other. Not to be confused with
+    /// `uniqueID` below (Strava's own identifier for the photo) or with
+    /// `activityUUID` (a copy of the *owning activity's* identity, not this
+    /// photo's) — this is the only property that identifies this row itself.
+    var uuid: String = UUID().uuidString
+
     /// Strava's `unique_id`, which is what makes a re-sync recognise a photo it
     /// already has instead of downloading it a second time.
     var uniqueID: String = ""

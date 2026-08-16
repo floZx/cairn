@@ -276,8 +276,13 @@ git commit -m "feat(miroir): le schéma Postgres et sa politique d'accès"
 
 ### Tâche 2 : Une identité stable sur chaque modèle
 
-`Activity` et `ActivityPhoto` ont déjà un `uuid`. Douze modèles ne l'ont pas, et
-sans lui aucune ligne n'est reconnaissable d'un côté à l'autre.
+Seul `Activity` a déjà un `uuid`. Quinze modèles ne l'ont pas — dont
+`ActivityPhoto`, qui porte `uniqueID` (l'identifiant Strava de la photo) et
+`activityUUID` (une copie de l'identité de l'activité parente), mais aucune
+identité à lui — et sans lui aucune ligne n'est reconnaissable d'un côté à
+l'autre. `AppModelContainer.schema` compte dix-sept types en tout ; seize
+traversent vers le miroir, le dix-septième étant `SyncState`, qui décrit la
+relation avec Strava et n'a pas de table dans `supabase/schema.sql`.
 
 **Seul `uuid` est ajouté, et c'est délibéré.** La spécification donne quatre
 colonnes de synchronisation à chaque table ; trois d'entre elles n'ont pas de
@@ -292,7 +297,8 @@ place prise pour rien dans 852 lignes.
 - Modifier : `Cairn/Model/FoodEntry.swift`, `Lap.swift`, `ActivityStreams.swift`,
   `WeightEntry.swift`, `NutritionDay.swift`, `FavoriteFood.swift`, `Recipe.swift`
   (deux modèles : `Recipe` et `RecipeItem`), `MealNote.swift`, `MealSlot.swift`,
-  `DiscardedActivity.swift`, `Gear.swift`, `DayType.swift`
+  `DiscardedActivity.swift`, `Gear.swift`, `DayType.swift`, `ActivityPhoto.swift`,
+  `Athlete.swift`
 - Créer : `Tests/MirrorIdentityTests.swift`
 
 **Interfaces :**
@@ -347,7 +353,7 @@ xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=ma
 
 Attendu : ÉCHEC à la compilation, `value of type 'WeightEntry' has no member 'uuid'`.
 
-- [ ] **Étape 3 : Ajouter la propriété aux douze modèles**
+- [ ] **Étape 3 : Ajouter la propriété aux quinze modèles**
 
 Sur chacun, à l'identique de ce que porte déjà `Activity` :
 
@@ -357,6 +363,10 @@ Sur chacun, à l'identique de ce que porte déjà `Activity` :
     /// recognisable from one store to the other.
     var uuid: String = UUID().uuidString
 ```
+
+Sur `ActivityPhoto`, placer cette propriété de façon à ne pas la confondre avec
+`uniqueID` (l'identifiant Strava de la photo) ni avec `activityUUID` (l'identité
+de l'activité parente, pas la sienne) — un mot dans le commentaire suffit.
 
 Valeur par défaut, aucun type modifié, aucune contrainte ajoutée : SwiftData
 traite l'ajout en migration légère. **Ne pas** l'ajouter à `#Index` — modifier un
