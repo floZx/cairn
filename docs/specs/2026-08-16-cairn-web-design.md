@@ -48,7 +48,10 @@ passer intégralement avec une URL Supabase pointée dans le vide.
 
 5. **Les notes du journal rentrent dans la base.** Le dossier Markdown existait
    pour permettre la saisie mobile via Obsidian ; la PWA rend ce détour inutile.
-   Voir « Ce que coûte le déplacement des notes ».
+   Décision prise en connaissance de son coût, qui est le plus élevé du
+   chantier : le journal est aujourd'hui une couche de fichiers autonome de
+   2 921 lignes, hors SwiftData, avec dix-sept fichiers de tests. Elle a donc sa
+   propre tranche. Voir « Ce que coûte le déplacement des notes ».
 
 6. **Périmètre visé : tout Cairn dans le navigateur**, livré en tranches dont
    chacune est utilisable seule.
@@ -195,7 +198,7 @@ chemin de Storage à la place du contenu. Le contenu est écrit une fois et n'es
 jamais modifié.
 
 Le Mac téléverse au fil de sa synchronisation Strava. Le web ne téléversera qu'à
-partir de la tranche 5, sur import GPX.
+partir de la tranche 6, sur import GPX.
 
 Les photos restent des octets, jamais des liens : les URL de Strava sont signées
 et expirent, et un journal de liens morts est exactement ce que cette
@@ -225,6 +228,31 @@ relatif. Sans coffre, ces images vont dans Storage comme les autres, et le lien
 Markdown les réécrit en chemins relatifs et recrée `pieces-jointes/`, pour que
 le dossier exporté reste lisible tel quel — dans Obsidian comme ailleurs. Le
 carnet PDF, qui les embarque déjà, lit la nouvelle source.
+
+### Ce que ça coûte en code
+
+C'est le plus gros remaniement local du chantier, plus lourd que la couche de
+synchronisation elle-même, et il faut le dire franchement : le journal ne passe
+pas du tout par SwiftData aujourd'hui. `JournalNote` n'est pas un `@Model`, et
+tout le sous-système est une couche de fichiers autonome — 2 921 lignes,
+couvertes par dix-sept fichiers de tests.
+
+Ce qui est à reprendre :
+
+- `JournalStore` (623 lignes) passe des fichiers à SwiftData.
+- `JournalFolder` (199 lignes) et son signet à portée de sécurité disparaissent,
+  ainsi que `JournalReconciliation` — ou plutôt, ils se réincarnent dans l'export
+  Markdown, qui a besoin d'écrire un dossier au même format.
+- `JournalAttachment` et `JournalThumbnails` lisent Storage au lieu du disque.
+- Les dix-sept fichiers de tests suivent le changement de couche.
+
+Les vues, elles, ne bougent pas : `JournalDetailView` et `JournalListView`
+reçoivent du texte et continueront d'en recevoir.
+
+Rien dans les tranches 1 et 2 n'en dépend, d'où la tranche dédiée : ce travail
+est purement local et se vérifie entièrement sur le Mac, sans réseau et sans
+front. Son critère de réussite est simple à énoncer — **le journal fonctionne
+exactement comme avant, sans dossier**.
 
 ## La pile web
 
@@ -263,21 +291,28 @@ modèles, amorçage, et push seul (Mac → Supabase). Vérifiable en regardant l
 base, sans une ligne de front. Utile en soi : c'est une sauvegarde en ligne du
 journal, en plus de l'iCloud.
 
-**Tranche 2 — la PWA en lecture.** Liste, fiche d'activité, carte globale,
+**Tranche 2 — les notes rejoignent la base.** Purement locale : aucun réseau,
+aucun front, aucune ligne de PWA. `JournalStore` bascule sur SwiftData, le
+dossier et son signet disparaissent, l'export Markdown les remplace dans la
+sauvegarde. Voir « Ce que ça coûte en code ». Isolée dans sa propre tranche
+parce que c'est le remaniement le plus lourd et le seul qui puisse abîmer
+quelque chose qui marche déjà bien.
+
+**Tranche 3 — la PWA en lecture.** Liste, fiche d'activité, carte globale,
 statistiques, journal. Aucun pull côté Mac, donc toujours aucune fusion à
 écrire. C'est déjà l'essentiel de ce qui manque loin du Mac.
 
-**Tranche 3 — la saisie mobile.** Alimentation, poids, notes du journal, favoris
+**Tranche 4 — la saisie mobile.** Alimentation, poids, notes du journal, favoris
 et marqueurs. Le pull s'active sur le Mac, la fusion s'écrit — mais sur des
 données en ajout quasi exclusif, terrain d'essai clément pour le protocole. Les
 notes s'écrivent en texte seul : joindre une image depuis le navigateur est un
-téléversement, et les téléversements web attendent la tranche 5.
+téléversement, et les téléversements web attendent la tranche 6.
 
-**Tranche 4 — l'édition d'activité depuis le web.** Le bidirectionnel champ par
-champ, avec `fieldEditedAt`. À faire une fois que la tranche 3 a éprouvé le
+**Tranche 5 — l'édition d'activité depuis le web.** Le bidirectionnel champ par
+champ, avec `fieldEditedAt`. À faire une fois que la tranche 4 a éprouvé le
 protocole.
 
-**Tranche 5 — le reste.** Import GPX depuis le navigateur, export, parcours
+**Tranche 6 — le reste.** Import GPX depuis le navigateur, export, parcours
 similaires.
 
 ## L'amorçage
