@@ -102,8 +102,10 @@ actor MirrorEngine {
     /// uses — would read and write the *test runner's own* preferences. A
     /// stray key surviving between runs there does not just leak state, it
     /// makes a bootstrap silently send nothing: the cursor would already
-    /// claim every table done. The composition root supplies a real
-    /// `MirrorBootstrapCursor(defaults: .standard)` explicitly instead.
+    /// claim every table done. Whichever code composes the app is expected
+    /// to build a real `MirrorBootstrapCursor(defaults: .standard)` and pass
+    /// it explicitly — no such call exists yet, `MirrorEngine` has no caller
+    /// until task 10 wires one up.
     init(
         client: MirrorClient, container: ModelContainer, progress: MirrorProgress,
         cursor: MirrorBootstrapCursor
@@ -119,8 +121,9 @@ actor MirrorEngine {
     /// idempotence, seen from two angles:
     ///
     /// - A table already fully sent costs no request the second time: its
-    ///   cursor already sits past every row on disk, so the fetch for the
-    ///   next call comes back empty and the loop moves straight on.
+    ///   cursor already sits past every row on disk, so the page fetched for
+    ///   the next call — `uuid > cursor` — comes back empty and the loop
+    ///   ends there.
     /// - A batch that fails, or a cancellation between batches, leaves the
     ///   cursor exactly where the last *successful* batch left it. Nothing
     ///   Supabase has already confirmed is ever sent again.
@@ -218,10 +221,23 @@ actor MirrorEngine {
     }
 
     /// Sends one table's rows, oldest `uuid` first, in pages of `batchSize`,
-    /// fetched with `fetchOffset`/`fetchLimit` rather than loaded whole into
-    /// memory. `Task.checkCancellation()` runs before every page, not just
-    /// once per table: a table of 852 rows is five requests, and closing the
-    /// settings window should not have to wait for all five.
+    /// fetched by key (`uuid > cursor`) rather than by position. `Task.checkCancellation()`
+    /// runs before every page, not just once per table: a table of 852 rows
+    /// is five requests, and closing the settings window should not have to
+    /// wait for all five.
+    ///
+    /// By key, not by `fetchOffset` — an earlier version paginated by
+    /// position (`fetchOffset`/`fetchLimit`, `offset` advanced by
+    /// `batch.count`), and a reproduction of a row deleted concurrently,
+    /// mid-bootstrap, behind an already-sent page caught the bug that shape
+    /// has: a delete behind the cursor shifts every row after it one slot to
+    /// the left, so the position the next page starts reading from now
+    /// points one row *past* where it used to — the row that used to sit
+    /// there is skipped, permanently, since the cursor only ever advances
+    /// and nothing else will ever notice it was missed. Reading `uuid >
+    /// cursor` fresh on every page has no such failure mode: a deletion
+    /// changes which rows exist, never what "greater than this uuid" means
+    /// for the ones that still do.
     ///
     /// Each page opens its own `ModelContext` rather than reusing one held by
     /// the actor across the whole bootstrap — measured, not assumed: at
@@ -249,34 +265,33 @@ actor MirrorEngine {
     private func sendBatches<Model: PersistentModel & MirrorRow>(
         _ type: Model.Type, table: String, userID: String
     ) async throws {
-        let context = ModelContext(container)
-        let total = try context.fetchCount(FetchDescriptor<Model>())
+        let total = try ModelContext(container).fetchCount(FetchDescriptor<Model>())
         guard total > 0 else { return }
 
-        let startOffset: Int
-        if let lastUUID = cursor.lastUUID(for: table) {
-            // Everything up to and including the cursor already made it to
-            // Supabase; resume right after it. A count, not a fetch: nothing
-            // about "how many" needs a single row's data in memory.
-            startOffset = try context.fetchCount(
-                FetchDescriptor<Model>(predicate: #Predicate<Model> { $0.uuid <= lastUUID })
-            )
-        } else {
-            startOffset = 0
-        }
-
-        var done = startOffset
+        // A count, not a fetch: nothing about "how many are already sent"
+        // needs a single row's data in memory, only for the progress figure
+        // shown while the loop below does the real work.
+        var done = try alreadySentCount(Model.self, table: table)
         await setPhase(.bootstrapping(table: table, done: done, total: total))
 
-        var offset = startOffset
-        while offset < total {
+        while true {
             try Task.checkCancellation()
 
+            // The cursor is re-read on every iteration, not cached at the
+            // top of the loop: it is the position, and re-reading it after
+            // each successful page is what makes a deletion elsewhere in the
+            // table harmless rather than something this loop has to reason
+            // about.
             let pageContext = ModelContext(container)
-            var descriptor = FetchDescriptor<Model>(
-                sortBy: [SortDescriptor(\Model.uuid, comparator: .lexical)]
-            )
-            descriptor.fetchOffset = offset
+            var descriptor: FetchDescriptor<Model>
+            if let lastUUID = cursor.lastUUID(for: table) {
+                descriptor = FetchDescriptor<Model>(
+                    predicate: #Predicate<Model> { $0.uuid > lastUUID }
+                )
+            } else {
+                descriptor = FetchDescriptor<Model>()
+            }
+            descriptor.sortBy = [SortDescriptor(\Model.uuid, comparator: .lexical)]
             descriptor.fetchLimit = Self.batchSize
             let batch = try pageContext.fetch(descriptor)
             if batch.isEmpty { break }
@@ -291,9 +306,20 @@ actor MirrorEngine {
                 cursor.setLastUUID(last, for: table)
             }
             done += batch.count
-            offset += batch.count
             await setPhase(.bootstrapping(table: table, done: done, total: total))
         }
+    }
+
+    /// How many of this table's rows the cursor already accounts for — a
+    /// count, so it costs nothing beyond what `sendBatches` already pays for
+    /// `total`.
+    private func alreadySentCount<Model: PersistentModel & MirrorRow>(
+        _ type: Model.Type, table: String
+    ) throws -> Int {
+        guard let lastUUID = cursor.lastUUID(for: table) else { return 0 }
+        return try ModelContext(container).fetchCount(
+            FetchDescriptor<Model>(predicate: #Predicate<Model> { $0.uuid <= lastUUID })
+        )
     }
 
     private func setPhase(_ phase: MirrorPhase) async {

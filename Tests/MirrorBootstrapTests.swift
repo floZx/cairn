@@ -72,6 +72,47 @@ private actor PausingTransport: MirrorTransport {
     func requests() -> [URLRequest] { sent }
 }
 
+/// Runs a side effect right after its first `send` — the hook a test uses to
+/// mutate the very container `MirrorEngine` is reading from, mid-bootstrap,
+/// the way a concurrent delete would. Kept local to this file for the same
+/// reason `FlakyTransport` is.
+private actor DeletingTransport: MirrorTransport {
+    private var sent: [URLRequest] = []
+    private let onFirstRequest: @Sendable () throws -> Void
+
+    init(onFirstRequest: @escaping @Sendable () throws -> Void) {
+        self.onFirstRequest = onFirstRequest
+    }
+
+    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        sent.append(request)
+        if sent.count == 1 {
+            try onFirstRequest()
+        }
+        let response = HTTPURLResponse(
+            url: URL(string: "https://x.supabase.co")!,
+            statusCode: 201, httpVersion: nil, headerFields: nil
+        )!
+        return (Data(), response)
+    }
+
+    func requests() -> [URLRequest] { sent }
+}
+
+/// Every `uuid` sent to `table`, parsed the same way
+/// `StubTransport.upsertedUUIDs(table:)` does — duplicated here rather than
+/// imported, since that method lives on `StubTransport` specifically and the
+/// transports above are not it.
+private func extractedUUIDs(from requests: [URLRequest], table: String) -> [String] {
+    requests.compactMap { request -> [String]? in
+        guard request.url?.path == "/rest/v1/\(table)",
+              let body = request.httpBody,
+              let rows = try? JSONSerialization.jsonObject(with: body) as? [[String: Any]]
+        else { return nil }
+        return rows.compactMap { $0["uuid"] as? String }
+    }.flatMap { $0 }
+}
+
 // `MirrorProgress` is `@MainActor` (task 6's own interface), so every test
 // that constructs one needs to run there too — `Tests/SyncEngineTests.swift`
 // annotates its suites the same way for `SyncProgress`.
@@ -289,5 +330,120 @@ struct MirrorBootstrapTests {
         await secondEngine.restoreProgress()
 
         #expect(freshProgress.lastPushAt != nil)
+    }
+
+    /// Une table de plus de 200 lignes tient sur deux lots. Une coupure entre
+    /// les deux laisse le curseur au-delà de la première page — la reprise
+    /// doit repartir exactement là, ni renvoyer la première page ni sauter la
+    /// seconde. `batchSize` vaut 200 dans `MirrorEngine` ; aucun test avant
+    /// celui-ci n'avait de table dépassant ce seuil, donc rien ne couvrait
+    /// une vraie frontière de page.
+    @Test func unAmorcageDePlusDeDeuxCentsLignesRepredALaBonnePage() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        var uuids: [String] = []
+        for index in 0..<250 {
+            let activity = Activity(stravaID: Int64(index), name: "S\(index)", sportType: .run)
+            context.insert(activity)
+            uuids.append(activity.uuid)
+        }
+        try context.save()
+        let sortedUUIDs = uuids.sorted()
+        // What a correct first page and a correct second page must contain —
+        // computed independently of anything the engine does, so this stays
+        // a check on its behaviour rather than a restatement of it.
+        let expectedFirstPage = Set(sortedUUIDs.prefix(200))
+        let expectedSecondPage = Set(sortedUUIDs.suffix(50))
+
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let store = try configuredStore()
+
+        // First attempt: the first page (200 rows) succeeds, the second (the
+        // remaining 50) does not — a connection dropped exactly at a page
+        // boundary, not inside one.
+        let firstTransport = FlakyTransport(succeeding: 1)
+        let firstEngine = MirrorEngine(
+            client: MirrorClient(store: store, transport: firstTransport),
+            container: container, progress: MirrorProgress(), cursor: cursor
+        )
+        await #expect(throws: (any Error).self) {
+            try await firstEngine.bootstrap()
+        }
+        // Two requests attempted — the successful 200-row page and the
+        // 50-row page whose response never came back. `FlakyTransport`
+        // records a request whether or not it went on to fail, so reading
+        // rows back out of *this* array would count the failed attempt's
+        // rows too; `expectedFirstPage`, computed independently above, is
+        // what actually matters.
+        #expect(await firstTransport.requests().count == 2)
+
+        // Second attempt, a fresh engine sharing the same cursor — the same
+        // shape as relaunching the app. It must send exactly the remaining
+        // 50, not the first 200 again and not fewer than 50.
+        let secondTransport = StubTransport(alwaysRespondingWith: 201)
+        let secondEngine = MirrorEngine(
+            client: MirrorClient(store: store, transport: secondTransport),
+            container: container, progress: MirrorProgress(), cursor: cursor
+        )
+        try await secondEngine.bootstrap()
+
+        let secondUUIDs = Set(await secondTransport.upsertedUUIDs(table: "activity"))
+        #expect(secondUUIDs == expectedSecondPage)
+        #expect(secondUUIDs.isDisjoint(with: expectedFirstPage))
+    }
+
+    /// Une suppression concurrente, mid-bootstrap, ne doit jamais coûter une
+    /// ligne qui existe toujours. Reproduction directe du round 2 de revue :
+    /// paginer par position (`fetchOffset`) plutôt que par clé (`uuid >
+    /// curseur`) laissait une suppression derrière le curseur décaler tout
+    /// ce qui suit d'un cran, sautant en silence la ligne désormais mal
+    /// alignée avec la page suivante — une perte permanente, puisque le
+    /// curseur ne revient jamais en arrière et que l'outbox de la tâche 8 ne
+    /// voit que ce qui *change*, pas ce qu'un décalage a manqué.
+    @Test func uneSuppressionConcurrentePendantLAmorcageNeSauteAucuneLigne() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        var uuids: [String] = []
+        for index in 0..<300 {
+            let activity = Activity(stravaID: Int64(index), name: "S\(index)", sportType: .run)
+            context.insert(activity)
+            uuids.append(activity.uuid)
+        }
+        try context.save()
+        let sortedUUIDs = uuids.sorted()
+        // Squarely inside the first page's 200 rows — deleting it once that
+        // page has already been fetched (but not yet before) is exactly the
+        // shape that shifted an offset-based page 2 by one row.
+        let victimUUID = sortedUUIDs[50]
+        let expectedSurvivors = Set(sortedUUIDs).subtracting([victimUUID])
+
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+
+        let transport = DeletingTransport {
+            let deleteContext = ModelContext(container)
+            let victim = try deleteContext.fetch(
+                FetchDescriptor<Activity>(predicate: #Predicate { $0.uuid == victimUUID })
+            ).first
+            if let victim { deleteContext.delete(victim) }
+            try deleteContext.save()
+        }
+        let engine = MirrorEngine(
+            client: MirrorClient(store: try configuredStore(), transport: transport),
+            container: container, progress: MirrorProgress(), cursor: cursor
+        )
+        try await engine.bootstrap()
+
+        let sentUUIDs = extractedUUIDs(from: await transport.requests(), table: "activity")
+        let missing = expectedSurvivors.subtracting(sentUUIDs)
+        #expect(missing.isEmpty, "ligne(s) sautée(s) : \(missing.sorted())")
+        #expect(Set(sentUUIDs).count == sentUUIDs.count, "un uuid est parti deux fois")
+        // The victim itself is *not* asserted absent: its row was already
+        // fetched into page 1's batch, and serialized into that request's
+        // body, before the delete this test triggers ever runs — deleting a
+        // row after it is already in flight does not, and should not, un-send
+        // it. What matters is every *other* row: none of them may be lost to
+        // the shift the deletion causes for whichever page reads next.
     }
 }
