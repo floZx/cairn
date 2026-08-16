@@ -55,9 +55,25 @@ struct MirrorAutonomyTests {
     /// Le Mac ne dépend jamais de Supabase. Ce test est la forme exécutable de
     /// la contrainte fondatrice : construire l'environnement complet avec un
     /// miroir injoignable doit être sans effet observable.
+    ///
+    /// Le brief donne ce test avec `AppEnvironment(container: container)` nu,
+    /// sans rien injecter. Corrigé après revue : le test host partage le
+    /// bundle id de l'application réelle (`com.florianmaisonnial.Cairn`), et
+    /// `AppEnvironment.init`'s défaut pour `mirrorCursor:` est
+    /// `MirrorBootstrapCursor(defaults: .standard)` — le domaine de
+    /// préférences réel de la machine qui exécute la suite, celui-là même où
+    /// vivent la position des fenêtres et le chemin du coffre Obsidian de son
+    /// propriétaire. `restoreProgress()` (garantie 2) lit ce domaine
+    /// inconditionnellement, configuré ou non. La règle qu'aucun test ne
+    /// touche aux données réelles prime sur la lettre du brief.
     @Test func lApplicationSeConstruitAvecUnMiroirInjoignable() throws {
         let container = try AppModelContainer.inMemory()
-        let environment = AppEnvironment(container: container)
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let environment = AppEnvironment(
+            container: container, store: InMemorySecretStore(),
+            mirrorTransport: StubTransport(alwaysRespondingWith: 200), mirrorCursor: cursor
+        )
 
         #expect(!environment.isMirrorConfigured)
         #expect(environment.errorMessage == nil)
@@ -131,6 +147,14 @@ struct MirrorWiringTests {
     /// inside the trail. A regression that moved `mirrorRecorder.start()`
     /// after the two writes in `CairnApp.init` — the exact failure this
     /// guards against — would leave this write unrecorded too.
+    ///
+    /// `StoreMaintenance.run(_:)` is called directly, not stood in for by a
+    /// generic insert — it is the actual first write `CairnApp.init` makes
+    /// right after building `AppEnvironment`. It only changes a row when
+    /// `uuid` is empty or duplicated (its own doc comment), the shape a
+    /// lightweight migration used to leave behind, so two activities are
+    /// seeded sharing one `uuid` to reproduce that shape rather than reaching
+    /// for an unrelated write.
     @Test func lEnregistreurEcouteDejaQuandLInitRend() throws {
         let container = try AppModelContainer.inMemory()
         let (cursor, suiteName) = freshCursor()
@@ -147,15 +171,27 @@ struct MirrorWiringTests {
         )
         #expect(environment.isMirrorConfigured)
 
-        // Simule la toute première écriture d'un lancement — celle que
-        // `DemoData.populateIfNeeded` ou `StoreMaintenance.run` ferait,
-        // *après* que `CairnApp.init` a fini de construire l'environnement.
         let context = ModelContext(container)
-        context.insert(Athlete(stravaID: 1))
+        let first = Activity(stravaID: 1, name: "S1", sportType: .run)
+        let second = Activity(stravaID: 2, name: "S2", sportType: .run)
+        second.uuid = first.uuid
+        context.insert(first)
+        context.insert(second)
         try context.save()
 
+        // Only the seeding save above has written anything so far; purge it
+        // so the next check is unambiguous about what `StoreMaintenance.run`
+        // itself produces.
+        let setup = ModelContext(container)
+        for entry in try setup.fetch(FetchDescriptor<MirrorOutbox>()) { setup.delete(entry) }
+        try setup.save()
+
+        // The actual first write of a launch, called directly.
+        let changed = try StoreMaintenance.run(ModelContext(container))
+        #expect(changed > 0)
+
         let entries = try ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>())
-        #expect(entries.contains { $0.table == "athlete" })
+        #expect(entries.contains { $0.table == "activity" })
     }
 
     /// The other half of the same guard: nothing starts the recorder when no
@@ -165,12 +201,23 @@ struct MirrorWiringTests {
     /// exact cost.
     @Test func lEnregistreurResteMuetSansMiroirConfigure() throws {
         let container = try AppModelContainer.inMemory()
+        // `mirrorCursor:` is injected too, not just `store:` — `init` calls
+        // `mirror.restoreProgress()` unconditionally (garantie 2), which
+        // reads whatever cursor it was given even when no mirror is
+        // configured. Left at its default, that read would hit this
+        // machine's real `UserDefaults.standard` domain, the same one the
+        // critical review flagged for `forgetMirror()` below.
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
         // Retained, not discarded — see `lEnregistreurEcouteDejaQuandLInitRend`'s
         // doc comment: a discarded `AppEnvironment` deallocates its
         // `MirrorRecorder` immediately, which would leave the outbox empty
         // regardless of whether `init` ever started it, masking exactly the
         // regression this test exists to catch.
-        let environment = AppEnvironment(container: container, store: InMemorySecretStore())
+        let environment = AppEnvironment(
+            container: container, store: InMemorySecretStore(),
+            mirrorTransport: StubTransport(alwaysRespondingWith: 200), mirrorCursor: cursor
+        )
         #expect(!environment.isMirrorConfigured)
 
         let context = ModelContext(container)
@@ -209,9 +256,24 @@ struct MirrorWiringTests {
     /// button — starts the recorder immediately, and forgetting it stops
     /// the recorder immediately: both take effect synchronously, no launch
     /// or relaunch required.
+    ///
+    /// `mirrorCursor:` is injected — critical, not cosmetic, here:
+    /// `forgetMirror()` calls `mirrorCursor.clear()`, which erases every
+    /// `mirror.bootstrapCursor.*` key and `mirror.lastPushAt` from whatever
+    /// `UserDefaults` domain it was given. Left at the default
+    /// `.standard`, this test would delete real bootstrap progress from
+    /// this machine's actual preferences the day a real mirror is
+    /// configured and amorced — flagged by the critical review, and the
+    /// reason every construction of `AppEnvironment` in this file injects
+    /// a throwaway cursor from `freshCursor()`.
     @Test func configurerLeMiroirDemarreLEnregistreurEtLoublierLarrete() throws {
         let container = try AppModelContainer.inMemory()
-        let environment = AppEnvironment(container: container, store: InMemorySecretStore())
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let environment = AppEnvironment(
+            container: container, store: InMemorySecretStore(),
+            mirrorTransport: StubTransport(alwaysRespondingWith: 200), mirrorCursor: cursor
+        )
         #expect(!environment.isMirrorConfigured)
 
         environment.saveMirrorCredentials(projectURL: "https://x.supabase.co", anonKey: "anon")
@@ -301,5 +363,71 @@ struct MirrorWiringTests {
             try? await Task.sleep(for: .milliseconds(1))
         }
         #expect(await transport.requests().count == 1)
+    }
+
+    /// The detail the reentrancy guard actually depends on: `cancelMirror()`
+    /// only requests cancellation — see its own doc comment — it never
+    /// clears `mirrorTask` itself. Only `runMirror`'s own wrapping `Task`,
+    /// which awaits `task.value`, does that, once the cancelled operation
+    /// has actually finished unwinding. `cancelMirror()` is a real entry
+    /// point, the settings screen's « Interrompre » button, so getting this
+    /// wrong would let a `startBootstrap()` called right after cancelling
+    /// slip through before the cancelled one has actually let go of the
+    /// slot — a naive `cancelMirror()` that cleared `mirrorTask` directly
+    /// would pass every other test in this file and still fail here.
+    @Test func demarrerJusteApresAnnulerNeContourneLeCreneau() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        context.insert(Athlete(stravaID: 1))
+        try context.save()
+
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let transport = PausingTransport()
+        let environment = AppEnvironment(
+            container: container, store: try configuredStore(),
+            mirrorTransport: transport, mirrorCursor: cursor
+        )
+
+        environment.startBootstrap()
+        await transport.waitForFirstRequest()
+
+        environment.cancelMirror()
+        // Immediately, before the cancelled task has had any chance to
+        // unwind: this is exactly what a `cancelMirror()` that cleared
+        // `mirrorTask` itself would let through.
+        environment.startBootstrap()
+
+        // A wrongly-spawned second bootstrap would send its own "athlete"
+        // request almost at once — `PausingTransport` only ever parks the
+        // *first* call it sees (`sent.count == 1`), so a second call
+        // returns immediately rather than blocking on `release()`.
+        // Checking the count right here would race it: measured directly,
+        // a buggy `cancelMirror()` (one that cleared `mirrorTask` itself)
+        // consistently lands that second request within 11–17 ms — an
+        // immediate check catches it only by luck. Polling gives it a
+        // bounded window well past that measured figure to reveal itself
+        // instead of trusting an unbounded race; on a correct
+        // implementation nothing ever arrives and this simply spends the
+        // whole window (60 ms, here) finding that out.
+        var sawSecondRequest = false
+        for _ in 0..<60 {
+            if await transport.requests().count >= 2 {
+                sawSecondRequest = true
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        #expect(!sawSecondRequest)
+
+        // Lets the parked request return, so the cancelled task can notice
+        // at its next checkpoint (`Task.checkCancellation()`, in
+        // `sendBatches`'s loop) and actually finish unwinding.
+        await transport.release()
+        for _ in 0..<2000 where environment.mirrorProgress.isRunning {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        #expect(await transport.requests().count == 1)
+        #expect(environment.mirrorProgress.phase == .idle)
     }
 }
