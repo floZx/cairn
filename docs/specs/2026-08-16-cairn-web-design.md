@@ -193,9 +193,14 @@ une dizaine de lignes autour de `DataView`.
 
 ## Les blobs
 
-`activity_streams` et `activity_photo` gardent leurs métadonnées en ligne et un
-chemin de Storage à la place du contenu. Le contenu est écrit une fois et n'est
-jamais modifié.
+`activity_streams`, `activity_photo` et les images de notes gardent leurs
+métadonnées en ligne et un chemin de Storage à la place du contenu. Le contenu
+est écrit une fois et n'est jamais modifié.
+
+Storage est toujours une **copie**, jamais l'original. Tout blob que le Mac
+affiche existe d'abord dans son stockage externe local ; ce que Supabase en
+détient sert à la PWA et à rien d'autre. C'est la règle qui rend la contrainte
+fondatrice tenable jusque dans les octets.
 
 Le Mac téléverse au fil de sa synchronisation Strava. Le web ne téléversera qu'à
 partir de la tranche 6, sur import GPX.
@@ -221,13 +226,34 @@ Markdown ajouté à la sauvegarde, qui reconstitue un dossier de notes lisible p
 n'importe quoi. La promesse passe de « vos notes vivent dans un dossier à vous »
 à « vos notes ressortent en Markdown quand vous voulez ».
 
-**Les pièces jointes des notes suivent.** La spécification du 13 août range les
-images des notes dans `<coffre>/pieces-jointes/` et écrit un lien Markdown
-relatif. Sans coffre, ces images vont dans Storage comme les autres, et le lien
-écrit dans la note devient une référence que Cairn et la PWA résolvent. L'export
-Markdown les réécrit en chemins relatifs et recrée `pieces-jointes/`, pour que
-le dossier exporté reste lisible tel quel — dans Obsidian comme ailleurs. Le
-carnet PDF, qui les embarque déjà, lit la nouvelle source.
+**Les pièces jointes des notes suivent, et restent sur le disque.** La
+spécification du 13 août range les images des notes dans
+`<coffre>/pieces-jointes/` et écrit un lien Markdown relatif.
+
+Sans coffre, elles se comportent exactement comme les photos d'activité : un
+modèle SwiftData dont les octets sont en `@Attribute(.externalStorage)`, donc
+dans `.Cairn_SUPPORT/` à côté d'elles, et Supabase Storage n'en reçoit qu'une
+**copie**. Les faire vivre uniquement chez Supabase reviendrait à ce que le Mac
+ait besoin du réseau pour afficher l'image d'une note, ce que la contrainte
+fondatrice interdit. Le Mac ne lit que le local ; seule la PWA lit Storage.
+
+L'actuel `JournalAttachment` reste ce qu'il est — un type de valeurs pures :
+nommage, syntaxe du lien, plafond de 2 048 px. Le nouveau modèle porte donc un
+autre nom.
+
+**Le texte des notes ne change pas d'un caractère.** `fileName(for:extension:
+taken:)` produit `AAAA-MM-JJ-N.ext`, où la date et le premier numéro libre du
+jour font un identifiant unique : c'est une clé naturelle valable, et le lien
+`![](pieces-jointes/2026-08-13-1.jpg)` se résout contre elle. Aucune réécriture
+de lien, ni à la migration, ni à l'export — lequel se réduit à déverser les
+octets dans un dossier `pieces-jointes/` et à écrire les notes telles quelles.
+Le dossier exporté est alors identique à celui d'aujourd'hui, et Obsidian
+l'ouvre sans rien savoir de ce qui s'est passé entre-temps.
+
+Les fichiers déjà présents dans le coffre sont ingérés à la migration, en même
+temps que les notes qui les citent.
+
+Le carnet PDF, qui embarque déjà ces images, lit la nouvelle source locale.
 
 ### Ce que ça coûte en code
 
@@ -243,7 +269,8 @@ Ce qui est à reprendre :
 - `JournalFolder` (199 lignes) et son signet à portée de sécurité disparaissent,
   ainsi que `JournalReconciliation` — ou plutôt, ils se réincarnent dans l'export
   Markdown, qui a besoin d'écrire un dossier au même format.
-- `JournalAttachment` et `JournalThumbnails` lisent Storage au lieu du disque.
+- `JournalThumbnails` lit le stockage externe de SwiftData au lieu du coffre.
+  `JournalAttachment`, qui ne touche à aucun disque, ne bouge pas.
 - Les dix-sept fichiers de tests suivent le changement de couche.
 
 Les vues, elles, ne bougent pas : `JournalDetailView` et `JournalListView`
