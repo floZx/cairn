@@ -36,7 +36,7 @@ Elles s'appliquent à **toutes** les tâches, sans être répétées dans chacun
 - **Concurrence stricte Swift 6.** Tout ce qui traverse un `await` est `Sendable`.
 - **`xcodegen generate` après tout ajout de fichier source.**
 - **Les initialiseurs de modèles cités dans les tests sont indicatifs.** Le plan
-  écrit `WeightEntry(day:kilograms:)`, `Activity(stravaID:name:sportType:)` et
+  écrit `WeightEntry(dateKey:weightKg:note:)`, `Activity(stravaID:name:sportType:)` et
   consorts ; lire la signature réelle dans `Cairn/Model/` et l'adapter. Cela vaut
   pour toutes les tâches, pas seulement celle où c'est rappelé.
 - Build et tests :
@@ -312,8 +312,8 @@ struct MirrorIdentityTests {
     /// partagent jamais un : c'est la seule chose qui rendra une ligne
     /// reconnaissable d'un magasin à l'autre.
     @Test func chaqueModeleNaitAvecUnIdentifiant() throws {
-        let first = WeightEntry(day: DateKey(raw: "2026-08-16"), kilograms: 70)
-        let second = WeightEntry(day: DateKey(raw: "2026-08-17"), kilograms: 71)
+        let first = WeightEntry(dateKey: DateKey(raw: "2026-08-16")!, weightKg: 70)
+        let second = WeightEntry(dateKey: DateKey(raw: "2026-08-17")!, weightKg: 71)
 
         #expect(!first.uuid.isEmpty)
         #expect(first.uuid != second.uuid)
@@ -324,7 +324,7 @@ struct MirrorIdentityTests {
     @Test func lIdentifiantSurvitAuDisque() throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
-        let entry = WeightEntry(day: DateKey(raw: "2026-08-16"), kilograms: 70)
+        let entry = WeightEntry(dateKey: DateKey(raw: "2026-08-16")!, weightKg: 70)
         let expected = entry.uuid
         context.insert(entry)
         try context.save()
@@ -1215,7 +1215,7 @@ struct MirrorOutboxTests {
         defer { recorder.stop() }
 
         let context = ModelContext(container)
-        let entry = WeightEntry(day: DateKey(raw: "2026-08-16"), kilograms: 70)
+        let entry = WeightEntry(dateKey: DateKey(raw: "2026-08-16")!, weightKg: 70)
         context.insert(entry)
         try context.save()
 
@@ -1228,7 +1228,7 @@ struct MirrorOutboxTests {
     @Test func uneSuppressionLaisseUneTraceQuiSurvitALObjet() throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
-        let entry = WeightEntry(day: DateKey(raw: "2026-08-16"), kilograms: 70)
+        let entry = WeightEntry(dateKey: DateKey(raw: "2026-08-16")!, weightKg: 70)
         let uuid = entry.uuid
         context.insert(entry)
         try context.save()
@@ -1253,7 +1253,7 @@ struct MirrorOutboxTests {
         defer { recorder.stop() }
 
         let context = ModelContext(container)
-        context.insert(WeightEntry(day: DateKey(raw: "2026-08-16"), kilograms: 70))
+        context.insert(WeightEntry(dateKey: DateKey(raw: "2026-08-16")!, weightKg: 70))
         try context.save()
 
         let pending = try context.fetch(FetchDescriptor<MirrorOutbox>())
@@ -1340,7 +1340,7 @@ struct MirrorPushTests {
     @Test func uneEntreeEnvoyeeEstConsommee() async throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
-        let entry = WeightEntry(day: DateKey(raw: "2026-08-16"), kilograms: 70)
+        let entry = WeightEntry(dateKey: DateKey(raw: "2026-08-16")!, weightKg: 70)
         context.insert(entry)
         let pending = MirrorOutbox()
         pending.table = "weight_entry"
@@ -1364,7 +1364,7 @@ struct MirrorPushTests {
     @Test func unEnvoiQuiEchoueLaisseLEntreeEnPlace() async throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
-        let entry = WeightEntry(day: DateKey(raw: "2026-08-16"), kilograms: 70)
+        let entry = WeightEntry(dateKey: DateKey(raw: "2026-08-16")!, weightKg: 70)
         context.insert(entry)
         let pending = MirrorOutbox()
         pending.table = "weight_entry"
