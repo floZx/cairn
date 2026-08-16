@@ -188,6 +188,56 @@ actor MirrorClient {
         try Self.checkStatus(response, data: data)
     }
 
+    /// Marks one row deleted rather than upserting it — the push's (task 9)
+    /// counterpart to `upsert` above, used only for a tombstone.
+    ///
+    /// A `PATCH … ?uuid=eq.<uuid>`, never an upsert: four columns across the
+    /// schema — `activity.start_date`, `activity.start_local_date`,
+    /// `discarded_activity.discarded_at`, `discarded_activity.start_date` —
+    /// are `not null` with no default, so an upsert of `{uuid, user_id,
+    /// deleted_at}` on a row Supabase has never seen would attempt an
+    /// `INSERT` and be rejected outright. That case is real: an object
+    /// created and deleted in the same local transaction leaves a tombstone
+    /// for a row that never made it out. A row update is the right semantics
+    /// anyway — there is nothing to soft-delete on a row that does not
+    /// exist — and a `PATCH` touching zero rows is exactly that: a
+    /// non-event, not an error.
+    ///
+    /// The body carries only `{uuid, user_id, deleted_at}`, never the row
+    /// itself: once a row is gone locally, nothing else about it has a
+    /// source of truth left to send.
+    func softDelete(table: String, uuid: String, userID: String) async throws {
+        let credentials = try validCredentials()
+        let token = try await validAccessToken(credentials: credentials)
+
+        var components = URLComponents(
+            url: credentials.projectURL.appendingPathComponent("rest/v1/\(table)"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "uuid", value: "eq.\(uuid)")]
+
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "PATCH"
+        request.setValue(credentials.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let row: [String: MirrorValue] = [
+            "uuid": .string(uuid),
+            "user_id": .string(userID),
+            "deleted_at": .date(Date()),
+        ]
+        do {
+            request.httpBody = try JSONSerialization.data(
+                withJSONObject: row.mapValues { $0.jsonValue }
+            )
+        } catch {
+            throw MirrorError.encodingFailed(String(describing: error))
+        }
+
+        let (data, response) = try await send(request)
+        try Self.checkStatus(response, data: data)
+    }
+
     // MARK: - Storage
 
     func upload(bucket: String, path: String, data: Data, contentType: String) async throws {
