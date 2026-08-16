@@ -11,6 +11,10 @@ enum AppModelContainer {
         DayType.self, MealSlot.self, NutritionDay.self, FoodEntry.self,
         MealNote.self, Recipe.self, RecipeItem.self, FavoriteFood.self,
         WeightEntry.self,
+        // The mirror's own bookkeeping — a new model, hence another
+        // lightweight migration, and the only one here that never crosses to
+        // Supabase.
+        MirrorOutbox.self,
     ])
 
     /// The store file to open, decided in one place rather than scattered across
