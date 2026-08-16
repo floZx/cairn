@@ -6,6 +6,11 @@ import SwiftData
 /// Int32 seconds, everything else as Float scalars.
 @Model
 final class ActivityStreams {
+    /// Stable local identity, independent of any external service. Assigned
+    /// once, at creation, and never recomputed: it is what makes a row
+    /// recognisable from one store to the other.
+    var uuid: String = UUID().uuidString
+
     var pointCount: Int = 0
 
     @Attribute(.externalStorage) var latlng: Data?

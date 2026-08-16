@@ -7,6 +7,11 @@ import SwiftData
 final class WeightEntry {
     #Unique<WeightEntry>([\.dateKeyRaw])
 
+    /// Stable local identity, independent of any external service. Assigned
+    /// once, at creation, and never recomputed: it is what makes a row
+    /// recognisable from one store to the other.
+    var uuid: String = UUID().uuidString
+
     var dateKeyRaw: String = ""
     var weightKg: Double = 0
     var note: String?

@@ -4,6 +4,11 @@ import SwiftData
 /// A reusable set of foods applied to a meal in one gesture.
 @Model
 final class Recipe {
+    /// Stable local identity, independent of any external service. Assigned
+    /// once, at creation, and never recomputed: it is what makes a row
+    /// recognisable from one store to the other.
+    var uuid: String = UUID().uuidString
+
     var name: String = ""
     var mealSlot: MealSlot?
     @Relationship(deleteRule: .cascade, inverse: \RecipeItem.recipe)
@@ -18,6 +23,11 @@ final class Recipe {
 /// One ingredient of a recipe, macros denormalised like `FoodEntry`.
 @Model
 final class RecipeItem {
+    /// Stable local identity, independent of any external service. Assigned
+    /// once, at creation, and never recomputed: it is what makes a row
+    /// recognisable from one store to the other.
+    var uuid: String = UUID().uuidString
+
     var recipe: Recipe?
     var foodName: String = ""
     var productCode: String?

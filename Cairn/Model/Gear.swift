@@ -5,6 +5,11 @@ import SwiftData
 final class Gear {
     #Unique<Gear>([\.stravaID])
 
+    /// Stable local identity, independent of any external service. Assigned
+    /// once, at creation, and never recomputed: it is what makes a row
+    /// recognisable from one store to the other.
+    var uuid: String = UUID().uuidString
+
     var stravaID: String = ""
     var name: String = ""
     var brandName: String?

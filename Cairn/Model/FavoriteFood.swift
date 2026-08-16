@@ -4,6 +4,11 @@ import SwiftData
 /// A recurring food kept one click away, with its usual serving in grams.
 @Model
 final class FavoriteFood {
+    /// Stable local identity, independent of any external service. Assigned
+    /// once, at creation, and never recomputed: it is what makes a row
+    /// recognisable from one store to the other.
+    var uuid: String = UUID().uuidString
+
     var foodName: String = ""
     var productCode: String?
     var kcal100: Double = 0
