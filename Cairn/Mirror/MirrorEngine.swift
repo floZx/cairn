@@ -29,13 +29,14 @@ struct MirrorBootstrapCursor: Sendable {
     nonisolated(unsafe) private let defaults: UserDefaults
 
     private static let lastPushAtKey = "mirror.lastPushAt"
+    private static let cursorKeyPrefix = "mirror.bootstrapCursor."
 
     init(defaults: UserDefaults) {
         self.defaults = defaults
     }
 
     private func key(for table: String) -> String {
-        "mirror.bootstrapCursor.\(table)"
+        "\(Self.cursorKeyPrefix)\(table)"
     }
 
     func lastUUID(for table: String) -> String? {
@@ -57,6 +58,32 @@ struct MirrorBootstrapCursor: Sendable {
 
     func setLastPushAt(_ date: Date) {
         defaults.set(date.timeIntervalSince1970, forKey: Self.lastPushAtKey)
+    }
+
+    /// Erases every position this cursor has ever recorded: every table's
+    /// `lastUUID` and `lastPushAt`. `AppEnvironment.forgetMirror()`'s
+    /// counterpart, on the store side, to `SecretStore.clearMirror()` on the
+    /// keychain side.
+    ///
+    /// Without this, forgetting a mirror and reconfiguring a *different*
+    /// Supabase project would leave the old project's progress in place:
+    /// `sendBatches` only ever fetches `uuid > cursor` (see its own doc
+    /// comment), so a bootstrap against the new project would silently skip
+    /// every row sorting before the stale cursor — rows the new project has
+    /// never received, mistaken for ones already sent because a project it
+    /// has nothing to do with once received them.
+    ///
+    /// Walks `UserDefaults`' own dictionary rather than a fixed table list
+    /// (`MirrorEngine.bootstrapOrder`, say): a table that used to be part of
+    /// that list and no longer is would otherwise leave an orphaned key
+    /// behind forever, and nothing here should have to be kept in sync with
+    /// that list to stay correct.
+    func clear() {
+        for key in defaults.dictionaryRepresentation().keys
+        where key.hasPrefix(Self.cursorKeyPrefix) {
+            defaults.removeObject(forKey: key)
+        }
+        defaults.removeObject(forKey: Self.lastPushAtKey)
     }
 }
 

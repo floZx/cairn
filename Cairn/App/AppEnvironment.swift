@@ -26,6 +26,11 @@ final class AppEnvironment {
     /// `deinit` would unsubscribe it the moment a purely-local variable went
     /// out of scope. See `MirrorRecorder`'s own doc comment.
     private let mirrorRecorder: MirrorRecorder
+    /// Held so `forgetMirror()` can wipe it — see `MirrorBootstrapCursor.clear()`.
+    /// `mirror` itself keeps its own copy internally; both wrap the same
+    /// `UserDefaults.standard`, so clearing this one clears what `mirror`
+    /// reads too.
+    private let mirrorCursor: MirrorBootstrapCursor
     private var mirrorTask: Task<Void, Never>?
 
     var isAuthenticated: Bool
@@ -73,11 +78,13 @@ final class AppEnvironment {
         let mirrorClient = MirrorClient(store: store)
         let mirrorProgress = MirrorProgress()
         let mirrorRecorder = MirrorRecorder(container: container)
+        let mirrorCursor = MirrorBootstrapCursor(defaults: .standard)
         self.mirrorClient = mirrorClient
         self.mirrorProgress = mirrorProgress
+        self.mirrorCursor = mirrorCursor
         self.mirror = MirrorEngine(
             client: mirrorClient, container: container, progress: mirrorProgress,
-            cursor: MirrorBootstrapCursor(defaults: .standard)
+            cursor: mirrorCursor
         )
         self.mirrorRecorder = mirrorRecorder
 
@@ -312,10 +319,19 @@ final class AppEnvironment {
     /// settings screen — the « Oublier ce miroir » button. Never touches a
     /// single local model: the mirror is a copy, and forgetting it must not
     /// cost the user any data.
+    ///
+    /// Clears `mirrorCursor` along with the keychain, not just the keychain:
+    /// the outbox is left alone (its entries only ever name `table + uuid`,
+    /// which stay correct against any project), but the bootstrap cursor
+    /// records progress against *this* project specifically. Left in place,
+    /// reconfiguring a *different* Supabase project afterward would silently
+    /// skip every row sorting before the old cursor — see
+    /// `MirrorBootstrapCursor.clear()`'s own doc comment.
     func forgetMirror() {
         cancelMirror()
         mirrorRecorder.stop()
         try? store.clearMirror()
+        mirrorCursor.clear()
         mirrorProgress.phase = .idle
         mirrorProgress.lastPushAt = nil
         mirrorErrorMessage = nil
