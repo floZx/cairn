@@ -211,8 +211,30 @@ final class AppEnvironment {
 
     func syncOnLaunch() {
         restoreLastSyncDate()
+        pushMirrorOnLaunch()
         guard syncsOnLaunch, isAuthenticated else { return }
         syncSummariesOnly()
+    }
+
+    /// Sends whatever the outbox has accumulated since the last successful
+    /// push, once per launch.
+    ///
+    /// Nothing else calls `pushNow()` but the settings button, and a mirror
+    /// nobody ever opens the settings for would keep a trail that only ever
+    /// grows: `MirrorRecorder`'s own doc comment justifies its conditional
+    /// start by "an enregistreur started at launch would grow the store by one
+    /// row per write, indefinitely" — a bound only an actual push can hold,
+    /// never the fact that a project happens to be configured.
+    ///
+    /// Before Strava's own launch sync and independent of it: the mirror has
+    /// nothing to do with `syncsOnLaunch` or with being signed in to Strava.
+    /// Gated on the mirror's own two conditions instead, exactly as the
+    /// settings button is — `push()` on an unconfigured Mac would throw
+    /// `.notConfigured` and leave « Échec : Aucun projet Supabase… » on a
+    /// screen belonging to a feature its owner never asked for.
+    private func pushMirrorOnLaunch() {
+        guard isMirrorConfigured, isMirrorSignedIn else { return }
+        pushNow()
     }
 
     /// Reads the last successful run back out of the store.
@@ -295,6 +317,18 @@ final class AppEnvironment {
         return !session.isExpired
     }
 
+    /// Records the project the mirror writes to — the settings screen's
+    /// « Enregistrer les identifiants » button.
+    ///
+    /// Changing the URL wipes the bootstrap cursor and the session, exactly as
+    /// `forgetMirror()` does, and for the same reason its own doc comment
+    /// gives: the cursor records progress against *one* project, and the field
+    /// holding the URL is editable at all times. Without this, pointing the
+    /// Mac at a second Supabase project — new URL, sign in again, « Lancer
+    /// l'amorçage » — would silently skip every row whose `uuid` sorts before
+    /// the old project's cursor, on a project that has never seen any of them.
+    /// The session goes too: it was issued by the old project's GoTrue and
+    /// means nothing to the new one.
     func saveMirrorCredentials(projectURL: String, anonKey: String) {
         let trimmedURL = projectURL.trimmingCharacters(in: .whitespaces)
         let trimmedKey = anonKey.trimmingCharacters(in: .whitespaces)
@@ -306,8 +340,21 @@ final class AppEnvironment {
             mirrorErrorMessage = "La clé anon ne peut pas être vide."
             return
         }
+        // Read before the save, or there is nothing left to compare against.
+        // `nil` — no project on file yet — counts as different: a cursor
+        // surviving a crash mid-`forgetMirror()` would otherwise still be
+        // read against a project that has never received a row, and nobody
+        // can hold a session for a project they have not configured.
+        let previousURL = store.mirrorCredentials()?.projectURL
         do {
             try store.save(MirrorCredentials(projectURL: url, anonKey: trimmedKey))
+            if previousURL != url {
+                mirrorCursor.clear()
+                try? store.clearMirrorSession()
+                mirrorProgress.phase = .idle
+                mirrorProgress.lastPushAt = nil
+                mirrorProgress.failedUploads = 0
+            }
             mirrorErrorMessage = nil
             // Configuring the project is exactly the moment `MirrorRecorder`
             // is meant to start — see its own "When to start it" doc comment,

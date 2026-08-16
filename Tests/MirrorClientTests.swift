@@ -232,9 +232,45 @@ struct MirrorClientTests {
         #expect(row["c"] as? Double == 3.5)
         #expect(row["d"] as? Bool == true)
         #expect(row["e"] as? String == MirrorClient.iso8601.string(from: date))
-        #expect(row["f"] as? String == bytes.base64EncodedString())
+        // Hexadécimal préfixé de `\x`, la forme littérale que `byteain`
+        // reconnaît — écrite en dur, pas recalculée par le code testé. Le
+        // base64 qu'envoyait la version précédente ne contient aucun
+        // antislash : Postgres l'aurait lu en format « escape » et rangé les
+        // octets ASCII du base64 lui-même, sans la moindre erreur.
+        #expect(row["f"] as? String == "\\x010203")
         #expect(row["g"] as? [String] == ["x", "y"])
         #expect(row["h"] is NSNull)
+    }
+
+    /// L'encodage `bytea` dans le détail : deux chiffres minuscules par octet,
+    /// zéros compris, et rien d'autre. C'est la seule colonne binaire qui
+    /// traverse en ligne (`activity.simplified_track`, dont dépendra la carte
+    /// globale du web) et une erreur de format y serait silencieuse.
+    @Test func lesOctetsSEncodentEnHexadecimalPostgres() async throws {
+        let transport = StubTransport(alwaysRespondingWith: 201)
+        let client = MirrorClient(store: try configuredStore(), transport: transport)
+
+        try await client.upsert(
+            table: "activity",
+            rows: [[
+                "vide": .data(Data()),
+                "bornes": .data(Data([0x00, 0x0F, 0xFF])),
+                "texte": .data(Data("Hello".utf8)),
+            ]]
+        )
+
+        let body = try #require(await transport.requests().first?.httpBody)
+        let rows = try #require(
+            JSONSerialization.jsonObject(with: body) as? [[String: Any]]
+        )
+        let row = try #require(rows.first)
+
+        #expect(row["vide"] as? String == "\\x")
+        #expect(row["bornes"] as? String == "\\x000fff")
+        // L'exemple même de la documentation Postgres, et celui qui montre le
+        // piège : « Hello » en base64 est « SGVsbG8= », que `byteain`
+        // accepterait sans broncher pour huit octets faux.
+        #expect(row["texte"] as? String == "\\x48656c6c6f")
     }
 
     /// Un `Double` non fini — NaN ou infini, ce qu'une vitesse moyenne ou une

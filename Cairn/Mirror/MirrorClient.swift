@@ -14,8 +14,19 @@ enum MirrorValue: Sendable, Equatable {
     case null
 
     /// The `JSONSerialization`-compatible form. A `Date` becomes an ISO 8601
-    /// string with fractional seconds; a `Data` becomes base64, which is what
-    /// PostgREST accepts for a `bytea` column.
+    /// string with fractional seconds; a `Data` becomes Postgres' own
+    /// hexadecimal literal for `bytea`, `\x` followed by two lowercase digits
+    /// per byte.
+    ///
+    /// Hexadecimal and not base64, which an earlier version sent: PostgREST
+    /// inserts through `json_populate_recordset`, so the string lands in
+    /// `byteain`, which understands exactly two input formats — the `\x`
+    /// hexadecimal one and the older "escape" one. A base64 string contains no
+    /// backslash, so it is not rejected: it is read as *escape* format and
+    /// stored as the ASCII bytes of the base64 text itself. No error, just a
+    /// column holding the wrong bytes — the silence is what makes it worth
+    /// spelling out here. `\x` is also the format PostgREST *returns* on a
+    /// read, so the round trip is symmetric.
     var jsonValue: Any {
         switch self {
         case .string(let value): value
@@ -27,10 +38,28 @@ enum MirrorValue: Sendable, Equatable {
         case .double(let value): value.isFinite ? value : NSNull()
         case .bool(let value): value
         case .date(let value): MirrorClient.iso8601.string(from: value)
-        case .data(let value): value.base64EncodedString()
+        case .data(let value): Self.postgresHex(value)
         case .stringArray(let values): values
         case .null: NSNull()
         }
+    }
+
+    /// `\x` followed by the bytes in hexadecimal — Postgres' `bytea` input
+    /// format. Built by table lookup rather than `String(format: "%02x")` per
+    /// byte: `activity.simplified_track` runs to a few thousand bytes and the
+    /// formatter costs a full format-string parse for each one of them.
+    private static func postgresHex(_ data: Data) -> String {
+        let digits: [Character] = [
+            "0", "1", "2", "3", "4", "5", "6", "7",
+            "8", "9", "a", "b", "c", "d", "e", "f",
+        ]
+        var hex = "\\x"
+        hex.reserveCapacity(2 + data.count * 2)
+        for byte in data {
+            hex.append(digits[Int(byte >> 4)])
+            hex.append(digits[Int(byte & 0x0F)])
+        }
+        return hex
     }
 }
 
@@ -349,6 +378,14 @@ actor MirrorClient {
     /// Every transport call funnels through here, so a raw `URLSession`
     /// failure — offline, DNS, TLS — always reaches the caller as
     /// `MirrorError.transport` rather than as whatever `URLSession` threw.
+    ///
+    /// With one exception: a cancelled `URLSession` task throws
+    /// `URLError.cancelled`, not `CancellationError`, and wrapping *that* in
+    /// `.transport` would make « Interrompre » read as « Échec : … » in the
+    /// settings screen instead of returning quietly to rest —
+    /// `MirrorEngine.bootstrap()` and `.push()` tell the two apart solely by
+    /// `catch is CancellationError`. `StubTransport` is not a `URLSession`,
+    /// so no test above this line can see the difference.
     private static func send(
         _ request: URLRequest, transport: MirrorTransport
     ) async throws -> (Data, HTTPURLResponse) {
@@ -356,6 +393,8 @@ actor MirrorClient {
             return try await transport.send(request)
         } catch let error as MirrorError {
             throw error
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
             throw MirrorError.transport(error.localizedDescription)
         }

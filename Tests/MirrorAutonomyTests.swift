@@ -300,6 +300,82 @@ struct MirrorWiringTests {
         #expect(afterForget.isEmpty)
     }
 
+    /// Changer l'URL du projet efface la progression et la session, sans
+    /// passer par « Oublier ce miroir » — le champ est modifiable en
+    /// permanence, et rien d'autre ne garde ce trou fermé. Laissé en place, le
+    /// curseur de l'ancien projet ferait sauter à l'amorçage suivant toutes
+    /// les lignes triant avant lui, sur un projet qui n'en a jamais reçu
+    /// aucune.
+    @Test func changerDeProjetEffaceLeCurseurEtLaSession() throws {
+        let container = try AppModelContainer.inMemory()
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let store = try configuredStore()
+        let environment = AppEnvironment(
+            container: container, store: store,
+            mirrorTransport: StubTransport(alwaysRespondingWith: 200), mirrorCursor: cursor
+        )
+        cursor.setLastUUID("ZZZZ", for: "activity")
+        cursor.setLastPushAt(Date(timeIntervalSince1970: 1_800_000_000))
+        #expect(environment.isMirrorSignedIn)
+
+        // La même URL, une clé renouvelée : rien ne bouge, c'est le même
+        // projet et la même progression.
+        environment.saveMirrorCredentials(
+            projectURL: "https://x.supabase.co", anonKey: "anon-2"
+        )
+        #expect(cursor.lastUUID(for: "activity") == "ZZZZ")
+        #expect(environment.isMirrorSignedIn)
+
+        environment.saveMirrorCredentials(
+            projectURL: "https://autre.supabase.co", anonKey: "anon"
+        )
+        #expect(cursor.lastUUID(for: "activity") == nil)
+        #expect(cursor.lastPushAt() == nil)
+        // La session valait pour le GoTrue de l'ancien projet : elle ne veut
+        // rien dire pour le nouveau.
+        #expect(!environment.isMirrorSignedIn)
+        #expect(environment.mirrorProgress.lastPushAt == nil)
+        // Le projet, lui, est bien celui qu'on vient d'enregistrer.
+        #expect(
+            store.mirrorCredentials()?.projectURL
+                == URL(string: "https://autre.supabase.co")
+        )
+    }
+
+    /// Le lancement pousse ce que la boîte d'envoi a accumulé. Jusqu'ici seul
+    /// le bouton des réglages appelait `pushNow()`, alors que deux textes
+    /// promettaient l'inverse — et surtout, `MirrorRecorder` justifie son
+    /// démarrage conditionnel par une borne que seule une poussée effective
+    /// peut tenir : sans ce déclenchement, la trace ne faisait que grossir.
+    @Test func leLancementPousseCeQueLaBoiteDenvoiContient() async throws {
+        let container = try AppModelContainer.inMemory()
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let transport = StubTransport(alwaysRespondingWith: 200)
+        let environment = AppEnvironment(
+            container: container, store: try configuredStore(),
+            mirrorTransport: transport, mirrorCursor: cursor
+        )
+
+        // Une modification locale, enregistrée par l'enregistreur que `init`
+        // vient de démarrer.
+        let context = ModelContext(container)
+        context.insert(Athlete(stravaID: 1))
+        try context.save()
+        #expect(try !ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>()).isEmpty)
+
+        environment.syncOnLaunch()
+
+        for _ in 0..<2000 where environment.mirrorProgress.lastPushAt == nil {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        #expect(await transport.tableOrder().contains("athlete"))
+        // Et la trace est purgée de ce qui vient de partir — la borne que la
+        // documentation de `MirrorRecorder` promet.
+        #expect(try ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>()).isEmpty)
+    }
+
     /// Two concurrent calls to `startBootstrap()` must not interleave: the
     /// second, made while the first is genuinely in flight (not merely
     /// racing it — `PausingTransport.waitForFirstRequest()` waits for the

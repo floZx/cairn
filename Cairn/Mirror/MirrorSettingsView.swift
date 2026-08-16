@@ -96,7 +96,8 @@ struct MirrorSettingsView: View {
                 Text("""
                     L'amorçage envoie toute la bibliothèque une première fois ; il \
                     reprend là où il s'est arrêté si vous l'interrompez. Ensuite, chaque \
-                    modification locale est envoyée au fil de l'eau.
+                    modification locale part au lancement suivant, ou tout de suite avec \
+                    « Pousser les modifications ».
                     """)
                 .font(.caption)
                 .foregroundStyle(.secondary)

@@ -155,6 +155,52 @@ struct MirrorBootstrapTests {
         #expect(order.filter { $0 == "activity" }.count == 1)
     }
 
+    /// L'amorçage emporte `edited_at` pour les activités qui en ont un.
+    /// Sans ça, la future application web ne pourrait afficher « modifié
+    /// le… » sur aucune des 852 lignes déjà en place, et rattraper après coup
+    /// coûterait de toutes les réécrire. C'est le moteur qui le pose, jamais
+    /// `mirrorRow` : la règle des quatre colonnes réservées reste gardée par
+    /// `Tests/MirrorRowSchemaTests.swift`.
+    @Test func lAmorcageEmporteLaDateDeDerniereEdition() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let edited = Activity(stravaID: 1, name: "Retouchée", sportType: .run)
+        let editedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        edited.editedAt = editedAt
+        let untouched = Activity(stravaID: 2, name: "Jamais retouchée", sportType: .run)
+        context.insert(edited)
+        context.insert(untouched)
+        try context.save()
+
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let transport = StubTransport(alwaysRespondingWith: 201)
+        let engine = MirrorEngine(
+            client: MirrorClient(store: try configuredStore(), transport: transport),
+            container: container, progress: MirrorProgress(), cursor: cursor
+        )
+
+        try await engine.bootstrap()
+
+        let requests = await transport.requests()
+        let rows = requests.filter { $0.url?.path == "/rest/v1/activity" }
+            .compactMap(\.httpBody)
+            .compactMap { try? JSONSerialization.jsonObject(with: $0) as? [[String: Any]] }
+            .flatMap { $0 }
+        let byUUID = Dictionary(
+            uniqueKeysWithValues: rows.compactMap { row -> (String, [String: Any])? in
+                (row["uuid"] as? String).map { ($0, row) }
+            }
+        )
+        #expect(
+            byUUID[edited.uuid]?["edited_at"] as? String
+                == MirrorClient.iso8601.string(from: editedAt)
+        )
+        // Une activité jamais éditée n'en reçoit pas : la décision d'horloge du
+        // registre veut que `edited_at` reste nul là où rien n'a été retouché.
+        #expect(byUUID[untouched.uuid]?["edited_at"] == nil)
+    }
+
     /// Les parents partent avant les enfants. Une ligne `lap` dont l'activité
     /// n'est pas encore là n'a rien à quoi se rattacher.
     @Test func lesParentsPartentAvantLesEnfants() async throws {

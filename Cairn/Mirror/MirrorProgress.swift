@@ -26,6 +26,13 @@ final class MirrorProgress {
     /// Strava.
     var lastPushAt: Date?
 
+    /// How many Storage objects the last blob sweep failed to send. A failure
+    /// there no longer stops the rows from going out — see
+    /// `MirrorEngine.uploadPendingBlobs()` — so it has to be visible
+    /// somewhere, or a durable Storage policy problem would look exactly like
+    /// a clean run. Rewritten by every sweep, never accumulated.
+    var failedUploads = 0
+
     /// Whether a bootstrap or a push is under way — `SyncProgress.isRunning`'s
     /// counterpart, needed for the same reason: a settings screen has to
     /// disable its own "amorcer" button while one is already running rather
@@ -42,7 +49,7 @@ final class MirrorProgress {
     /// that is merely idle must not read the same way, or "nothing to report"
     /// becomes indistinguishable from "nothing has ever happened".
     var statusText: String {
-        switch phase {
+        let base: String = switch phase {
         case .idle:
             lastPushAt.map { "Dernière synchro \(Format.shortDate($0))" }
                 ?? "Jamais synchronisé"
@@ -53,5 +60,11 @@ final class MirrorProgress {
         case let .failed(message):
             "Échec : \(message)"
         }
+        // Appended rather than given a line of its own: the plan concedes the
+        // mirror exactly one indicator, and a tally nobody reads is the same
+        // as no tally at all.
+        guard failedUploads > 0 else { return base }
+        let plural = failedUploads > 1 ? "s" : ""
+        return "\(base) — \(failedUploads) fichier\(plural) non envoyé\(plural)"
     }
 }

@@ -192,6 +192,9 @@ actor MirrorEngine {
             // unconditionally (task 5), so uploading first means the object
             // it names already exists by the time the row lands — rather
             // than merely "eventually will", once a later call catches up.
+            // Blobs first when they work; never blobs *instead of* rows —
+            // an object that will not upload is counted and skipped, see
+            // `uploadPendingBlobs()`.
             try await uploadPendingBlobs()
             for table in Self.bootstrapOrder {
                 try Task.checkCancellation()
@@ -589,12 +592,31 @@ actor MirrorEngine {
     ///
     /// One upload at a time, never in parallel: 342 photos launched together
     /// would saturate the link and the free egress quota alike.
-    func uploadPendingBlobs() async throws {
+    ///
+    /// An upload that fails is **counted, not thrown**: it leaves `mirroredAt`
+    /// nil so a later call retries it, and the sweep carries on to the next
+    /// object. Storage's own policies are the one part of this mirror never
+    /// exercised against a real project — `owner = auth.uid()` against
+    /// `owner_id` on recent Supabase — and a durable 403 there would
+    /// otherwise fail `bootstrap()` before a single scalar row had left the
+    /// Mac, since blobs go first. A row pointing at an object that is not
+    /// there is a degraded read for the web; nothing at all is no read. The
+    /// tally reaches the user through `MirrorProgress.failedUploads`.
+    ///
+    /// Returns that tally, so `Tests/MirrorBlobTests.swift` can assert on it
+    /// without going through the main actor.
+    @discardableResult
+    func uploadPendingBlobs() async throws -> Int {
         guard let userID = await client.userID else {
             throw MirrorError.notConfigured
         }
-        try await uploadPendingPhotos(userID: userID)
-        try await uploadPendingStreams(userID: userID)
+        var failures = 0
+        failures += try await uploadPendingPhotos(userID: userID)
+        failures += try await uploadPendingStreams(userID: userID)
+        // Assigned, never accumulated: a run that finally gets its objects
+        // through must clear what the previous one reported.
+        await MainActor.run { progress.failedUploads = failures }
+        return failures
     }
 
     /// Pages through `ActivityPhoto` by `uuid`, `blobBatchSize` at a time,
@@ -612,7 +634,11 @@ actor MirrorEngine {
     /// advance, a page consisting entirely of not-yet-downloaded photos would
     /// never change from one iteration to the next, looping forever instead
     /// of finishing the sweep and returning control to `bootstrap()`.
-    private func uploadPendingPhotos(userID: String) async throws {
+    ///
+    /// Returns how many uploads failed — see `uploadPendingBlobs()` for why a
+    /// failure is counted rather than thrown.
+    private func uploadPendingPhotos(userID: String) async throws -> Int {
+        var failures = 0
         var lastUUID: String?
         while true {
             try Task.checkCancellation()
@@ -639,16 +665,26 @@ actor MirrorEngine {
             for photo in page {
                 try Task.checkCancellation()
                 guard let data = photo.data else { continue }
-                try await client.upload(
-                    bucket: Self.photosBucket,
-                    path: photo.blobStoragePath(userID: userID),
-                    data: data,
-                    // Nothing downstream of the Strava fetch records the real
-                    // MIME type; every photo Strava has ever served this app
-                    // has been a JPEG in practice.
-                    contentType: "image/jpeg"
-                )
-                photo.mirroredAt = Date()
+                do {
+                    try await client.upload(
+                        bucket: Self.photosBucket,
+                        path: photo.blobStoragePath(userID: userID),
+                        data: data,
+                        // Nothing downstream of the Strava fetch records the
+                        // real MIME type; every photo Strava has ever served
+                        // this app has been a JPEG in practice.
+                        contentType: "image/jpeg"
+                    )
+                    photo.mirroredAt = Date()
+                } catch is CancellationError {
+                    // Interrupting is not failing: it must reach `bootstrap()`
+                    // as itself, never as one more counted upload.
+                    throw CancellationError()
+                } catch {
+                    // `mirroredAt` deliberately left nil: this object is owed,
+                    // and the next sweep is what pays it.
+                    failures += 1
+                }
             }
             // Bookkeeping, not a change to mirror: `ActivityPhoto` is itself a
             // `MirrorRow`, so without this the recorder would file one outbox
@@ -656,6 +692,7 @@ actor MirrorEngine {
             // whole table for nothing.
             try MirrorBookkeeping.perform { try context.save() }
         }
+        return failures
     }
 
     /// `ActivityStreams`' counterpart to `uploadPendingPhotos`: same paging,
@@ -663,7 +700,10 @@ actor MirrorEngine {
     /// contributes at most one upload — its `packagedStreams` JSON object,
     /// skipped only when every one of the eleven streams is empty (a row
     /// created before any GPX or Strava data arrived).
-    private func uploadPendingStreams(userID: String) async throws {
+    ///
+    /// Returns how many uploads failed, same terms as `uploadPendingPhotos`.
+    private func uploadPendingStreams(userID: String) async throws -> Int {
+        var failures = 0
         var lastUUID: String?
         while true {
             try Task.checkCancellation()
@@ -698,17 +738,25 @@ actor MirrorEngine {
                 } catch {
                     throw MirrorError.encodingFailed(String(describing: error))
                 }
-                try await client.upload(
-                    bucket: Self.streamsBucket,
-                    path: streams.blobStoragePath(userID: userID),
-                    data: body,
-                    contentType: "application/json"
-                )
-                streams.mirroredAt = Date()
+                do {
+                    try await client.upload(
+                        bucket: Self.streamsBucket,
+                        path: streams.blobStoragePath(userID: userID),
+                        data: body,
+                        contentType: "application/json"
+                    )
+                    streams.mirroredAt = Date()
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    // Counted, not fatal — `uploadPendingBlobs()` explains why.
+                    failures += 1
+                }
             }
             // Bookkeeping, as in `uploadPendingPhotos` above.
             try MirrorBookkeeping.perform { try context.save() }
         }
+        return failures
     }
 
     /// Dispatches to the concretely-typed fetch for one table. A `switch`
@@ -822,7 +870,23 @@ actor MirrorEngine {
             let batch = try pageContext.fetch(descriptor)
             if batch.isEmpty { break }
 
-            let rows = batch.map { $0.mirrorRow(userID: userID) }
+            let rows = batch.map { model -> [String: MirrorValue] in
+                var row = model.mirrorRow(userID: userID)
+                // `edited_at` is the engine's to stamp, never `mirrorRow`'s —
+                // the rule `Tests/MirrorRowSchemaTests.swift` guards, and the
+                // reason this sits here rather than in the conformance. Only
+                // `Activity` carries the fact locally, and only when the user
+                // actually edited the row: left out, the web could never show
+                // "modifié le…" for the 852 activities the bootstrap sends,
+                // and catching up after the fact would mean rewriting all of
+                // them. A row never edited keeps `edited_at` null, per the
+                // ledger's clock decision; a later push overwrites it with
+                // its outbox entry's `changedAt`.
+                if let activity = model as? Activity, let editedAt = activity.editedAt {
+                    row["edited_at"] = .date(editedAt)
+                }
+                return row
+            }
             try await client.upsert(table: table, rows: rows)
 
             // Advanced only once the upsert has actually returned success —

@@ -401,8 +401,9 @@ existe côté Supabase — la marche à suivre, schéma compris, est détaillée
 `supabase/README.md`. L'URL du projet et sa clé anon s'y collent dans un
 premier champ, l'adresse et le mot de passe du compte dans un second, puis
 « Lancer l'amorçage » envoie toute la bibliothèque une première fois ; chaque
-modification locale part ensuite au fil de l'eau. L'amorçage reprend là où il
-s'était arrêté si on l'interrompt en cours de route.
+modification locale part ensuite au lancement suivant, ou à la demande avec
+« Pousser les modifications ». L'amorçage reprend là où il s'était arrêté si on
+l'interrompt en cours de route.
 
 « Oublier ce miroir », dans les mêmes réglages, efface le projet et la session
 enregistrés sur ce Mac sans toucher à la moindre donnée locale et sans rien
@@ -410,6 +411,9 @@ supprimer côté Supabase. Reconfigurer un projet ensuite — le même ou un
 autre — repart d'un amorçage complet plutôt que de reprendre où l'oubli
 l'a laissé : l'opération est sans risque, seulement plus longue, puisque
 chaque ligne renvoyée écrase simplement celle que Supabase avait déjà.
+Changer l'URL du projet sans passer par « Oublier ce miroir » a le même
+effet : la progression enregistrée et la session valaient pour l'ancien
+projet, elles sont effacées avec lui.
 
 ## Fonds de carte
 
