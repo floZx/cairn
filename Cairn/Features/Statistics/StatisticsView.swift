@@ -27,6 +27,10 @@ struct StatisticsView: View {
     enum ChartMeasure: String, CaseIterable, Identifiable {
         case distance
         case elevation
+        /// The one measure that adds up honestly across sports — a kilometre
+        /// of cycling and one on foot are not the same kilometre — which is
+        /// what makes it worth having beside the other two.
+        case duration
 
         var id: String { rawValue }
 
@@ -34,6 +38,7 @@ struct StatisticsView: View {
             switch self {
             case .distance: "Distance"
             case .elevation: "D+"
+            case .duration: "Temps"
             }
         }
     }
@@ -54,6 +59,7 @@ struct StatisticsView: View {
                     totals(stats)
                     Divider()
                     volumeChart(stats)
+                    weekChart(ActivityStatistics.weekProgress(for: activities))
                     Divider()
                     bySport(stats)
                     Divider()
@@ -169,6 +175,7 @@ struct StatisticsView: View {
         switch measure {
         case .distance: slot.distance / 1000
         case .elevation: slot.elevationGain
+        case .duration: Double(slot.movingTime) / 3600
         }
     }
 
@@ -176,14 +183,119 @@ struct StatisticsView: View {
         switch measure {
         case .distance: slot.comparisonDistance / 1000
         case .elevation: slot.comparisonElevationGain
+        case .duration: Double(slot.comparisonMovingTime) / 3600
         }
     }
 
+    /// Hours rather than seconds on the axis: a week of training is read in
+    /// hours, and "25200" says nothing to anyone.
     private func axisLabel(for value: Double) -> String {
         switch measure {
         case .distance: "\(Int(value)) km"
         case .elevation: "\(Int(value)) m"
+        case .duration: "\(Int(value)) h"
         }
+    }
+
+    // MARK: - La semaine contre la précédente
+
+    /// Two cumulative curves, Monday to Sunday: this week against the last.
+    ///
+    /// The shape is Strava's relative-effort chart; the measure is one of this
+    /// screen's own, since Cairn computes no heart-rate load. The question it
+    /// answers is "am I ahead or behind", and two lines that start together
+    /// answer it without adding anything up.
+    private func weekChart(_ progress: ActivityStatistics.WeekProgress) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Cette semaine")
+
+            Chart {
+                ForEach(progress.lastWeek) { point in
+                    LineMark(
+                        x: .value("Jour", point.dayIndex),
+                        y: .value(measure.label, weekValue(point)),
+                        series: .value("Série", "La semaine dernière")
+                    )
+                    .foregroundStyle(by: .value("Série", "La semaine dernière"))
+                    .symbol(.circle)
+                }
+                ForEach(progress.thisWeek) { point in
+                    LineMark(
+                        x: .value("Jour", point.dayIndex),
+                        y: .value(measure.label, weekValue(point)),
+                        series: .value("Série", "Cette semaine")
+                    )
+                    .foregroundStyle(by: .value("Série", "Cette semaine"))
+                    .symbol(.circle)
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+                }
+            }
+            .chartForegroundStyleScale([
+                "Cette semaine": Color.accentColor,
+                "La semaine dernière": Color.secondary,
+            ])
+            .chartXScale(domain: 0...6)
+            .chartXAxis {
+                AxisMarks(values: Array(0...6)) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let index = value.as(Int.self) {
+                            Text(Self.weekdayNames[index])
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let raw = value.as(Double.self) {
+                            Text(axisLabel(for: raw))
+                        }
+                    }
+                }
+            }
+            .frame(height: 200)
+
+            if let ahead = weekDifference(progress) {
+                Text(ahead)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// Monday first, like every week this application counts.
+    private static let weekdayNames = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
+
+    private func weekValue(_ point: ActivityStatistics.WeekProgress.Point) -> Double {
+        switch measure {
+        case .distance: point.distance / 1000
+        case .elevation: point.elevationGain
+        case .duration: Double(point.movingTime) / 3600
+        }
+    }
+
+    /// Where this week stands against the same day of the last one.
+    ///
+    /// Compared on the same day rather than on the week's total: a Wednesday
+    /// against a finished week would say "behind" every time, which is true
+    /// and useless.
+    private func weekDifference(
+        _ progress: ActivityStatistics.WeekProgress
+    ) -> String? {
+        guard let current = progress.thisWeek.last else { return nil }
+        let sameDay = progress.lastWeek.first { $0.dayIndex == current.dayIndex }
+        guard let sameDay else { return nil }
+        let delta = weekValue(current) - weekValue(sameDay)
+        let unit = axisLabel(for: abs(delta.rounded()))
+        let day = Self.weekdayNames[current.dayIndex]
+        if abs(delta) < 0.05 {
+            return "Au même point que \(day) dernier."
+        }
+        return delta > 0
+            ? "\(unit) de plus que \(day) dernier."
+            : "\(unit) de moins que \(day) dernier."
     }
 
     // MARK: - By sport

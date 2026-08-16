@@ -100,10 +100,12 @@ struct ActivityStatistics: Equatable {
         let start: Date
         let distance: Double
         let elevationGain: Double
+        let movingTime: Int
         /// The slot this is compared against — a period or a year earlier.
         let comparisonStart: Date
         let comparisonDistance: Double
         let comparisonElevationGain: Double
+        let comparisonMovingTime: Int
 
         var id: Date { start }
     }
@@ -165,9 +167,11 @@ struct ActivityStatistics: Equatable {
                     start: slot,
                     distance: current.distance,
                     elevationGain: current.elevation,
+                    movingTime: current.movingTime,
                     comparisonStart: comparisonStart,
                     comparisonDistance: previous.distance,
-                    comparisonElevationGain: previous.elevation
+                    comparisonElevationGain: previous.elevation,
+                    comparisonMovingTime: previous.movingTime
                 )
             }
         )
@@ -176,6 +180,7 @@ struct ActivityStatistics: Equatable {
     private struct SlotSums {
         var distance: Double = 0
         var elevation: Double = 0
+        var movingTime: Int = 0
 
         static let zero = SlotSums()
     }
@@ -192,6 +197,7 @@ struct ActivityStatistics: Equatable {
             else { continue }
             totals[slot, default: .zero].distance += activity.distance
             totals[slot, default: .zero].elevation += activity.totalElevationGain
+            totals[slot, default: .zero].movingTime += activity.movingTime
         }
         return totals
     }
@@ -255,6 +261,91 @@ struct ActivityStatistics: Equatable {
     /// only the date matters, and midday is the hour furthest from both edges
     /// of a daylight-saving change.
     ///
+    /// The week so far against the week before, day by day and cumulative.
+    ///
+    /// Strava's relative-effort chart, in the terms Cairn actually holds: it
+    /// cumulates a load derived from heart rate, which this application does
+    /// not compute, so the shape is borrowed and the measure is one of the
+    /// three the statistics already show.
+    ///
+    /// Cumulative rather than daily bars because the question is "am I ahead
+    /// or behind": two curves that start together and part company answer it
+    /// at a glance, where fourteen bars have to be added up by eye.
+    struct WeekProgress: Equatable {
+        /// One day of a week, carrying the running total through it.
+        struct Point: Identifiable, Equatable {
+            /// 0 is Monday, per the week this application counts in.
+            let dayIndex: Int
+            let distance: Double
+            let elevationGain: Double
+            let movingTime: Int
+
+            var id: Int { dayIndex }
+        }
+
+        /// Up to today, and no further: a line drawn flat to Sunday would say
+        /// the week is over when it is Wednesday.
+        let thisWeek: [Point]
+        let lastWeek: [Point]
+
+        static let empty = WeekProgress(thisWeek: [], lastWeek: [])
+    }
+
+    static func weekProgress(
+        for activities: [Activity], now: Date = Date()
+    ) -> WeekProgress {
+        guard let thisWeekStart = calendar.dateInterval(of: .weekOfYear, for: now)?.start,
+              let lastWeekStart = calendar.date(
+                  byAdding: .weekOfYear, value: -1, to: thisWeekStart
+              )
+        else { return .empty }
+
+        // How far this week has come. A day is complete or it is not: the
+        // current one counts, the ones after it do not exist yet.
+        let today = calendar.dateComponents(
+            [.day], from: thisWeekStart, to: now
+        ).day ?? 0
+
+        return WeekProgress(
+            thisWeek: cumulative(
+                activities, from: thisWeekStart, days: min(today + 1, 7)
+            ),
+            lastWeek: cumulative(activities, from: lastWeekStart, days: 7)
+        )
+    }
+
+    /// The running totals of one week, one point per day.
+    private static func cumulative(
+        _ activities: [Activity], from start: Date, days: Int
+    ) -> [WeekProgress.Point] {
+        guard days > 0 else { return [] }
+        var distance = 0.0
+        var elevation = 0.0
+        var movingTime = 0
+        var points: [WeekProgress.Point] = []
+        for index in 0..<days {
+            guard let dayStart = calendar.date(byAdding: .day, value: index, to: start),
+                  let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)
+            else { continue }
+            for activity in activities {
+                // The day an outing belongs to is the one it started on where
+                // it happened — `day(of:)`, the same rule the bars use.
+                guard let day = day(of: activity), day >= dayStart, day < dayEnd
+                else { continue }
+                distance += activity.distance
+                elevation += activity.totalElevationGain
+                movingTime += activity.movingTime
+            }
+            points.append(
+                WeekProgress.Point(
+                    dayIndex: index, distance: distance,
+                    elevationGain: elevation, movingTime: movingTime
+                )
+            )
+        }
+        return points
+    }
+
     /// `startLocalDate` used to stand in for this, and could not: it holds the
     /// wall clock encoded as if it were UTC, so read in the reader's calendar
     /// it lands offset by that calendar's own shift — a 23:30 outing in UTC+2

@@ -334,3 +334,74 @@ struct RecordSelectionTests {
         #expect(record?.activityID != modest.id)
     }
 }
+
+@Suite("La semaine contre la précédente")
+@MainActor
+struct WeekProgressTests {
+    /// Mercredi 12 août 2026, midi — le milieu d'une semaine qui commence le
+    /// lundi 10.
+    private let now = Date(timeIntervalSince1970: 1_786_536_000)
+
+    private func makeActivity(
+        in context: ModelContext, id: Int64, day: String,
+        distance: Double = 10_000, movingTime: Int = 3000,
+        elevation: Double = 100
+    ) -> Activity {
+        let activity = Activity(stravaID: id, name: "Sortie", sportType: .run)
+        // Midi heure de Paris, pour qu'aucun fuseau ne fasse changer de jour.
+        activity.startDate = DateKey(raw: day)!.date().addingTimeInterval(12 * 3600)
+        activity.distance = distance
+        activity.movingTime = movingTime
+        activity.totalElevationGain = elevation
+        context.insert(activity)
+        return activity
+    }
+
+    @Test("la semaine en cours s'arrête à aujourd'hui")
+    func thecurrentWeekStopsToday() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let activity = makeActivity(in: context, id: 1, day: "2026-08-10")
+
+        let progress = ActivityStatistics.weekProgress(for: [activity], now: now)
+        // Lundi, mardi, mercredi — et rien au-delà : une ligne tracée jusqu'à
+        // dimanche dirait que la semaine est finie alors qu'on est mercredi.
+        #expect(progress.thisWeek.map(\.dayIndex) == [0, 1, 2])
+        #expect(progress.lastWeek.count == 7)
+    }
+
+    @Test("chaque point porte le cumul depuis le lundi")
+    func eachPointCarriesTheRunningTotal() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let monday = makeActivity(in: context, id: 1, day: "2026-08-10")
+        let wednesday = makeActivity(
+            in: context, id: 2, day: "2026-08-12", distance: 5_000
+        )
+
+        let progress = ActivityStatistics.weekProgress(
+            for: [monday, wednesday], now: now
+        )
+        #expect(progress.thisWeek.map(\.distance) == [10_000, 10_000, 15_000])
+        // Le temps s'additionne comme le reste.
+        #expect(progress.thisWeek.last?.movingTime == 6000)
+    }
+
+    @Test("la semaine précédente est complète et séparée")
+    func thepreviousWeekIsWholeAndApart() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        // Dimanche 9 août : le dernier jour de la semaine d'avant.
+        let lastSunday = makeActivity(in: context, id: 1, day: "2026-08-09")
+
+        let progress = ActivityStatistics.weekProgress(for: [lastSunday], now: now)
+        #expect(progress.lastWeek.last?.distance == 10_000)
+        // Et rien n'a débordé sur la semaine en cours.
+        #expect(progress.thisWeek.allSatisfy { $0.distance == 0 })
+    }
+
+    @Test("une semaine sans rien reste une semaine de zéros")
+    func anemptyWeekIsStillDrawn() throws {
+        let progress = ActivityStatistics.weekProgress(for: [], now: now)
+        #expect(progress.thisWeek.count == 3)
+        #expect(progress.lastWeek.count == 7)
+        #expect(progress.thisWeek.allSatisfy { $0.distance == 0 })
+    }
+}
