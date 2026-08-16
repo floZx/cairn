@@ -30,6 +30,10 @@ protocol SecretStore: Sendable {
     func save(_ credentials: MirrorCredentials) throws
     func mirrorSession() -> MirrorSession?
     func save(_ session: MirrorSession) throws
+    /// Drops the session only, in mirror of `clearTokens()`: a rejected
+    /// refresh means the session is dead, not that the project itself was
+    /// misconfigured, so the project URL and anon key must survive it.
+    func clearMirrorSession() throws
     func clearMirror() throws
 }
 
@@ -114,6 +118,10 @@ final class KeychainStore: SecretStore, Sendable {
 
     func save(_ session: MirrorSession) throws {
         try write(session, account: Self.mirrorSessionAccount)
+    }
+
+    func clearMirrorSession() throws {
+        try delete(account: Self.mirrorSessionAccount)
     }
 
     func clearMirror() throws {
@@ -228,6 +236,10 @@ final class InMemorySecretStore: SecretStore, @unchecked Sendable {
 
     func save(_ session: MirrorSession) throws {
         lock.withLock { storedMirrorSession = session }
+    }
+
+    func clearMirrorSession() throws {
+        lock.withLock { storedMirrorSession = nil }
     }
 
     func clearMirror() throws {

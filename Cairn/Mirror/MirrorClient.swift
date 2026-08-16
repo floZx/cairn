@@ -20,7 +20,11 @@ enum MirrorValue: Sendable, Equatable {
         switch self {
         case .string(let value): value
         case .int(let value): value
-        case .double(let value): value
+        // NaN and infinity make `JSONSerialization` throw an Objective-C
+        // exception Swift cannot catch — a crash, not an error. A pace or an
+        // average speed is a division, so a non-finite result is not
+        // theoretical; it becomes SQL NULL instead of taking the app down.
+        case .double(let value): value.isFinite ? value : NSNull()
         case .bool(let value): value
         case .date(let value): MirrorClient.iso8601.string(from: value)
         case .data(let value): value.base64EncodedString()
@@ -33,8 +37,20 @@ enum MirrorValue: Sendable, Equatable {
 enum MirrorError: Error, Equatable {
     case notConfigured
     case unauthorized
+    /// A refresh Supabase rejected, or one it accepted but that could not be
+    /// saved. Either way the refresh token was single-use and is already
+    /// spent, so the session is dead for good — distinct from `.unauthorized`
+    /// so the caller knows to ask for a fresh sign-in rather than retry.
+    case refreshRejected
     case http(status: Int, body: String)
     case transport(String)
+    /// A row or auth body `JSONSerialization` refused. Not expected in
+    /// practice — `MirrorValue` only holds encodable types — but a caller
+    /// catching `MirrorError` must never see a raw Foundation error instead.
+    case encodingFailed(String)
+    /// A session obtained from Supabase that could not be written to the
+    /// local secret store.
+    case storageFailed(String)
 }
 
 protocol MirrorTransport: Sendable {
@@ -72,12 +88,21 @@ actor MirrorClient {
         self.transport = transport
     }
 
-    /// Whether an install has a project and a session on file. Decided purely
-    /// from the store, never the network: a Mac that has never configured a
-    /// mirror is an ordinary state, not a failure, and answering it must not
-    /// wait on anything.
+    /// Whether a project is on file. Decided purely from the store, never the
+    /// network: a Mac that has never configured a mirror is an ordinary
+    /// state, not a failure, and answering it must not wait on anything.
     var isConfigured: Bool {
-        store.mirrorCredentials() != nil && store.mirrorSession() != nil
+        store.mirrorCredentials() != nil
+    }
+
+    /// Whether a usable, unexpired session is on file — distinct from
+    /// `isConfigured`: a project can be configured with nobody signed in
+    /// yet, and callers such as the settings screen need to tell those two
+    /// states apart (`isConfigured` gates the "enter a project" prompt,
+    /// `isSignedIn` chooses between the signed-in and signed-out layouts).
+    var isSignedIn: Bool {
+        guard let session = store.mirrorSession() else { return false }
+        return !session.isExpired
     }
 
     // MARK: - Auth
@@ -94,7 +119,11 @@ actor MirrorClient {
         let (data, response) = try await send(request)
         try Self.checkStatus(response, data: data)
         let session = try Self.decodeSession(from: data)
-        try store.save(session)
+        do {
+            try store.save(session)
+        } catch {
+            throw MirrorError.storageFailed(String(describing: error))
+        }
     }
 
     // MARK: - PostgREST
@@ -115,9 +144,13 @@ actor MirrorClient {
         request.setValue(
             "resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer"
         )
-        request.httpBody = try JSONSerialization.data(
-            withJSONObject: rows.map { row in row.mapValues { $0.jsonValue } }
-        )
+        do {
+            request.httpBody = try JSONSerialization.data(
+                withJSONObject: rows.map { row in row.mapValues { $0.jsonValue } }
+            )
+        } catch {
+            throw MirrorError.encodingFailed(String(describing: error))
+        }
 
         let (data, response) = try await send(request)
         try Self.checkStatus(response, data: data)
@@ -191,9 +224,31 @@ actor MirrorClient {
             credentials: credentials
         )
         let (data, response) = try await Self.send(request, transport: transport)
-        try checkStatus(response, data: data)
+        guard (200..<300).contains(response.statusCode) else {
+            // Supabase rotates the refresh token on every use: a rejected
+            // refresh means the one just tried is already spent, so the
+            // session is dead for good, not merely retryable — the same
+            // reasoning as `StravaClient.refresh`. Drop it, but only if it's
+            // still the one on file, so a concurrent success elsewhere isn't
+            // undone.
+            if store.mirrorSession()?.refreshToken == session.refreshToken {
+                try? store.clearMirrorSession()
+            }
+            throw MirrorError.refreshRejected
+        }
         let refreshed = try decodeSession(from: data)
-        try store.save(refreshed)
+        do {
+            try store.save(refreshed)
+        } catch {
+            // The refresh token Supabase just returned was single-use; if it
+            // can't be persisted, it's already gone from the server's point
+            // of view too, and retrying would only hit the same rejection.
+            // Fail the same way now instead of looping silently.
+            if store.mirrorSession()?.refreshToken == session.refreshToken {
+                try? store.clearMirrorSession()
+            }
+            throw MirrorError.refreshRejected
+        }
         return refreshed
     }
 
@@ -235,8 +290,17 @@ actor MirrorClient {
         var request = URLRequest(url: components.url!)
         request.httpMethod = "POST"
         request.setValue(credentials.anonKey, forHTTPHeaderField: "apikey")
+        // `supabase-js` sends both `apikey` and a bearer `Authorization` on
+        // every GoTrue call, and the Kong gateway in front of it can be
+        // configured to require the second — without it, sign-in itself
+        // could fail on a project set up that way.
+        request.setValue("Bearer \(credentials.anonKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } catch {
+            throw MirrorError.encodingFailed(String(describing: error))
+        }
         return request
     }
 
@@ -244,18 +308,32 @@ actor MirrorClient {
         struct UserDTO: Decodable { let id: String }
         let access_token: String
         let refresh_token: String
-        let expires_at: Double
+        /// A GoTrue extension, not a standard OAuth field — absent on a
+        /// strictly spec-following endpoint.
+        let expires_at: Double?
+        /// The field the OAuth spec actually guarantees; the fallback when
+        /// `expires_at` is missing.
+        let expires_in: Double?
         let user: UserDTO
     }
 
     private static func decodeSession(from data: Data) throws -> MirrorSession {
-        guard let payload = try? JSONDecoder().decode(AuthResponseDTO.self, from: data) else {
+        guard let payload = try? JSONDecoder().decode(AuthResponseDTO.self, from: data)
+        else {
+            throw MirrorError.http(status: 0, body: "Réponse d'authentification illisible")
+        }
+        let expiresAt: Date
+        if let epoch = payload.expires_at {
+            expiresAt = Date(timeIntervalSince1970: epoch)
+        } else if let seconds = payload.expires_in {
+            expiresAt = Date().addingTimeInterval(seconds)
+        } else {
             throw MirrorError.http(status: 0, body: "Réponse d'authentification illisible")
         }
         return MirrorSession(
             accessToken: payload.access_token,
             refreshToken: payload.refresh_token,
-            expiresAt: Date(timeIntervalSince1970: payload.expires_at),
+            expiresAt: expiresAt,
             userID: payload.user.id
         )
     }
