@@ -42,6 +42,13 @@ final class ActivityPhoto {
     /// relationship does not.
     var activityUUID: String = ""
 
+    /// When this photo's bytes last landed in Supabase Storage — `nil` until
+    /// then. Local bookkeeping only, never a mirrored column:
+    /// `Tests/MirrorRowSchemaTests.swift` fails if `mirrorRow(userID:)` ever
+    /// starts emitting it. Optional with no default beyond `nil`, so an
+    /// existing store migrates without a value to backfill.
+    var mirroredAt: Date?
+
     init(uniqueID: String) {
         self.uniqueID = uniqueID
     }

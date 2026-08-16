@@ -75,6 +75,21 @@ actor MirrorEngine {
     /// 852 activities take five requests, not 852 of them.
     private static let batchSize = 200
 
+    /// Rows per blob-upload page — far smaller than `batchSize`, and
+    /// deliberately so: at ~12 KB per attribute, a page of `ActivityStreams`
+    /// at *this* table's own `batchSize` (200) would hold ~26 MB of blobs
+    /// in memory at once (11 × 12 KB × 200). `blobBatchSize` keeps that same
+    /// arithmetic under a megabyte a page instead — measured, not guessed;
+    /// see the probe in the task 7 report for the resident figures this size
+    /// was picked against.
+    private static let blobBatchSize = 5
+
+    /// Supabase Storage bucket ids, matching `supabase/schema.sql`'s
+    /// `storage.buckets` seed exactly — a typo here would upload to a bucket
+    /// that silently doesn't exist rather than fail loudly.
+    private static let photosBucket = "photos"
+    private static let streamsBucket = "streams"
+
     /// Parents before children: a `lap` whose activity is not there yet has
     /// nothing to hang from. The order is fixed rather than derived, because
     /// it is a fact about the schema, and reading it from the schema would be
@@ -146,6 +161,11 @@ actor MirrorEngine {
             guard let userID = await client.userID else {
                 throw MirrorError.notConfigured
             }
+            // Before any row: a row's `storage_path` is emitted
+            // unconditionally (task 5), so uploading first means the object
+            // it names already exists by the time the row lands — rather
+            // than merely "eventually will", once a later call catches up.
+            try await uploadPendingBlobs()
             for table in Self.bootstrapOrder {
                 try Task.checkCancellation()
                 try await sendTable(table, userID: userID)
@@ -182,6 +202,140 @@ actor MirrorEngine {
             // the fresher date back to an older one.
             guard progress.lastPushAt == nil else { return }
             progress.lastPushAt = date
+        }
+    }
+
+    /// Uploads every blob Storage does not have yet: `ActivityPhoto.data`
+    /// first, then `ActivityStreams`' eleven streams packaged into the one
+    /// JSON object per row task 5's schema comment describes. Called by
+    /// `bootstrap()`, and safe to call on its own — `Tests/MirrorBlobTests.swift`
+    /// does exactly that.
+    ///
+    /// A row with no bytes yet — a photo whose Strava download hasn't landed,
+    /// an `ActivityStreams` GPX import still in flight — is left untouched
+    /// rather than marked done: `mirroredAt` only ever moves from `nil` to a
+    /// date, never back, so leaving it `nil` is what lets a later call catch
+    /// the bytes once they exist. Visiting it again costs a fetch, never an
+    /// HTTP request — the whole point, since 852 activities synced before
+    /// their photos would otherwise cost 852 requests for nothing every
+    /// bootstrap.
+    ///
+    /// One upload at a time, never in parallel: 342 photos launched together
+    /// would saturate the link and the free egress quota alike.
+    func uploadPendingBlobs() async throws {
+        guard let userID = await client.userID else {
+            throw MirrorError.notConfigured
+        }
+        try await uploadPendingPhotos(userID: userID)
+        try await uploadPendingStreams(userID: userID)
+    }
+
+    /// Pages through `ActivityPhoto` by `uuid`, `blobBatchSize` at a time,
+    /// uploading whichever of them still has `data` and marking it with
+    /// `mirroredAt`. Structured exactly like `sendBatches`: a fresh
+    /// `ModelContext` per page, an explicit `.lexical` comparator on the
+    /// sort, `try Task.checkCancellation()` before every page — the same
+    /// three fixes that section's doc comment explains, for the same
+    /// reasons, applied to a table that carries actual image bytes rather
+    /// than a `storage_path` string.
+    ///
+    /// Paged by `uuid > lastUUID` with `lastUUID` advanced to the last row of
+    /// *every* page — including one where every photo was skipped for having
+    /// no bytes — rather than by `mirroredAt == nil` alone: without that
+    /// advance, a page consisting entirely of not-yet-downloaded photos would
+    /// never change from one iteration to the next, looping forever instead
+    /// of finishing the sweep and returning control to `bootstrap()`.
+    private func uploadPendingPhotos(userID: String) async throws {
+        var lastUUID: String?
+        while true {
+            try Task.checkCancellation()
+
+            let context = ModelContext(container)
+            var descriptor: FetchDescriptor<ActivityPhoto>
+            if let cursorUUID = lastUUID {
+                descriptor = FetchDescriptor<ActivityPhoto>(
+                    predicate: #Predicate<ActivityPhoto> {
+                        $0.mirroredAt == nil && $0.uuid > cursorUUID
+                    }
+                )
+            } else {
+                descriptor = FetchDescriptor<ActivityPhoto>(
+                    predicate: #Predicate<ActivityPhoto> { $0.mirroredAt == nil }
+                )
+            }
+            descriptor.sortBy = [SortDescriptor(\.uuid, comparator: .lexical)]
+            descriptor.fetchLimit = Self.blobBatchSize
+            let page = try context.fetch(descriptor)
+            if page.isEmpty { break }
+            lastUUID = page.last?.uuid
+
+            for photo in page {
+                try Task.checkCancellation()
+                guard let data = photo.data else { continue }
+                try await client.upload(
+                    bucket: Self.photosBucket,
+                    path: photo.blobStoragePath(userID: userID),
+                    data: data,
+                    // Nothing downstream of the Strava fetch records the real
+                    // MIME type; every photo Strava has ever served this app
+                    // has been a JPEG in practice.
+                    contentType: "image/jpeg"
+                )
+                photo.mirroredAt = Date()
+            }
+            try context.save()
+        }
+    }
+
+    /// `ActivityStreams`' counterpart to `uploadPendingPhotos`: same paging,
+    /// same cursor-advances-regardless-of-skips reasoning, but each row
+    /// contributes at most one upload — its `packagedStreams` JSON object,
+    /// skipped only when every one of the eleven streams is empty (a row
+    /// created before any GPX or Strava data arrived).
+    private func uploadPendingStreams(userID: String) async throws {
+        var lastUUID: String?
+        while true {
+            try Task.checkCancellation()
+
+            let context = ModelContext(container)
+            var descriptor: FetchDescriptor<ActivityStreams>
+            if let cursorUUID = lastUUID {
+                descriptor = FetchDescriptor<ActivityStreams>(
+                    predicate: #Predicate<ActivityStreams> {
+                        $0.mirroredAt == nil && $0.uuid > cursorUUID
+                    }
+                )
+            } else {
+                descriptor = FetchDescriptor<ActivityStreams>(
+                    predicate: #Predicate<ActivityStreams> { $0.mirroredAt == nil }
+                )
+            }
+            descriptor.sortBy = [SortDescriptor(\.uuid, comparator: .lexical)]
+            descriptor.fetchLimit = Self.blobBatchSize
+            let page = try context.fetch(descriptor)
+            if page.isEmpty { break }
+            lastUUID = page.last?.uuid
+
+            for streams in page {
+                try Task.checkCancellation()
+                let pieces = streams.packagedStreams
+                guard !pieces.isEmpty else { continue }
+                let payload = pieces.mapValues { $0.base64EncodedString() }
+                let body: Data
+                do {
+                    body = try JSONSerialization.data(withJSONObject: payload)
+                } catch {
+                    throw MirrorError.encodingFailed(String(describing: error))
+                }
+                try await client.upload(
+                    bucket: Self.streamsBucket,
+                    path: streams.blobStoragePath(userID: userID),
+                    data: body,
+                    contentType: "application/json"
+                )
+                streams.mirroredAt = Date()
+            }
+            try context.save()
         }
     }
 

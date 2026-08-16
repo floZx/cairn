@@ -27,6 +27,13 @@ final class ActivityStreams {
 
     var activity: Activity?
 
+    /// When this row's packaged streams last landed in Supabase Storage —
+    /// `nil` until then. Local bookkeeping only, never a mirrored column:
+    /// `Tests/MirrorRowSchemaTests.swift` fails if `mirrorRow(userID:)` ever
+    /// starts emitting it. Optional with no default beyond `nil`, so an
+    /// existing store migrates without a value to backfill.
+    var mirroredAt: Date?
+
     init() {}
 
     var coordinates: [Coordinate] {

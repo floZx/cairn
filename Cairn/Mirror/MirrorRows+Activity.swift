@@ -83,6 +83,34 @@ extension Activity: MirrorRow {
 extension ActivityStreams: MirrorRow {
     static var mirrorTable: String { "activity_streams" }
 
+    /// Where this row's packaged streams live in the `streams` bucket — the
+    /// same string `mirrorRow(userID:)` writes to `storage_path` and
+    /// `MirrorEngine.uploadPendingBlobs()` uploads to, kept in one place so
+    /// the two can never drift apart. The natural identifier for a stream is
+    /// its own `uuid`.
+    func blobStoragePath(userID: String) -> String { "\(userID)/\(uuid)" }
+
+    /// The eleven `Data?` streams, name to bytes, with the empty ones left
+    /// out — the JSON object `uploadPendingBlobs()` deposits at
+    /// `blobStoragePath(userID:)` is built from exactly this. One object
+    /// because the web always reads every stream of an activity together:
+    /// eleven objects would mean eleven requests per activity instead of one.
+    /// Each value is the untouched `TrackBlob` packing already held locally
+    /// (little-endian, headerless) — nothing is decoded or re-encoded here.
+    var packagedStreams: [String: Data] {
+        let named: [(name: String, data: Data?)] = [
+            ("latlng", latlng), ("distance", distance), ("altitude", altitude),
+            ("time", time), ("heartrate", heartrate), ("cadence", cadence),
+            ("watts", watts), ("velocitySmooth", velocitySmooth), ("temp", temp),
+            ("grade", grade), ("moving", moving),
+        ]
+        var streams: [String: Data] = [:]
+        for entry in named {
+            if let data = entry.data { streams[entry.name] = data }
+        }
+        return streams
+    }
+
     func mirrorRow(userID: String) -> [String: MirrorValue] {
         [
             "uuid": .string(uuid),
@@ -91,9 +119,8 @@ extension ActivityStreams: MirrorRow {
             "activity_uuid": .from(activity?.uuid),
             "point_count": .from(pointCount),
             // None of the eleven `Data?` streams cross the row — they land in
-            // one Storage object, and this path is where it lives. The
-            // natural identifier for a stream is its own `uuid`.
-            "storage_path": .string("\(userID)/\(uuid)"),
+            // one Storage object, and this path is where it lives.
+            "storage_path": .string(blobStoragePath(userID: userID)),
         ]
     }
 }
@@ -102,6 +129,12 @@ extension ActivityStreams: MirrorRow {
 
 extension ActivityPhoto: MirrorRow {
     static var mirrorTable: String { "activity_photo" }
+
+    /// Where this photo's bytes live in the `photos` bucket — the same
+    /// string `mirrorRow(userID:)` writes to `storage_path` and
+    /// `MirrorEngine.uploadPendingBlobs()` uploads to, kept in one place so
+    /// the two can never drift apart.
+    func blobStoragePath(userID: String) -> String { "\(userID)/\(uniqueID)" }
 
     func mirrorRow(userID: String) -> [String: MirrorValue] {
         [
@@ -119,7 +152,7 @@ extension ActivityPhoto: MirrorRow {
             "sort_index": .from(sortIndex),
             // The bytes never leave this Mac's disk for the row itself — only
             // a Storage path does, keyed on Strava's own photo identifier.
-            "storage_path": .string("\(userID)/\(uniqueID)"),
+            "storage_path": .string(blobStoragePath(userID: userID)),
         ]
     }
 }

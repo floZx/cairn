@@ -63,6 +63,25 @@ actor StubTransport: MirrorTransport {
     }
 }
 
+/// A suite of its own per test, never `.standard` — that one belongs to
+/// whatever process is running the suite, exactly the trap
+/// `Tests/JournalStoreTests.swift` already avoids for `JournalStore`.
+/// Returns the suite name alongside the cursor so the caller can `defer`
+/// its cleanup with `discard(_:)`.
+///
+/// Originally local to `Tests/MirrorBootstrapTests.swift`; moved here in
+/// task 7 once a second file (`Tests/MirrorBlobTests.swift`) needed the same
+/// pair — the plan's own rule for `MirrorEngine.init`'s `cursor:` parameter
+/// names this file as where it belongs once that happens.
+func freshCursor() -> (cursor: MirrorBootstrapCursor, suiteName: String) {
+    let suiteName = "cairn.tests.mirror.\(UUID().uuidString)"
+    return (MirrorBootstrapCursor(defaults: UserDefaults(suiteName: suiteName)!), suiteName)
+}
+
+func discard(_ suiteName: String) {
+    UserDefaults().removePersistentDomain(forName: suiteName)
+}
+
 /// A secret store already holding a valid, unexpired mirror session.
 func configuredStore() throws -> InMemorySecretStore {
     let store = InMemorySecretStore()

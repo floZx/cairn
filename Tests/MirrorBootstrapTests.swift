@@ -119,22 +119,6 @@ private func extractedUUIDs(from requests: [URLRequest], table: String) -> [Stri
 @Suite("Amorçage du miroir")
 @MainActor
 struct MirrorBootstrapTests {
-    /// A suite of its own per test, never `.standard` — that one belongs to
-    /// whatever process is running the suite, exactly the trap
-    /// `Tests/JournalStoreTests.swift` already avoids for `JournalStore`.
-    /// Returns the suite name alongside the cursor so the caller can `defer`
-    /// its cleanup, the other half of what that same file does
-    /// (`removePersistentDomain(forName:)`) and what an earlier version of
-    /// this file skipped.
-    private func freshCursor() -> (cursor: MirrorBootstrapCursor, suiteName: String) {
-        let suiteName = "cairn.tests.mirror.\(UUID().uuidString)"
-        return (MirrorBootstrapCursor(defaults: UserDefaults(suiteName: suiteName)!), suiteName)
-    }
-
-    private func discard(_ suiteName: String) {
-        UserDefaults().removePersistentDomain(forName: suiteName)
-    }
-
     /// Un amorçage interrompu reprend là où il s'est arrêté, et un amorçage
     /// rejoué en entier ne casse rien. C'est la même propriété — l'idempotence —
     /// vue sous deux angles, et c'est le cœur de ce que 290 Mo sur une
