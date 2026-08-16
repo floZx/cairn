@@ -25,6 +25,12 @@ protocol SecretStore: Sendable {
     func save(_ tokens: StravaTokens) throws
     func clearTokens() throws
     func clearAll() throws
+
+    func mirrorCredentials() -> MirrorCredentials?
+    func save(_ credentials: MirrorCredentials) throws
+    func mirrorSession() -> MirrorSession?
+    func save(_ session: MirrorSession) throws
+    func clearMirror() throws
 }
 
 enum SecretStoreError: Error {
@@ -42,6 +48,8 @@ final class KeychainStore: SecretStore, Sendable {
     private let legacyService: String?
     private static let credentialsAccount = "credentials"
     private static let tokensAccount = "tokens"
+    private static let mirrorCredentialsAccount = "mirror-credentials"
+    private static let mirrorSessionAccount = "mirror-session"
 
     init(
         service: String = "com.florianmaisonnial.Cairn",
@@ -87,6 +95,30 @@ final class KeychainStore: SecretStore, Sendable {
     func clearAll() throws {
         try delete(account: Self.tokensAccount)
         try delete(account: Self.credentialsAccount)
+    }
+
+    /// No `legacyService` fallback here: Supabase has no former name to
+    /// adopt secrets from, so a plain read avoids a wasted Keychain lookup
+    /// on every call.
+    func mirrorCredentials() -> MirrorCredentials? {
+        read(MirrorCredentials.self, account: Self.mirrorCredentialsAccount)
+    }
+
+    func save(_ credentials: MirrorCredentials) throws {
+        try write(credentials, account: Self.mirrorCredentialsAccount)
+    }
+
+    func mirrorSession() -> MirrorSession? {
+        read(MirrorSession.self, account: Self.mirrorSessionAccount)
+    }
+
+    func save(_ session: MirrorSession) throws {
+        try write(session, account: Self.mirrorSessionAccount)
+    }
+
+    func clearMirror() throws {
+        try delete(account: Self.mirrorSessionAccount)
+        try delete(account: Self.mirrorCredentialsAccount)
     }
 
     private func baseQuery(account: String, service: String? = nil) -> [String: Any] {
@@ -147,6 +179,8 @@ final class InMemorySecretStore: SecretStore, @unchecked Sendable {
     private let lock = NSLock()
     private var storedCredentials: StravaCredentials?
     private var storedTokens: StravaTokens?
+    private var storedMirrorCredentials: MirrorCredentials?
+    private var storedMirrorSession: MirrorSession?
 
     init(credentials: StravaCredentials? = nil, tokens: StravaTokens? = nil) {
         storedCredentials = credentials
@@ -177,6 +211,29 @@ final class InMemorySecretStore: SecretStore, @unchecked Sendable {
         lock.withLock {
             storedTokens = nil
             storedCredentials = nil
+        }
+    }
+
+    func mirrorCredentials() -> MirrorCredentials? {
+        lock.withLock { storedMirrorCredentials }
+    }
+
+    func save(_ credentials: MirrorCredentials) throws {
+        lock.withLock { storedMirrorCredentials = credentials }
+    }
+
+    func mirrorSession() -> MirrorSession? {
+        lock.withLock { storedMirrorSession }
+    }
+
+    func save(_ session: MirrorSession) throws {
+        lock.withLock { storedMirrorSession = session }
+    }
+
+    func clearMirror() throws {
+        lock.withLock {
+            storedMirrorSession = nil
+            storedMirrorCredentials = nil
         }
     }
 }
