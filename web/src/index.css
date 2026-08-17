@@ -27,11 +27,23 @@ body {
   margin: 0;
   background: var(--fond);
   color: var(--texte);
-  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font: 17px/1.47 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* Sous l'encoche et au-dessus de la barre d'accueil, une fois installée. */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-           env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* Le corps ne défile pas : c'est `.defilement` qui le fait, sous une barre
+     fixe et au-dessus d'onglets fixes. Sans cela, l'élastique de Safari
+     décollerait toute la page de ses deux barres. */
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Le halo gris au doigt trahit une page web à chaque appui. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 input, button { font: inherit; }
@@ -96,28 +108,19 @@ input, button { font: inherit; }
   font-size: 0.9rem;
 }
 
-.barre {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--trait);
-}
-
-.barre h1 { margin: 0; font-size: 1.15rem; font-weight: 600; }
-
 .lien {
   background: none;
   border: none;
-  color: var(--attenue);
+  color: var(--accent);
   cursor: pointer;
-  padding: 0;
-  font-size: 0.9rem;
-  text-decoration: underline;
+  padding: 4px 2px;
+  font-size: 17px;
+  /* Sans soulignement : dans une barre iOS, un bouton se reconnaît à sa
+     couleur, et le trait le fait ressembler à un lien hypertexte. */
+  text-decoration: none;
 }
 
-.contenu { padding: 20px; }
+.contenu { padding: 0 20px 20px; }
 
 .attenue { color: var(--attenue); }
 .petit { font-size: 0.85rem; }
@@ -182,32 +185,6 @@ input, button { font: inherit; }
 .entete-fiche h2 { margin: 0; font-size: 1.3rem; font-weight: 600; }
 
 .ligne { cursor: pointer; }
-
-/* ---- Onglets ------------------------------------------------------------ */
-
-.onglets {
-  display: flex;
-  gap: 4px;
-  padding: 0 16px 10px;
-  border-bottom: 1px solid var(--trait);
-}
-
-.onglet {
-  flex: 1;
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--attenue);
-  font: inherit;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.onglet.actif {
-  background: var(--champ);
-  color: var(--texte);
-}
 
 /* ---- Journal ------------------------------------------------------------ */
 
@@ -603,4 +580,170 @@ input, button { font: inherit; }
 
 .lien.danger {
   color: var(--erreur);
+}
+
+/* ---- Châssis ------------------------------------------------------------- */
+
+.chassis {
+  /* `dvh` et non `vh` : sur iOS, `vh` compte la barre d'adresse même une fois
+     rétractée, et le bas de l'application passait sous l'écran. */
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* La barre compacte, toujours là, translucide comme celles du système : le
+   contenu qui passe dessous se devine, ce qui dit qu'on défile sous elle
+   plutôt que derrière un bandeau opaque. */
+.barre-nav {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: calc(env(safe-area-inset-top) + 6px) 20px 8px;
+  background: color-mix(in srgb, var(--fond) 78%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  /* Le filet n'apparaît qu'une fois le grand titre replié, comme sur iOS. */
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.barre-nav.repliee {
+  border-bottom-color: var(--trait);
+}
+
+/* Le titre compact ne se montre qu'une fois le grand titre parti : les deux
+   affichés ensemble diraient deux fois la même chose. */
+.titre-compact {
+  font-size: 17px;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.barre-nav.repliee .titre-compact {
+  opacity: 1;
+  transform: none;
+}
+
+.action-barre {
+  margin-left: auto;
+}
+
+.defilement {
+  flex: 1;
+  overflow-y: auto;
+  /* L'inertie du doigt : sans elle le défilement s'arrête net et c'est le
+     deuxième détail, après les onglets, qui trahit une page web. */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* 34 pt chez Apple ; le poids compte autant que la taille. */
+.grand-titre {
+  margin: 4px 0 8px;
+  padding: 0 20px;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ---- Onglets du bas ------------------------------------------------------ */
+
+.onglets-bas {
+  z-index: 2;
+  display: flex;
+  background: color-mix(in srgb, var(--fond) 78%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-top: 1px solid var(--trait);
+  /* La barre d'accueil de l'iPhone passe sous les onglets : sans cette marge,
+     le trait blanc coupe les libellés en deux. */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.onglet-bas {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  /* 49 pt, la hauteur qu'Apple donne à sa barre d'onglets. */
+  height: 49px;
+  padding: 6px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--attenue);
+  font-size: 10px;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.onglet-bas.actif {
+  color: var(--accent);
+}
+
+.onglet-bas:active {
+  opacity: 0.55;
+}
+
+/* ---- Feuille modale ------------------------------------------------------ */
+
+.voile {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-end;
+}
+
+.feuille-modale {
+  width: 100%;
+  max-height: 92dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--fond);
+  /* Le rayon des feuilles du système. */
+  border-radius: 14px 14px 0 0;
+  padding: 0 20px calc(env(safe-area-inset-bottom) + 20px);
+  transform: translateY(100%);
+  transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.feuille-modale.montee {
+  transform: none;
+}
+
+/* Elle annonce qu'on peut refermer en tirant vers le bas. */
+.poignee {
+  flex: none;
+  width: 36px;
+  height: 5px;
+  margin: 8px auto 4px;
+  border-radius: 3px;
+  background: var(--trait);
+}
+
+/* Une feuille porte déjà sa marge et sa hauteur : celles que les éditeurs se
+   donnaient quand ils occupaient tout l'écran feraient double emploi. */
+.feuille-modale .feuille,
+.feuille-modale .editeur {
+  min-height: 0;
+  padding-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feuille-modale,
+  .titre-compact,
+  .barre-nav {
+    transition: none;
+  }
 }

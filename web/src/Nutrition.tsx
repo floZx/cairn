@@ -5,6 +5,7 @@ import { dateLongue } from "./format"
 import { jourCourant } from "./NoteEditor"
 import { AjoutAliment } from "./AjoutAliment"
 import { ModifAliment, type AlimentAModifier } from "./ModifAliment"
+import { Feuille } from "./Chrome"
 import {
   arrondi,
   dansLeMille,
@@ -201,27 +202,6 @@ export function Nutrition() {
     </div>
   )
 
-  if (enModification) {
-    return (
-      <ModifAliment
-        aliment={enModification}
-        dateKey={dateKey}
-        onFerme={() => setEnModification(null)}
-      />
-    )
-  }
-
-  if (ajoutDans) {
-    return (
-      <AjoutAliment
-        dateKey={dateKey}
-        slotUUID={ajoutDans.uuid}
-        slotNom={ajoutDans.nom}
-        onFerme={() => setAjoutDans(null)}
-      />
-    )
-  }
-
   const erreur = reglages.error ?? journee.error
   if (erreur) {
     return (
@@ -272,6 +252,25 @@ export function Nutrition() {
 
   return (
     <>
+      {enModification && (
+        <Feuille titre="Modifier l'aliment" onFerme={() => setEnModification(null)}>
+          <ModifAliment
+            aliment={enModification}
+            dateKey={dateKey}
+            onFerme={() => setEnModification(null)}
+          />
+        </Feuille>
+      )}
+      {ajoutDans && (
+        <Feuille titre={`Ajouter à ${ajoutDans.nom}`} onFerme={() => setAjoutDans(null)}>
+          <AjoutAliment
+            dateKey={dateKey}
+            slotUUID={ajoutDans.uuid}
+            slotNom={ajoutDans.nom}
+            onFerme={() => setAjoutDans(null)}
+          />
+        </Feuille>
+      )}
       {enTete}
 
       <div className="total-jour">

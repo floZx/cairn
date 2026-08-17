@@ -4,6 +4,7 @@ import { supabase } from "./supabase"
 import { Markdown } from "./markdown"
 import { dateLongue } from "./format"
 import { NoteEditor, jourCourant, type NoteAEditer } from "./NoteEditor"
+import { Feuille } from "./Chrome"
 
 type Note = {
   uuid: string
@@ -91,10 +92,6 @@ export function Journal() {
     return () => observateur.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  if (enEdition) {
-    return <NoteEditor note={enEdition} onFerme={() => setEnEdition(null)} />
-  }
-
   if (isPending) return <p className="attenue">Chargement…</p>
   if (error) return <p className="erreur">{(error as Error).message}</p>
 
@@ -134,6 +131,13 @@ export function Journal() {
 
   return (
     <>
+      {/* Par-dessus la liste plutôt qu'à sa place : on revient d'une feuille,
+          on ne navigue pas ailleurs. */}
+      {enEdition && (
+        <Feuille titre="Note du jour" onFerme={() => setEnEdition(null)}>
+          <NoteEditor note={enEdition} onFerme={() => setEnEdition(null)} />
+        </Feuille>
+      )}
       {boutonDuJour}
       {notes.map((note) => (
         <article className="note" key={note.uuid}>

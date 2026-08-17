@@ -6,6 +6,7 @@ import { ActivityList } from "./ActivityList"
 import { ActivityDetail } from "./ActivityDetail"
 import { Journal } from "./Journal"
 import { Nutrition } from "./Nutrition"
+import { Chrome, type Section } from "./Chrome"
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -40,9 +41,7 @@ export function App() {
     return () => removeEventListener("popstate", onPop)
   }, [])
 
-  const [section, setSection] = useState<"activites" | "journal" | "nutrition">(
-    "activites",
-  )
+  const [section, setSection] = useState<Section>("activites")
 
   function ouvrir(uuid: string) {
     history.pushState(null, "", `?activite=${uuid}`)
@@ -52,52 +51,28 @@ export function App() {
   if (!ready) return null
   if (!session) return <SignIn />
 
-  // Une fiche ouverte prend l'écran entière : les onglets ne s'affichent que
-  // sur les deux listes, sans quoi le bouton « ‹ Activités » et un onglet
-  // « Activités » diraient la même chose à deux endroits.
   const surUneFiche = ouverte !== null
 
   return (
-    <>
-      <header className="barre">
-        <h1>Cairn</h1>
+    <Chrome
+      section={section}
+      onSection={setSection}
+      masquerOnglets={surUneFiche}
+      action={
         <button className="lien" onClick={() => supabase.auth.signOut()}>
-          Se déconnecter
+          Quitter
         </button>
-      </header>
-      {!surUneFiche && (
-        <nav className="onglets">
-          <button
-            className={section === "activites" ? "onglet actif" : "onglet"}
-            onClick={() => setSection("activites")}
-          >
-            Activités
-          </button>
-          <button
-            className={section === "journal" ? "onglet actif" : "onglet"}
-            onClick={() => setSection("journal")}
-          >
-            Journal
-          </button>
-          <button
-            className={section === "nutrition" ? "onglet actif" : "onglet"}
-            onClick={() => setSection("nutrition")}
-          >
-            Repas
-          </button>
-        </nav>
+      }
+    >
+      {surUneFiche ? (
+        <ActivityDetail uuid={ouverte} onRetour={() => history.back()} />
+      ) : section === "activites" ? (
+        <ActivityList onOuvrir={ouvrir} />
+      ) : section === "journal" ? (
+        <Journal />
+      ) : (
+        <Nutrition />
       )}
-      <main className="contenu">
-        {surUneFiche ? (
-          <ActivityDetail uuid={ouverte} onRetour={() => history.back()} />
-        ) : section === "activites" ? (
-          <ActivityList onOuvrir={ouvrir} />
-        ) : section === "journal" ? (
-          <Journal />
-        ) : (
-          <Nutrition />
-        )}
-      </main>
-    </>
+    </Chrome>
   )
 }
