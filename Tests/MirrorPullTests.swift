@@ -38,8 +38,8 @@ struct MirrorPullTests {
         let container = try AppModelContainer.inMemory()
         let (cursor, suiteName) = freshCursor()
         defer { discard(suiteName) }
-        // Une seule page : la deuxième réponse est vide, ce qui clôt la boucle.
-        let transport = StubTransport(responses: [(Self.page(), 200), (Data("[]".utf8), 200)])
+        // Une page, puis « [] » partout : rien d'autre n'a changé.
+        let transport = StubTransport(responses: [(Self.page(), 200)], thenAlways: Data("[]".utf8))
 
         try await Self.engine(container, transport, cursor).pull()
 
@@ -58,7 +58,8 @@ struct MirrorPullTests {
         let (cursor, suiteName) = freshCursor()
         defer { discard(suiteName) }
         let transport = StubTransport(
-            responses: [(Self.page(uuid: "venu-du-web"), 200), (Data("[]".utf8), 200)]
+            responses: [(Self.page(uuid: "venu-du-web"), 200)],
+            thenAlways: Data("[]".utf8)
         )
 
         try await Self.engine(container, transport, cursor).pull()
@@ -74,7 +75,8 @@ struct MirrorPullTests {
         let (cursor, suiteName) = freshCursor()
         defer { discard(suiteName) }
         let transport = StubTransport(
-            responses: [(Self.page(text: "Sortie avec #Tom"), 200), (Data("[]".utf8), 200)]
+            responses: [(Self.page(text: "Sortie avec #Tom"), 200)],
+            thenAlways: Data("[]".utf8)
         )
 
         try await Self.engine(container, transport, cursor).pull()
@@ -99,8 +101,7 @@ struct MirrorPullTests {
             responses: [
                 (Self.page(text: "Corrigé depuis le téléphone",
                            editedAt: "2026-08-16T10:00:00.000+00:00"), 200),
-                (Data("[]".utf8), 200),
-            ]
+            ], thenAlways: Data("[]".utf8)
         )
 
         try await Self.engine(container, transport, cursor).pull()
@@ -126,8 +127,7 @@ struct MirrorPullTests {
             responses: [
                 (Self.page(text: "Vieille version",
                            editedAt: "2020-01-01T10:00:00.000+00:00"), 200),
-                (Data("[]".utf8), 200),
-            ]
+            ], thenAlways: Data("[]".utf8)
         )
 
         try await Self.engine(container, transport, cursor).pull()
@@ -152,8 +152,7 @@ struct MirrorPullTests {
             responses: [
                 (Self.page(editedAt: "2026-08-16T10:00:00.000+00:00",
                            deletedAt: "2026-08-16T10:00:00.000+00:00"), 200),
-                (Data("[]".utf8), 200),
-            ]
+            ], thenAlways: Data("[]".utf8)
         )
 
         try await Self.engine(container, transport, cursor).pull()
@@ -168,7 +167,8 @@ struct MirrorPullTests {
         let (cursor, suiteName) = freshCursor()
         defer { discard(suiteName) }
         let transport = StubTransport(
-            responses: [(Self.page(editedAt: nil), 200), (Data("[]".utf8), 200)]
+            responses: [(Self.page(editedAt: nil), 200)],
+            thenAlways: Data("[]".utf8)
         )
 
         try await Self.engine(container, transport, cursor).pull()
@@ -186,7 +186,7 @@ struct MirrorPullTests {
 
         let (cursor, suiteName) = freshCursor()
         defer { discard(suiteName) }
-        let transport = StubTransport(responses: [(Self.page(), 200), (Data("[]".utf8), 200)])
+        let transport = StubTransport(responses: [(Self.page(), 200)], thenAlways: Data("[]".utf8))
 
         try await Self.engine(container, transport, cursor).pull()
 
@@ -199,14 +199,14 @@ struct MirrorPullTests {
         let container = try AppModelContainer.inMemory()
         let (cursor, suiteName) = freshCursor()
         defer { discard(suiteName) }
-        let transport = StubTransport(responses: [(Self.page(), 200), (Data("[]".utf8), 200)])
+        let transport = StubTransport(responses: [(Self.page(), 200)], thenAlways: Data("[]".utf8))
 
         try await Self.engine(container, transport, cursor).pull()
         #expect(cursor.lastPulledAt(for: "journal_note") != nil)
 
         // Un second passage, avec un curseur déjà posé : la requête doit
         // porter un `updated_at=gte.…`.
-        let second = StubTransport(responses: [(Data("[]".utf8), 200)])
+        let second = StubTransport(responses: [], thenAlways: Data("[]".utf8))
         try await Self.engine(container, second, cursor).pull()
         let query = await second.requests().first?.url?.query ?? ""
         #expect(query.contains("updated_at=gte."))
@@ -341,5 +341,180 @@ struct MirrorNutritionTargetTests {
         try await engine.push()
 
         #expect(await transport.requests().isEmpty)
+    }
+}
+
+/// La lecture des trois tables de repas.
+///
+/// Elles n'ont pas d'horloge d'auteur, à la différence de `JournalNote` :
+/// l'arbitrage passe par l'outbox, et c'est ce que ces tests surveillent
+/// avant tout.
+@Suite("Lecture des repas")
+@MainActor
+struct MirrorPullNutritionTests {
+    private static func page(_ rows: [[String: Any]]) -> Data {
+        try! JSONSerialization.data(withJSONObject: rows)
+    }
+
+    private static func aliment(
+        uuid: String = "f1", grams: Double = 100, nom: String = "Pomme",
+        slot: String? = nil, deletedAt: String? = nil
+    ) -> [String: Any] {
+        [
+            "uuid": uuid, "date_key_raw": "2026-08-16",
+            "meal_slot_uuid": slot as Any? ?? NSNull(),
+            "product_code": NSNull(), "food_name": nom,
+            "kcal100": 52.0, "protein100": 0.3, "carbs100": 14.0, "fat100": 0.2,
+            "grams": grams, "sort_order": 0,
+            "updated_at": "2026-08-16T10:00:00.000+00:00",
+            "deleted_at": deletedAt as Any? ?? NSNull(),
+        ]
+    }
+
+    private static func engine(
+        _ container: ModelContainer, _ transport: StubTransport, _ cursor: MirrorBootstrapCursor
+    ) throws -> MirrorEngine {
+        MirrorEngine(
+            client: MirrorClient(store: try configuredStore(), transport: transport),
+            container: container, progress: MirrorProgress(), cursor: cursor
+        )
+    }
+
+    /// Quatre tables sont relues, et `journal_note` reste la première.
+    @Test func lOrdreDeLectureCouvreLesRepas() {
+        #expect(
+            MirrorEngine.pullOrder
+                == ["journal_note", "nutrition_day", "food_entry", "meal_note"]
+        )
+    }
+
+    /// Un aliment saisi sur le téléphone arrive sur le Mac, rattaché à son
+    /// créneau.
+    @Test func unAlimentInconnuEstCree() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let slot = MealSlot(name: "Déjeuner", sortOrder: 1, targetPct: 40)
+        context.insert(slot)
+        try context.save()
+
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        // Trois tables avant `food_entry` dans l'ordre de lecture, chacune une
+        // page vide, puis l'aliment, puis les pages de clôture.
+        let vide = Data("[]".utf8)
+        // `journal_note` et `nutrition_day` d'abord, vides ; puis l'aliment ;
+        // le repli couvre la clôture de `food_entry` et `meal_note`.
+        let transport = StubTransport(
+            responses: [
+                (vide, 200), (vide, 200),
+                (Self.page([Self.aliment(slot: slot.uuid)]), 200),
+            ],
+            thenAlways: vide
+        )
+
+        try await Self.engine(container, transport, cursor).pull()
+
+        let entries = try ModelContext(container).fetch(FetchDescriptor<FoodEntry>())
+        #expect(entries.count == 1)
+        #expect(entries.first?.uuid == "f1")
+        #expect(entries.first?.foodName == "Pomme")
+        #expect(entries.first?.grams == 100)
+        #expect(entries.first?.mealSlot?.uuid == slot.uuid)
+    }
+
+    /// Une ligne que l'outbox retient n'est pas écrasée : c'est tout
+    /// l'arbitrage de ces trois tables, faute d'horloge d'auteur.
+    @Test func uneLigneEnAttenteDEnvoiNEstPasEcrasee() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let entry = FoodEntry(
+            dateKey: DateKey(raw: "2026-08-16")!, mealSlot: nil, foodName: "Écrit ici",
+            kcal100: 1, protein100: 1, carbs100: 1, fat100: 1, grams: 250
+        )
+        entry.uuid = "f1"
+        context.insert(entry)
+        context.insert(MirrorOutbox(table: "food_entry", rowUUID: "f1", isDeletion: false))
+        try context.save()
+
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let vide = Data("[]".utf8)
+        let transport = StubTransport(
+            responses: [(vide, 200), (vide, 200), (Self.page([Self.aliment(grams: 999, nom: "Venu du serveur")]), 200)],
+            thenAlways: vide
+        )
+
+        try await Self.engine(container, transport, cursor).pull()
+
+        let entries = try ModelContext(container).fetch(FetchDescriptor<FoodEntry>())
+        #expect(entries.count == 1)
+        #expect(entries.first?.foodName == "Écrit ici")
+        #expect(entries.first?.grams == 250)
+    }
+
+    /// Le curseur avance quand même sur une ligne protégée : la retenir ferait
+    /// relire la même page à chaque lancement.
+    @Test func leCurseurAvanceMemeSurUneLigneProtegee() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        context.insert(MirrorOutbox(table: "food_entry", rowUUID: "f1", isDeletion: false))
+        try context.save()
+
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let vide = Data("[]".utf8)
+        let transport = StubTransport(
+            responses: [(vide, 200), (vide, 200), (Self.page([Self.aliment()]), 200)],
+            thenAlways: vide
+        )
+
+        try await Self.engine(container, transport, cursor).pull()
+
+        #expect(cursor.lastPulledAt(for: "food_entry") != nil)
+    }
+
+    /// Un aliment supprimé sur le téléphone disparaît du Mac.
+    @Test func unAlimentEffaceAilleursDisparait() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let entry = FoodEntry(
+            dateKey: DateKey(raw: "2026-08-16")!, mealSlot: nil, foodName: "Pomme",
+            kcal100: 52, protein100: 0.3, carbs100: 14, fat100: 0.2, grams: 100
+        )
+        entry.uuid = "f1"
+        context.insert(entry)
+        try context.save()
+
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let vide = Data("[]".utf8)
+        let transport = StubTransport(
+            responses: [(vide, 200), (vide, 200), (Self.page([Self.aliment(deletedAt: "2026-08-16T11:00:00.000+00:00")]), 200)],
+            thenAlways: vide
+        )
+
+        try await Self.engine(container, transport, cursor).pull()
+
+        #expect(try ModelContext(container).fetch(FetchDescriptor<FoodEntry>()).isEmpty)
+    }
+
+    /// Ce qui est relu ne repart pas — la même exemption que pour le journal.
+    @Test func unAlimentReluNeRepartPas() async throws {
+        let container = try AppModelContainer.inMemory()
+        let recorder = MirrorRecorder(container: container)
+        recorder.start()
+        defer { recorder.stop() }
+
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let vide = Data("[]".utf8)
+        let transport = StubTransport(
+            responses: [(vide, 200), (vide, 200), (Self.page([Self.aliment()]), 200)],
+            thenAlways: vide
+        )
+
+        try await Self.engine(container, transport, cursor).pull()
+
+        #expect(try ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>()).isEmpty)
     }
 }

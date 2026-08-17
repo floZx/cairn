@@ -7,6 +7,7 @@ import Foundation
 actor StubTransport: MirrorTransport {
     private var scripted: [(Data, HTTPURLResponse)]
     private let fallback: HTTPURLResponse?
+    private let fallbackBody: Data
     private var sent: [URLRequest] = []
 
     private static func response(_ status: Int) -> HTTPURLResponse {
@@ -20,6 +21,20 @@ actor StubTransport: MirrorTransport {
     init(responses: [(Data, Int)]) {
         scripted = responses.map { ($0.0, Self.response($0.1)) }
         fallback = nil
+        fallbackBody = Data()
+    }
+
+    /// A script, then the same body forever.
+    ///
+    /// For a pull: `MirrorEngine.pullOrder` visits several tables, and a test
+    /// that cares about one of them would otherwise have to script an empty
+    /// page for every other — and script one more each time a table joins the
+    /// list. `« [] »` as the tail says "nothing else changed anywhere", which
+    /// is what those tests mean.
+    init(responses: [(Data, Int)], thenAlways body: Data, status: Int = 200) {
+        scripted = responses.map { ($0.0, Self.response($0.1)) }
+        fallback = Self.response(status)
+        fallbackBody = body
     }
 
     /// Replies the same status to everything, forever. Use when only the
@@ -27,6 +42,7 @@ actor StubTransport: MirrorTransport {
     init(alwaysRespondingWith status: Int) {
         scripted = []
         fallback = Self.response(status)
+        fallbackBody = Data()
     }
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
@@ -35,7 +51,7 @@ actor StubTransport: MirrorTransport {
         guard let fallback else {
             throw MirrorError.transport("aucune réponse scriptée")
         }
-        return (Data(), fallback)
+        return (fallbackBody, fallback)
     }
 
     func requests() -> [URLRequest] { sent }

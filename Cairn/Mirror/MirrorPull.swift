@@ -19,7 +19,13 @@ extension MirrorEngine {
     /// `bootstrapOrder`: that list is what goes *up*, and the two are not the
     /// same set — conflating them is how a pull would start inventing local
     /// activities out of rows the Mac itself sent.
-    static let pullOrder: [String] = ["journal_note"]
+    static let pullOrder: [String] = [
+        "journal_note",
+        // Les repas, dans l'ordre où ils se tiennent : la journée avant ce
+        // qu'on y a mangé, pour qu'un magasin lu à moitié montre le type de
+        // jour plutôt que des aliments sans budget.
+        "nutrition_day", "food_entry", "meal_note",
+    ]
 
     /// Rows per page. Smaller than `batchSize`'s 200 for no deep reason
     /// beyond the shape of the data: a page of notes is text, a page that
@@ -147,12 +153,230 @@ extension MirrorEngine {
     private func apply(table: String, body: Data) throws -> PullOutcome {
         switch table {
         case "journal_note": return try applyJournalNotes(body)
+        case "nutrition_day": return try applyNutritionDays(body)
+        case "food_entry": return try applyFoodEntries(body)
+        case "meal_note": return try applyMealNotes(body)
         default:
             // `pullOrder` is a closed, hand-written list and this `switch`
             // is meant to cover every entry in it. Thrown, never asserted,
             // on the same measurement `MirrorError.unknownTable` records.
             throw MirrorError.unknownTable(table)
         }
+    }
+
+    /// Les `uuid` d'une table que l'outbox retient encore.
+    ///
+    /// L'arbitrage des trois tables de repas passe par là, faute d'horloge
+    /// d'auteur : `FoodEntry` et ses voisines n'ont pas de `updatedAt` à
+    /// comparer, là où `JournalNote` en a un. L'outbox dit exactement ce
+    /// qu'il faut savoir — cette ligne a changé ici et n'est pas encore
+    /// partie — et une ligne qu'elle ne nomme pas n'a rien à défendre : le
+    /// serveur porte alors soit la même chose, soit ce que le téléphone a
+    /// écrit depuis.
+    ///
+    /// Sûr parce que la lecture précède l'envoi dans `syncMirrorNow` : une
+    /// modification faite ici est protégée pendant la lecture, puis poussée
+    /// juste après.
+    private func pendingUUIDs(table: String, in context: ModelContext) throws -> Set<String> {
+        let entries = try context.fetch(
+            FetchDescriptor<MirrorOutbox>(
+                predicate: #Predicate { $0.table == table }
+            )
+        )
+        return Set(entries.map(\.rowUUID))
+    }
+
+    private struct NutritionDayRow: Decodable {
+        let uuid: String
+        let date_key_raw: String
+        let day_type_uuid: String?
+        let updated_at: String
+        let deleted_at: String?
+    }
+
+    private struct FoodEntryRow: Decodable {
+        let uuid: String
+        let date_key_raw: String
+        let meal_slot_uuid: String?
+        let product_code: String?
+        let food_name: String
+        let kcal100: Double
+        let protein100: Double
+        let carbs100: Double
+        let fat100: Double
+        let grams: Double
+        let sort_order: Int
+        let updated_at: String
+        let deleted_at: String?
+    }
+
+    private struct MealNoteRow: Decodable {
+        let uuid: String
+        let date_key_raw: String
+        let meal_slot_uuid: String?
+        let note: String
+        let updated_at: String
+        let deleted_at: String?
+    }
+
+    /// Décode une page, quel que soit son type de ligne.
+    private func decode<Row: Decodable>(_ type: [Row].Type, from body: Data) throws -> [Row] {
+        do { return try JSONDecoder().decode(type, from: body) }
+        catch { throw MirrorError.decodingFailed(String(describing: error)) }
+    }
+
+    private func applyNutritionDays(_ body: Data) throws -> PullOutcome {
+        let rows = try decode([NutritionDayRow].self, from: body)
+        var outcome = PullOutcome(rowCount: rows.count)
+        let context = ModelContext(container)
+        let pending = try pendingUUIDs(table: "nutrition_day", in: context)
+        var existing: [String: NutritionDay] = [:]
+        for day in try context.fetch(FetchDescriptor<NutritionDay>()) {
+            existing[day.uuid] = day
+        }
+        var types: [String: DayType] = [:]
+        for type in try context.fetch(FetchDescriptor<DayType>()) { types[type.uuid] = type }
+
+        for row in rows {
+            noteNewest(row.updated_at, in: &outcome)
+            guard !pending.contains(row.uuid) else { continue }
+
+            if row.deleted_at != nil {
+                guard let local = existing[row.uuid] else { continue }
+                context.delete(local)
+                existing[row.uuid] = nil
+                outcome.applied += 1
+                continue
+            }
+            // Le type de jour peut être absent du magasin — une ligne arrivée
+            // avant celle qu'elle désigne. La journée est posée sans lui plutôt
+            // que sautée : elle vaut par elle-même, et la lecture suivante
+            // rattachera le type.
+            let type = row.day_type_uuid.flatMap { types[$0] }
+            if let local = existing[row.uuid] {
+                local.dateKeyRaw = row.date_key_raw
+                local.dayType = type
+            } else {
+                guard let dateKey = DateKey(raw: row.date_key_raw) else { continue }
+                let day = NutritionDay(dateKey: dateKey, dayType: type)
+                day.uuid = row.uuid
+                context.insert(day)
+                existing[row.uuid] = day
+            }
+            outcome.applied += 1
+        }
+        try save(context, outcome)
+        return outcome
+    }
+
+    private func applyFoodEntries(_ body: Data) throws -> PullOutcome {
+        let rows = try decode([FoodEntryRow].self, from: body)
+        var outcome = PullOutcome(rowCount: rows.count)
+        let context = ModelContext(container)
+        let pending = try pendingUUIDs(table: "food_entry", in: context)
+        var existing: [String: FoodEntry] = [:]
+        for entry in try context.fetch(FetchDescriptor<FoodEntry>()) {
+            existing[entry.uuid] = entry
+        }
+        var slots: [String: MealSlot] = [:]
+        for slot in try context.fetch(FetchDescriptor<MealSlot>()) { slots[slot.uuid] = slot }
+
+        for row in rows {
+            noteNewest(row.updated_at, in: &outcome)
+            guard !pending.contains(row.uuid) else { continue }
+
+            if row.deleted_at != nil {
+                guard let local = existing[row.uuid] else { continue }
+                context.delete(local)
+                existing[row.uuid] = nil
+                outcome.applied += 1
+                continue
+            }
+            let slot = row.meal_slot_uuid.flatMap { slots[$0] }
+            let entry: FoodEntry
+            if let local = existing[row.uuid] {
+                entry = local
+            } else {
+                guard let dateKey = DateKey(raw: row.date_key_raw) else { continue }
+                entry = FoodEntry(
+                    dateKey: dateKey, mealSlot: slot, foodName: row.food_name,
+                    kcal100: row.kcal100, protein100: row.protein100,
+                    carbs100: row.carbs100, fat100: row.fat100, grams: row.grams,
+                    sortOrder: row.sort_order, productCode: row.product_code
+                )
+                entry.uuid = row.uuid
+                context.insert(entry)
+                existing[row.uuid] = entry
+            }
+            entry.dateKeyRaw = row.date_key_raw
+            entry.mealSlot = slot
+            entry.productCode = row.product_code
+            entry.foodName = row.food_name
+            entry.kcal100 = row.kcal100
+            entry.protein100 = row.protein100
+            entry.carbs100 = row.carbs100
+            entry.fat100 = row.fat100
+            entry.grams = row.grams
+            entry.sortOrder = row.sort_order
+            outcome.applied += 1
+        }
+        try save(context, outcome)
+        return outcome
+    }
+
+    private func applyMealNotes(_ body: Data) throws -> PullOutcome {
+        let rows = try decode([MealNoteRow].self, from: body)
+        var outcome = PullOutcome(rowCount: rows.count)
+        let context = ModelContext(container)
+        let pending = try pendingUUIDs(table: "meal_note", in: context)
+        var existing: [String: MealNote] = [:]
+        for note in try context.fetch(FetchDescriptor<MealNote>()) { existing[note.uuid] = note }
+        var slots: [String: MealSlot] = [:]
+        for slot in try context.fetch(FetchDescriptor<MealSlot>()) { slots[slot.uuid] = slot }
+
+        for row in rows {
+            noteNewest(row.updated_at, in: &outcome)
+            guard !pending.contains(row.uuid) else { continue }
+
+            if row.deleted_at != nil {
+                guard let local = existing[row.uuid] else { continue }
+                context.delete(local)
+                existing[row.uuid] = nil
+                outcome.applied += 1
+                continue
+            }
+            let slot = row.meal_slot_uuid.flatMap { slots[$0] }
+            if let local = existing[row.uuid] {
+                local.dateKeyRaw = row.date_key_raw
+                local.mealSlot = slot
+                local.note = row.note
+            } else {
+                guard let dateKey = DateKey(raw: row.date_key_raw) else { continue }
+                let note = MealNote(dateKey: dateKey, mealSlot: slot, note: row.note)
+                note.uuid = row.uuid
+                context.insert(note)
+                existing[row.uuid] = note
+            }
+            outcome.applied += 1
+        }
+        try save(context, outcome)
+        return outcome
+    }
+
+    /// Le curseur avance sur toute ligne **vue**, appliquée ou non.
+    ///
+    /// Y compris celles que l'outbox protège : elles repartiront à l'envoi qui
+    /// suit, et les retenir ferait relire la même page à chaque lancement.
+    private func noteNewest(_ text: String, in outcome: inout PullOutcome) {
+        guard let updated = Self.date(from: text) else { return }
+        outcome.newestUpdatedAt = max(outcome.newestUpdatedAt ?? updated, updated)
+    }
+
+    /// Exempt de l'outbox, sans quoi le Mac renverrait sous sa propre horloge
+    /// ce qu'il vient de recevoir.
+    private func save(_ context: ModelContext, _ outcome: PullOutcome) throws {
+        guard outcome.applied > 0 else { return }
+        try MirrorBookkeeping.perform { try context.save() }
     }
 
     private func applyJournalNotes(_ body: Data) throws -> PullOutcome {
