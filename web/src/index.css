@@ -1,23 +1,39 @@
 :root {
   color-scheme: light dark;
-  --fond: #ffffff;
-  --texte: #1a1a1a;
-  --attenue: #6b6b6b;
-  --trait: #e2e2e2;
-  --champ: #f6f6f6;
-  --accent: #0a84ff;
-  --erreur: #d7263d;
+  /* Deux niveaux de fond, et c'est la base de tout le reste : le fond groupé
+     est légèrement gris, les cartes posées dessus sont blanches. Sans cet
+     écart, une liste encartée ne se détache pas et l'écran reste plat — c'est
+     ce qui manquait le plus. */
+  --fond: #f2f2f7;
+  --carte: #ffffff;
+  /* Trois niveaux de texte plutôt que deux : le titre, ce qui l'accompagne, et
+     ce qui n'est qu'un repère. */
+  --texte: #000000;
+  --texte-2: #3c3c4399;
+  --texte-3: #3c3c434d;
+  --trait: #3c3c435c;
+  --champ: #7676801f;
+  --accent: #007aff;
+  --erreur: #ff3b30;
+  --vert: #34c759;
+  --orange: #ff9500;
+  /* Les anciens noms, gardés le temps que tout soit repris. */
+  --attenue: var(--texte-2);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --fond: #141414;
-    --texte: #f2f2f2;
-    --attenue: #9a9a9a;
-    --trait: #2c2c2c;
-    --champ: #1e1e1e;
-    --accent: #4da3ff;
-    --erreur: #ff6b7d;
+    --fond: #000000;
+    --carte: #1c1c1e;
+    --texte: #ffffff;
+    --texte-2: #ebebf599;
+    --texte-3: #ebebf54d;
+    --trait: #54545899;
+    --champ: #7676803d;
+    --accent: #0a84ff;
+    --erreur: #ff453a;
+    --vert: #30d158;
+    --orange: #ff9f0a;
   }
 }
 
@@ -120,20 +136,63 @@ input, button { font: inherit; }
   text-decoration: none;
 }
 
-.contenu { padding: 0 20px 20px; }
+.contenu { padding: 0 16px calc(24px + env(safe-area-inset-bottom)); }
 
-.attenue { color: var(--attenue); }
-.petit { font-size: 0.85rem; }
+.attenue { color: var(--texte-2); }
+/* 15 pt : le corps secondaire d'iOS, pas un corps réduit au hasard. */
+.petit { font-size: 15px; }
+.minuscule { font-size: 13px; }
 
+/* Une liste encartée : coins arrondis, fond de carte, et des séparateurs qui
+   commencent après le texte plutôt que de traverser toute la largeur. C'est la
+   signature d'iOS depuis dix ans, et son absence est ce qui faisait « page
+   web » au premier coup d'œil. */
 .liste {
   list-style: none;
-  margin: 0;
+  margin: 0 0 24px;
   padding: 0;
+  background: var(--carte);
+  border-radius: 16px;
+  overflow: hidden;
 }
 
 .ligne {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--trait);
+  position: relative;
+  padding: 11px 34px 11px 16px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+/* Le séparateur en retrait, jamais sous la dernière ligne. */
+.ligne:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--trait);
+  opacity: 0.35;
+}
+
+/* Une ligne qu'on touche s'enfonce : sans retour au doigt, on ne sait pas si
+   l'appui a été pris. */
+.ligne:active {
+  background: var(--champ);
+}
+
+/* Le chevron dit que la ligne mène quelque part. Deux bords tournés à 45°
+   plutôt qu'un SVG par ligne. */
+.ligne::before {
+  content: "";
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--texte-3);
+  border-bottom: 2px solid var(--texte-3);
+  transform: translateY(-50%) rotate(-45deg);
 }
 
 .ligne-tete {
@@ -157,9 +216,8 @@ input, button { font: inherit; }
 .carte-trace {
   width: 100%;
   height: 260px;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  border: 1px solid var(--trait);
 }
 
 .chiffres {
@@ -184,17 +242,14 @@ input, button { font: inherit; }
 .entete-fiche { margin: 12px 0 4px; }
 .entete-fiche h2 { margin: 0; font-size: 1.3rem; font-weight: 600; }
 
-.ligne { cursor: pointer; }
 
 /* ---- Journal ------------------------------------------------------------ */
 
 .note {
-  padding: 18px 0;
-  border-bottom: 1px solid var(--trait);
-}
-
-.note:last-of-type {
-  border-bottom: 0;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background: var(--carte);
+  border-radius: 16px;
 }
 
 .jour {
@@ -203,7 +258,6 @@ input, button { font: inherit; }
   font-weight: 600;
   /* La date est un repère, pas un titre : elle donne le jour sans crier. */
   color: var(--attenue);
-  text-transform: capitalize;
 }
 
 .etiquettes {
@@ -264,15 +318,20 @@ input, button { font: inherit; }
 
 .note-du-jour {
   width: 100%;
-  margin: 16px 0 4px;
-  padding: 12px;
-  border: 1px dashed var(--trait);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--accent);
+  margin: 0 0 16px;
+  padding: 13px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--accent);
+  color: #fff;
   font: inherit;
-  font-weight: 500;
+  font-size: 17px;
+  font-weight: 600;
   cursor: pointer;
+}
+
+.note-du-jour:active {
+  opacity: 0.8;
 }
 
 .jour {
@@ -303,7 +362,6 @@ input, button { font: inherit; }
   display: block;
   font-size: 14px;
   color: var(--attenue);
-  text-transform: capitalize;
 }
 
 .lien.fort {
@@ -317,10 +375,11 @@ input, button { font: inherit; }
 
 .saisie-note {
   flex: 1;
-  padding: 12px;
-  border: 1px solid var(--trait);
-  border-radius: 10px;
-  background: var(--champ);
+  min-height: 40dvh;
+  padding: 14px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--carte);
   color: var(--texte);
   font: inherit;
   line-height: 1.55;
@@ -349,8 +408,10 @@ input, button { font: inherit; }
 }
 
 .total-jour {
-  padding: 12px 0 16px;
-  border-bottom: 1px solid var(--trait);
+  margin-bottom: 16px;
+  padding: 16px;
+  background: var(--carte);
+  border-radius: 16px;
 }
 
 .chiffre-jour {
@@ -370,18 +431,23 @@ input, button { font: inherit; }
 /* Vert quand le repas atterrit sur son plan, orange puis rouge au-delà. Les
    trois seulement sur les chiffres qui ont un objectif : un nombre coloré
    sans repère ne veut rien dire. */
-.atteint { color: #2e9e5b; }
-.modere  { color: #d98324; }
+.atteint { color: var(--vert); }
+.modere  { color: var(--orange); }
 .franc   { color: var(--erreur); }
 
-@media (prefers-color-scheme: dark) {
-  .atteint { color: #4cc47f; }
-  .modere  { color: #f0a04b; }
+.repas {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--carte);
+  border-radius: 16px;
 }
 
-.repas {
-  padding: 14px 0;
-  border-bottom: 1px solid var(--trait);
+/* Un créneau vide reste une carte, en retrait : le faire disparaître ferait
+   croire la journée plus courte qu'elle n'est. */
+.repas.vide {
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px dashed var(--trait);
 }
 
 .repas h3 {
@@ -422,15 +488,27 @@ input, button { font: inherit; }
   display: block;
 }
 
+.aliments li:not(:last-child) {
+  box-shadow: inset 0 -1px 0 var(--trait);
+  opacity: 1;
+}
+
+.ligne-aliment:active {
+  background: var(--champ);
+}
+
 .ligne-aliment {
   display: grid;
   width: 100%;
+  padding: 9px 0;
   border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
+  border-radius: 6px;
+  transition: background-color 0.12s ease;
   /* Le poids et les calories à largeur fixe, le nom prend le reste : une
      colonne de chiffres qui ne s'aligne pas ne se lit pas. */
   grid-template-columns: 1fr auto 3.5em;
@@ -502,8 +580,8 @@ input, button { font: inherit; }
 
 .recherche {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--trait);
+  padding: 10px 14px;
+  border: 0;
   border-radius: 10px;
   background: var(--champ);
   color: var(--texte);
@@ -520,9 +598,16 @@ input, button { font: inherit; }
 }
 
 .choix {
-  margin: 8px 0 0;
+  margin: 8px 0 16px;
   padding: 0;
   list-style: none;
+  background: var(--carte);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.choix li:not(:last-child) button {
+  box-shadow: inset 0 -1px 0 var(--trait);
 }
 
 .choix button {
@@ -530,14 +615,18 @@ input, button { font: inherit; }
   flex-direction: column;
   gap: 2px;
   width: 100%;
-  padding: 10px 0;
+  padding: 11px 16px;
   border: 0;
-  border-bottom: 1px solid var(--trait);
   background: transparent;
   color: var(--texte);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.choix button:active {
+  background: var(--champ);
 }
 
 .choix .nom {
@@ -560,8 +649,8 @@ input, button { font: inherit; }
 
 .champ-quantite input {
   width: 6em;
-  padding: 10px 12px;
-  border: 1px solid var(--trait);
+  padding: 10px 14px;
+  border: 0;
   border-radius: 10px;
   background: var(--champ);
   color: var(--texte);
@@ -603,7 +692,7 @@ input, button { font: inherit; }
   justify-content: space-between;
   gap: 12px;
   min-height: 44px;
-  padding: calc(env(safe-area-inset-top) + 6px) 20px 8px;
+  padding: calc(env(safe-area-inset-top) + 6px) 16px 8px;
   background: color-mix(in srgb, var(--fond) 78%, transparent);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
@@ -646,8 +735,8 @@ input, button { font: inherit; }
 
 /* 34 pt chez Apple ; le poids compte autant que la taille. */
 .grand-titre {
-  margin: 4px 0 8px;
-  padding: 0 20px;
+  margin: 4px 0 10px;
+  padding: 0 16px;
   font-size: 34px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -711,8 +800,8 @@ input, button { font: inherit; }
   flex-direction: column;
   overflow-y: auto;
   background: var(--fond);
-  /* Le rayon des feuilles du système. */
-  border-radius: 14px 14px 0 0;
+  /* Le rayon des feuilles du système d'iOS 26 — plus généreux qu'avant. */
+  border-radius: 20px 20px 0 0;
   padding: 0 20px calc(env(safe-area-inset-bottom) + 20px);
   transform: translateY(100%);
   transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
@@ -746,4 +835,157 @@ input, button { font: inherit; }
   .barre-nav {
     transition: none;
   }
+}
+
+/* Une majuscule au premier mot seulement : `text-transform: capitalize` en
+   mettait une à chaque mot, et « Lundi 17 Août 2026 » n'est pas du français. */
+.jour::first-letter,
+.barre-jour .jour::first-letter {
+  text-transform: uppercase;
+}
+
+/* ---- Retouches de finition ---------------------------------------------- */
+
+/* La barre de date : deux cibles larges et une date centrée, posée sur le
+   fond groupé plutôt que flottante. */
+.barre-jour {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 0;
+}
+
+.barre-jour .lien {
+  min-width: 44px;
+  height: 36px;
+  padding: 0;
+  border-radius: 9px;
+  background: var(--champ);
+  font-size: 17px;
+  line-height: 36px;
+}
+
+.barre-jour .jour {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--texte);
+}
+
+/* Le bouton d'ajout : un disque discret, pas un pavé. */
+.ajouter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  margin-left: 12px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--champ);
+  color: var(--accent);
+  font-size: 21px;
+  font-weight: 400;
+  /* Le « + » d'une police système n'est pas centré optiquement dans un
+     disque : un cheveu vers le haut le remet d'aplomb. */
+  line-height: 27px;
+}
+
+.ajouter:active {
+  opacity: 0.6;
+}
+
+.repas h3 > span:last-child {
+  display: flex;
+  align-items: center;
+}
+
+/* Le titre du repas et ses chiffres : 17 pt, comme un en-tête de liste. */
+.repas h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.repas.vide h3 {
+  margin: 0;
+}
+
+/* Le grand nombre de la journée, à la façon des cadrans d'Apple. */
+.chiffre-jour .valeur {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.total-jour .macros {
+  display: block;
+  margin-top: 4px;
+}
+
+/* ---- Fiche d'activité ---------------------------------------------------- */
+
+/* Tout ce qui n'est pas la carte tient dans une carte : des chiffres posés à
+   même le fond flottent, et c'est ce qui distinguait le plus cet écran des
+   autres. */
+.carte-groupe {
+  padding: 16px;
+  background: var(--carte);
+  border-radius: 16px;
+}
+
+.chiffres {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 12px;
+  margin: 16px 0;
+}
+
+.chiffre .valeur {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.chiffre .etiquette {
+  color: var(--texte-2);
+  font-size: 13px;
+}
+
+.entete-fiche {
+  margin: 8px 0 4px;
+}
+
+.entete-fiche h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Le bouton de retour d'iOS : un chevron collé à son libellé, en bleu. */
+.retour {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 4px 0 10px;
+  padding: 4px 0;
+  font-size: 17px;
+}
+
+.description {
+  margin-top: 16px;
+}
+
+.description p:last-child {
+  margin-bottom: 0;
+}
+
+/* La carte porte son propre rayon ; celui du conteneur ferait un liseré. */
+.carte-trace {
+  margin-top: 4px;
 }

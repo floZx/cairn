@@ -105,7 +105,7 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
         </div>
       </div>
 
-      <div className="chiffres">
+      <div className="chiffres carte-groupe">
         <Chiffre valeur={distance(data.distance)} etiquette="Distance" />
         <Chiffre valeur={duree(data.moving_time)} etiquette="Temps" />
         <Chiffre valeur={denivele(data.total_elevation_gain)} etiquette="D+" />
@@ -129,7 +129,7 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
       </Suspense>
 
       {data.activity_description && (
-        <div className="description">
+        <div className="description carte-groupe">
           <Markdown texte={data.activity_description} />
         </div>
       )}

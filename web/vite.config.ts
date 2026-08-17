@@ -24,8 +24,8 @@ export default defineConfig({
         // Les deux fonds de `index.css`, à la valeur près : l'écran de
         // lancement d'Android est peint avec ceux-ci, et un blanc éclatant
         // avant une application sombre est un éclair dans les yeux le soir.
-        background_color: "#141414",
-        theme_color: "#141414",
+        background_color: "#000000",
+        theme_color: "#000000",
         icons: [
           { src: "/icone-192.png", sizes: "192x192", type: "image/png" },
           { src: "/icone-512.png", sizes: "512x512", type: "image/png" },
