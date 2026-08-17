@@ -89,6 +89,17 @@ enum StoreMaintenance {
     /// Runs the journal's one-time recovery, then every repair in
     /// `uuidRepairs`, then the one repair that is not about `uuid` at all.
     ///
+    /// The recovery cannot take the repairs down with it, and that is the
+    /// point of `recoverJournal` swallowing its own failures rather than
+    /// throwing them here: it is allowed to fail and retry — a folder on an
+    /// unmounted volume, a path the user has since reorganised — but a
+    /// journal folder nobody can read any more must not mean eighteen `uuid`
+    /// repairs, `linkPhotosToTheirActivity` and the attachment cache never
+    /// running again on any launch, forever. The marker is never set on a
+    /// failed recovery, so "forever" is literal: that is exactly the shape
+    /// this used to have, with `try recoverJournal` as the first statement of
+    /// this function and no `catch` anywhere.
+    ///
     /// Returns how many rows the *repairs* changed — the recovery's own count
     /// is a different thing (files, not repaired rows) and is not folded into
     /// this one; see `recoverJournal(_:defaults:)` for where its own report
@@ -112,7 +123,7 @@ enum StoreMaintenance {
     ///   real journal folder path and its real recovery marker.
     @discardableResult
     static func run(_ context: ModelContext, defaults: UserDefaults = .standard) throws -> Int {
-        try recoverJournal(context, defaults: defaults)
+        recoverJournal(context, defaults: defaults)
 
         var changed = 0
 
@@ -144,16 +155,42 @@ enum StoreMaintenance {
     /// `JournalSettings.importNoticeKey` — the only trace the reader gets
     /// that a note deserves a second look, since the recovery itself runs
     /// once and is gone by the time anyone could open the journal to notice.
+    ///
+    /// Throws nothing, deliberately: see `run`'s own doc comment on what a
+    /// throw from here used to cost. A recovery that fails leaves its marker
+    /// unset and retries at the next launch — that is the specification —
+    /// and `JournalImport.runIfNeeded` has already rolled its own context
+    /// back by the time the error arrives here, so there is no half-inserted
+    /// journal for the repairs below to save.
+    ///
+    /// A failure gets the same signalling as an unreadable file, through the
+    /// same key: without it the reader is left with an empty journal, no
+    /// message, and — since the folder picker went with the folder — no way
+    /// to work out that a stale path is the reason.
     private static func recoverJournal(
         _ context: ModelContext, defaults: UserDefaults
-    ) throws {
+    ) {
         let folderPath = defaults.string(forKey: JournalSettings.folderPathKey)
-        if let outcome = try JournalImport.runIfNeeded(
-            context, folderPath: folderPath, defaults: defaults
-        ), let message = JournalNotice.notice(unreadable: outcome.unreadable)?.message {
-            defaults.set(message, forKey: JournalSettings.importNoticeKey)
+        do {
+            if let outcome = try JournalImport.runIfNeeded(
+                context, folderPath: folderPath, defaults: defaults
+            ), let message = JournalNotice.notice(unreadable: outcome.unreadable)?.message {
+                defaults.set(message, forKey: JournalSettings.importNoticeKey)
+            }
+        } catch {
+            if let message = JournalNotice.notice(recoveryFailure: folderPath).message {
+                defaults.set(message, forKey: JournalSettings.importNoticeKey)
+            }
         }
-        try JournalAttachmentCache.rebuild(context, directory: JournalAttachmentCache.directory)
+        // Rebuilt even when the recovery above failed, and outside its `do`
+        // for that reason alone: the cache materialises what the store
+        // *already* holds, which on every launch after the first is the whole
+        // journal — a folder that has gone stale says nothing about the notes
+        // recovered from it a year ago. Its own failures stay silent: this
+        // folder is derived and reconstructible, so a disk error here costs a
+        // relaunch, not a note, and the sentence written above is about the
+        // folder rather than about the cache.
+        try? JournalAttachmentCache.rebuild(context, directory: JournalAttachmentCache.directory)
     }
 
     /// One model's pass: every row keeping an identity nobody else in its own

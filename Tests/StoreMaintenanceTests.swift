@@ -342,4 +342,63 @@ struct StoreMaintenanceTests {
 
         #expect(changed == 0)
     }
+
+    /// Un dossier de journal introuvable n'emporte plus la maintenance du
+    /// magasin. C'était le cas jusqu'ici : `try recoverJournal(…)` ouvrait
+    /// `run` sans `catch`, donc un chemin périmé — volume démonté, coffre
+    /// réorganisé — faisait sortir la fonction avant la moindre réparation
+    /// d'identité. Et comme le marqueur de reprise n'est posé que par une
+    /// reprise réussie, la situation ne se dénouait jamais d'elle-même :
+    /// à chaque lancement, indéfiniment, 840 activités auraient gardé le
+    /// même `uuid`.
+    @Test("un dossier de journal introuvable n'empêche pas la réparation des uuid")
+    func repairsSurviveAnUnreadableJournalFolder() throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let shared = "64D8A062-4BAC-4EAF-BB62-5803626D04E5"
+        let one = Activity(stravaID: 1, name: "Une", sportType: .run)
+        let two = Activity(stravaID: 2, name: "Deux", sportType: .run)
+        one.uuid = shared
+        two.uuid = shared
+        context.insert(one)
+        context.insert(two)
+        try context.save()
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
+        // Jamais créé : c'est exactement ce que devient un chemin enregistré
+        // il y a un an dont le dossier a bougé depuis.
+        defaults.set(
+            URL(fileURLWithPath: NSTemporaryDirectory())
+                .appending(path: "journal-absent-\(UUID().uuidString)").path,
+            forKey: JournalSettings.folderPathKey
+        )
+
+        let changed = try StoreMaintenance.run(context, defaults: defaults)
+
+        #expect(changed == 1)
+        #expect(one.uuid != two.uuid)
+        // La reprise, elle, n'a pas eu lieu et n'est pas marquée faite : elle
+        // a le droit d'échouer et de réessayer, c'est la spécification.
+        #expect(defaults.bool(forKey: JournalSettings.importDoneKey) == false)
+    }
+
+    /// Une reprise qui échoue le dit, par le même chemin qu'un fichier
+    /// illisible : sans cette phrase, un lecteur dont le chemin est périmé
+    /// n'a qu'un journal vide, aucun message, et — depuis que le sélecteur de
+    /// dossier a disparu — aucun moyen de deviner lequel remettre en place.
+    @Test("une reprise qui échoue laisse une trace nommant le dossier")
+    func aFailedRecoveryLeavesANoticeNamingTheFolder() throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
+        let missing = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "journal-absent-\(UUID().uuidString)").path
+        defaults.set(missing, forKey: JournalSettings.folderPathKey)
+
+        try StoreMaintenance.run(context, defaults: defaults)
+
+        let notice = try #require(defaults.string(forKey: JournalSettings.importNoticeKey))
+        #expect(notice.contains(missing))
+    }
 }

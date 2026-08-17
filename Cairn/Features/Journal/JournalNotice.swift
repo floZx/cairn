@@ -123,4 +123,35 @@ struct JournalNotice: Equatable {
                 """
         )
     }
+
+    /// The recovery could not run at all: the folder it was to read is
+    /// unreadable — a stale path, an unmounted volume, a vault reorganised
+    /// since. Nothing was imported and nothing was lost; the next launch
+    /// tries again, because the marker is only set by a run that succeeded.
+    ///
+    /// Names the folder, which is the whole point of the sentence: the folder
+    /// picker went away with the folder itself, so the path recorded at the
+    /// time is the only thing that tells the reader *which* place to put back
+    /// within reach.
+    ///
+    /// Never nil, unlike `notice(unreadable:)`: this is only called when a
+    /// failure has already happened, and a failure with nothing to say would
+    /// be the silence this exists to break.
+    static func notice(recoveryFailure folder: String?) -> JournalNotice {
+        guard let folder, !folder.isEmpty else {
+            return JournalNotice(
+                message: """
+                    La reprise du journal a échoué ; elle sera retentée au \
+                    prochain lancement.
+                    """
+            )
+        }
+        return JournalNotice(
+            message: """
+                La reprise du journal n'a pas pu lire le dossier « \(folder) » ; \
+                elle sera retentée au prochain lancement, et vos notes y \
+                restent intactes.
+                """
+        )
+    }
 }

@@ -93,4 +93,24 @@ struct JournalNoticeTests {
         #expect(message.contains("2026-08-15.md"))
         #expect(message.contains("2026-08-17-1.jpg"))
     }
+
+    /// Une reprise qui n'a pas pu s'exécuter nomme le dossier : c'est la seule
+    /// indication qui reste au lecteur, le sélecteur de dossier ayant disparu
+    /// avec le dossier lui-même.
+    @Test("une reprise impossible nomme le dossier et annonce une nouvelle tentative")
+    func aFailedRecoveryNamesTheFolder() throws {
+        let notice = JournalNotice.notice(recoveryFailure: "/Volumes/Passeport/Journal")
+        let message = try #require(notice.message)
+        #expect(message.contains("/Volumes/Passeport/Journal"))
+        #expect(message.contains("prochain lancement"))
+    }
+
+    /// Sans chemin enregistré, il n'y a pas de dossier à nommer — et une
+    /// phrase citant des guillemets vides serait pire que la phrase courte.
+    @Test("sans dossier enregistré, la phrase reste courte")
+    func aFailedRecoveryWithoutAFolderStaysShort() throws {
+        let message = try #require(JournalNotice.notice(recoveryFailure: nil).message)
+        #expect(!message.contains("«"))
+        #expect(message.contains("prochain lancement"))
+    }
 }
