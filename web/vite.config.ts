@@ -2,6 +2,9 @@ import { defineConfig } from "vite"
 import react from "@vitejs/plugin-react"
 import { VitePWA } from "vite-plugin-pwa"
 
+/// Le même filtre que `functions/off.ts`, qui porte l'explication de sa forme.
+const FILTRE_PAYS = 'countries_tags:"en:france"'
+
 export default defineConfig({
   plugins: [
     react(),
@@ -42,5 +45,25 @@ export default defineConfig({
       devOptions: { enabled: false },
     }),
   ],
-  server: { host: true },
+  server: {
+    host: true,
+    // Le pendant en développement de `functions/off.ts` : Vite n'exécute pas
+    // les fonctions Cloudflare, et sans cela `/off` rendrait la page d'accueil.
+    // Mandaté par le serveur, donc pas de CORS ici non plus — c'est bien le
+    // navigateur, et lui seul, que les serveurs d'Open Food Facts écartent.
+    proxy: {
+      "/off": {
+        target: "https://search.openfoodfacts.org",
+        changeOrigin: true,
+        rewrite: (chemin: string) => {
+          const q = new URL(chemin, "http://x").searchParams.get("q") ?? ""
+          const params = new URLSearchParams({
+            q: `${q} ${FILTRE_PAYS}`,
+            page_size: "25",
+          })
+          return `/search?${params}`
+        },
+      },
+    },
+  },
 })
