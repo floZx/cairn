@@ -55,11 +55,19 @@ function useReglages() {
       ])
       if (creneaux.error) throw creneaux.error
       if (types.error) throw types.error
-      if (cibles.error) throw cibles.error
+      // L'erreur des cibles est avalée, à la différence des deux autres, et
+      // c'est délibéré : elles sont un supplément, pas la journée. Un Mac qui
+      // n'a pas encore synchronisé — ou un projet Supabase où la migration
+      // n'est pas passée — rendait ici « Could not find the table
+      // public.nutrition_target », et l'écran des repas entier disparaissait
+      // derrière ce message pour une ligne d'objectifs manquante. Sans elles,
+      // les macros s'affichent sans couleur ; c'est exactement ce qu'il faut.
       return {
         creneaux: creneaux.data as Creneau[],
         types: new Map((types.data as TypeDeJour[]).map((t) => [t.uuid, t])),
-        cibles: cibles.data as { protein_g: number; fat_g: number } | null,
+        cibles: cibles.error
+          ? null
+          : (cibles.data as { protein_g: number; fat_g: number } | null),
       }
     },
   })
