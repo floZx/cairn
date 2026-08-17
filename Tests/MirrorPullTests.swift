@@ -380,11 +380,17 @@ struct MirrorPullNutritionTests {
         )
     }
 
-    /// Quatre tables sont relues, et `journal_note` reste la première.
-    @Test func lOrdreDeLectureCouvreLesRepas() {
+    /// Cinq tables sont relues, et `journal_note` reste la première.
+    ///
+    /// Dérivée d'aucune autre liste, celle-ci : elle dit exactement ce que le
+    /// navigateur sait écrire, et le jour où il apprend à écrire autre chose
+    /// c'est ce test qu'il faut voir échouer.
+    @Test func lOrdreDeLectureCouvreCeQueLeWebEcrit() {
         #expect(
-            MirrorEngine.pullOrder
-                == ["journal_note", "nutrition_day", "food_entry", "meal_note"]
+            MirrorEngine.pullOrder == [
+                "journal_note", "nutrition_day", "food_entry", "meal_note",
+                "weight_entry",
+            ]
         )
     }
 

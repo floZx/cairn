@@ -25,6 +25,9 @@ extension MirrorEngine {
         // qu'on y a mangé, pour qu'un magasin lu à moitié montre le type de
         // jour plutôt que des aliments sans budget.
         "nutrition_day", "food_entry", "meal_note",
+        // La pesée, depuis que le navigateur sait l'écrire. Elle n'a pas de
+        // parent : rien ne dépend de son ordre ici.
+        "weight_entry",
     ]
 
     /// Rows per page. Smaller than `batchSize`'s 200 for no deep reason
@@ -177,6 +180,7 @@ extension MirrorEngine {
         case "nutrition_day": return try applyNutritionDays(body)
         case "food_entry": return try applyFoodEntries(body)
         case "meal_note": return try applyMealNotes(body)
+        case "weight_entry": return try applyWeightEntries(body)
         default:
             // `pullOrder` is a closed, hand-written list and this `switch`
             // is meant to cover every entry in it. Thrown, never asserted,
@@ -227,6 +231,15 @@ extension MirrorEngine {
         let fat100: Double
         let grams: Double
         let sort_order: Int
+        let updated_at: String
+        let deleted_at: String?
+    }
+
+    private struct WeightEntryRow: Decodable {
+        let uuid: String
+        let date_key_raw: String
+        let weight_kg: Double
+        let note: String?
         let updated_at: String
         let deleted_at: String?
     }
@@ -339,6 +352,46 @@ extension MirrorEngine {
             entry.fat100 = row.fat100
             entry.grams = row.grams
             entry.sortOrder = row.sort_order
+            outcome.applied += 1
+        }
+        try save(context, outcome)
+        return outcome
+    }
+
+    private func applyWeightEntries(_ body: Data) throws -> PullOutcome {
+        let rows = try decode([WeightEntryRow].self, from: body)
+        var outcome = PullOutcome(rowCount: rows.count)
+        let context = ModelContext(container)
+        let pending = try pendingUUIDs(table: "weight_entry", in: context)
+        var existing: [String: WeightEntry] = [:]
+        for entry in try context.fetch(FetchDescriptor<WeightEntry>()) {
+            existing[entry.uuid] = entry
+        }
+
+        for row in rows {
+            noteNewest(row.updated_at, in: &outcome)
+            guard !pending.contains(row.uuid) else { continue }
+
+            if row.deleted_at != nil {
+                guard let local = existing[row.uuid] else { continue }
+                context.delete(local)
+                existing[row.uuid] = nil
+                outcome.applied += 1
+                continue
+            }
+            if let local = existing[row.uuid] {
+                local.dateKeyRaw = row.date_key_raw
+                local.weightKg = row.weight_kg
+                local.note = row.note
+            } else {
+                guard let dateKey = DateKey(raw: row.date_key_raw) else { continue }
+                let entry = WeightEntry(
+                    dateKey: dateKey, weightKg: row.weight_kg, note: row.note
+                )
+                entry.uuid = row.uuid
+                context.insert(entry)
+                existing[row.uuid] = entry
+            }
             outcome.applied += 1
         }
         try save(context, outcome)

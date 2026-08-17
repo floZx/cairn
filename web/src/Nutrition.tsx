@@ -6,6 +6,7 @@ import { jourCourant } from "./NoteEditor"
 import { AjoutAliment } from "./AjoutAliment"
 import { ModifAliment, type AlimentAModifier } from "./ModifAliment"
 import { Feuille } from "./Chrome"
+import { NoteRepas, Pesee } from "./SaisieJour"
 import {
   arrondi,
   dansLeMille,
@@ -32,6 +33,7 @@ type Aliment = {
   sort_order: number
 }
 type NoteDeRepas = { uuid: string; meal_slot_uuid: string | null; note: string }
+type PeseeDuJour = { uuid: string; weight_kg: number; note: string | null }
 
 /// Les créneaux et les types de jour : une poignée de lignes, les mêmes tous
 /// les jours. Interrogés une fois pour la session plutôt qu'à chaque
@@ -80,7 +82,7 @@ function useJournee(dateKey: string) {
   return useQuery({
     queryKey: ["nutrition-jour", dateKey],
     queryFn: async () => {
-      const [jour, aliments, notes] = await Promise.all([
+      const [jour, aliments, notes, pesee] = await Promise.all([
         supabase
           .from("nutrition_day")
           .select("day_type_uuid")
@@ -100,14 +102,22 @@ function useJournee(dateKey: string) {
           .select("uuid, meal_slot_uuid, note")
           .eq("date_key_raw", dateKey)
           .is("deleted_at", null),
+        supabase
+          .from("weight_entry")
+          .select("uuid, weight_kg, note")
+          .eq("date_key_raw", dateKey)
+          .is("deleted_at", null)
+          .maybeSingle(),
       ])
       if (jour.error) throw jour.error
       if (aliments.error) throw aliments.error
       if (notes.error) throw notes.error
+      if (pesee.error) throw pesee.error
       return {
         typeDeJourUUID: (jour.data?.day_type_uuid as string | null) ?? null,
         aliments: aliments.data as Aliment[],
         notes: notes.data as NoteDeRepas[],
+        pesee: pesee.data as PeseeDuJour | null,
       }
     },
   })
@@ -169,6 +179,8 @@ export function Nutrition() {
   const [dateKey, setDateKey] = useState(jourCourant)
   const [ajoutDans, setAjoutDans] = useState<{ uuid: string; nom: string } | null>(null)
   const [enModification, setEnModification] = useState<AlimentAModifier | null>(null)
+  const [noteDe, setNoteDe] = useState<{ uuid: string; nom: string } | null>(null)
+  const [peseeOuverte, setPeseeOuverte] = useState(false)
   const reglages = useReglages()
   const journee = useJournee(dateKey)
 
@@ -227,7 +239,7 @@ export function Nutrition() {
   }
 
   const { creneaux, types, cibles } = donneesReglages
-  const { typeDeJourUUID, aliments, notes } = donneesJournee
+  const { typeDeJourUUID, aliments, notes, pesee } = donneesJournee
   const typeDuJour = typeDeJourUUID ? types.get(typeDeJourUUID) : undefined
 
   const parCreneau = (uuid: string) => aliments.filter((a) => a.meal_slot_uuid === uuid)
@@ -261,6 +273,29 @@ export function Nutrition() {
           />
         </Feuille>
       )}
+      {noteDe && (
+        <Feuille titre={`Note du ${noteDe.nom}`} onFerme={() => setNoteDe(null)}>
+          <NoteRepas
+            dateKey={dateKey}
+            slotUUID={noteDe.uuid}
+            slotNom={noteDe.nom}
+            noteUUID={notes.find((n) => n.meal_slot_uuid === noteDe.uuid)?.uuid ?? null}
+            texte={notes.find((n) => n.meal_slot_uuid === noteDe.uuid)?.note ?? ""}
+            onFerme={() => setNoteDe(null)}
+          />
+        </Feuille>
+      )}
+      {peseeOuverte && (
+        <Feuille titre="Pesée" onFerme={() => setPeseeOuverte(false)}>
+          <Pesee
+            dateKey={dateKey}
+            peseeUUID={pesee?.uuid ?? null}
+            kilos={pesee?.weight_kg ?? null}
+            commentaire={pesee?.note ?? ""}
+            onFerme={() => setPeseeOuverte(false)}
+          />
+        </Feuille>
+      )}
       {ajoutDans && (
         <Feuille titre={`Ajouter à ${ajoutDans.nom}`} onFerme={() => setAjoutDans(null)}>
           <AjoutAliment
@@ -283,6 +318,15 @@ export function Nutrition() {
         </div>
         <LigneMacros m={totalJour} objectif={cibles ? journeeVisee : null} />
         {typeDuJour && <div className="attenue petit">{typeDuJour.name}</div>}
+        {/* La pesée du jour vit ici, sous les calories : c'est le même geste
+            du matin, et lui donner un écran à elle pour un nombre serait un
+            écran de trop. */}
+        <button className="ligne-pesee" onClick={() => setPeseeOuverte(true)}>
+          <span>Poids</span>
+          <span className={pesee ? "valeur-pesee" : "valeur-pesee attenue"}>
+            {pesee ? `${pesee.weight_kg.toLocaleString("fr-FR")} kg` : "Noter"}
+          </span>
+        </button>
       </div>
 
       {creneaux.map((creneau, i) => {
@@ -299,6 +343,13 @@ export function Nutrition() {
                   {objectif && (
                     <span className="attenue">{Math.round(objectif.kcal)} kcal prévues</span>
                   )}
+                  <button
+                    className="ajouter note"
+                    onClick={() => setNoteDe({ uuid: creneau.uuid, nom: creneau.name })}
+                    aria-label={`Noter ${creneau.name}`}
+                  >
+                    ✎
+                  </button>
                   <button
                     className="ajouter"
                     onClick={() => setAjoutDans({ uuid: creneau.uuid, nom: creneau.name })}
@@ -320,6 +371,13 @@ export function Nutrition() {
                   {Math.round(consomme.kcal)}
                   {objectif && <span className="attenue"> / {Math.round(objectif.kcal)}</span>}
                 </span>
+                <button
+                  className="ajouter note"
+                  onClick={() => setNoteDe({ uuid: creneau.uuid, nom: creneau.name })}
+                  aria-label={`Noter ${creneau.name}`}
+                >
+                  ✎
+                </button>
                 <button
                   className="ajouter"
                   onClick={() => setAjoutDans({ uuid: creneau.uuid, nom: creneau.name })}

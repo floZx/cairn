@@ -1110,3 +1110,81 @@ input, button { font: inherit; }
   display: inline-flex;
   align-items: center;
 }
+
+/* ---- Garde-fou contre le défilement horizontal --------------------------- */
+
+/* Signalé sur iPhone — une bande vide à droite dans le journal — et non
+   reproduit ici, à 320 comme à 375 px, sur les 431 journées déroulées : rien
+   ne dépassait d'un demi-pixel. Ce qui suit n'est donc pas un correctif
+   diagnostiqué mais une clôture : aucune de ces règles ne change quoi que ce
+   soit à une page qui ne déborde pas, et toutes ensemble elles rendent le
+   débordement impossible.
+
+   `html` autant que `body` : sur iOS, `overflow: hidden` posé sur le seul
+   `body` ne retient pas la page — c'est l'élément racine qui défile. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.chassis,
+.defilement {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Un mot plus large que la colonne — une adresse web collée dans une note, un
+   nom de plat à rallonge — pousse sa carte plutôt que de se couper. Le plus
+   long de ce journal mesure 202 px pour 256 disponibles : il passe
+   aujourd'hui, et rien ne garantit celui de demain. */
+.note p,
+.note li,
+.ailleurs p,
+.aliments .nom,
+.choix .nom {
+  overflow-wrap: anywhere;
+}
+
+/* ---- Pesée et note de repas ---------------------------------------------- */
+
+/* Le poids sous les calories, séparé d'un filet : c'est le même geste du
+   matin, et lui donner un écran à lui pour un nombre serait un écran de trop. */
+.ligne-pesee {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--trait);
+  background: transparent;
+  color: var(--texte);
+  font: inherit;
+  cursor: pointer;
+}
+
+.valeur-pesee {
+  font-weight: 600;
+}
+
+.valeur-pesee.attenue {
+  color: var(--accent);
+  font-weight: 400;
+}
+
+/* Le crayon à côté du plus, dans la même famille mais plus discret : ajouter
+   un aliment est le geste courant, noter un repas l'exception. */
+.ajouter.note {
+  margin-left: 6px;
+  color: var(--texte-2);
+  font-size: 15px;
+  line-height: 30px;
+}
+
+/* Une note de repas tient en trois lignes ; celle du journal en occupe
+   trente. */
+.saisie-note.courte {
+  min-height: 7.5em;
+}
