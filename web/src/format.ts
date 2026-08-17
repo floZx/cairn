@@ -60,3 +60,24 @@ export function dateLongue(dateKey: string): string {
   const [a, m, j] = dateKey.split("-").map(Number)
   return jourLong.format(new Date(a, m - 1, j))
 }
+
+const jourEntier = new Intl.DateTimeFormat("fr-FR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+})
+
+const heureExacte = new Intl.DateTimeFormat("fr-FR", {
+  hour: "2-digit",
+  minute: "2-digit",
+})
+
+/// « lundi 17 août 2026 à 19:23 » — la forme que la fiche du Mac emploie.
+///
+/// Le « à » est écrit, et l'heure sur deux chiffres : « à 6:52 » se lit moins
+/// bien que « à 06:52 » quand la date qui précède est longue.
+export function dateEtHeure(iso: string): string {
+  const d = new Date(iso)
+  return `${jourEntier.format(d)} à ${heureExacte.format(d)}`
+}

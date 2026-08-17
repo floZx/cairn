@@ -1670,3 +1670,62 @@ body {
   align-items: center;
   gap: 8px;
 }
+
+/* ---- En-tête d'une fiche ------------------------------------------------- */
+
+/* Le halo du sport, peint derrière : un dégradé qui s'éteint à 45 % de la
+   hauteur, comme `SportWash` côté Swift. Par proportion et non par hauteur
+   fixe — un dégradé à qui l'on impose sa taille se termine par une arête. */
+.entete-fiche {
+  position: relative;
+  /* Remonté sous la barre du haut et étiré aux bords : le halo doit naître au
+     sommet du volet, pas au milieu d'un écran déjà commencé. */
+  margin: calc(-1 * (env(safe-area-inset-top) + 50px)) -16px 4px;
+  padding: calc(env(safe-area-inset-top) + 54px) 16px 16px;
+  overflow: hidden;
+  border-radius: 0 0 20px 20px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--teinte-sport) 22%, transparent) 0%,
+    transparent 45%
+  );
+}
+
+/* La grande icône en filigrane, dans le coin : elle nomme le sport d'un coup
+   d'œil sans prendre une ligne de texte. Débordante et rognée, comme sur le
+   Mac — entière et centrée, elle deviendrait une illustration. */
+.entete-fiche > .icone-sport {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 22px);
+  right: -18px;
+  opacity: 0.14;
+  stroke-width: 1.1;
+  pointer-events: none;
+}
+
+.entete-fiche .retour {
+  position: relative;
+  display: block;
+  margin: 0 0 8px;
+}
+
+.entete-fiche h2 {
+  position: relative;
+  margin: 0 0 2px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.entete-fiche .etiquettes {
+  position: relative;
+  margin-top: 10px;
+}
+
+/* La pastille du sport porte son icône, comme celle du Mac porte la sienne. */
+.etiquette-tag.sport {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 6px;
+}

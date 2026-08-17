@@ -2,8 +2,8 @@ import { Suspense, lazy, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { cadenceDuSport, nomDuSport } from "./sports"
-import { IconeSport } from "./IconeSport"
-import { dateCourte, denivele, distance, duree } from "./format"
+import { IconeSport, couleurDuSport } from "./IconeSport"
+import { dateEtHeure, denivele, distance, duree } from "./format"
 import { traceDepuisBytea } from "./track"
 // Chargée à la demande : MapLibre pèse à lui seul les quatre cinquièmes du
 // paquet, et le journal — l'écran qu'on ouvre le plus depuis un téléphone —
@@ -112,30 +112,43 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
 
   return (
     <>
-      <button className="retour" onClick={onRetour}>
-        ‹ Activités
-      </button>
-      <div className="entete-fiche">
+      {/* Le halo du sport, sa grande icône en filigrane, la date entière et
+          les pastilles : l'en-tête de la fiche du Mac, dans l'ordre où elle
+          les pose. Le dégradé s'éteint à 45 % de la hauteur, comme
+          `SportWash`. */}
+      <div
+        className="entete-fiche"
+        style={
+          {
+            "--teinte-sport": couleurDuSport(data.sport_type_raw),
+          } as React.CSSProperties
+        }
+      >
+        <IconeSport sport={data.sport_type_raw} taille={120} />
+        {/* Le retour est dans le halo, non au-dessus : posé dehors, le
+            dégradé commençait par une arête horizontale juste sous lui, là où
+            sur le Mac il part du haut du volet. */}
+        <button className="retour" onClick={onRetour}>
+          ‹ Activités
+        </button>
         <h2>{data.name}</h2>
-        <div className="attenue petit entete-sport">
-          <IconeSport sport={data.sport_type_raw} taille={18} />
-          <span>
-            {nomDuSport(data.sport_type_raw)} · {dateCourte(data.start_local_date)}
+        <div className="attenue petit">{dateEtHeure(data.start_local_date)}</div>
+        <div className="etiquettes">
+          <span className="etiquette-tag sport">
+            <IconeSport sport={data.sport_type_raw} taille={14} />
+            {nomDuSport(data.sport_type_raw)}
+          </span>
+          {etiquettesDe(data as unknown as SourceEtiquettes).map((m) => (
+            <span className="etiquette-tag" key={m}>
+              {NOMS[m]}
+            </span>
+          ))}
+          {/* D'où vient cette sortie : le Mac le dit aussi, et cela distingue
+              une activité importée d'une saisie à la main. */}
+          <span className="etiquette-tag attenue">
+            {data.source_raw === "strava" ? "Strava" : "Manuelle"}
           </span>
         </div>
-        {(() => {
-          const marques = etiquettesDe(data as unknown as SourceEtiquettes)
-          if (marques.length === 0) return null
-          return (
-            <div className="etiquettes">
-              {marques.map((m) => (
-                <span className="etiquette-tag" key={m}>
-                  {NOMS[m]}
-                </span>
-              ))}
-            </div>
-          )
-        })()}
       </div>
 
       <div className="chiffres carte-groupe">
