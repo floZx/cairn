@@ -71,7 +71,16 @@ extension MirrorEngine {
     ///
     /// Never sets `lastPushAt`: this is not a push, and a pull that quietly
     /// marked the mirror as caught up would hide an outbox that never left.
-    func pull() async throws {
+    ///
+    /// - Returns: how many rows were actually written to the store. The
+    ///   caller needs it: `JournalStore` holds its list of notes in memory
+    ///   and only rebuilds it on its own writes, so a note arriving from
+    ///   another device is in the store but not on screen until someone says
+    ///   so. Returning the count rather than a `Bool` so a pull that changed
+    ///   nothing — the overwhelmingly common case, every launch — costs no
+    ///   refetch at all.
+    @discardableResult
+    func pull() async throws -> Int {
         do {
             guard await client.userID != nil else { throw MirrorError.notConfigured }
             var applied = 0
@@ -81,6 +90,7 @@ extension MirrorEngine {
                 applied += try await pullTable(table, appliedSoFar: applied)
             }
             await setPhase(.idle)
+            return applied
         } catch is CancellationError {
             // Same reading as `bootstrap()` and `push()`: interrupting on
             // purpose is not a failure, and the cursor already sits wherever

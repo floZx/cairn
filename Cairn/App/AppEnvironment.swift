@@ -433,8 +433,18 @@ final class AppEnvironment {
     /// different directions, and a network that refused the read has no say
     /// over whether three days of local edits get to leave.
     func syncMirrorNow() {
-        runMirror { [mirror] in
-            do { try await mirror.pull() } catch is CancellationError { throw CancellationError() } catch {}
+        runMirror { [mirror, journal] in
+            do {
+                // Le journal ne se relit pas tout seul : il tient sa liste en
+                // mémoire et ne la reconstruit que sur ses propres écritures.
+                // Une note venue du téléphone est bien dans la base sans être
+                // à l'écran, et n'y serait qu'au lancement suivant.
+                if try await mirror.pull() > 0 {
+                    await MainActor.run { journal.refresh() }
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {}
             try await mirror.push()
         }
     }
