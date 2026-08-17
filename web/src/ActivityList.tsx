@@ -37,7 +37,7 @@ async function chargerPage(depuis: number) {
   return data as Activite[]
 }
 
-export function ActivityList() {
+export function ActivityList({ onOuvrir }: { onOuvrir: (uuid: string) => void }) {
   const { data, error, isPending, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery({
       queryKey: ["activites"],
@@ -72,7 +72,7 @@ export function ActivityList() {
     <>
       <ul className="liste">
         {activites.map((a) => (
-          <li key={a.uuid} className="ligne">
+          <li key={a.uuid} className="ligne" onClick={() => onOuvrir(a.uuid)}>
             <div className="ligne-tete">
               <span className="titre">{a.name}</span>
               <span className="attenue petit">{dateCourte(a.start_local_date)}</span>

@@ -150,3 +150,35 @@ input, button { font: inherit; }
 }
 
 .ligne-tete .petit { flex: none; }
+
+.carte-trace {
+  width: 100%;
+  height: 260px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--trait);
+}
+
+.chiffres {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 16px 12px;
+  margin: 20px 0;
+}
+
+.chiffre .valeur { font-size: 1.35rem; font-weight: 600; }
+.chiffre .etiquette { color: var(--attenue); font-size: 0.8rem; }
+
+.retour {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.entete-fiche { margin: 12px 0 4px; }
+.entete-fiche h2 { margin: 0; font-size: 1.3rem; font-weight: 600; }
+
+.ligne { cursor: pointer; }

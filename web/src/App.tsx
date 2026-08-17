@@ -3,6 +3,7 @@ import type { Session } from "@supabase/supabase-js"
 import { supabase } from "./supabase"
 import { SignIn } from "./SignIn"
 import { ActivityList } from "./ActivityList"
+import { ActivityDetail } from "./ActivityDetail"
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -22,6 +23,26 @@ export function App() {
     return () => data.subscription.unsubscribe()
   }, [])
 
+  // Adossé à l'historique du navigateur plutôt qu'à un simple état : sur un
+  // téléphone, le geste de retour est le premier réflexe, et une application
+  // installée qui le laisse quitter l'écran d'accueil se fait fermer.
+  const [ouverte, setOuverte] = useState<string | null>(
+    () => new URLSearchParams(location.search).get("activite"),
+  )
+
+  useEffect(() => {
+    const onPop = () => {
+      setOuverte(new URLSearchParams(location.search).get("activite"))
+    }
+    addEventListener("popstate", onPop)
+    return () => removeEventListener("popstate", onPop)
+  }, [])
+
+  function ouvrir(uuid: string) {
+    history.pushState(null, "", `?activite=${uuid}`)
+    setOuverte(uuid)
+  }
+
   if (!ready) return null
   if (!session) return <SignIn />
 
@@ -34,7 +55,11 @@ export function App() {
         </button>
       </header>
       <main className="contenu">
-        <ActivityList />
+        {ouverte ? (
+          <ActivityDetail uuid={ouverte} onRetour={() => history.back()} />
+        ) : (
+          <ActivityList onOuvrir={ouvrir} />
+        )}
       </main>
     </>
   )
