@@ -1363,3 +1363,26 @@ body {
   font: inherit;
   text-align: right;
 }
+
+/* ---- Carte d'ensemble ---------------------------------------------------- */
+
+.carte-globale {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Presque tout ce qui reste sous la barre de recherche : une carte d'ensemble
+   se lit à la surface qu'on lui donne. */
+.toile-carte {
+  height: 62dvh;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.pied-carte {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}

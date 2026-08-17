@@ -1,12 +1,26 @@
-import { useEffect, useRef, useState } from "react"
+import { Suspense, lazy, useEffect, useRef, useState } from "react"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { nomDuSport } from "./sports"
 import { dateCourte, denivele, distance, duree } from "./format"
 import { Feuille } from "./Chrome"
 import { Filtres } from "./Filtres"
-import { AUCUN, bornes, estActif, passeLeSecondFiltre, resume, type Filtre } from "./criteres"
+import {
+  AUCUN,
+  bornes,
+  estActif,
+  passeLeSecondFiltre,
+  resume,
+  type Filtre,
+} from "./criteres"
 import type { SourceEtiquettes } from "./etiquettes"
+
+/// Chargée à la demande, comme la carte d'une fiche : MapLibre pèse à lui seul
+/// les quatre cinquièmes du paquet, et la liste — l'écran par lequel on entre
+/// — ne s'en sert pas.
+const CarteGlobale = lazy(() =>
+  import("./CarteGlobale").then((m) => ({ default: m.CarteGlobale })),
+)
 
 /// Une page de cinquante : assez pour remplir plus d'un écran de téléphone
 /// d'un coup, assez peu pour que la première s'affiche tout de suite. Les 852
@@ -55,6 +69,16 @@ function restreindre<T>(requete: T, f: Filtre, maintenant = new Date()): T {
   if (f.distanceMax != null) q = q.lte("distance", f.distanceMax * 1000)
   if (f.deniveleMin != null) q = q.gte("total_elevation_gain", f.deniveleMin)
   if (f.deniveleMax != null) q = q.lte("total_elevation_gain", f.deniveleMax)
+  if (f.zone) {
+    // Deux cadres se chevauchent si chacun commence avant que l'autre finisse,
+    // sur les deux axes. Quatre comparaisons sur des colonnes indexées.
+    q = q
+      .eq("has_track", true)
+      .lte("min_lat", f.zone.maxLat)
+      .gte("max_lat", f.zone.minLat)
+      .lte("min_lon", f.zone.maxLon)
+      .gte("max_lon", f.zone.minLon)
+  }
   return q as T
 }
 
@@ -79,6 +103,7 @@ async function chargerPage(depuis: number, filtre: Filtre) {
 export function ActivityList({ onOuvrir }: { onOuvrir: (uuid: string) => void }) {
   const [filtre, setFiltre] = useState<Filtre>(AUCUN)
   const [feuilleOuverte, setFeuilleOuverte] = useState(false)
+  const [surLaCarte, setSurLaCarte] = useState(false)
   // Le texte tapé et le filtre appliqué sont deux choses : sans ce délai,
   // chaque lettre relancerait une requête et referait toutes les pages.
   const [saisie, setSaisie] = useState("")
@@ -155,6 +180,30 @@ export function ActivityList({ onOuvrir }: { onOuvrir: (uuid: string) => void })
           onChange={(e) => setSaisie(e.target.value)}
           placeholder="Rechercher une sortie…"
         />
+        {/* La carte porte le même filtre que la liste : ce sont deux façons
+            de regarder la même sélection, pas deux écrans. */}
+        <button
+          className={surLaCarte ? "bouton-filtre actif" : "bouton-filtre"}
+          onClick={() => setSurLaCarte((v) => !v)}
+          aria-label={surLaCarte ? "Voir la liste" : "Voir la carte"}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            {surLaCarte ? (
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            ) : (
+              <path d="M9 4L3 6.5v13L9 17l6 3 6-2.5v-13L15 7z M9 4v13 M15 7v13" />
+            )}
+          </svg>
+        </button>
         <button
           className={estActif(filtre) ? "bouton-filtre actif" : "bouton-filtre"}
           onClick={() => setFeuilleOuverte(true)}
@@ -183,6 +232,21 @@ export function ActivityList({ onOuvrir }: { onOuvrir: (uuid: string) => void })
       )}
     </>
   )
+
+  if (surLaCarte) {
+    return (
+      <>
+        {entete}
+        <Suspense fallback={<p className="attenue">Chargement de la carte…</p>}>
+          <CarteGlobale
+            filtre={filtre}
+            onZone={(zone) => setFiltre((f) => ({ ...f, zone }))}
+            onOuvrir={onOuvrir}
+          />
+        </Suspense>
+      </>
+    )
+  }
 
   if (isPending) {
     return (

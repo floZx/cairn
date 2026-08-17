@@ -37,6 +37,21 @@ export type Filtre = {
   deniveleMax: number | null
   denivelleParKmMin: number | null
   etiquettes: Etiquette[]
+  /// La zone dessinée sur la carte d'ensemble, en degrés.
+  ///
+  /// Le cadre englobant d'une sortie sert de pré-filtre — il est indexé, et
+  /// SQL sait le comparer — mais un cadre peut chevaucher une zone qu'aucun
+  /// point de la trace n'atteint. Le Mac tranche ensuite sur les points ; ici
+  /// le pré-filtre suffit, faute d'avoir les traces sous la main au moment de
+  /// filtrer la liste.
+  zone: Zone | null
+}
+
+export type Zone = {
+  minLat: number
+  maxLat: number
+  minLon: number
+  maxLon: number
 }
 
 export const AUCUN: Filtre = {
@@ -49,6 +64,7 @@ export const AUCUN: Filtre = {
   deniveleMax: null,
   denivelleParKmMin: null,
   etiquettes: [],
+  zone: null,
 }
 
 export function estActif(f: Filtre): boolean {
@@ -77,6 +93,7 @@ export function criteres(f: Filtre): string[] {
   if (f.deniveleMax != null) parts.push(`D+ ≤ ${f.deniveleMax} m`)
   if (f.denivelleParKmMin != null) parts.push(`D+/km ≥ ${f.denivelleParKmMin} m`)
   parts.push(...f.etiquettes.map((e) => NOMS_ETIQUETTES[e]))
+  if (f.zone) parts.push("zone sur la carte")
   return parts
 }
 
