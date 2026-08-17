@@ -189,9 +189,10 @@ enum StoreMaintenance {
                 defaults.set(message, forKey: JournalSettings.importNoticeKey)
             }
         } catch {
-            if let message = JournalNotice.notice(recoveryFailure: folderPath).message {
-                defaults.set(message, forKey: JournalSettings.importNoticeKey)
-            }
+            defaults.set(
+                JournalNotice.notice(recoveryFailure: folderPath).message,
+                forKey: JournalSettings.importNoticeKey
+            )
         }
         // Rebuilt even when the recovery above failed, and outside its `do`
         // for that reason alone: the cache materialises what the store
