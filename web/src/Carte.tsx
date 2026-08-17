@@ -26,6 +26,11 @@ const fond = {
   layers: [{ id: "ign", type: "raster" as const, source: "ign" }],
 }
 
+/// `trace` doit être **stable d'un rendu à l'autre** : cet effet en dépend par
+/// référence, et un tableau fabriqué dans le JSX de l'appelant en serait un
+/// nouveau à chaque fois. La carte se détruirait alors avant d'avoir fini de
+/// se dessiner — le fond apparaîtrait, la trace jamais. Voir le `useMemo` de
+/// `ActivityDetail`, qui existe pour cette seule raison.
 export function Carte({ trace }: { trace: Coordonnee[] }) {
   const conteneur = useRef<HTMLDivElement>(null)
 
@@ -34,10 +39,11 @@ export function Carte({ trace }: { trace: Coordonnee[] }) {
 
     const carte = new maplibregl.Map({
       container: conteneur.current,
-      style: fond,
+      // Copie fraîche : MapLibre modifie l'objet de style qu'on lui donne, et
+      // en développement React monte l'effet deux fois.
+      style: structuredClone(fond),
       // Sans interaction au doigt : la fiche défile verticalement, et une
       // carte qui capture le geste empêche de lire ce qu'il y a en dessous.
-      // Un appui la réveille — voir plus bas.
       interactive: false,
     })
 
@@ -62,6 +68,10 @@ export function Carte({ trace }: { trace: Coordonnee[] }) {
         (b, point) => b.extend(point),
         new maplibregl.LngLatBounds(trace[0], trace[0]),
       )
+      // Avant le cadrage, jamais après : `fitBounds` calcule son zoom contre
+      // la taille du canevas, et celui-ci a pu être construit alors que le
+      // conteneur n'avait pas encore sa hauteur définitive.
+      carte.resize()
       carte.fitBounds(limites, { padding: 24, animate: false })
     })
 

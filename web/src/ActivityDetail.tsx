@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { nomDuSport } from "./sports"
@@ -73,6 +74,15 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
   if (isPending) return <p className="attenue">Chargement…</p>
   if (error) return <p className="erreur">{(error as Error).message}</p>
 
+  // Mémoïsée, et ce n'est pas une optimisation : `Carte` recrée sa carte
+  // quand cette référence change, et un tableau fabriqué dans le JSX en est
+  // un nouveau à chaque rendu. La carte se détruisait donc avant d'avoir fini
+  // de se dessiner, ce qui laissait le fond mais jamais la trace.
+  const trace = useMemo(
+    () => traceDepuisBytea(data.simplified_track),
+    [data.simplified_track],
+  )
+
   const rythme = allureOuVitesse(data.sport_type_raw, data.distance, data.moving_time)
 
   return (
@@ -106,7 +116,7 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
         )}
       </div>
 
-      <Carte trace={traceDepuisBytea(data.simplified_track)} />
+      <Carte trace={trace} />
 
       {data.activity_description && (
         <p style={{ marginTop: 20, whiteSpace: "pre-wrap" }}>{data.activity_description}</p>
