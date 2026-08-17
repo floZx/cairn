@@ -332,7 +332,9 @@ actor MirrorClient {
     /// `deleted_at` is **not** filtered out. A tombstone is precisely what a
     /// pull needs to see — a row filtered away here is a deletion the Mac
     /// would never learn about.
-    func fetchChanged(table: String, since: Date?, limit: Int) async throws -> Data {
+    func fetchChanged(
+        table: String, since: Date?, limit: Int, offset: Int = 0
+    ) async throws -> Data {
         let credentials = try validCredentials()
         let token = try await validAccessToken(credentials: credentials)
 
@@ -342,9 +344,16 @@ actor MirrorClient {
         )!
         var query = [
             URLQueryItem(name: "select", value: "*"),
-            URLQueryItem(name: "order", value: "updated_at.asc"),
+            // `uuid` départage : sans second critère, l'ordre entre lignes
+            // partageant un `updated_at` n'est garanti par rien, et deux
+            // pages successives pourraient rendre deux fois la même ligne en
+            // en sautant une autre.
+            URLQueryItem(name: "order", value: "updated_at.asc,uuid.asc"),
             URLQueryItem(name: "limit", value: String(limit)),
         ]
+        if offset > 0 {
+            query.append(URLQueryItem(name: "offset", value: String(offset)))
+        }
         if let since {
             query.append(
                 URLQueryItem(

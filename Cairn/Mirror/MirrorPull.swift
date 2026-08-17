@@ -114,27 +114,42 @@ extension MirrorEngine {
         // Advanced page by page rather than once at the end: a pull
         // interrupted after four pages must not start those four again.
         var since = cursor.lastPulledAt(for: table)
+        // Combien de lignes portant exactement `since` ont déjà été lues.
+        //
+        // Sans lui, la lecture s'arrêtait net sur une table un peu grosse, et
+        // ce n'était pas un cas rare : `now()` en Postgres est l'heure de la
+        // **transaction**, si bien que les deux cents lignes d'un même lot
+        // d'envoi portent toutes le même `updated_at` à la microseconde. Une
+        // page entière peut donc ne contenir qu'un seul horodatage — le
+        // curseur ne bouge pas, et la boucle qui s'arrêtait là laissait la
+        // table figée pour toujours. Mesuré : `food_entry` bloqué à 09:12
+        // pendant que les trois autres tables suivaient l'heure, parce
+        // qu'elles tiennent en moins d'une page.
+        var offset = 0
 
         while true {
             try Task.checkCancellation()
             let body = try await client.fetchChanged(
-                table: table, since: since, limit: Self.pullPageSize
+                table: table, since: since, limit: Self.pullPageSize, offset: offset
             )
             let outcome = try apply(table: table, body: body)
             applied += outcome.applied
             await setPhase(.pulling(done: appliedSoFar + applied))
 
             guard let newest = outcome.newestUpdatedAt else { return applied }
+            // Une page incomplète est la fin des changements.
+            if outcome.rowCount < Self.pullPageSize {
+                cursor.setLastPulledAt(newest, for: table)
+                return applied
+            }
+            // Le décalage compte les lignes **du dernier horodatage** déjà
+            // lues, jamais les pages entières : c'est le seul repère qui
+            // reprenne au bon endroit, que la page tienne dans un horodatage
+            // ou en franchisse plusieurs. Raisonner par cas s'était trompé au
+            // premier passage — le curseur y est nul, donc aucune égalité à
+            // détecter, et la même page repartait indéfiniment.
+            offset = newest == since ? offset + outcome.countAtNewest : outcome.countAtNewest
             cursor.setLastPulledAt(newest, for: table)
-
-            // A short page is the end of the changes. A full page whose
-            // newest row is no newer than what we asked for is the one way
-            // this loop could spin: `gte` means a page can come back holding
-            // nothing but rows already applied, and if a hundred rows ever
-            // shared one microsecond the cursor would never move. Rare to the
-            // point of theoretical, and a stopping condition costs one line.
-            if outcome.rowCount < Self.pullPageSize { return applied }
-            if let since, newest <= since { return applied }
             since = newest
         }
     }
@@ -143,6 +158,12 @@ extension MirrorEngine {
         var rowCount = 0
         var applied = 0
         var newestUpdatedAt: Date?
+        /// Combien de lignes de cette page portent `newestUpdatedAt`.
+        ///
+        /// C'est ce qui permet de reprendre exactement là où la page s'arrête
+        /// quand plusieurs lignes partagent un horodatage : le décalage à
+        /// appliquer est ce compte, pas la taille de la page.
+        var countAtNewest = 0
     }
 
     /// Decodes one page and writes it to the store.
@@ -369,7 +390,17 @@ extension MirrorEngine {
     /// suit, et les retenir ferait relire la même page à chaque lancement.
     private func noteNewest(_ text: String, in outcome: inout PullOutcome) {
         guard let updated = Self.date(from: text) else { return }
-        outcome.newestUpdatedAt = max(outcome.newestUpdatedAt ?? updated, updated)
+        if let connu = outcome.newestUpdatedAt {
+            if updated > connu {
+                outcome.newestUpdatedAt = updated
+                outcome.countAtNewest = 1
+            } else if updated == connu {
+                outcome.countAtNewest += 1
+            }
+        } else {
+            outcome.newestUpdatedAt = updated
+            outcome.countAtNewest = 1
+        }
     }
 
     /// Exempt de l'outbox, sans quoi le Mac renverrait sous sa propre horloge
@@ -395,9 +426,12 @@ extension MirrorEngine {
         }
 
         for row in rows {
-            if let updated = Self.date(from: row.updated_at) {
-                outcome.newestUpdatedAt = max(outcome.newestUpdatedAt ?? updated, updated)
-            }
+            // La même comptabilité que les trois autres tables, et non un
+            // `max` écrit à part : c'est elle qui tient `countAtNewest`, dont
+            // dépend la pagination à travers les horodatages identiques. Une
+            // seconde version de ce calcul l'a laissé à zéro, et la lecture
+            // redemandait la même page indéfiniment.
+            noteNewest(row.updated_at, in: &outcome)
             // The author's clock, which is what `updatedAt` holds locally.
             // A row without one predates the column being written and cannot
             // be arbitrated against anything — left alone rather than

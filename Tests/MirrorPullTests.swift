@@ -518,3 +518,82 @@ struct MirrorPullNutritionTests {
         #expect(try ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>()).isEmpty)
     }
 }
+
+/// La pagination à travers les horodatages identiques.
+///
+/// Écrite après coup, sur un blocage constaté : `food_entry` figé à 09:12
+/// pendant des heures. `now()` en Postgres est l'heure de la **transaction**,
+/// donc les deux cents lignes d'un même lot d'envoi portent toutes le même
+/// `updated_at` — une page entière peut ne contenir qu'un seul horodatage, et
+/// la boucle qui s'arrêtait là laissait la table figée pour toujours.
+@Suite("Pagination de la lecture")
+@MainActor
+struct MirrorPullPaginationTests {
+    /// Une page pleine de notes partageant toutes le même `updated_at`.
+    private static func pageIdentique(_ debut: Int, _ nombre: Int, horodatage: String) -> Data {
+        let rows = (debut..<(debut + nombre)).map { i -> [String: Any] in
+            [
+                "uuid": "n\(i)", "date_key_raw": "2026-08-16", "text": "Note \(i)",
+                "updated_at": horodatage, "edited_at": horodatage,
+                "deleted_at": NSNull(),
+            ]
+        }
+        return try! JSONSerialization.data(withJSONObject: rows)
+    }
+
+    /// Cent lignes au même horodatage, puis cent autres, puis une page courte :
+    /// les deux cent dix doivent arriver.
+    @Test func unGroupeDHorodatagesIdentiquesNeBloquePas() async throws {
+        let container = try AppModelContainer.inMemory()
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let meme = "2026-08-16T09:12:00.000+00:00"
+        // `journal_note` est la première table lue : le script la vise, le
+        // repli couvre les trois suivantes.
+        let scripte = StubTransport(
+            responses: [
+                (Self.pageIdentique(0, 100, horodatage: meme), 200),
+                (Self.pageIdentique(100, 100, horodatage: meme), 200),
+                (Self.pageIdentique(200, 10, horodatage: meme), 200),
+            ],
+            thenAlways: Data("[]".utf8)
+        )
+        let engine = MirrorEngine(
+            client: MirrorClient(store: try configuredStore(), transport: scripte),
+            container: container, progress: MirrorProgress(), cursor: cursor
+        )
+        try await engine.pull()
+
+        let notes = try ModelContext(container).fetch(FetchDescriptor<JournalNote>())
+        #expect(notes.count == 210)
+    }
+
+    /// Et le décalage est bien celui qu'on croit : 0, puis 100, puis 200.
+    @Test func leDecalageAvanceDUnePageALaFois() async throws {
+        let container = try AppModelContainer.inMemory()
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let meme = "2026-08-16T09:12:00.000+00:00"
+        let transport = StubTransport(
+            responses: [
+                (Self.pageIdentique(0, 100, horodatage: meme), 200),
+                (Self.pageIdentique(100, 100, horodatage: meme), 200),
+                (Self.pageIdentique(200, 10, horodatage: meme), 200),
+            ],
+            thenAlways: Data("[]".utf8)
+        )
+        let engine = MirrorEngine(
+            client: MirrorClient(store: try configuredStore(), transport: transport),
+            container: container, progress: MirrorProgress(), cursor: cursor
+        )
+        try await engine.pull()
+
+        let decalages = await transport.requests()
+            .filter { $0.url?.path == "/rest/v1/journal_note" }
+            .map { requete -> String in
+                URLComponents(url: requete.url!, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "offset" }?.value ?? "0"
+            }
+        #expect(decalages == ["0", "100", "200"])
+    }
+}
