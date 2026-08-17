@@ -140,9 +140,16 @@ function LigneMacros({
   sansUnite?: boolean
 }) {
   const a = arrondi(m)
+  // La cible écrite, pas seulement suggérée par une couleur. Sans elle, une
+  // journée sous l'objectif — le cas courant en milieu de journée — s'affiche
+  // sans la moindre marque, et rien ne distingue « pas encore d'objectif » de
+  // « objectif pas encore atteint ».
   const part = (valeur: number, cible: number | undefined, lettre: string) => (
     <span className={classeDe(valeur, cible ?? null)}>
-      {valeur} {lettre}
+      {valeur}
+      {cible !== undefined && <span className="attenue">/{Math.round(cible)}</span>}
+      {" "}
+      {lettre}
     </span>
   )
   return (
