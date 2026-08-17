@@ -1530,3 +1530,77 @@ body {
 .liste.sans-chevron .ligne:active {
   background: transparent;
 }
+
+/* ---- Graphique par mois -------------------------------------------------- */
+
+.graphique {
+  margin-bottom: 8px;
+}
+
+.barres {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 130px;
+  margin-top: 10px;
+}
+
+.colonne {
+  position: relative;
+  flex: 1;
+  /* Sans cela, une colonne refuse de descendre sous la largeur de son
+     libellé, et treize mois débordent de l'écran. */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* La place du libellé, qui est posé par-dessus. */
+  padding-bottom: 18px;
+  height: 100%;
+}
+
+/* La pile : les deux barres partagent le même socle, l'une derrière l'autre. */
+.pile {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+/* La période précédente, en creux derrière : pleine largeur, effacée. */
+.barre-avant {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 5px 5px 0 0;
+  background: var(--champ);
+}
+
+/* La période en cours, plus étroite et par-dessus, pour que le creux se voie
+   de part et d'autre. */
+.barre {
+  position: relative;
+  width: 62%;
+  margin: 0 auto;
+  min-height: 2px;
+  border-radius: 5px 5px 0 0;
+  background: var(--accent);
+}
+
+/* Hors du flux : centré sous sa colonne, il ne pèse plus sur sa largeur. En
+   l'y laissant, « août » élargissait la dernière colonne de deux pixels et
+   tout le graphique débordait. Il peut déborder de sa propre colonne, la
+   marge de la carte l'absorbe. */
+.etiquette-mois {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--texte-2);
+  font-size: 11px;
+  white-space: nowrap;
+  /* Un mois n'a pas la place de s'écrire en entier sur douze colonnes. */
+  text-transform: lowercase;
+}

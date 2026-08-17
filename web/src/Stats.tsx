@@ -50,6 +50,19 @@ function fenetres(periode: Periode, maintenant = new Date()) {
   return { debut, debutAvant, finAvant: debut }
 }
 
+/// Ce qu'un graphique peut porter.
+///
+/// Pas la distance, et c'est la même règle qu'ailleurs : un mois qui empile
+/// des kilomètres de vélo sur des kilomètres de course ne dit rien de plus
+/// qu'un total annuel qui ferait pareil.
+type Mesure = "sorties" | "temps" | "denivele"
+
+const MESURES: { clef: Mesure; nom: string }[] = [
+  { clef: "sorties", nom: "Sorties" },
+  { clef: "temps", nom: "Temps" },
+  { clef: "denivele", nom: "D+" },
+]
+
 type Totaux = { nombre: number; temps: number; denivele: number }
 
 function totaliser(lignes: Ligne[]): Totaux {
@@ -84,8 +97,108 @@ function Evolution({ valeur }: { valeur: number | null }) {
   )
 }
 
+/// La clé du mois d'une date : « 2026-08 ».
+function moisDe(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
+const NOM_MOIS = new Intl.DateTimeFormat("fr-FR", { month: "short" })
+
+/// Les mois de la fenêtre, du plus ancien au plus récent, chacun avec sa
+/// valeur et celle de son homologue dans la période précédente.
+///
+/// L'homologue est le même rang, pas le même mois de l'année : sur trois mois,
+/// juin se compare à mars. C'est ce que « les trois mois précédents » veut
+/// dire, et c'est déjà la règle des totaux au-dessus.
+function parMois(
+  lignes: Ligne[],
+  debut: Date,
+  debutAvant: Date,
+  mesure: Mesure,
+): { etiquette: string; valeur: number; avant: number }[] {
+  const valeurDe = (a: Ligne) =>
+    mesure === "sorties" ? 1 : mesure === "temps" ? a.moving_time : a.total_elevation_gain
+
+  const sommes = new Map<string, number>()
+  for (const a of lignes) {
+    const clef = moisDe(new Date(a.start_local_date))
+    sommes.set(clef, (sommes.get(clef) ?? 0) + valeurDe(a))
+  }
+
+  const cases: { etiquette: string; valeur: number; avant: number }[] = []
+  const curseur = new Date(debut.getFullYear(), debut.getMonth(), 1)
+  const curseurAvant = new Date(debutAvant.getFullYear(), debutAvant.getMonth(), 1)
+  const fin = new Date()
+  while (curseur <= fin) {
+    cases.push({
+      etiquette: NOM_MOIS.format(curseur),
+      valeur: sommes.get(moisDe(curseur)) ?? 0,
+      avant: sommes.get(moisDe(curseurAvant)) ?? 0,
+    })
+    curseur.setMonth(curseur.getMonth() + 1)
+    curseurAvant.setMonth(curseurAvant.getMonth() + 1)
+  }
+  return cases
+}
+
+/// Le graphique, en SVG comme les courbes d'une sortie.
+///
+/// La période précédente est dessinée derrière, en creux : deux séries côte à
+/// côte doubleraient le nombre de barres et rendraient chacune deux fois plus
+/// fine, alors qu'on ne compare qu'un coup d'œil.
+function Graphique({
+  cases,
+  mesure,
+}: {
+  cases: { etiquette: string; valeur: number; avant: number }[]
+  mesure: Mesure
+}) {
+  if (cases.length === 0) return null
+  const haut = Math.max(1, ...cases.map((c) => Math.max(c.valeur, c.avant)))
+  const format = (v: number) =>
+    mesure === "sorties" ? String(Math.round(v)) : mesure === "temps" ? duree(v) : denivele(v)
+
+  return (
+    <div className="carte-groupe graphique">
+      <div className="tete-courbe">
+        <span>{format(haut)}</span>
+        <span className="attenue petit">au plus haut</span>
+      </div>
+      <div className="barres">
+        {cases.map((c, i) => (
+          <div className="colonne" key={i}>
+            <div className="pile">
+              {/* Le creux d'abord, la barre pleine par-dessus : superposées et
+                  non côte à côte, elles se comparent d'un regard. */}
+              <div
+                className="barre-avant"
+                style={{ height: `${(c.avant / haut) * 100}%` }}
+                title={`Avant : ${format(c.avant)}`}
+              />
+              <div
+                className="barre"
+                style={{ height: `${(c.valeur / haut) * 100}%` }}
+                title={format(c.valeur)}
+              />
+            </div>
+            {/* Un mois sur deux au-delà de huit colonnes : « sept. » et
+                « févr. » sont plus larges que leur colonne sur un an, et les
+                afficher tous les faisait déborder de l'écran. Les intercaler
+                garde le repère sans étrangler le dessin — et sans imposer un
+                défilement latéral à un graphique qu'on lit d'un coup d'œil. */}
+            <span className="etiquette-mois">
+              {cases.length <= 8 || i % 2 === 0 ? c.etiquette : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function Stats() {
   const [periode, setPeriode] = useState<Periode>("3mois")
+  const [mesure, setMesure] = useState<Mesure>("temps")
   const { debut, debutAvant, finAvant } = fenetres(periode)
 
   const { data, error, isPending } = useQuery({
@@ -176,6 +289,24 @@ export function Stats() {
 
       {dansLaFenetre.length === 0 && (
         <p className="attenue">Aucune sortie sur cette période.</p>
+      )}
+
+      {dansLaFenetre.length > 0 && (
+        <>
+          <h4 className="titre-section">Par mois</h4>
+          <div className="pastilles">
+            {MESURES.map((m) => (
+              <button
+                key={m.clef}
+                className={mesure === m.clef ? "pastille-choix active" : "pastille-choix"}
+                onClick={() => setMesure(m.clef)}
+              >
+                {m.nom}
+              </button>
+            ))}
+          </div>
+          <Graphique cases={parMois(data, debut, debutAvant, mesure)} mesure={mesure} />
+        </>
       )}
 
       {sports.length > 0 && (
