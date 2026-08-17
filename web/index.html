@@ -2,7 +2,15 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- `interactive-widget=resizes-content` : sans lui, iOS fait glisser la page
+         sous le clavier au lieu de la redimensionner, et une feuille en
+         `position: fixed` se retrouve à moitié dessous. Avec lui, la zone
+         visible rétrécit une fois, proprement, et tout ce qui s'y accroche
+         suit. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <title>Cairn</title>
     <!-- iOS n'a jamais lu le `theme_color` du manifeste : c'est cette balise
          qui teinte la barre d'état d'une application ajoutée à l'écran

@@ -111,7 +111,6 @@ export function ModifAliment({
           value={grammes}
           min={1}
           onChange={(e) => setGrammes(e.target.value)}
-          autoFocus
         />
         <span>g</span>
       </label>

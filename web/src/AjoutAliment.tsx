@@ -274,7 +274,6 @@ export function AjoutAliment({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Chercher un aliment…"
-        autoFocus
       />
       {recette.error && <p className="erreur">{(recette.error as Error).message}</p>}
 
