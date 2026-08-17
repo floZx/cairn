@@ -1241,32 +1241,6 @@ body {
 
 /* ---- Pesée et note de repas ---------------------------------------------- */
 
-/* Le poids sous les calories, séparé d'un filet : c'est le même geste du
-   matin, et lui donner un écran à lui pour un nombre serait un écran de trop. */
-.ligne-pesee {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  width: 100%;
-  margin-top: 12px;
-  padding: 12px 0 0;
-  border: 0;
-  border-top: 1px solid var(--trait);
-  background: transparent;
-  color: var(--texte);
-  font: inherit;
-  cursor: pointer;
-}
-
-.valeur-pesee {
-  font-weight: 600;
-}
-
-.valeur-pesee.attenue {
-  color: var(--accent);
-  font-weight: 400;
-}
-
 /* Le crayon à côté du plus, dans la même famille mais plus discret : ajouter
    un aliment est le geste courant, noter un repas l'exception.
    Dessiné et non écrit : le caractère « ✎ » porte ses propres métriques
@@ -1881,9 +1855,7 @@ body {
 .chiffre-jauge.franc,
 .reste-jauge.franc { color: var(--erreur); }
 
-.type-du-jour {
-  margin-top: 14px;
-}
+
 
 /* La courbe du poids : même hauteur que celles d'une sortie, pour que les
    deux écrans se ressemblent. */
@@ -1925,7 +1897,4 @@ body {
   color: color-mix(in srgb, #ffffff 78%, transparent);
 }
 
-/* Sous la pesée, et séparé d'elle comme elle l'est des jauges. */
-.type-du-jour {
-  margin-top: 0;
-}
+

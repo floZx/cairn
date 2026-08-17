@@ -356,24 +356,31 @@ export function Nutrition() {
             unite="g"
           />
         </div>
-        {/* Le type de journée est ce qui fixe toutes les cibles au-dessus :
-            il se choisit là où on les lit, et non dans un réglage à part. */}
-        <button className="ligne-pesee type-du-jour" onClick={() => setTypeOuvert(true)}>
-          <span>Journée</span>
-          <span className={typeDuJour ? "valeur-pesee" : "valeur-pesee attenue"}>
-            {typeDuJour ? `${typeDuJour.name} · ${typeDuJour.kcal_target} kcal` : "Choisir"}
-          </span>
-        </button>
-        {/* La pesée du jour vit ici, sous les calories : c'est le même geste
-            du matin, et lui donner un écran à elle pour un nombre serait un
-            écran de trop. */}
-        <button className="ligne-pesee" onClick={() => setPeseeOuverte(true)}>
-          <span>Poids</span>
-          <span className={pesee ? "valeur-pesee" : "valeur-pesee attenue"}>
-            {pesee ? `${pesee.weight_kg.toLocaleString("fr-FR")} kg` : "Noter"}
-          </span>
-        </button>
       </div>
+
+      {/* Une seconde carte pour ce qui n'est pas le budget : le type de
+          journée le fixe, la pesée le commente, mais ni l'un ni l'autre n'est
+          une jauge. Les mélanger faisait un fourre-tout de trois natures de
+          choses. Sous les jauges plutôt qu'au-dessus : on ouvre cet écran pour
+          savoir où l'on en est, pas pour régler. */}
+      <ul className="liste">
+        <li className="ligne" onClick={() => setTypeOuvert(true)}>
+          <div className="ligne-tete">
+            <span className="titre">Journée</span>
+            <span className={typeDuJour ? "" : "attenue"}>
+              {typeDuJour ? `${typeDuJour.name} · ${typeDuJour.kcal_target} kcal` : "Choisir"}
+            </span>
+          </div>
+        </li>
+        <li className="ligne" onClick={() => setPeseeOuverte(true)}>
+          <div className="ligne-tete">
+            <span className="titre">Poids</span>
+            <span className={pesee ? "" : "attenue"}>
+              {pesee ? `${pesee.weight_kg.toLocaleString("fr-FR")} kg` : "Noter"}
+            </span>
+          </div>
+        </li>
+      </ul>
 
       {creneaux.map((creneau, i) => {
         const lignes = parCreneau(creneau.uuid)
