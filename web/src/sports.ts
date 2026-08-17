@@ -27,3 +27,24 @@ export function nomDuSport(brut: string): string {
   // voir à l'écran vaut mieux que de le voir disparaître dans un fourre-tout.
   return noms[brut] ?? brut
 }
+
+/// Le facteur et l'unité de la cadence, selon le sport — porté de
+/// `SportType.cadence`.
+///
+/// Strava compte les foulées d'une seule jambe : une course à 77 se lit
+/// 154 pas par minute, et afficher le chiffre brut donnait une cadence deux
+/// fois trop lente. Les autres sports n'ont rien à doubler — un pédalier fait
+/// un tour entier.
+export function cadenceDuSport(sportRaw: string): { facteur: number; unite: string } {
+  switch (sportRaw) {
+    case "run":
+    case "trailRun":
+    case "walk":
+    case "hike":
+      return { facteur: 2, unite: "ppm" }
+    case "swim":
+      return { facteur: 1, unite: "coups/min" }
+    default:
+      return { facteur: 1, unite: "rpm" }
+  }
+}

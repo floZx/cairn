@@ -1,7 +1,7 @@
 import { Suspense, lazy, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
-import { nomDuSport } from "./sports"
+import { cadenceDuSport, nomDuSport } from "./sports"
 import { dateCourte, denivele, distance, duree } from "./format"
 import { traceDepuisBytea } from "./track"
 // Chargée à la demande : MapLibre pèse à lui seul les quatre cinquièmes du
@@ -13,6 +13,7 @@ import { Markdown } from "./markdown"
 import { Courbes } from "./Courbes"
 import { NoteActivite } from "./NoteActivite"
 import { Feuille } from "./Chrome"
+import { NOMS, etiquettesDe, type SourceEtiquettes } from "./etiquettes"
 
 type Fiche = {
   uuid: string
@@ -25,9 +26,17 @@ type Fiche = {
   average_heartrate: number | null
   max_heartrate: number | null
   average_watts: number | null
+  average_cadence: number | null
   calories: number | null
   activity_description: string | null
   edited_fields: string[] | null
+  source_raw: string
+  workout_type: number | null
+  workout_label_raw: string | null
+  is_favorite: boolean
+  is_commute: boolean
+  is_trainer: boolean
+  is_manual: boolean
   simplified_track: string | null
 }
 
@@ -72,7 +81,9 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
         .select(
           "uuid, name, sport_type_raw, start_local_date, distance, moving_time, " +
             "total_elevation_gain, average_heartrate, max_heartrate, average_watts, " +
-            "calories, activity_description, edited_fields, simplified_track",
+            "average_cadence, calories, activity_description, edited_fields, " +
+            "source_raw, workout_type, workout_label_raw, is_favorite, is_commute, " +
+            "is_trainer, is_manual, simplified_track",
         )
         .eq("uuid", uuid)
         .single()
@@ -108,6 +119,19 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
         <div className="attenue petit">
           {nomDuSport(data.sport_type_raw)} · {dateCourte(data.start_local_date)}
         </div>
+        {(() => {
+          const marques = etiquettesDe(data as unknown as SourceEtiquettes)
+          if (marques.length === 0) return null
+          return (
+            <div className="etiquettes">
+              {marques.map((m) => (
+                <span className="etiquette-tag" key={m}>
+                  {NOMS[m]}
+                </span>
+              ))}
+            </div>
+          )
+        })()}
       </div>
 
       <div className="chiffres carte-groupe">
@@ -123,6 +147,15 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
         )}
         {data.average_watts != null && (
           <Chiffre valeur={`${Math.round(data.average_watts)} W`} etiquette="Puissance" />
+        )}
+        {data.average_cadence != null && data.average_cadence > 0 && (
+          <Chiffre
+            valeur={(() => {
+              const { facteur, unite } = cadenceDuSport(data.sport_type_raw)
+              return `${Math.round(data.average_cadence * facteur)} ${unite}`
+            })()}
+            etiquette="Cadence"
+          />
         )}
         {data.calories != null && (
           <Chiffre valeur={`${Math.round(data.calories)} kcal`} etiquette="Calories" />
