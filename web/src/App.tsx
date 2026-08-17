@@ -6,6 +6,7 @@ import { ActivityList } from "./ActivityList"
 import { ActivityDetail } from "./ActivityDetail"
 import { Journal } from "./Journal"
 import { Nutrition } from "./Nutrition"
+import { Stats } from "./Stats"
 import { Chrome, type Section } from "./Chrome"
 import { BoutonCompte } from "./Compte"
 
@@ -67,8 +68,10 @@ export function App() {
         <ActivityList onOuvrir={ouvrir} />
       ) : section === "journal" ? (
         <Journal />
-      ) : (
+      ) : section === "nutrition" ? (
         <Nutrition />
+      ) : (
+        <Stats />
       )}
     </Chrome>
   )

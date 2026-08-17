@@ -17,7 +17,7 @@ import { createPortal } from "react-dom"
 ///   d'accueil en bas : sans `env(safe-area-inset-*)`, le premier titre passe
 ///   sous l'heure et le dernier onglet sous le trait blanc.
 
-export type Section = "activites" | "journal" | "nutrition"
+export type Section = "activites" | "journal" | "nutrition" | "stats"
 
 /// Les icônes, dessinées ici plutôt qu'importées.
 ///
@@ -53,13 +53,20 @@ function Icone({ nom, actif }: { nom: Section; actif: boolean }) {
           <path d="M9 7.5h6" />
         </svg>
       )
-    default:
+    case "nutrition":
       // Une assiette vue de dessus, plutôt qu'une fourchette : le sujet est
       // le repas, pas le couvert.
       return (
         <svg {...commun}>
           <circle cx="12" cy="12" r="8.5" />
           <circle cx="12" cy="12" r="4" />
+        </svg>
+      )
+    default:
+      // Trois barres montantes : ce que les statistiques racontent.
+      return (
+        <svg {...commun}>
+          <path d="M5 20v-6M12 20V6M19 20v-9" />
         </svg>
       )
   }
@@ -69,6 +76,7 @@ const TITRES: Record<Section, string> = {
   activites: "Activités",
   journal: "Journal",
   nutrition: "Repas",
+  stats: "Stats",
 }
 
 export function Chrome({

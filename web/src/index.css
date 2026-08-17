@@ -1471,3 +1471,62 @@ body {
   justify-content: space-between;
   gap: 12px;
 }
+
+/* ---- Statistiques -------------------------------------------------------- */
+
+/* À quatre onglets, la pastille respire moins : on lui rend deux points. */
+.dedans-onglet {
+  padding-left: 11px;
+  padding-right: 11px;
+}
+
+.grands-totaux {
+  margin: 12px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.grand-total {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.grand-total .valeur {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.grand-total .etiquette {
+  color: var(--texte-2);
+  font-size: 15px;
+}
+
+/* Le vert ne dit pas « mieux » — plus de dénivelé n'est pas un progrès en
+   soi. Il dit « en hausse », et la couleur ne fait que suivre le signe. */
+.evolution {
+  font-weight: 600;
+  /* Sans classe de sens — zéro — elle garde la couleur du texte secondaire. */
+  color: inherit;
+}
+
+.evolution.hausse { color: var(--vert); }
+.evolution.baisse { color: var(--orange); }
+
+/* Ces listes-là ne mènent nulle part : pas de chevron, pas de retour au
+   doigt. Un chevron sur une ligne qu'on ne peut pas ouvrir est une promesse
+   qu'on ne tient pas. */
+.liste.sans-chevron .ligne {
+  padding-right: 16px;
+  cursor: default;
+}
+
+.liste.sans-chevron .ligne::before {
+  display: none;
+}
+
+.liste.sans-chevron .ligne:active {
+  background: transparent;
+}
