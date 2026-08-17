@@ -21,6 +21,11 @@ enum BackupService {
     enum Failure: LocalizedError {
         case noICloudDrive
         case snapshotFailed(String)
+        /// The Markdown half alone failed; everything else is in place. Its
+        /// own case, and its own sentence, because the two do not mean the
+        /// same thing to a reader: one says the backup did not happen, this
+        /// one says it did and that the readable copy beside it did not.
+        case journalMarkdownFailed(String)
 
         var errorDescription: String? {
             switch self {
@@ -29,6 +34,9 @@ enum BackupService {
                     + "Réglages Système, rubrique iCloud."
             case let .snapshotFailed(detail):
                 "La copie de la base a échoué : \(detail)"
+            case let .journalMarkdownFailed(detail):
+                "La sauvegarde est en place, mais l'export Markdown du "
+                    + "journal a échoué : \(detail)"
             }
         }
     }
@@ -85,10 +93,25 @@ enum BackupService {
         )
 
         try writeSnapshot(of: store, into: destination, at: now)
-        try writeJournalMarkdown(
-            journalContext(at: store), into: destination,
-            stamp: BackupPlan.timestamp(for: now)
-        )
+
+        // Held rather than thrown, and rethrown at the very end: the Markdown
+        // half is a bonus — the same notes are already inside the `.sqlite.gz`
+        // written just above — and it opens a second `ModelContainer`, so it
+        // is also the one step here that can fail for a reason having nothing
+        // to do with the disk. Throwing it from where it stands used to take
+        // the photographs, the rotation *and* `lastRunKey` down with it: the
+        // snapshots then piled up, one a day, never pruned, because `rotate`
+        // is the only thing that prunes them and it never ran again.
+        var markdownFailure: Error?
+        do {
+            try writeJournalMarkdown(
+                journalContext(at: store), into: destination,
+                stamp: BackupPlan.timestamp(for: now)
+            )
+        } catch {
+            markdownFailure = error
+        }
+
         try mirrorPhotos(from: photos, into: destination.appending(path: "Photos"))
         rotate(in: destination)
         try? restoreInstructions.write(
@@ -97,6 +120,12 @@ enum BackupService {
         )
 
         defaults.set(now, forKey: lastRunKey)
+        // Said, not swallowed: a Markdown export that has been failing for a
+        // month is worth knowing about, and the marker above is already set,
+        // so tomorrow's run happens on schedule whether or not this throws.
+        if let markdownFailure {
+            throw Failure.journalMarkdownFailed(markdownFailure.localizedDescription)
+        }
         return now
     }
 
@@ -222,7 +251,16 @@ enum BackupService {
 
     // MARK: - Housekeeping
 
-    private static func rotate(in destination: URL) {
+    /// Deletes what the retention policy no longer keeps, each family counted
+    /// on its own.
+    ///
+    /// Not `private`: this is the one function here that *deletes backups*,
+    /// and its filter — `journal-` minus `markdownPrefix` on one side, the
+    /// prefix itself on the other — is the whole of what separates the two
+    /// families. `Tests/JournalBackupTests.swift` used to reproduce that
+    /// filter in the test instead of calling this, and so stayed green over
+    /// any rotation, right or wrong.
+    static func rotate(in destination: URL) {
         let manager = FileManager.default
         let names = (try? manager.contentsOfDirectory(
             atPath: destination.path(percentEncoded: false)
