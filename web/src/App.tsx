@@ -5,6 +5,7 @@ import { SignIn } from "./SignIn"
 import { ActivityList } from "./ActivityList"
 import { ActivityDetail } from "./ActivityDetail"
 import { Journal } from "./Journal"
+import { Nutrition } from "./Nutrition"
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -39,7 +40,9 @@ export function App() {
     return () => removeEventListener("popstate", onPop)
   }, [])
 
-  const [section, setSection] = useState<"activites" | "journal">("activites")
+  const [section, setSection] = useState<"activites" | "journal" | "nutrition">(
+    "activites",
+  )
 
   function ouvrir(uuid: string) {
     history.pushState(null, "", `?activite=${uuid}`)
@@ -76,6 +79,12 @@ export function App() {
           >
             Journal
           </button>
+          <button
+            className={section === "nutrition" ? "onglet actif" : "onglet"}
+            onClick={() => setSection("nutrition")}
+          >
+            Repas
+          </button>
         </nav>
       )}
       <main className="contenu">
@@ -83,8 +92,10 @@ export function App() {
           <ActivityDetail uuid={ouverte} onRetour={() => history.back()} />
         ) : section === "activites" ? (
           <ActivityList onOuvrir={ouvrir} />
-        ) : (
+        ) : section === "journal" ? (
           <Journal />
+        ) : (
+          <Nutrition />
         )}
       </main>
     </>

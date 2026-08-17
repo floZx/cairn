@@ -354,3 +354,115 @@ input, button { font: inherit; }
   outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
+
+/* ---- Repas -------------------------------------------------------------- */
+
+.barre-jour {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0 6px;
+}
+
+.barre-jour .lien {
+  padding: 4px 14px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.total-jour {
+  padding: 12px 0 16px;
+  border-bottom: 1px solid var(--trait);
+}
+
+.chiffre-jour {
+  font-size: 15px;
+}
+
+.chiffre-jour .valeur {
+  font-size: 30px;
+  font-weight: 600;
+}
+
+.macros {
+  color: var(--attenue);
+  font-size: 13px;
+}
+
+/* Vert quand le repas atterrit sur son plan, orange puis rouge au-delà. Les
+   trois seulement sur les chiffres qui ont un objectif : un nombre coloré
+   sans repère ne veut rien dire. */
+.atteint { color: #2e9e5b; }
+.modere  { color: #d98324; }
+.franc   { color: var(--erreur); }
+
+@media (prefers-color-scheme: dark) {
+  .atteint { color: #4cc47f; }
+  .modere  { color: #f0a04b; }
+}
+
+.repas {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--trait);
+}
+
+.repas h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Un créneau sans rien dedans reste visible, en retrait : il dit ce qui est
+   prévu, et le faire disparaître ferait croire la journée plus courte. */
+.repas.vide h3 {
+  font-weight: 500;
+  color: var(--attenue);
+}
+
+.kcal-repas {
+  font-variant-numeric: tabular-nums;
+}
+
+.note-repas {
+  margin: 0 0 8px;
+  color: var(--attenue);
+  font-size: 14px;
+  font-style: italic;
+}
+
+.aliments {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aliments li {
+  display: grid;
+  /* Le poids et les calories à largeur fixe, le nom prend le reste : une
+     colonne de chiffres qui ne s'aligne pas ne se lit pas. */
+  grid-template-columns: 1fr auto 3.5em;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 0;
+}
+
+.aliments .nom {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aliments .kcal {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sous-total {
+  padding-top: 6px;
+  text-align: right;
+}
