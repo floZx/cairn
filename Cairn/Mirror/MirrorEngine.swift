@@ -276,6 +276,7 @@ actor MirrorEngine {
             // its bytes in Storage before its row goes out, not merely
             // "eventually will" once some later `bootstrap()` catches up.
             try await uploadPendingBlobs()
+            try await sendNeverBootstrappedTables(userID: userID)
 
             let outboxContext = ModelContext(container)
             let entries = try outboxContext.fetch(FetchDescriptor<MirrorOutbox>())
@@ -900,6 +901,38 @@ actor MirrorEngine {
             await setPhase(.uploadingBlobs(kind: "traces", done: done, total: total))
         }
         return failures
+    }
+
+    /// Sends, in full, any table that has never been bootstrapped.
+    ///
+    /// A table added to `bootstrapOrder` after the mirror was first set up
+    /// has no cursor, and the outbox has nothing to say about it either: the
+    /// recorder only ever filed the models that conformed `MirrorRow` at the
+    /// time they were saved. `journal_note` and `journal_attachment` arrived
+    /// exactly that way — the notes were already in the store, written before
+    /// they mirrored — and the result was a push that ran clean and sent
+    /// nothing, twice, with no way to tell from the settings screen that two
+    /// tables were simply never in the conversation.
+    ///
+    /// Cheap to leave in: `lastUUID(for:)` is a `UserDefaults` read per table,
+    /// and once a table has been through this it never comes back. That makes
+    /// the hand-started bootstrap a repair tool again rather than a step
+    /// somebody has to know to take after every schema addition — there are
+    /// three more tranches of those coming.
+    /// Only once the mirror is *established*, which is the whole distinction:
+    /// on a mirror nobody has bootstrapped yet, every table lacks a cursor,
+    /// and sending them all would turn the launch push into a silent 290 MB
+    /// upload the user never asked for. "Some table has a cursor" is what
+    /// separates a schema addition from a first run — and the first run stays
+    /// what it was, an explicit « Lancer l'amorçage ».
+    private func sendNeverBootstrappedTables(userID: String) async throws {
+        let established = Self.bootstrapOrder.contains { cursor.lastUUID(for: $0) != nil }
+        guard established else { return }
+
+        for table in Self.bootstrapOrder where cursor.lastUUID(for: table) == nil {
+            try Task.checkCancellation()
+            try await sendTable(table, userID: userID)
+        }
     }
 
     /// Dispatches to the concretely-typed fetch for one table. A `switch`
