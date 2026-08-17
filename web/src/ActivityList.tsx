@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { nomDuSport } from "./sports"
+import { IconeSport } from "./IconeSport"
 import { dateCourte, denivele, distance, duree } from "./format"
 import { Feuille } from "./Chrome"
 import { Filtres } from "./Filtres"
@@ -317,14 +318,17 @@ export function ActivityList({
       {entete}
       <ul className="liste">
         {activites.map((a) => (
-          <li key={a.uuid} className="ligne" onClick={() => onOuvrir(a.uuid)}>
-            <div className="ligne-tete">
+          <li key={a.uuid} className="ligne avec-icone" onClick={() => onOuvrir(a.uuid)}>
+            <IconeSport sport={a.sport_type_raw} />
+            <div>
+              <div className="ligne-tete">
               <span className="titre">{a.name}</span>
               <span className="attenue petit">{dateCourte(a.start_local_date)}</span>
             </div>
-            <div className="attenue petit">
-              {nomDuSport(a.sport_type_raw)} · {distance(a.distance)} ·{" "}
-              {duree(a.moving_time)} · {denivele(a.total_elevation_gain)}
+              <div className="attenue petit">
+                {nomDuSport(a.sport_type_raw)} · {distance(a.distance)} ·{" "}
+                {duree(a.moving_time)} · {denivele(a.total_elevation_gain)}
+              </div>
             </div>
           </li>
         ))}

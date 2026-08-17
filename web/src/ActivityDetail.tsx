@@ -2,6 +2,7 @@ import { Suspense, lazy, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { cadenceDuSport, nomDuSport } from "./sports"
+import { IconeSport } from "./IconeSport"
 import { dateCourte, denivele, distance, duree } from "./format"
 import { traceDepuisBytea } from "./track"
 // Chargée à la demande : MapLibre pèse à lui seul les quatre cinquièmes du
@@ -116,8 +117,11 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
       </button>
       <div className="entete-fiche">
         <h2>{data.name}</h2>
-        <div className="attenue petit">
-          {nomDuSport(data.sport_type_raw)} · {dateCourte(data.start_local_date)}
+        <div className="attenue petit entete-sport">
+          <IconeSport sport={data.sport_type_raw} taille={18} />
+          <span>
+            {nomDuSport(data.sport_type_raw)} · {dateCourte(data.start_local_date)}
+          </span>
         </div>
         {(() => {
           const marques = etiquettesDe(data as unknown as SourceEtiquettes)

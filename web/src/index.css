@@ -1604,3 +1604,69 @@ body {
   /* Un mois n'a pas la place de s'écrire en entier sur douze colonnes. */
   text-transform: lowercase;
 }
+
+/* ---- Couleurs des sports -------------------------------------------------
+   Reprises de `SportLabel.color` côté Swift, dans les teintes du système —
+   deux valeurs par couleur, la seconde pour le thème sombre, comme Apple les
+   définit. Les quatre vélos ne se distinguent que par elles : rien ne sépare
+   un VTT d'un gravel en quelques traits. */
+:root {
+  --sport-ride: #007aff;
+  --sport-eBikeRide: #32ade6;
+  --sport-mountainBikeRide: #5856d6;
+  --sport-gravelRide: #30b0c7;
+  --sport-run: #ff9500;
+  --sport-trailRun: #ff3b30;
+  --sport-walk: #a2845e;
+  --sport-hike: #34c759;
+  --sport-swim: #00c7be;
+  --sport-nordicSki: #af52de;
+  --sport-alpineSki: #ff2d55;
+  --sport-rowing: #d4a800;
+  --sport-workout: #8e8e93;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sport-ride: #0a84ff;
+    --sport-eBikeRide: #64d2ff;
+    --sport-mountainBikeRide: #5e5ce6;
+    --sport-gravelRide: #40c8e0;
+    --sport-run: #ff9f0a;
+    --sport-trailRun: #ff453a;
+    --sport-walk: #ac8e68;
+    --sport-hike: #30d158;
+    --sport-swim: #66d4cf;
+    --sport-nordicSki: #bf5af2;
+    --sport-alpineSki: #ff375f;
+    --sport-rowing: #ffd60a;
+    --sport-workout: #98989d;
+  }
+}
+
+.icone-sport {
+  flex: none;
+  display: block;
+}
+
+/* Une ligne d'activité gagne une colonne d'icône : elle prend la place du
+   retrait, elle ne s'ajoute pas à lui. */
+.ligne.avec-icone {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding-left: 14px;
+}
+
+.ligne.avec-icone::after {
+  /* Le séparateur commence après l'icône, comme dans les listes du système où
+     il s'aligne sur le texte et non sur le bord. */
+  left: 54px;
+}
+
+.entete-sport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { nomDuSport } from "./sports"
+import { IconeSport } from "./IconeSport"
 import { denivele, distance, duree } from "./format"
 
 /// Les statistiques, portées d'`ActivityStatistics`.
@@ -314,15 +315,18 @@ export function Stats() {
           <h4 className="titre-section">Par sport</h4>
           <ul className="liste sans-chevron">
             {sports.map(([sport, t]) => (
-              <li className="ligne" key={sport}>
-                <div className="ligne-tete">
-                  <span className="titre">{nomDuSport(sport)}</span>
-                  <span className="attenue petit">
-                    {t.nombre} sortie{t.nombre > 1 ? "s" : ""}
-                  </span>
-                </div>
-                <div className="attenue petit">
-                  {distance(t.km)} · {duree(t.temps)} · {denivele(t.dplus)}
+              <li className="ligne avec-icone" key={sport}>
+                <IconeSport sport={sport} />
+                <div>
+                  <div className="ligne-tete">
+                    <span className="titre">{nomDuSport(sport)}</span>
+                    <span className="attenue petit">
+                      {t.nombre} sortie{t.nombre > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="attenue petit">
+                    {distance(t.km)} · {duree(t.temps)} · {denivele(t.dplus)}
+                  </div>
                 </div>
               </li>
             ))}
