@@ -162,11 +162,15 @@ struct JournalImportTests {
         #expect(outcome?.unreadable == [])
         let notes = try context.fetch(FetchDescriptor<JournalNote>())
         let note = notes.first { $0.dateKeyRaw == "2026-08-17" }
-        // Les 11 caractères d'"avant\0apres" sont tous là — pas les 5 d'
-        // "avant" seul, ce que rendrait la troncature au NUL si la
-        // substitution n'avait pas eu lieu. Défaite avec la vraie fonction
-        // inverse, pas un remplacement recalculé à la main.
-        #expect(note?.text.unicodeScalars.count == 11)
+        // Les 5 + 5 caractères d'"avant" et "apres" sont tous là — pas
+        // seulement les 5 d'"avant" seul, ce que rendrait la troncature au
+        // NUL si la substitution n'avait pas eu lieu — plus les 2 scalaires
+        // de la paire d'échappement elle-même (`escapeMarker`, puis son
+        // désambiguïsateur), puisque `escapingNUL` code un NUL sur deux
+        // scalaires, pas un. Défaite avec la vraie fonction inverse, pas un
+        // remplacement recalculé à la main — c'est cette ligne-là, pas le
+        // compte en base, qui prouve le caractère d'origine retrouvé.
+        #expect(note?.text.unicodeScalars.count == 12)
         #expect(note.map { JournalImport.unescapingNUL($0.text) } == text)
     }
 
@@ -174,12 +178,13 @@ struct JournalImportTests {
     /// propre inverse : l'un défait exactement ce que l'autre a fait,
     /// aller-retour de fonction à fonction plutôt que par un texte
     /// recalculé à la main — c'est ce que l'export de la tâche 5
-    /// consommera. Le U+E000 littéral, à côté du vrai NUL, couvre la
-    /// collision que la paire doit éviter : un caractère U+E000 tapé par
-    /// l'utilisateur ne doit jamais ressortir comme le NUL de quelqu'un
-    /// d'autre.
+    /// consommera. Les trois caractères que la paire distingue — le NUL, le
+    /// marqueur d'échappement U+E000 littéral, et son désambiguïsateur
+    /// U+E001 littéral — apparaissent tous les trois dans le même texte,
+    /// y compris côte à côte : aucun des trois ne doit jamais ressortir
+    /// comme un autre.
     @Test func laSubstitutionDuNulEtSonInverseFontLAllerRetour() {
-        let text = "avant\0apres\u{E000}encore, à bientôt — « citation »"
+        let text = "avant\0apres\u{E000}\u{E001}encore, à bientôt — « citation »"
         #expect(JournalImport.unescapingNUL(JournalImport.escapingNUL(text)) == text)
     }
 

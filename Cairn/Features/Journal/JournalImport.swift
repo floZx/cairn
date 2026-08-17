@@ -149,52 +149,89 @@ enum JournalImport {
         )
     }
 
-    /// The substitution every note's text is held to before it enters the
-    /// store: `0x00` — or, here, the character U+0000 — becomes U+E000
-    /// (Private Use Area), the same shift `encodeBytesLosslessly` makes byte
-    /// by byte on the reconstructed path.
+    /// The marker `escapingNUL(_:)` and `unescapingNUL(_:)` use to introduce
+    /// an escape pair — never emitted on its own, always followed by a
+    /// second scalar that says which of the two source characters this
+    /// pair stands for: itself again for a literal `escapeMarker` (the
+    /// escape character escapes itself, the same doubling a backslash uses
+    /// to escape a literal backslash), or `nulDisambiguator` for a NUL.
+    private static let escapeMarker = Unicode.Scalar(0xE000)!
+    /// `escapeMarker` followed by this decodes to U+0000.
+    private static let nulDisambiguator = Unicode.Scalar(0xE001)!
+
+    /// A two-scalar prefix code, not a single-scalar shift: `0x00` — or,
+    /// here, the character U+0000 — becomes `escapeMarker,
+    /// nulDisambiguator`, and a literal U+E000 becomes `escapeMarker,
+    /// escapeMarker` (doubled). Every other scalar, including a literal
+    /// U+E001, passes through untouched.
     ///
-    /// A second shift makes the pair injective: a U+E000 the user actually
-    /// typed — private-use characters are legal UTF-8, nothing stops one
-    /// landing in a file — becomes U+E001, rather than colliding with the
-    /// NUL stand-in and reading back as a literal NUL on export. Without
-    /// it, task 5's round-trip test on a note holding a literal U+E000 is
-    /// what catches an export that turns a character the user wrote into a
-    /// byte they never wrote — a real change of character, not merely of
-    /// encoding, and so a violation of the round-trip bar
-    /// (`docs/specs/2026-08-17-journal-en-base-design.md`).
+    /// A single-scalar shift (U+0000 → U+E000, and — to keep that
+    /// injective — U+E000 → U+E001) was tried first and does not work: it
+    /// only pushes the collision one code point further out, since nothing
+    /// then stops a literal U+E001 landing on the same output as an
+    /// escaped U+E000. `escapingNUL("\u{E000}") == escapingNUL("\u{E001}")`
+    /// held under that scheme — U+E001 is exactly as typable and as legal
+    /// in a UTF-8 file as U+E000, so this is not a hypothetical.
+    /// `Tests/JournalMarkdownExportTests.swift`'s round-trip test, run
+    /// through the real import and the real export rather than the two
+    /// functions directly, is what caught it: a note holding a literal
+    /// U+E001 came back as U+E000.
+    ///
+    /// A prefix code has no such collision because it is self-delimiting:
+    /// `unescapingNUL(_:)` never has to guess which of two source
+    /// characters a lone escaped scalar stood for, because the escape is
+    /// never lone — `escapeMarker` on its own never appears in this
+    /// function's output, only as the first half of one of the two pairs
+    /// above. Whatever scalar comes right after it is exactly enough to
+    /// tell the two apart, and every scalar that is not `escapeMarker`
+    /// carries no ambiguity at all, itself included.
     ///
     /// Not `private`: `unescapingNUL(_:)` right below is its exact inverse,
     /// and an export writing `JournalNote.text` back out to a file needs
     /// that inverse to undo this before encoding the result as UTF-8 —
     /// otherwise the substitutions this function makes would reach the file
-    /// as literal U+E000 or U+E001 where the original had a NUL or a
+    /// as the escape pair itself where the original had a NUL or a
     /// private-use character. Kept beside its inverse on purpose: two
     /// functions that answer each other belong at the same address, not
     /// duplicated at their caller's.
     static func escapingNUL(_ text: String) -> String {
-        String(
-            String.UnicodeScalarView(
-                text.unicodeScalars.map {
-                    switch $0.value {
-                    case 0: return Unicode.Scalar(0xE000)!
-                    case 0xE000: return Unicode.Scalar(0xE001)!
-                    default: return $0
-                    }
-                }
-            )
-        )
+        var scalars = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            switch scalar {
+            case Unicode.Scalar(0)!:
+                scalars.append(escapeMarker)
+                scalars.append(nulDisambiguator)
+            case escapeMarker:
+                scalars.append(escapeMarker)
+                scalars.append(escapeMarker)
+            default:
+                scalars.append(scalar)
+            }
+        }
+        return String(scalars)
     }
 
-    /// The exact inverse of `escapingNUL(_:)`: every U+E000 becomes U+0000
-    /// again, and every U+E001 becomes U+E000 — undoing the second shift
-    /// that keeps the pair injective in the presence of a literal U+E000.
-    /// `Tests/JournalImportTests.swift`'s
+    /// The exact inverse of `escapingNUL(_:)`: read left to right, and only
+    /// `escapeMarker` ever asks a question — what follows it, which is
+    /// always one of the two disambiguators for text this function was
+    /// meant to read, decides whether the pair stands for U+0000 or for a
+    /// literal U+E000. Every other scalar carries itself through
+    /// unconsumed. `Tests/JournalImportTests.swift`'s
     /// `laSubstitutionDuNulEtSonInverseFontLAllerRetour` holds the pair to a
-    /// function-to-function round trip rather than a hand-written one, which
-    /// is what keeps them answering each other as either is touched — its
-    /// text now carries a literal U+E000 alongside the NUL, exactly the case
-    /// this second shift exists for.
+    /// function-to-function round trip rather than a hand-written one, on a
+    /// text carrying a NUL, a literal U+E000, and a literal U+E001 all at
+    /// once — the case the single-scalar shift this replaced could not
+    /// clear.
+    ///
+    /// A trailing `escapeMarker` with nothing after it, or followed by a
+    /// scalar that is neither disambiguator, cannot come from
+    /// `escapingNUL(_:)` itself — only from `encodeBytesLosslessly`, which
+    /// still emits a lone, unpaired `escapeMarker` for each `0x00` byte on
+    /// the reconstructed path. Rather than throw text like that away, that
+    /// lone marker is passed through as itself: this function does not
+    /// promise a byte-exact inverse of `encodeBytesLosslessly` — see that
+    /// function's doc comment on the round-trip bar this clears — only that
+    /// it never loses a character trying.
     ///
     /// What an export needs is exactly this, not a byte-level inverse of
     /// `encodeBytesLosslessly`: whatever produced `JournalNote.text` — the
@@ -202,22 +239,34 @@ enum JournalImport {
     /// `String`, and undoing these substitutions before encoding it as
     /// UTF-8 is what writing it back to a file means. For a note that went
     /// through `escapingNUL(_:)` on the way in, that reproduces the
-    /// original file's bytes exactly. For one rebuilt by
-    /// `encodeBytesLosslessly` from a file that was never valid UTF-8 to
-    /// begin with, it does not — by design, see that function's doc comment
-    /// on the round-trip bar this clears.
+    /// original file's bytes exactly.
     static func unescapingNUL(_ text: String) -> String {
-        String(
-            String.UnicodeScalarView(
-                text.unicodeScalars.map {
-                    switch $0.value {
-                    case 0xE000: return Unicode.Scalar(0)!
-                    case 0xE001: return Unicode.Scalar(0xE000)!
-                    default: return $0
-                    }
-                }
-            )
-        )
+        let scalars = Array(text.unicodeScalars)
+        var result = String.UnicodeScalarView()
+        var index = 0
+        while index < scalars.count {
+            let scalar = scalars[index]
+            guard scalar == escapeMarker, index + 1 < scalars.count else {
+                result.append(scalar)
+                index += 1
+                continue
+            }
+            switch scalars[index + 1] {
+            case nulDisambiguator:
+                result.append(Unicode.Scalar(0)!)
+                index += 2
+            case escapeMarker:
+                result.append(escapeMarker)
+                index += 2
+            default:
+                // Not a pair this function ever produced — a lone marker
+                // from `encodeBytesLosslessly`'s reconstructed path. Carried
+                // through as itself rather than dropped.
+                result.append(scalar)
+                index += 1
+            }
+        }
+        return String(result)
     }
 
     /// Whether the folder still holds at least one iCloud placeholder — a
