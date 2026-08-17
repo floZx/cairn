@@ -9,6 +9,14 @@ import Observation
 /// twice.
 enum MirrorPhase: Sendable, Equatable {
     case idle
+    /// `uploadPendingBlobs()` in flight — before any row, always: `bootstrap()`
+    /// and `push()` both call it first, so a photo or a stream never
+    /// announces a `storage_path` the object behind it does not have yet.
+    /// `kind` is the display word already, `"photos"` or `"traces"` — the
+    /// same choice `bootstrapping`'s `table` makes, interpolated as-is rather
+    /// than mapped through a second lookup. `done`/`total` count rows visited
+    /// against this sweep's own fixed target — see `uploadPendingPhotos`.
+    case uploadingBlobs(kind: String, done: Int, total: Int)
     case bootstrapping(table: String, done: Int, total: Int)
     case pushing(done: Int, total: Int)
     case failed(String)
@@ -40,7 +48,7 @@ final class MirrorProgress {
     var isRunning: Bool {
         switch phase {
         case .idle, .failed: false
-        case .bootstrapping, .pushing: true
+        case .uploadingBlobs, .bootstrapping, .pushing: true
         }
     }
 
@@ -53,6 +61,8 @@ final class MirrorProgress {
         case .idle:
             lastPushAt.map { "Dernière synchro \(Format.shortDate($0))" }
                 ?? "Jamais synchronisé"
+        case let .uploadingBlobs(kind, done, total):
+            "Téléversement… \(kind) \(done)/\(total)"
         case let .bootstrapping(table, done, total):
             "Amorçage… \(table) \(done)/\(total)"
         case let .pushing(done, total):

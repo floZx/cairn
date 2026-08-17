@@ -3,6 +3,46 @@ import Foundation
 import SwiftData
 @testable import Cairn
 
+/// Parks its very first `send` until the test explicitly releases it, so a
+/// blob upload can be caught "genuinely in flight" rather than racing it —
+/// exactly `Tests/MirrorAutonomyTests.swift` and `Tests/MirrorBootstrapTests.swift`'s
+/// own `PausingTransport`. Kept local to this file, on the same convention
+/// both already follow, rather than promoted to `Tests/MirrorTestSupport.swift`.
+private actor PausingTransport: MirrorTransport {
+    private var sent: [URLRequest] = []
+    private var gate: CheckedContinuation<Void, Never>?
+
+    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        sent.append(request)
+        if sent.count == 1 {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                gate = continuation
+            }
+        }
+        let response = HTTPURLResponse(
+            url: URL(string: "https://x.supabase.co")!,
+            statusCode: 201, httpVersion: nil, headerFields: nil
+        )!
+        return (Data(), response)
+    }
+
+    /// Lets the parked first `send` return its (successful) response.
+    func release() {
+        gate?.resume()
+        gate = nil
+    }
+
+    /// Blocks until `send` has been called at least once — bounded, so a
+    /// genuine regression fails the test instead of hanging the suite.
+    func waitForFirstRequest() async {
+        for _ in 0..<2000 where sent.isEmpty {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+    }
+
+    func requests() -> [URLRequest] { sent }
+}
+
 /// Un transport qui refuse tout le Storage et accepte tout le reste : la
 /// panne que ce fichier doit reproduire est une politique de bucket mal posée,
 /// pas un réseau coupé. `StubTransport` ne sait pas répondre selon la requête,
@@ -222,5 +262,41 @@ struct MirrorBlobTests {
         )
         #expect(try await accepted.uploadPendingBlobs() == 0)
         #expect(progress.failedUploads == 0)
+    }
+
+    /// Le symptôme réel : un amorçage de 342 photos et 852 traces passe de
+    /// longues minutes tout entier dans `uploadPendingBlobs()`, avant la
+    /// première ligne — et jusqu'ici sans jamais le dire. `phase` restait
+    /// `.idle`, donc `statusText` affichait « Jamais synchronisé » — le texte
+    /// du repos — et `isRunning` restait faux, donc les boutons de
+    /// `MirrorSettingsView` ne se grisaient pas : un second clic tombait dans
+    /// `AppEnvironment.runMirror`'s garde silencieuse, sans le moindre signe.
+    /// `PausingTransport` attrape l'envoi véritablement en vol, pas une
+    /// course contre lui.
+    @Test func laPhaseNestPasInactivePendantLeTeleversement() async throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let photo = ActivityPhoto(uniqueID: "p1")
+        photo.data = Data(repeating: 0xAB, count: 128)
+        context.insert(photo)
+        try context.save()
+
+        let transport = PausingTransport()
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let progress = MirrorProgress()
+        let engine = MirrorEngine(
+            client: MirrorClient(store: try configuredStore(), transport: transport),
+            container: container, progress: progress, cursor: cursor
+        )
+
+        let task = Task { try await engine.uploadPendingBlobs() }
+        await transport.waitForFirstRequest()
+
+        #expect(progress.phase != .idle)
+        #expect(progress.isRunning)
+
+        await transport.release()
+        _ = try await task.value
     }
 }

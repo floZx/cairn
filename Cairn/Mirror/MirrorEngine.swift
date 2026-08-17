@@ -618,6 +618,19 @@ actor MirrorEngine {
     ///
     /// Returns that tally, so `Tests/MirrorBlobTests.swift` can assert on it
     /// without going through the main actor.
+    ///
+    /// Reports its own progress through `.uploadingBlobs`, exactly as
+    /// `sendBatches` reports `.bootstrapping` — it did not, once, and that
+    /// was the bug: 342 photos and 852 traces at one request apiece run
+    /// minutes ahead of the first row, all of it before `bootstrap()`
+    /// reaches `sendTable()`, so a caller that never hears from this method
+    /// sees `phase` sitting at `.idle` — the *resting* mirror's own text —
+    /// for the entire wait, `MirrorSettingsView`'s buttons never grey out,
+    /// and a second click lands in `AppEnvironment.runMirror`'s silent
+    /// `guard mirrorTask == nil` with nothing on screen to explain why. Fixed
+    /// here, not there: `runMirror`'s guard is the same shape `runSync`
+    /// already uses for Strava, and a visible phase is what makes that
+    /// silence read as "busy" instead of "broken".
     @discardableResult
     func uploadPendingBlobs() async throws -> Int {
         guard let userID = await client.userID else {
@@ -650,9 +663,29 @@ actor MirrorEngine {
     ///
     /// Returns how many uploads failed — see `uploadPendingBlobs()` for why a
     /// failure is counted rather than thrown.
+    ///
+    /// `total` is a count taken once, before the loop — the same shape
+    /// `sendBatches` uses for its own `total` — so `done`/`total` describes
+    /// this sweep's fixed target throughout, not a shrinking one as rows get
+    /// their `mirroredAt` stamped underneath it. `done` advances by
+    /// `page.count`, whole pages at a time, counting rows *visited*
+    /// (uploaded or skipped for lacking bytes) rather than rows sent — it
+    /// has to, since a page of not-yet-downloaded photos would otherwise
+    /// never move `done` at all, misreporting a sweep that is in fact making
+    /// progress through the table as stuck. Reported through `setPhase`,
+    /// never left silent: 342 photos at one request apiece take minutes, and
+    /// that is exactly the run `MirrorProgress.statusText`'s own doc comment
+    /// says must not read the same as a mirror at rest.
     private func uploadPendingPhotos(userID: String) async throws -> Int {
+        let total = try ModelContext(container).fetchCount(
+            FetchDescriptor<ActivityPhoto>(predicate: #Predicate<ActivityPhoto> { $0.mirroredAt == nil })
+        )
+        guard total > 0 else { return 0 }
+
         var failures = 0
+        var done = 0
         var lastUUID: String?
+        await setPhase(.uploadingBlobs(kind: "photos", done: done, total: total))
         while true {
             try Task.checkCancellation()
 
@@ -704,6 +737,8 @@ actor MirrorEngine {
             // entry per photo uploaded and the next push would re-upsert the
             // whole table for nothing.
             try MirrorBookkeeping.perform { try context.save() }
+            done += page.count
+            await setPhase(.uploadingBlobs(kind: "photos", done: done, total: total))
         }
         return failures
     }
@@ -715,9 +750,21 @@ actor MirrorEngine {
     /// created before any GPX or Strava data arrived).
     ///
     /// Returns how many uploads failed, same terms as `uploadPendingPhotos`.
+    ///
+    /// `total`/`done` follow `uploadPendingPhotos`'s own reasoning exactly —
+    /// a count taken once, advanced by whole pages, reported through
+    /// `setPhase` under `kind: "traces"` rather than `"photos"`, its own
+    /// sweep of `MirrorProgress.statusText`.
     private func uploadPendingStreams(userID: String) async throws -> Int {
+        let total = try ModelContext(container).fetchCount(
+            FetchDescriptor<ActivityStreams>(predicate: #Predicate<ActivityStreams> { $0.mirroredAt == nil })
+        )
+        guard total > 0 else { return 0 }
+
         var failures = 0
+        var done = 0
         var lastUUID: String?
+        await setPhase(.uploadingBlobs(kind: "traces", done: done, total: total))
         while true {
             try Task.checkCancellation()
 
@@ -768,6 +815,8 @@ actor MirrorEngine {
             }
             // Bookkeeping, as in `uploadPendingPhotos` above.
             try MirrorBookkeeping.perform { try context.save() }
+            done += page.count
+            await setPhase(.uploadingBlobs(kind: "traces", done: done, total: total))
         }
         return failures
     }
