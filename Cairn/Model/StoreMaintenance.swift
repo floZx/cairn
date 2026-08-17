@@ -102,7 +102,7 @@ enum StoreMaintenance {
     ///
     /// Returns how many rows the *repairs* changed — the recovery's own count
     /// is a different thing (files, not repaired rows) and is not folded into
-    /// this one; see `recoverJournal(_:defaults:)` for where its own report
+    /// this one; see `recoverJournal(_:defaults:cacheDirectory:)` for where its own report
     /// goes. Returning this count is what makes the repairs testable and
     /// their idempotence checkable.
     ///
@@ -121,9 +121,20 @@ enum StoreMaintenance {
     ///   `MirrorEngine.init`'s own `cursor:` parameter gives at length: a
     ///   test that let this default stand would read and write this Mac's
     ///   real journal folder path and its real recovery marker.
+    /// - Parameter cacheDirectory: where `JournalAttachmentCache.rebuild`
+    ///   materialises the journal's images. No default value, deliberately,
+    ///   and for the third time in this repository: `materialise` and
+    ///   `rebuild` both had theirs removed for the reason their own doc
+    ///   comments give, and `MirrorEngine.init`'s `cursor:` before them. This
+    ///   function kept naming `JournalAttachmentCache.directory` itself even
+    ///   after `defaults:` was opened up, so the suite went on writing
+    ///   `un.jpg` and `deux.jpg` into the application's real cache folder —
+    ///   measured, not supposed.
     @discardableResult
-    static func run(_ context: ModelContext, defaults: UserDefaults = .standard) throws -> Int {
-        recoverJournal(context, defaults: defaults)
+    static func run(
+        _ context: ModelContext, cacheDirectory: URL, defaults: UserDefaults = .standard
+    ) throws -> Int {
+        recoverJournal(context, defaults: defaults, cacheDirectory: cacheDirectory)
 
         var changed = 0
 
@@ -168,7 +179,7 @@ enum StoreMaintenance {
     /// message, and — since the folder picker went with the folder — no way
     /// to work out that a stale path is the reason.
     private static func recoverJournal(
-        _ context: ModelContext, defaults: UserDefaults
+        _ context: ModelContext, defaults: UserDefaults, cacheDirectory: URL
     ) {
         let folderPath = defaults.string(forKey: JournalSettings.folderPathKey)
         do {
@@ -190,7 +201,7 @@ enum StoreMaintenance {
         // folder is derived and reconstructible, so a disk error here costs a
         // relaunch, not a note, and the sentence written above is about the
         // folder rather than about the cache.
-        try? JournalAttachmentCache.rebuild(context, directory: JournalAttachmentCache.directory)
+        try? JournalAttachmentCache.rebuild(context, directory: cacheDirectory)
     }
 
     /// One model's pass: every row keeping an identity nobody else in its own

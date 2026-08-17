@@ -158,6 +158,17 @@ struct MirrorWiringTests {
         UserDefaults().removePersistentDomain(forName: suiteName)
         ThrowawayDefaults.sweep(prefix: Self.journalSuitePrefix)
     }
+
+    /// Un dossier de cache jetable, jamais `JournalAttachmentCache.directory` —
+    /// voir la même paire dans `Tests/StoreMaintenanceTests.swift`.
+    private func freshCacheDirectory() -> URL {
+        URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "\(Self.journalSuitePrefix)cache-\(UUID().uuidString)")
+    }
+
+    private func discardCache(_ directory: URL) {
+        try? FileManager.default.removeItem(at: directory)
+    }
     /// Constructing `AppEnvironment` with a mirror already configured must
     /// leave `MirrorRecorder` already listening by the time `init` returns —
     /// the property that makes `CairnApp.init`'s own ordering (build the
@@ -211,8 +222,12 @@ struct MirrorWiringTests {
 
         let (defaults, journalSuiteName) = freshJournalDefaults()
         defer { discardJournalDefaults(journalSuiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
         // The actual first write of a launch, called directly.
-        let changed = try StoreMaintenance.run(ModelContext(container), defaults: defaults)
+        let changed = try StoreMaintenance.run(
+            ModelContext(container), cacheDirectory: cache, defaults: defaults
+        )
         #expect(changed > 0)
 
         let entries = try ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>())

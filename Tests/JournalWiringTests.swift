@@ -30,6 +30,19 @@ struct JournalWiringTests {
         ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
     }
 
+    /// Un dossier de cache jetable, jamais `JournalAttachmentCache.directory` —
+    /// voir la même paire dans `Tests/StoreMaintenanceTests.swift` : la reprise
+    /// reconstruit le cache des pièces jointes, et le vrai dossier de cache de
+    /// l'application n'est pas un endroit où une suite de tests écrit.
+    private func freshCacheDirectory() -> URL {
+        URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "\(Self.suitePrefix)cache-\(UUID().uuidString)")
+    }
+
+    private func discardCache(_ directory: URL) {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
     /// La reprise a lieu à la maintenance du magasin, pas au premier affichage
     /// du journal : une note écrite avant qu'on ouvre l'onglet serait sinon
     /// invisible.
@@ -46,9 +59,11 @@ struct JournalWiringTests {
 
         let (defaults, suiteName) = freshJournalDefaults()
         defer { discardJournalDefaults(suiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
         defaults.set(folder.path, forKey: JournalSettings.folderPathKey)
 
-        try StoreMaintenance.run(context, defaults: defaults)
+        try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
 
         #expect(try context.fetch(FetchDescriptor<JournalNote>()).count == 1)
     }
@@ -79,9 +94,11 @@ struct JournalWiringTests {
 
         let (defaults, suiteName) = freshJournalDefaults()
         defer { discardJournalDefaults(suiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
         defaults.set(folder.path, forKey: JournalSettings.folderPathKey)
 
-        try StoreMaintenance.run(context, defaults: defaults)
+        try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
 
         let notice = try #require(defaults.string(forKey: JournalSettings.importNoticeKey))
         #expect(notice.contains("2026-08-17.md"))
@@ -103,9 +120,11 @@ struct JournalWiringTests {
 
         let (defaults, suiteName) = freshJournalDefaults()
         defer { discardJournalDefaults(suiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
         defaults.set(folder.path, forKey: JournalSettings.folderPathKey)
 
-        try StoreMaintenance.run(context, defaults: defaults)
+        try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
 
         #expect(defaults.string(forKey: JournalSettings.importNoticeKey) == nil)
     }

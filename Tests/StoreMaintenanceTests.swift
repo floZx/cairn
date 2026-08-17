@@ -67,6 +67,23 @@ struct StoreMaintenanceTests {
         ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
     }
 
+    /// Un dossier de cache jetable, jamais `JournalAttachmentCache.directory` :
+    /// la reprise que `StoreMaintenance.run` déclenche reconstruit le cache des
+    /// pièces jointes, et tant que ce dossier était nommé dans `run` lui-même,
+    /// `un.jpg` et `deux.jpg` — ceux de `splitsDuplicatedUUIDsForLocalJournalModels`
+    /// ci-dessous — atterrissaient dans le vrai dossier de cache de
+    /// l'application, à chaque exécution de la suite. Mesuré, pas supposé.
+    /// Même raison, et même remède, que le `directory:` sans valeur par défaut
+    /// de `JournalAttachmentCache.materialise`.
+    private func freshCacheDirectory() -> URL {
+        URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "\(Self.suitePrefix)cache-\(UUID().uuidString)")
+    }
+
+    private func discardCache(_ directory: URL) {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
     @Test("les uuid vides sont complétés, les autres laissés intacts")
     func fillsEmptyUUIDs() throws {
         let container = try AppModelContainer.inMemory()
@@ -80,8 +97,10 @@ struct StoreMaintenanceTests {
         try context.save()
         let (defaults, suiteName) = freshDefaults()
         defer { discard(suiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
 
-        let changed = try StoreMaintenance.run(context, defaults: defaults)
+        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
 
         #expect(changed == 1)
         #expect(untouched.uuid == kept)
@@ -107,8 +126,10 @@ struct StoreMaintenanceTests {
         try context.save()
         let (defaults, suiteName) = freshDefaults()
         defer { discard(suiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
 
-        let changed = try StoreMaintenance.run(context, defaults: defaults)
+        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
 
         #expect(changed == 2)
         let uuids = Set([one.uuid, two.uuid, three.uuid])
@@ -242,8 +263,10 @@ struct StoreMaintenanceTests {
         try context.save()
         let (defaults, suiteName) = freshDefaults()
         defer { discard(suiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
 
-        let changed = try StoreMaintenance.run(context, defaults: defaults)
+        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
 
         #expect(changed == pairs.count)
         for pair in pairs {
@@ -253,7 +276,7 @@ struct StoreMaintenanceTests {
         }
 
         // La même passe, relancée : plus rien à réparer sur aucune des seize.
-        #expect(try StoreMaintenance.run(context, defaults: defaults) == 0)
+        #expect(try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults) == 0)
     }
 
     /// Les deux modèles du journal, à part : ils portent un `uuid` sujet au
@@ -285,8 +308,10 @@ struct StoreMaintenanceTests {
         try context.save()
         let (defaults, suiteName) = freshDefaults()
         defer { discard(suiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
 
-        let changed = try StoreMaintenance.run(context, defaults: defaults)
+        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
 
         #expect(changed == pairs.count)
         for pair in pairs {
@@ -295,7 +320,13 @@ struct StoreMaintenanceTests {
             #expect(uuids.allSatisfy { !$0.isEmpty }, "\(pair.table) : un uuid vide")
         }
 
-        #expect(try StoreMaintenance.run(context, defaults: defaults) == 0)
+        #expect(try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults) == 0)
+        // Et les deux images sont allées dans le dossier jetable, nulle part
+        // ailleurs : c'est la preuve que `cacheDirectory:` est bien ce que la
+        // reconstruction utilise. Tant qu'il n'existait pas, ces deux
+        // fichiers-là atterrissaient dans le vrai cache de l'application.
+        #expect(FileManager.default.fileExists(atPath: cache.appending(path: "un.jpg").path))
+        #expect(FileManager.default.fileExists(atPath: cache.appending(path: "deux.jpg").path))
     }
 
     /// La garantie forte, insensible à toute liste écrite à la main : chaque
@@ -336,9 +367,11 @@ struct StoreMaintenanceTests {
         try context.save()
         let (defaults, suiteName) = freshDefaults()
         defer { discard(suiteName) }
-        try StoreMaintenance.run(context, defaults: defaults)
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
+        try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
 
-        let changed = try StoreMaintenance.run(context, defaults: defaults)
+        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
 
         #expect(changed == 0)
     }
@@ -365,6 +398,8 @@ struct StoreMaintenanceTests {
         try context.save()
         let (defaults, suiteName) = freshDefaults()
         defer { discard(suiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
         // Jamais créé : c'est exactement ce que devient un chemin enregistré
         // il y a un an dont le dossier a bougé depuis.
         defaults.set(
@@ -373,7 +408,7 @@ struct StoreMaintenanceTests {
             forKey: JournalSettings.folderPathKey
         )
 
-        let changed = try StoreMaintenance.run(context, defaults: defaults)
+        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
 
         #expect(changed == 1)
         #expect(one.uuid != two.uuid)
@@ -392,11 +427,13 @@ struct StoreMaintenanceTests {
         let context = ModelContext(container)
         let (defaults, suiteName) = freshDefaults()
         defer { discard(suiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
         let missing = URL(fileURLWithPath: NSTemporaryDirectory())
             .appending(path: "journal-absent-\(UUID().uuidString)").path
         defaults.set(missing, forKey: JournalSettings.folderPathKey)
 
-        try StoreMaintenance.run(context, defaults: defaults)
+        try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
 
         let notice = try #require(defaults.string(forKey: JournalSettings.importNoticeKey))
         #expect(notice.contains(missing))

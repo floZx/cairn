@@ -36,6 +36,17 @@ struct PhotoImportTests {
         ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
     }
 
+    /// Un dossier de cache jetable, jamais `JournalAttachmentCache.directory` —
+    /// voir la même paire dans `Tests/StoreMaintenanceTests.swift`.
+    private func freshCacheDirectory() -> URL {
+        URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "\(Self.suitePrefix)cache-\(UUID().uuidString)")
+    }
+
+    private func discardCache(_ directory: URL) {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
     @Test("la plus grande taille est choisie, pas la première venue")
     func picksTheLargestSize() {
         // The keys are strings even though they are numbers: sorted as text,
@@ -133,11 +144,13 @@ struct PhotoImportTests {
         try context.save()
         let (defaults, suiteName) = freshDefaults()
         defer { discard(suiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
 
-        #expect(try StoreMaintenance.run(context, defaults: defaults) > 0)
+        #expect(try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults) > 0)
         #expect(orphan.activityUUID == activity.uuid)
         // Idempotent: a second pass has nothing left to repair.
-        #expect(try StoreMaintenance.run(context, defaults: defaults) == 0)
+        #expect(try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults) == 0)
     }
 
     @Test("une photo sans identifiant est reconnue par son adresse")

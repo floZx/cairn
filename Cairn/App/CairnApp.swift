@@ -27,7 +27,8 @@ struct CairnApp: App {
         // has already opened a separate store file — the real library is never
         // touched. Failing here is not worth a crash: the app simply starts empty.
         try? DemoData.populateIfNeeded(ModelContext(container))
-        // Same reasoning as `AppModelContainer.make()`'s own `isTesting`: a macOS
+        // Same reasoning as `AppModelContainer.make()`'s own use of
+        // `isTesting`, which is where that question is now asked: a macOS
         // unit test bundle runs inside this application, hosted rather than
         // standalone, so `xcodebuild test` executes this very `init()` as a side
         // effect of launching for testing — not only when a test explicitly
@@ -45,9 +46,7 @@ struct CairnApp: App {
         // its real, non-test launch ever gets the chance to run it. Measured,
         // not hypothetical: an earlier version of this line set the real
         // `journalImportDone` to true on the very first `xcodebuild test` run.
-        let isTesting = ProcessInfo.processInfo
-            .environment["XCTestConfigurationFilePath"] != nil
-        if !isTesting {
+        if !AppModelContainer.isTesting {
             // Before any view reads an activity. Failing is not worth a crash:
             // the rows keep their identity and the next launch tries again. The
             // count is discardable by design, but `try?` wraps it in its own
@@ -58,7 +57,10 @@ struct CairnApp: App {
             // (`StoreMaintenance.recoverJournal`) — see that function's own doc
             // comment for why it runs first, inside `run`, rather than here
             // alongside it.
-            _ = try? StoreMaintenance.run(ModelContext(container))
+            _ = try? StoreMaintenance.run(
+                ModelContext(container),
+                cacheDirectory: JournalAttachmentCache.directory
+            )
             // `app.journal` was built above, before this line ran, on whatever
             // the store held at that moment — nothing, on the very first launch
             // after this slice ships, since the recovery had not run yet.
@@ -79,7 +81,17 @@ struct CairnApp: App {
                 // At most once a day, and only if the library moved — see
                 // `BackupPlan`. Off the main thread, so a launch never waits
                 // on a hundred megabytes.
-                .task { backup.run(force: false) }
+                //
+                // Under the same guard as `StoreMaintenance.run` in `init`,
+                // and just as literally: `BackupController.run` reads
+                // `AppModelContainer.storeURL`, which spells `isTesting: false`
+                // in, so a hosted test launch would point this at the real
+                // 132 MB `Cairn.store` and the real iCloud Drive folder —
+                // notes included, in clear Markdown, since the backup carries
+                // the journal out. Only `BackupPlan.shouldBackUp` answering no
+                // has stood between the suite and that, which is a schedule,
+                // not a guard.
+                .task { if !AppModelContainer.isTesting { backup.run(force: false) } }
         }
         .modelContainer(container)
         .commands {

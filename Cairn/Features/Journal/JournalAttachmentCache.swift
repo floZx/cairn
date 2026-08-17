@@ -54,14 +54,24 @@ enum JournalAttachmentCache {
     /// first, which is what makes the cache's idempotence testable. No
     /// default for `directory`, for the same reason `materialise` has none:
     /// see its doc comment.
+    ///
+    /// A file already on disk short-circuits *before* `materialise`, not
+    /// inside it, and that is the whole point of the `continue`: the first
+    /// thing `materialise` does is read `attachment.data`, which faults an
+    /// `@Attribute(.externalStorage)` blob into memory. Calling it for every
+    /// attachment on every launch — which is what this loop used to do, only
+    /// to throw the bytes away on `existedBefore` — is exactly the hundreds
+    /// of megabytes resident that `StoreMaintenance.run`'s own doc comment
+    /// congratulates itself on avoiding, `JournalAttachment.data` named in
+    /// it.
     @discardableResult
     static func rebuild(_ context: ModelContext, directory: URL) throws -> Int {
         let attachments = try context.fetch(FetchDescriptor<JournalAttachment>())
         var written = 0
         for attachment in attachments {
             let url = directory.appending(path: attachment.fileName)
-            let existedBefore = FileManager.default.fileExists(atPath: url.path)
-            if try materialise(attachment, directory: directory) != nil, !existedBefore {
+            guard !FileManager.default.fileExists(atPath: url.path) else { continue }
+            if try materialise(attachment, directory: directory) != nil {
                 written += 1
             }
         }

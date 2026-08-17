@@ -22,6 +22,20 @@ enum AppModelContainer {
         JournalNote.self, JournalAttachment.self,
     ])
 
+    /// True inside a test run, and the one place that question is asked.
+    ///
+    /// A macOS test bundle runs inside the host application, so `xcodebuild
+    /// test` executes `CairnApp.init()` and its `body` as a side effect of
+    /// launching for testing — not only when a test constructs something. Everything
+    /// that would otherwise reach the user's own data from that path is
+    /// gated on this: the store file (`make()`), the journal's one-time
+    /// recovery and the launch backup (`CairnApp`). Asked here rather than
+    /// recomputed at each of them, so a fourth such path cannot be added with
+    /// a subtly different spelling of the same test.
+    static var isTesting: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     /// The store file to open, decided in one place rather than scattered across
     /// call sites — every caller that needs to know which store is live goes
     /// through this, `make()` included.
@@ -57,13 +71,12 @@ enum AppModelContainer {
         try FileManager.default.createDirectory(
             at: directory, withIntermediateDirectories: true
         )
-        // Under test, never the real library. A macOS test bundle runs inside the
-        // host application, so `xcodebuild test` executes this app's `init()` and
-        // would open — and migrate — 132 MB of irreplaceable data as a side effect
-        // of running the suite. That is how this schema change first reached the
-        // user's store, before anyone decided it should.
-        let isTesting = ProcessInfo.processInfo
-            .environment["XCTestConfigurationFilePath"] != nil
+        // Under test, never the real library: `xcodebuild test` would
+        // otherwise open — and migrate — 132 MB of irreplaceable data as a
+        // side effect of running the suite. That is how this schema change
+        // first reached the user's store, before anyone decided it should.
+        // See `isTesting` above for why the question is asked there.
+        let isTesting = Self.isTesting
         // Before opening anything: an unmigrated library from the app's former
         // name would otherwise be shadowed by a brand-new empty store.
         try LegacyStoreMigration.run(
