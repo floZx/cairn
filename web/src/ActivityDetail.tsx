@@ -133,19 +133,6 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
         <Carte trace={trace} />
       </Suspense>
 
-      <Courbes activiteUUID={uuid} />
-
-      {enEdition && (
-        <Feuille titre="Note de sortie" onFerme={() => setEnEdition(false)}>
-          <NoteActivite
-            uuid={uuid}
-            texte={data.activity_description ?? ""}
-            champsEdites={data.edited_fields ?? []}
-            onFerme={() => setEnEdition(false)}
-          />
-        </Feuille>
-      )}
-
       <div className="description carte-groupe">
         <div className="tete-description">
           <span className="attenue petit">Note</span>
@@ -159,6 +146,19 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
           <p className="attenue">Rien de noté sur cette sortie.</p>
         )}
       </div>
+
+      <Courbes activiteUUID={uuid} />
+
+      {enEdition && (
+        <Feuille titre="Note de sortie" onFerme={() => setEnEdition(false)}>
+          <NoteActivite
+            uuid={uuid}
+            texte={data.activity_description ?? ""}
+            champsEdites={data.edited_fields ?? []}
+            onFerme={() => setEnEdition(false)}
+          />
+        </Feuille>
+      )}
     </>
   )
 }
