@@ -127,15 +127,46 @@ struct JournalImportTests {
         #expect(outcome?.unreadable == ["2026-08-17.md"])
         #expect(outcome?.notes == 2)
         // Pas une chaîne vide, pas des points d'interrogation : les octets
-        // repris tels quels, un octet pour un caractère du plan privé
-        // Unicode (U+E000...), exactement ce que documente
+        // repris tels quels, un octet pour un caractère — sauf 0x00, seul
+        // décalé vers U+E000, exactement ce que documente
         // `JournalImport.encodeBytesLosslessly`.
         let notes = try context.fetch(FetchDescriptor<JournalNote>())
         let unreadableNote = notes.first { $0.dateKeyRaw == "2026-08-17" }
         let expected = String(
-            String.UnicodeScalarView(rawBytes.map { Unicode.Scalar(0xE000 + UInt32($0))! })
+            String.UnicodeScalarView(
+                rawBytes.map { Unicode.Scalar($0 == 0 ? 0xE000 : UInt32($0))! }
+            )
         )
         #expect(unreadableNote?.text == expected)
+    }
+
+    /// Critique : un fichier UTF-8 parfaitement valide, mais portant un octet
+    /// NUL littéral, doit ressortir entier. `JournalFolder` le décode sans
+    /// erreur (`isReadable == true`) : il ne passe jamais par la
+    /// reconstruction depuis les octets bruts, seulement par la même
+    /// substitution appliquée au texte lisible.
+    @Test func uneNoteUTF8AvecUnOctetNulRessortEntiere() throws {
+        let folder = try makeFolder(notes: [:])
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let text = "avant\0apres"
+        try Data(text.utf8).write(to: folder.appending(path: "2026-08-17.md"))
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
+        let context = ModelContext(try AppModelContainer.inMemory())
+
+        let outcome = try JournalImport.runIfNeeded(
+            context, folderPath: folder.path, defaults: defaults
+        )
+
+        #expect(outcome?.notes == 1)
+        #expect(outcome?.unreadable == [])
+        let notes = try context.fetch(FetchDescriptor<JournalNote>())
+        let note = notes.first { $0.dateKeyRaw == "2026-08-17" }
+        // Les 11 caractères d'"avant\0apres" sont tous là — pas les 5 d'
+        // "avant" seul, ce que rendrait la troncature au NUL si la
+        // substitution n'avait pas eu lieu.
+        #expect(note?.text.unicodeScalars.count == 11)
+        #expect(note?.text.replacingOccurrences(of: "\u{E000}", with: "\0") == text)
     }
 
     /// Un dossier désigné mais vide — jamais une note écrite dedans — se
@@ -157,5 +188,73 @@ struct JournalImportTests {
             context, folderPath: folder.path, defaults: defaults
         )
         #expect(second == nil)
+    }
+
+    /// Une note encore un substitut iCloud non téléchargé ne doit ni entrer
+    /// en base partiellement, ni marquer la reprise faite : sinon elle
+    /// disparaîtrait du journal pour de bon dès qu'elle finirait par
+    /// descendre. Les notes déjà arrivées ne doivent pas non plus rester
+    /// dans le contexte malgré l'échec — c'est `context.rollback()` qui le
+    /// garantit.
+    @Test func unSubstitutICloudEnAttenteNeMarquePasEtDefaitSesInsertions() throws {
+        let folder = try makeFolder(notes: ["2026-08-16": "arrivée"])
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try Data().write(to: folder.appending(path: ".2026-08-17.md.icloud"))
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
+        let context = ModelContext(try AppModelContainer.inMemory())
+
+        #expect(throws: (any Error).self) {
+            try JournalImport.runIfNeeded(context, folderPath: folder.path, defaults: defaults)
+        }
+
+        #expect(!defaults.bool(forKey: JournalSettings.importDoneKey))
+        #expect(try context.fetch(FetchDescriptor<JournalNote>()).isEmpty)
+    }
+
+    /// Les fichiers cachés (`.DS_Store`) et les substituts iCloud de pièces
+    /// jointes ne deviennent pas des `JournalAttachment` — l'extension est
+    /// le filtre, la même liste qu'un dépôt ou un collage.
+    @Test func lesFichiersCachesNeDeviennentPasDesPiecesJointes() throws {
+        let folder = try makeFolder(
+            notes: [:],
+            attachments: ["2026-08-17-1.jpg": Data(repeating: 0x7F, count: 4)]
+        )
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let sub = folder.appending(path: JournalAttachmentRules.folderName)
+        try Data().write(to: sub.appending(path: ".DS_Store"))
+        try Data().write(to: sub.appending(path: ".2026-08-17-2.jpg.icloud"))
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
+        let context = ModelContext(try AppModelContainer.inMemory())
+
+        let outcome = try JournalImport.runIfNeeded(
+            context, folderPath: folder.path, defaults: defaults
+        )
+
+        #expect(outcome?.attachments == 1)
+        #expect(try context.fetch(FetchDescriptor<JournalAttachment>()).count == 1)
+    }
+
+    /// Un sous-dossier dans `pieces-jointes/` — improbable, mais pas
+    /// impossible — ne doit pas faire échouer toute la reprise.
+    @Test func unSousDossierDansPiecesJointesNInterrompNienImporte() throws {
+        let folder = try makeFolder(
+            notes: [:],
+            attachments: ["2026-08-17-1.jpg": Data(repeating: 0x7F, count: 4)]
+        )
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let sub = folder.appending(path: JournalAttachmentRules.folderName)
+            .appending(path: "sub.jpg")
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
+        let context = ModelContext(try AppModelContainer.inMemory())
+
+        let outcome = try JournalImport.runIfNeeded(
+            context, folderPath: folder.path, defaults: defaults
+        )
+
+        #expect(outcome?.attachments == 1)
     }
 }
