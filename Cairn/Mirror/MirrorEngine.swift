@@ -140,6 +140,7 @@ actor MirrorEngine {
         "discarded_activity",
         "nutrition_day", "food_entry", "meal_note",
         "recipe", "recipe_item", "favorite_food", "weight_entry",
+        "journal_note", "journal_attachment",
     ]
 
     /// `cursor` takes the already-wrapped `MirrorBootstrapCursor` rather than
@@ -639,6 +640,7 @@ actor MirrorEngine {
         var failures = 0
         failures += try await uploadPendingPhotos(userID: userID)
         failures += try await uploadPendingStreams(userID: userID)
+        failures += try await uploadPendingJournalPictures(userID: userID)
         // Assigned, never accumulated: a run that finally gets its objects
         // through must clear what the previous one reported.
         await MainActor.run { progress.failedUploads = failures }
@@ -741,6 +743,85 @@ actor MirrorEngine {
             await setPhase(.uploadingBlobs(kind: "photos", done: done, total: total))
         }
         return failures
+    }
+
+    /// The journal's pictures, on `uploadPendingPhotos`' pattern exactly:
+    /// same paging by key, same cursor, same bookkeeping exemption.
+    ///
+    /// One difference worth its line: the content type is derived from the
+    /// file name rather than assumed. A journal picture is whatever the user
+    /// dropped — `JournalAttachmentRules.allowedExtensions` allows JPEG, PNG
+    /// and HEIC — where a Strava photo has only ever been a JPEG in practice.
+    ///
+    /// Returns how many uploads failed, same terms as `uploadPendingPhotos`.
+    private func uploadPendingJournalPictures(userID: String) async throws -> Int {
+        let total = try ModelContext(container).fetchCount(
+            FetchDescriptor<JournalAttachment>(
+                predicate: #Predicate<JournalAttachment> { $0.mirroredAt == nil }
+            )
+        )
+        guard total > 0 else { return 0 }
+
+        var failures = 0
+        var done = 0
+        var lastUUID: String?
+        await setPhase(.uploadingBlobs(kind: "images du journal", done: done, total: total))
+        while true {
+            try Task.checkCancellation()
+
+            let context = ModelContext(container)
+            var descriptor: FetchDescriptor<JournalAttachment>
+            if let cursorUUID = lastUUID {
+                descriptor = FetchDescriptor<JournalAttachment>(
+                    predicate: #Predicate<JournalAttachment> {
+                        $0.mirroredAt == nil && $0.uuid > cursorUUID
+                    }
+                )
+            } else {
+                descriptor = FetchDescriptor<JournalAttachment>(
+                    predicate: #Predicate<JournalAttachment> { $0.mirroredAt == nil }
+                )
+            }
+            descriptor.sortBy = [SortDescriptor(\.uuid, comparator: .lexical)]
+            descriptor.fetchLimit = Self.blobBatchSize
+            let page = try context.fetch(descriptor)
+            if page.isEmpty { break }
+            lastUUID = page.last?.uuid
+
+            for picture in page {
+                try Task.checkCancellation()
+                guard let data = picture.data else { continue }
+                do {
+                    try await client.upload(
+                        bucket: Self.photosBucket,
+                        path: picture.blobStoragePath(userID: userID),
+                        data: data,
+                        contentType: Self.contentType(forFileName: picture.fileName)
+                    )
+                    picture.mirroredAt = Date()
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    failures += 1
+                }
+            }
+            try MirrorBookkeeping.perform { try context.save() }
+            done += page.count
+            await setPhase(
+                .uploadingBlobs(kind: "images du journal", done: done, total: total)
+            )
+        }
+        return failures
+    }
+
+    /// What a journal picture's extension says it is. Falls back to JPEG,
+    /// which is what `JournalAttachmentRules` writes whenever it re-encodes.
+    private static func contentType(forFileName name: String) -> String {
+        switch (name as NSString).pathExtension.lowercased() {
+        case "png": "image/png"
+        case "heic": "image/heic"
+        default: "image/jpeg"
+        }
     }
 
     /// `ActivityStreams`' counterpart to `uploadPendingPhotos`: same paging,
@@ -849,6 +930,10 @@ actor MirrorEngine {
             try await sendBatches(FavoriteFood.self, table: table, userID: userID)
         case "weight_entry":
             try await sendBatches(WeightEntry.self, table: table, userID: userID)
+        case "journal_note":
+            try await sendBatches(JournalNote.self, table: table, userID: userID)
+        case "journal_attachment":
+            try await sendBatches(JournalAttachment.self, table: table, userID: userID)
         default:
             // Unreachable: `bootstrapOrder` is a closed, hand-written list
             // and this `switch` covers every entry in it.

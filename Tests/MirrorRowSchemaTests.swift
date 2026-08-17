@@ -94,6 +94,8 @@ struct MirrorRowSchemaTests {
                 grams: 120
             ),
             WeightEntry(dateKey: DateKey(raw: "2026-08-16")!, weightKg: 70),
+            JournalNote(dateKey: DateKey(raw: "2026-08-16")!, text: "Une note"),
+            JournalAttachment(fileName: "2026-08-16-1.jpg", data: Data([0x01])),
         ]
     }
 
@@ -107,10 +109,10 @@ struct MirrorRowSchemaTests {
             Self.schemaColumns(),
             "schema.sql introuvable ou vide : le garde-fou ne peut pas s'exécuter"
         )
-        // Sanity on the parse itself: sixteen tables, matching the sixteen
+        // Sanity on the parse itself: eighteen tables, matching the eighteen
         // conformances below. A regression in the regex would otherwise show
         // up as every table silently missing rather than as a clear failure.
-        #expect(schema.count == 16)
+        #expect(schema.count == 18)
 
         for row in Self.allRows() {
             let table = type(of: row).mirrorTable

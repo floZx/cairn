@@ -258,6 +258,17 @@ struct StoreMaintenanceTests {
                 WeightEntry(dateKey: DateKey(raw: "2026-08-17")!, weightKg: 71),
                 sharing: shared, into: context
             ),
+            seedPair(
+                \JournalNote.uuid, JournalNote(dateKey: day, text: "Une"),
+                JournalNote(dateKey: DateKey(raw: "2026-08-17")!, text: "Deux"),
+                sharing: shared, into: context
+            ),
+            seedPair(
+                \JournalAttachment.uuid,
+                JournalAttachment(fileName: "un.jpg", data: Data([0x01])),
+                JournalAttachment(fileName: "deux.jpg", data: Data([0x02])),
+                sharing: shared, into: context
+            ),
         ]
         #expect(Set(pairs.map(\.table)) == Set(MirrorEngine.bootstrapOrder))
         try context.save()

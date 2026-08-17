@@ -21,6 +21,14 @@ final class JournalAttachment {
 
     var addedAt: Date = Date.distantPast
 
+    /// When these bytes reached Supabase Storage, nil until they have.
+    ///
+    /// Local bookkeeping only, never a mirrored column:
+    /// `Tests/MirrorRowSchemaTests.swift` fails if `mirrorRow(userID:)` ever
+    /// starts emitting it. Optional with no default beyond `nil`, so an
+    /// existing store migrates without a value to backfill.
+    var mirroredAt: Date?
+
     init(fileName: String, data: Data) {
         self.fileName = fileName
         self.data = data
