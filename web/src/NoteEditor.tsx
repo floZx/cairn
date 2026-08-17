@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { etiquettesDe } from "./tags"
 import { dateLongue } from "./format"
+import { ajouterPhoto, enAjoutant } from "./photos"
 
 export type NoteAEditer = {
   /// nil pour une note qui n'existe pas encore ce jour-là.
@@ -33,6 +34,8 @@ export function NoteEditor({
   onFerme: () => void
 }) {
   const [texte, setTexte] = useState(note.texte)
+  const [envoiPhoto, setEnvoiPhoto] = useState(false)
+  const [erreurPhoto, setErreurPhoto] = useState<string | null>(null)
   const client = useQueryClient()
   const zone = useRef<HTMLTextAreaElement>(null)
 
@@ -81,6 +84,25 @@ export function NoteEditor({
     },
   })
 
+  async function joindre(fichiers: FileList | null) {
+    if (!fichiers?.length) return
+    setErreurPhoto(null)
+    setEnvoiPhoto(true)
+    try {
+      // Une à la fois, dans l'ordre choisi : les numéros du jour se suivent,
+      // et deux envois simultanés se disputeraient le même.
+      const liens: string[] = []
+      for (const fichier of Array.from(fichiers)) {
+        liens.push(await ajouterPhoto(fichier, note.dateKey))
+      }
+      setTexte((avant) => enAjoutant(liens, avant))
+    } catch (e) {
+      setErreurPhoto((e as Error).message)
+    } finally {
+      setEnvoiPhoto(false)
+    }
+  }
+
   return (
     <div className="editeur">
       <div className="barre-editeur">
@@ -99,6 +121,7 @@ export function NoteEditor({
       {enregistrement.error && (
         <p className="erreur">{(enregistrement.error as Error).message}</p>
       )}
+      {erreurPhoto && <p className="erreur">{erreurPhoto}</p>}
       <textarea
         ref={zone}
         className="saisie-note"
@@ -106,6 +129,29 @@ export function NoteEditor({
         onChange={(e) => setTexte(e.target.value)}
         placeholder="Ce qu'il y a à dire d'aujourd'hui…"
       />
+
+      {/* Sous la zone de texte plutôt que dans la barre : la barre porte les
+          deux issues — annuler, enregistrer — et y glisser une troisième
+          action fait hésiter sur laquelle referme la feuille.
+
+          `accept="image/*"` sans `capture` : iOS propose alors l'appareil
+          photo **et** la photothèque, là où `capture` forcerait la prise de
+          vue et empêcherait de joindre une photo d'hier. */}
+      <label className="joindre">
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          disabled={envoiPhoto}
+          onChange={(e) => {
+            joindre(e.target.files)
+            // Vidé tout de suite : rechoisir la même photo ne relancerait
+            // aucun évènement si la valeur ne changeait pas.
+            e.target.value = ""
+          }}
+        />
+        <span>{envoiPhoto ? "Envoi…" : "Ajouter une photo"}</span>
+      </label>
     </div>
   )
 }

@@ -28,6 +28,10 @@ extension MirrorEngine {
         // La pesée, depuis que le navigateur sait l'écrire. Elle n'a pas de
         // parent : rien ne dépend de son ordre ici.
         "weight_entry",
+        // En dernier, et c'est voulu : ses octets se téléchargent un par un,
+        // donc c'est la table la plus lente. Tout ce qui se lit vite doit
+        // être arrivé avant qu'elle commence.
+        "journal_attachment",
     ]
 
     /// Rows per page. Smaller than `batchSize`'s 200 for no deep reason
@@ -135,7 +139,7 @@ extension MirrorEngine {
             let body = try await client.fetchChanged(
                 table: table, since: since, limit: Self.pullPageSize, offset: offset
             )
-            let outcome = try apply(table: table, body: body)
+            let outcome = try await apply(table: table, body: body)
             applied += outcome.applied
             await setPhase(.pulling(done: appliedSoFar + applied))
 
@@ -171,16 +175,19 @@ extension MirrorEngine {
 
     /// Decodes one page and writes it to the store.
     ///
-    /// Synchronous, and holding its own short-lived `ModelContext`: nothing
-    /// here awaits, so the context never spans a network round trip, and the
-    /// notes it registers are released with it at the end of the page.
-    private func apply(table: String, body: Data) throws -> PullOutcome {
+    /// Chaque table tient son propre `ModelContext`, éphémère : les objets
+    /// qu'il enregistre disparaissent avec lui à la fin de la page.
+    ///
+    /// `async` pour la seule `journal_attachment`, qui va chercher des octets
+    /// dans Storage ; les autres n'attendent rien.
+    private func apply(table: String, body: Data) async throws -> PullOutcome {
         switch table {
         case "journal_note": return try applyJournalNotes(body)
         case "nutrition_day": return try applyNutritionDays(body)
         case "food_entry": return try applyFoodEntries(body)
         case "meal_note": return try applyMealNotes(body)
         case "weight_entry": return try applyWeightEntries(body)
+        case "journal_attachment": return try await applyJournalAttachments(body)
         default:
             // `pullOrder` is a closed, hand-written list and this `switch`
             // is meant to cover every entry in it. Thrown, never asserted,
@@ -352,6 +359,74 @@ extension MirrorEngine {
             entry.fat100 = row.fat100
             entry.grams = row.grams
             entry.sortOrder = row.sort_order
+            outcome.applied += 1
+        }
+        try save(context, outcome)
+        return outcome
+    }
+
+    private struct JournalAttachmentRow: Decodable {
+        let uuid: String
+        let file_name: String
+        let storage_path: String
+        let added_at: String?
+        let updated_at: String
+        let deleted_at: String?
+    }
+
+    /// Les pièces jointes, octets compris.
+    ///
+    /// La seule table dont la lecture va chercher autre chose que des lignes :
+    /// une note peut citer `pieces-jointes/2026-08-17-1.jpg`, et sans les
+    /// octets le Mac n'afficherait qu'un cadre vide — il tient ses images dans
+    /// le magasin, pas en distant.
+    ///
+    /// Les octets ne sont demandés que pour une pièce que le Mac n'a pas : une
+    /// image ne change jamais, seul son nom la désigne, et retélécharger celles
+    /// déjà là coûterait un mégaoctet par lancement pour rien.
+    ///
+    /// `mirroredAt` est posé sur ce qui arrive : sans lui, `uploadPendingBlobs`
+    /// renverrait à Supabase l'image qu'on vient d'en tirer.
+    private func applyJournalAttachments(_ body: Data) async throws -> PullOutcome {
+        let rows = try decode([JournalAttachmentRow].self, from: body)
+        var outcome = PullOutcome(rowCount: rows.count)
+        let context = ModelContext(container)
+        let pending = try pendingUUIDs(table: "journal_attachment", in: context)
+        var existing: [String: JournalAttachment] = [:]
+        for piece in try context.fetch(FetchDescriptor<JournalAttachment>()) {
+            existing[piece.uuid] = piece
+        }
+
+        for row in rows {
+            noteNewest(row.updated_at, in: &outcome)
+            guard !pending.contains(row.uuid) else { continue }
+
+            if row.deleted_at != nil {
+                guard let local = existing[row.uuid] else { continue }
+                context.delete(local)
+                existing[row.uuid] = nil
+                outcome.applied += 1
+                continue
+            }
+            // Déjà là : rien à retélécharger. Une image ne change pas sous son
+            // nom, et c'est le nom que la note cite.
+            if existing[row.uuid] != nil { continue }
+
+            let bytes: Data
+            do {
+                bytes = try await client.download(bucket: "photos", path: row.storage_path)
+            } catch {
+                // Une image manquante ne doit pas emporter la page : les
+                // autres pièces arrivent, celle-ci sera retentée au prochain
+                // passage puisque son curseur n'aura pas franchi sa ligne.
+                continue
+            }
+            let piece = JournalAttachment(fileName: row.file_name, data: bytes)
+            piece.uuid = row.uuid
+            if let added = row.added_at.flatMap(Self.date(from:)) { piece.addedAt = added }
+            piece.mirroredAt = Date()
+            context.insert(piece)
+            existing[row.uuid] = piece
             outcome.applied += 1
         }
         try save(context, outcome)

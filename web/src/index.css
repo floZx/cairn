@@ -1188,3 +1188,28 @@ body {
 .saisie-note.courte {
   min-height: 7.5em;
 }
+
+/* ---- Joindre une photo --------------------------------------------------- */
+
+.joindre {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--champ);
+  color: var(--accent);
+  font-size: 17px;
+  cursor: pointer;
+}
+
+/* Le champ de fichier natif est illisible et impossible à styler ; le
+   `<label>` qui l'entoure sert de bouton et le déclenche. */
+.joindre input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

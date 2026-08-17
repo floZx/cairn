@@ -136,6 +136,18 @@ final class JournalStore {
         editingDate == date ? buffer : (note(for: date)?.text ?? "")
     }
 
+    /// Reconstruit les fichiers d'images depuis ce que le magasin tient.
+    ///
+    /// Le miroir dépose les octets d'une photo dans le magasin, mais le rendu
+    /// des notes lit un dossier : sans ce passage, une image prise au
+    /// téléphone laisserait un cadre vide jusqu'au lancement suivant, seul
+    /// moment où `StoreMaintenance` s'en charge. Posé ici plutôt que dans
+    /// `AppEnvironment` parce que ce magasin détient déjà les deux choses
+    /// qu'il faut : le contexte, et la racine du dossier.
+    func rebuildAttachments() {
+        try? JournalAttachmentCache.rebuild(context, vaultRoot: attachmentsBase)
+    }
+
     /// Rebuilds `notes` from what the base holds.
     ///
     /// Called by every write here, and by the launch once the recovery has

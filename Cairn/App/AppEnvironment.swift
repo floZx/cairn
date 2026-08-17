@@ -471,7 +471,13 @@ final class AppEnvironment {
                 // Une note venue du téléphone est bien dans la base sans être
                 // à l'écran, et n'y serait qu'au lancement suivant.
                 if try await mirror.pull() > 0 {
-                    await MainActor.run { journal.refresh() }
+                    await MainActor.run {
+                        // Les images d'abord : `refresh` reconstruit la liste
+                        // des notes, et une note dont l'image n'est pas encore
+                        // sur le disque s'afficherait avec un cadre vide.
+                        journal.rebuildAttachments()
+                        journal.refresh()
+                    }
                 }
             } catch is CancellationError {
                 throw CancellationError()

@@ -380,7 +380,7 @@ struct MirrorPullNutritionTests {
         )
     }
 
-    /// Cinq tables sont relues, et `journal_note` reste la première.
+    /// Six tables sont relues, et `journal_note` reste la première.
     ///
     /// Dérivée d'aucune autre liste, celle-ci : elle dit exactement ce que le
     /// navigateur sait écrire, et le jour où il apprend à écrire autre chose
@@ -390,6 +390,8 @@ struct MirrorPullNutritionTests {
             MirrorEngine.pullOrder == [
                 "journal_note", "nutrition_day", "food_entry", "meal_note",
                 "weight_entry",
+                // En dernier : ses octets se téléchargent un par un.
+                "journal_attachment",
             ]
         )
     }

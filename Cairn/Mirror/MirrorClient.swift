@@ -397,6 +397,29 @@ actor MirrorClient {
         try Self.checkStatus(response, data: responseData)
     }
 
+    /// Les octets d'un objet de Storage — le pendant de `upload`.
+    ///
+    /// Le seul endroit où la lecture rapatrie autre chose que des lignes : une
+    /// photo de journal vit dans le seau, et une note qui la cite sans que le
+    /// Mac l'ait ne montrerait qu'un cadre vide.
+    func download(bucket: String, path: String) async throws -> Data {
+        let credentials = try validCredentials()
+        let token = try await validAccessToken(credentials: credentials)
+
+        var request = URLRequest(
+            url: credentials.projectURL.appendingPathComponent(
+                "storage/v1/object/\(bucket)/\(path)"
+            )
+        )
+        request.httpMethod = "GET"
+        request.setValue(credentials.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await send(request)
+        try Self.checkStatus(response, data: data)
+        return data
+    }
+
     // MARK: - Plumbing
 
     private func validCredentials() throws -> MirrorCredentials {
