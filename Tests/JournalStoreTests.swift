@@ -14,7 +14,7 @@ import SwiftData
 struct JournalStoreTests {
     /// A throwaway attachment cache, discarded by the caller.
     ///
-    /// Never `JournalAttachmentCache.directory`, which names the
+    /// Never `JournalAttachmentCache.vaultRoot`, which names the
     /// application's real cache folder — the same rule
     /// `Tests/JournalAttachmentCacheTests.swift` states at length, and the
     /// reason `JournalStore.init` takes this directory rather than defaulting
@@ -286,11 +286,15 @@ struct JournalStoreTests {
         // The bytes are the ones dropped: a picture already under the ceiling
         // is taken untouched.
         #expect(attachments[0].data == bytes)
-        // Materialised, so `MarkdownText` and the thumbnails resolve a URL.
-        #expect(
-            try Data(contentsOf: cache.appending(path: "2026-08-01-1.jpg")) == bytes
-        )
+        // Materialised where the note's own link points, which is the whole
+        // point: this is `attachmentsBase.appending(path: linkPath)`, the exact
+        // resolution `MarkdownText`, `JournalThumbnails` and the PDF book do.
+        // A flat cache made every one of those links miss in silence.
         #expect(store.text(for: day) == "![](pieces-jointes/2026-08-01-1.jpg)")
+        #expect(
+            try Data(contentsOf: cache.appending(path: "pieces-jointes/2026-08-01-1.jpg"))
+                == bytes
+        )
         // The original stays where it was: a journal that swallowed originals
         // is a journal one stops dropping things on.
         #expect(FileManager.default.fileExists(atPath: source.path))

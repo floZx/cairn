@@ -30,7 +30,7 @@ struct JournalWiringTests {
         ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
     }
 
-    /// Un dossier de cache jetable, jamais `JournalAttachmentCache.directory` —
+    /// Un dossier de cache jetable, jamais `JournalAttachmentCache.vaultRoot` —
     /// voir la même paire dans `Tests/StoreMaintenanceTests.swift` : la reprise
     /// reconstruit le cache des pièces jointes, et le vrai dossier de cache de
     /// l'application n'est pas un endroit où une suite de tests écrit.

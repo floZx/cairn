@@ -11,9 +11,25 @@ import SwiftData
 /// across the whole journal). Deleting this folder loses nothing; `rebuild`
 /// puts it back in full from whatever `ModelContext` still has.
 enum JournalAttachmentCache {
-    /// `<Application Support>/Cairn/cache/journal-attachments/`
-    static var directory: URL {
-        AppModelContainer.directory.appending(path: "cache/journal-attachments")
+    /// `<Application Support>/Cairn/cache/journal-vault/`
+    ///
+    /// A *vault root*, not a flat bag of files: the pictures live inside its
+    /// `pieces-jointes/` subfolder, exactly where they sat in the folder this
+    /// journal came from. That layout is not decoration — a note links to
+    /// `pieces-jointes/2026-08-12-1.png`, and `MarkdownText`, `JournalThumbnails`
+    /// and the PDF book all resolve that path against the base they are handed.
+    /// A flat cache made every one of those links miss, silently: the picture
+    /// fell back to its own path rendered as grey text. Mirroring the vault is
+    /// what lets all three keep resolving relative paths with no special case,
+    /// which was the whole point of caching to disk rather than teaching them
+    /// to read a store.
+    static var vaultRoot: URL {
+        AppModelContainer.directory.appending(path: "cache/journal-vault")
+    }
+
+    /// Where the pictures themselves go, inside `vaultRoot`.
+    static func picturesFolder(in vaultRoot: URL) -> URL {
+        vaultRoot.appending(path: JournalAttachmentRules.folderName)
     }
 
     /// Writes `attachment`'s bytes under its file name inside `directory` if
@@ -36,13 +52,14 @@ enum JournalAttachmentCache {
     /// production and test alike, names the directory it means.
     @discardableResult
     static func materialise(
-        _ attachment: JournalAttachment, directory: URL
+        _ attachment: JournalAttachment, vaultRoot: URL
     ) throws -> URL? {
         guard let data = attachment.data else { return nil }
+        let folder = picturesFolder(in: vaultRoot)
         try FileManager.default.createDirectory(
-            at: directory, withIntermediateDirectories: true
+            at: folder, withIntermediateDirectories: true
         )
-        let url = directory.appending(path: attachment.fileName)
+        let url = folder.appending(path: attachment.fileName)
         guard !FileManager.default.fileExists(atPath: url.path) else { return url }
         try data.write(to: url)
         return url
@@ -65,13 +82,14 @@ enum JournalAttachmentCache {
     /// congratulates itself on avoiding, `JournalAttachment.data` named in
     /// it.
     @discardableResult
-    static func rebuild(_ context: ModelContext, directory: URL) throws -> Int {
+    static func rebuild(_ context: ModelContext, vaultRoot: URL) throws -> Int {
         let attachments = try context.fetch(FetchDescriptor<JournalAttachment>())
+        let folder = picturesFolder(in: vaultRoot)
         var written = 0
         for attachment in attachments {
-            let url = directory.appending(path: attachment.fileName)
+            let url = folder.appending(path: attachment.fileName)
             guard !FileManager.default.fileExists(atPath: url.path) else { continue }
-            if try materialise(attachment, directory: directory) != nil {
+            if try materialise(attachment, vaultRoot: vaultRoot) != nil {
                 written += 1
             }
         }

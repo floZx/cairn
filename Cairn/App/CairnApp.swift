@@ -59,7 +59,7 @@ struct CairnApp: App {
             // alongside it.
             _ = try? StoreMaintenance.run(
                 ModelContext(container),
-                cacheDirectory: JournalAttachmentCache.directory
+                cacheDirectory: JournalAttachmentCache.vaultRoot
             )
             // `app.journal` was built above, before this line ran, on whatever
             // the store held at that moment — nothing, on the very first launch

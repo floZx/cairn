@@ -89,7 +89,7 @@ final class AppEnvironment {
         // inside the store: see `JournalStore.init`'s own `attachmentsBase`
         // parameter, and `JournalAttachmentCache.materialise` before it.
         self.journal = JournalStore(
-            container: container, attachmentsBase: JournalAttachmentCache.directory
+            container: container, attachmentsBase: JournalAttachmentCache.vaultRoot
         )
 
         // Entirely local and synchronous: `MirrorClient.isConfigured` reads

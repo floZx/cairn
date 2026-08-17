@@ -159,7 +159,7 @@ struct MirrorWiringTests {
         ThrowawayDefaults.sweep(prefix: Self.journalSuitePrefix)
     }
 
-    /// Un dossier de cache jetable, jamais `JournalAttachmentCache.directory` —
+    /// Un dossier de cache jetable, jamais `JournalAttachmentCache.vaultRoot` —
     /// voir la même paire dans `Tests/StoreMaintenanceTests.swift`.
     private func freshCacheDirectory() -> URL {
         URL(fileURLWithPath: NSTemporaryDirectory())

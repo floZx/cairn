@@ -67,7 +67,7 @@ struct StoreMaintenanceTests {
         ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
     }
 
-    /// Un dossier de cache jetable, jamais `JournalAttachmentCache.directory` :
+    /// Un dossier de cache jetable, jamais `JournalAttachmentCache.vaultRoot` :
     /// la reprise que `StoreMaintenance.run` déclenche reconstruit le cache des
     /// pièces jointes, et tant que ce dossier était nommé dans `run` lui-même,
     /// `un.jpg` et `deux.jpg` — ceux de `splitsDuplicatedUUIDsForLocalJournalModels`
@@ -325,8 +325,10 @@ struct StoreMaintenanceTests {
         // ailleurs : c'est la preuve que `cacheDirectory:` est bien ce que la
         // reconstruction utilise. Tant qu'il n'existait pas, ces deux
         // fichiers-là atterrissaient dans le vrai cache de l'application.
-        #expect(FileManager.default.fileExists(atPath: cache.appending(path: "un.jpg").path))
-        #expect(FileManager.default.fileExists(atPath: cache.appending(path: "deux.jpg").path))
+        #expect(FileManager.default.fileExists(atPath: JournalAttachmentCache
+            .picturesFolder(in: cache).appending(path: "un.jpg").path))
+        #expect(FileManager.default.fileExists(atPath: JournalAttachmentCache
+            .picturesFolder(in: cache).appending(path: "deux.jpg").path))
     }
 
     /// La garantie forte, insensible à toute liste écrite à la main : chaque

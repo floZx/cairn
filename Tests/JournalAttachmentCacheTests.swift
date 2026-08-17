@@ -7,7 +7,7 @@ import SwiftData
 ///
 /// `materialise` and `rebuild` take `directory` with no default value —
 /// every test here passes its own throwaway one rather than
-/// `JournalAttachmentCache.directory`, which names the application's real
+/// `JournalAttachmentCache.vaultRoot`, which names the application's real
 /// cache folder. A test run must never leave files there, exactly as
 /// `Tests/JournalStoreTests.swift` never points a store at the user's real
 /// journal folder.
@@ -41,10 +41,11 @@ struct JournalAttachmentCacheTests {
         )
         try context.save()
 
-        let written = try JournalAttachmentCache.rebuild(context, directory: directory)
+        let written = try JournalAttachmentCache.rebuild(context, vaultRoot: directory)
         #expect(written == 1)
 
-        let url = directory.appending(path: "2026-08-17-1.jpg")
+        let url = JournalAttachmentCache.picturesFolder(in: directory)
+            .appending(path: "2026-08-17-1.jpg")
         #expect(FileManager.default.fileExists(atPath: url.path))
         #expect(try Data(contentsOf: url) == Data(repeating: 0x01, count: 8))
     }
@@ -63,8 +64,8 @@ struct JournalAttachmentCacheTests {
         )
         try context.save()
 
-        _ = try JournalAttachmentCache.rebuild(context, directory: directory)
-        #expect(try JournalAttachmentCache.rebuild(context, directory: directory) == 0)
+        _ = try JournalAttachmentCache.rebuild(context, vaultRoot: directory)
+        #expect(try JournalAttachmentCache.rebuild(context, vaultRoot: directory) == 0)
     }
 
     /// Une pièce jointe sans octets ne produit aucun fichier — et surtout
@@ -78,7 +79,7 @@ struct JournalAttachmentCacheTests {
         let attachment = JournalAttachment(fileName: "vide.jpg", data: Data())
         attachment.data = nil
 
-        #expect(try JournalAttachmentCache.materialise(attachment, directory: directory) == nil)
+        #expect(try JournalAttachmentCache.materialise(attachment, vaultRoot: directory) == nil)
         #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
     }
 
@@ -91,8 +92,9 @@ struct JournalAttachmentCacheTests {
             fileName: "2026-08-17-3.jpg", data: Data(repeating: 0x03, count: 4)
         )
 
-        let url = try JournalAttachmentCache.materialise(attachment, directory: directory)
-        #expect(url == directory.appending(path: "2026-08-17-3.jpg"))
+        let url = try JournalAttachmentCache.materialise(attachment, vaultRoot: directory)
+        #expect(url == JournalAttachmentCache.picturesFolder(in: directory)
+            .appending(path: "2026-08-17-3.jpg"))
         #expect(try Data(contentsOf: try #require(url)) == Data(repeating: 0x03, count: 4))
     }
 }

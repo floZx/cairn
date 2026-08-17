@@ -126,7 +126,7 @@ enum StoreMaintenance {
     ///   and for the third time in this repository: `materialise` and
     ///   `rebuild` both had theirs removed for the reason their own doc
     ///   comments give, and `MirrorEngine.init`'s `cursor:` before them. This
-    ///   function kept naming `JournalAttachmentCache.directory` itself even
+    ///   function kept naming `JournalAttachmentCache.vaultRoot` itself even
     ///   after `defaults:` was opened up, so the suite went on writing
     ///   `un.jpg` and `deux.jpg` into the application's real cache folder —
     ///   measured, not supposed.
@@ -202,7 +202,7 @@ enum StoreMaintenance {
         // folder is derived and reconstructible, so a disk error here costs a
         // relaunch, not a note, and the sentence written above is about the
         // folder rather than about the cache.
-        try? JournalAttachmentCache.rebuild(context, directory: cacheDirectory)
+        try? JournalAttachmentCache.rebuild(context, vaultRoot: cacheDirectory)
     }
 
     /// One model's pass: every row keeping an identity nobody else in its own

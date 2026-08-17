@@ -95,7 +95,7 @@ final class JournalStore {
     /// - Parameter attachmentsBase: the cache directory, with no default
     ///   value on purpose. `JournalAttachmentCache.materialise` carries the
     ///   same warning for the same reason: a default of
-    ///   `JournalAttachmentCache.directory` is exactly the shape every test
+    ///   `JournalAttachmentCache.vaultRoot` is exactly the shape every test
     ///   call takes, so a test that omitted it would write pictures into the
     ///   application's real cache folder instead of its own throwaway one.
     ///   Every caller, production and test alike, names the directory it means.
@@ -422,7 +422,7 @@ final class JournalStore {
         // `Optional` that `try?` wraps the returned URL in, exactly as
         // `CairnApp.init` notes about `StoreMaintenance.run`.
         _ = try? JournalAttachmentCache.materialise(
-            attachment, directory: attachmentsBase
+            attachment, vaultRoot: attachmentsBase
         )
         return JournalAttachmentRules.link(to: attachment.fileName)
     }
