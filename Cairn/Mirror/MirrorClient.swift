@@ -175,8 +175,26 @@ actor MirrorClient {
     /// states apart (`isConfigured` gates the "enter a project" prompt,
     /// `isSignedIn` chooses between the signed-in and signed-out layouts).
     var isSignedIn: Bool {
-        guard let session = store.mirrorSession() else { return false }
-        return !session.isExpired
+        // Une session sur le trousseau, expirée ou non.
+        //
+        // C'était `!session.isExpired`, et c'était la mauvaise question. Un
+        // jeton d'accès Supabase vit une heure ; le jeton de rafraîchissement
+        // qui l'accompagne, lui, reste bon, et `validAccessToken` s'en sert
+        // tout seul au premier besoin. Se déclarer déconnecté parce que
+        // l'heure est passée revenait à présenter le formulaire de connexion
+        // et à griser les deux boutons à toute personne ayant fermé
+        // l'application plus d'une heure — c'est-à-dire à chaque fois.
+        //
+        // Mesuré : `pushMirrorOnLaunch` porte la même garde, donc aucun
+        // lancement au-delà d'une heure ne synchronisait quoi que ce soit, en
+        // silence. La dernière poussée d'un Mac utilisé toute la journée
+        // datait de son premier lancement.
+        //
+        // Une session n'est vraiment perdue que lorsque Supabase refuse le
+        // rafraîchissement, et ce cas-là efface la session du trousseau
+        // (`clearMirrorSession`) — après quoi ce test répond non, comme il
+        // doit.
+        store.mirrorSession() != nil
     }
 
     /// The signed-in user's identifier, for stamping every mirrored row's

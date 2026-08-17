@@ -94,12 +94,38 @@ struct MirrorClientTests {
         #expect(await !empty.isSignedIn)
     }
 
-    /// `isSignedIn` exige une session sur le trousseau, non expirée.
-    @Test func isSignedInExigeUneSessionValide() async throws {
+    /// `isSignedIn` exige une session sur le trousseau, quelle que soit
+    /// l'heure du jeton d'accès.
+    @Test func isSignedInExigeUneSessionSurLeTrousseau() async throws {
         let client = MirrorClient(
             store: try configuredStore(), transport: StubTransport(responses: [])
         )
         #expect(await client.isConfigured)
+        #expect(await client.isSignedIn)
+    }
+
+    /// Et surtout : un jeton d'accès périmé ne déconnecte personne.
+    ///
+    /// Le jeton d'accès Supabase vit une heure, celui de rafraîchissement bien
+    /// plus, et `validAccessToken` s'en sert seul. Ce test tient la place d'un
+    /// défaut mesuré : la garde de `pushMirrorOnLaunch` lisant cette propriété,
+    /// aucun lancement survenant plus d'une heure après le précédent ne
+    /// synchronisait quoi que ce soit — sans un mot à l'écran.
+    @Test func unJetonDAccesPerimeNeDeconnectePas() async throws {
+        let store = InMemorySecretStore()
+        try store.save(
+            MirrorCredentials(
+                projectURL: URL(string: "https://x.supabase.co")!, anonKey: "anon"
+            )
+        )
+        try store.save(
+            MirrorSession(
+                accessToken: "vieux", refreshToken: "r",
+                expiresAt: Date().addingTimeInterval(-3600), userID: "u"
+            )
+        )
+        let client = MirrorClient(store: store, transport: StubTransport(responses: []))
+
         #expect(await client.isSignedIn)
     }
 

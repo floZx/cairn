@@ -314,13 +314,15 @@ final class AppEnvironment {
     /// configured.
     var isMirrorConfigured: Bool { store.mirrorCredentials() != nil }
 
-    /// Whether a usable, unexpired session is on file — `MirrorClient.isSignedIn`'s
+    /// Whether a session is on file — `MirrorClient.isSignedIn`'s
     /// synchronous counterpart, read the same way `isMirrorConfigured` is:
     /// straight from the keychain, so a settings screen can gate its
-    /// "amorcer" and "pousser" buttons without an `await`.
+    /// buttons without an `await`.
+    ///
+    /// Expiry is deliberately not consulted here; `MirrorClient.isSignedIn`
+    /// carries the measurement that says why.
     var isMirrorSignedIn: Bool {
-        guard let session = store.mirrorSession() else { return false }
-        return !session.isExpired
+        store.mirrorSession() != nil
     }
 
     /// Records the project the mirror writes to — the settings screen's
@@ -433,7 +435,8 @@ final class AppEnvironment {
     /// different directions, and a network that refused the read has no say
     /// over whether three days of local edits get to leave.
     func syncMirrorNow() {
-        runMirror { [mirror, journal] in
+        runMirror { [mirror, journal, mirrorProgress] in
+            var echecDeLecture: Error?
             do {
                 // Le journal ne se relit pas tout seul : il tient sa liste en
                 // mémoire et ne la reconstruit que sur ses propres écritures.
@@ -444,8 +447,21 @@ final class AppEnvironment {
                 }
             } catch is CancellationError {
                 throw CancellationError()
-            } catch {}
+            } catch {
+                echecDeLecture = error
+            }
             try await mirror.push()
+            // La poussée vient de reposer `.idle` en finissant proprement, et
+            // sans cette ligne l'échec de la lecture disparaîtrait derrière
+            // elle sans un mot. Une première version se contentait d'un
+            // `catch {}` : une lecture qui échouait à chaque lancement était
+            // rigoureusement indiscernable d'une lecture qui n'avait rien à
+            // faire.
+            if let echecDeLecture {
+                await MainActor.run {
+                    mirrorProgress.phase = .failed(echecDeLecture.localizedDescription)
+                }
+            }
         }
     }
 
