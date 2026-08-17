@@ -6,8 +6,8 @@ import Foundation
 struct JournalDayTests {
     private func key(_ raw: String) -> DateKey { DateKey(raw: raw)! }
 
-    private func note(_ raw: String, _ text: String) -> JournalNote {
-        JournalNote(date: key(raw), text: text)
+    private func note(_ raw: String, _ text: String) -> JournalFileNote {
+        JournalFileNote(date: key(raw), text: text)
     }
 
     // MARK: - La fusion

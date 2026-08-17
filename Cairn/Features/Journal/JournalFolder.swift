@@ -37,13 +37,13 @@ enum JournalFolder {
     /// that are not daily notes do not exist as far as Cairn is concerned —
     /// choosing a whole Obsidian vault must not drag its entire contents into
     /// a journal.
-    static func notes(in folder: URL) throws -> [JournalNote] {
+    static func notes(in folder: URL) throws -> [JournalFileNote] {
         let names = try FileManager.default.contentsOfDirectory(
             at: folder,
             includingPropertiesForKeys: nil,
             options: [.skipsPackageDescendants]
         )
-        var notes: [JournalNote] = []
+        var notes: [JournalFileNote] = []
         for url in names {
             if let pending = pendingDownload(at: url) {
                 // A vault synced by iCloud shows not-yet-downloaded notes as
@@ -55,9 +55,9 @@ enum JournalFolder {
             }
             guard let date = date(fromFileName: url.lastPathComponent) else { continue }
             if let text = try? String(contentsOf: url, encoding: .utf8) {
-                notes.append(JournalNote(date: date, text: text))
+                notes.append(JournalFileNote(date: date, text: text))
             } else {
-                notes.append(JournalNote(date: date, text: "", isReadable: false))
+                notes.append(JournalFileNote(date: date, text: "", isReadable: false))
             }
         }
         return notes.sorted { $0.date > $1.date }

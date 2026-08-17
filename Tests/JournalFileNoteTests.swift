@@ -2,10 +2,10 @@ import Testing
 import Foundation
 @testable import Cairn
 
-@Suite("JournalNote")
-struct JournalNoteTests {
-    private func note(_ raw: String, _ text: String) -> JournalNote {
-        JournalNote(date: DateKey(raw: raw)!, text: text)
+@Suite("JournalFileNote")
+struct JournalFileNoteTests {
+    private func note(_ raw: String, _ text: String) -> JournalFileNote {
+        JournalFileNote(date: DateKey(raw: raw)!, text: text)
     }
 
     @Test("une note faite de blancs est vide")
@@ -91,7 +91,7 @@ struct JournalNoteTests {
             Promenade.
             """
         #expect(
-            MarkdownParser.blocks(from: JournalNote.body(of: text)) == [
+            MarkdownParser.blocks(from: JournalFileNote.body(of: text)) == [
                 .heading(level: 1, text: "Mardi"),
                 .paragraph("Promenade."),
             ]
@@ -103,14 +103,14 @@ struct JournalNoteTests {
         // The block only counts at the very top of the file, as it does for the
         // tags: below the first line it is something the author typed.
         let text = "Une note.\n\n---\ntags: [sam]\n---"
-        #expect(JournalNote.body(of: text) == text)
+        #expect(JournalFileNote.body(of: text) == text)
     }
 
     @Test("un frontmatter jamais refermé ne perd que sa première ligne")
     func bodyOfAnUnterminatedFrontmatter() {
         // Whatever follows an unclosed `---` is almost certainly the note
         // itself; showing it is better than hiding it to the end of the file.
-        #expect(JournalNote.body(of: "---\ntags: [sam]") == "tags: [sam]")
+        #expect(JournalFileNote.body(of: "---\ntags: [sam]") == "tags: [sam]")
     }
 
     @Test("la recherche ignore la casse et les accents")
@@ -175,15 +175,15 @@ struct JournalNoteTests {
             note("2026-08-11", "promenade seul"),
             note("2026-08-10", "promenade avec #sam et #léa"),
         ]
-        let all = JournalNote.filter(notes, query: "", tags: [])
+        let all = JournalFileNote.filter(notes, query: "", tags: [])
         #expect(all.map(\.date.raw) == ["2026-08-11", "2026-08-10", "2026-08-09"])
 
-        let narrowed = JournalNote.filter(
+        let narrowed = JournalFileNote.filter(
             notes, query: "promenade", tags: [JournalTag(name: "sam")!]
         )
         #expect(narrowed.map(\.date.raw) == ["2026-08-10", "2026-08-09"])
 
-        let both = JournalNote.filter(
+        let both = JournalFileNote.filter(
             notes, query: "léa", tags: [JournalTag(name: "sam")!]
         )
         #expect(both.map(\.date.raw) == ["2026-08-10"])
@@ -194,7 +194,7 @@ struct JournalNoteTests {
 @MainActor
 struct JournalInitialSelectionTests {
     private func days(_ raws: [String]) -> [JournalDay] {
-        raws.map { JournalDay(date: DateKey(raw: $0)!, note: JournalNote(date: DateKey(raw: $0)!, text: "x")) }
+        raws.map { JournalDay(date: DateKey(raw: $0)!, note: JournalFileNote(date: DateKey(raw: $0)!, text: "x")) }
     }
 
     @Test("la note la plus récente est retenue quand rien n'est sélectionné")
@@ -230,7 +230,7 @@ struct JournalInitialSelectionTests {
         var after = before
         after[1] = JournalDay(
             date: DateKey(raw: "2026-08-11")!,
-            note: JournalNote(date: DateKey(raw: "2026-08-11")!, text: "x et y")
+            note: JournalFileNote(date: DateKey(raw: "2026-08-11")!, text: "x et y")
         )
 
         #expect(JournalListView.changedRows(from: before, to: after) == IndexSet([1]))

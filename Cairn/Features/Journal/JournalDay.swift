@@ -17,7 +17,7 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     let date: DateKey
     /// The vault's file for this day. Its text is empty when there is none —
     /// which is exactly the note that starts existing when one types into it.
-    let note: JournalNote
+    let note: JournalFileNote
     /// What was written about this day anywhere but the vault: an outing's own
     /// note, a meal's, a weigh-in's. One list and not three, because nothing
     /// downstream asks where a sentence came from — the row's summary, the
@@ -53,11 +53,11 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     var id: DateKey { date }
 
     init(
-        date: DateKey, note: JournalNote? = nil, elsewhereNotes: [String] = [],
+        date: DateKey, note: JournalFileNote? = nil, elsewhereNotes: [String] = [],
         marks: Marks = .none
     ) {
         self.date = date
-        self.note = note ?? JournalNote(date: date, text: "")
+        self.note = note ?? JournalFileNote(date: date, text: "")
         self.elsewhereNotes = elsewhereNotes
         self.marks = marks
     }
@@ -82,20 +82,20 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     /// falls back to what it said.
     var summary: String {
         note.isEmpty
-            ? (elsewhereNotes.first.map { JournalNote(date: date, text: $0).summary } ?? "")
+            ? (elsewhereNotes.first.map { JournalFileNote(date: date, text: $0).summary } ?? "")
             : note.summary
     }
 
     func matches(query: String) -> Bool {
         note.matches(query: query)
-            || elsewhereNotes.contains { JournalNote.matches($0, query: query) }
+            || elsewhereNotes.contains { JournalFileNote.matches($0, query: query) }
     }
 
     /// The passage that answered the search, from whichever text answered it.
     func excerpt(matching query: String) -> String? {
         note.excerpt(matching: query)
             ?? elsewhereNotes.lazy
-                .compactMap { JournalNote.excerpt(of: $0, matching: query) }
+                .compactMap { JournalFileNote.excerpt(of: $0, matching: query) }
                 .first
     }
 
@@ -115,7 +115,7 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     /// added only when that text says something: a day trained on, eaten
     /// through and weighed in silence is not a journal entry.
     static func merge(
-        notes: [JournalNote], elsewhereNotes: [DateKey: [String]],
+        notes: [JournalFileNote], elsewhereNotes: [DateKey: [String]],
         marks: [DateKey: Marks] = [:]
     ) -> [JournalDay] {
         var days: [JournalDay] = notes.map {

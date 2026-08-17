@@ -82,7 +82,7 @@ struct MarkdownTests {
         // are a field in a database and never carry front matter. A `---` typed
         // there is a separator someone meant to see. Only the journal, whose
         // notes are files in an Obsidian vault, drops the block — through
-        // `JournalNote.body(of:)`, on the way to the renderer.
+        // `JournalFileNote.body(of:)`, on the way to the renderer.
         #expect(
             MarkdownParser.blocks(from: "---\ntags: [sam]\n---\nPromenade.")
                 == [.paragraph("--- tags: [sam] --- Promenade.")]

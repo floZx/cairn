@@ -19,7 +19,7 @@ enum JournalSettings {
 @MainActor
 @Observable
 final class JournalStore {
-    private(set) var notes: [JournalNote] = []
+    private(set) var notes: [JournalFileNote] = []
     private(set) var loadError: String?
     /// Set when the note being edited changed underneath. Cleared by the
     /// banner's two buttons.
@@ -154,7 +154,7 @@ final class JournalStore {
 
     // MARK: - Reading
 
-    func note(for date: DateKey) -> JournalNote? {
+    func note(for date: DateKey) -> JournalFileNote? {
         notes.first { $0.date == date }
     }
 
@@ -183,7 +183,7 @@ final class JournalStore {
     }
 
     /// Reconciles what the disk now says with what is being typed.
-    private func merged(_ fresh: [JournalNote]) -> [JournalNote] {
+    private func merged(_ fresh: [JournalFileNote]) -> [JournalFileNote] {
         guard let editingDate else { return fresh }
         let diskText = fresh.first { $0.date == editingDate }?.text
 
@@ -256,10 +256,10 @@ final class JournalStore {
     /// a sentence must not disappear from under the cursor. The file keeps
     /// what it has.
     private func keepingBuffer(
-        over fresh: [JournalNote], at date: DateKey
-    ) -> [JournalNote] {
+        over fresh: [JournalFileNote], at date: DateKey
+    ) -> [JournalFileNote] {
         Self.placing(
-            JournalNote(
+            JournalFileNote(
                 date: date, text: buffer,
                 isReadable: fresh.first { $0.date == date }?.isReadable ?? true
             ),
@@ -273,8 +273,8 @@ final class JournalStore {
     /// Nothing is re-sorted. A note's date is its identity and typing cannot
     /// change it, so the order a keystroke arrives into is the order it leaves.
     private static func placing(
-        _ note: JournalNote, in notes: [JournalNote]
-    ) -> [JournalNote] {
+        _ note: JournalFileNote, in notes: [JournalFileNote]
+    ) -> [JournalFileNote] {
         var updated = notes
         if let index = updated.firstIndex(where: { $0.date == note.date }) {
             updated[index] = note
@@ -362,7 +362,7 @@ final class JournalStore {
         // Shown immediately, saved in a moment: the list row's excerpt and the
         // tag list must follow the typing, not the debounce.
         notes = Self.placing(
-            JournalNote(
+            JournalFileNote(
                 date: date, text: text,
                 isReadable: note(for: date)?.isReadable ?? true
             ),
@@ -390,7 +390,7 @@ final class JournalStore {
         guard isDirty, let folder, let date = editingDate else { return }
         isDirty = false
         do {
-            if JournalNote(date: date, text: buffer).isEmpty {
+            if JournalFileNote(date: date, text: buffer).isEmpty {
                 // Opening today's note and typing nothing must not leave an
                 // empty file in the vault. Straight out, not to the trash: it
                 // never held anything.
@@ -443,7 +443,7 @@ final class JournalStore {
     @discardableResult
     func open(_ date: DateKey) -> DateKey {
         if note(for: date) == nil {
-            notes = Self.placing(JournalNote(date: date, text: ""), in: notes)
+            notes = Self.placing(JournalFileNote(date: date, text: ""), in: notes)
         }
         beginEditing(date)
         return date

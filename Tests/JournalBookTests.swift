@@ -28,7 +28,7 @@ struct JournalBookTests {
 
     private func build(
         from: String = "2026-08-01", to: String = "2026-08-31",
-        notes: [JournalNote] = [], activities: [Activity] = [],
+        notes: [JournalFileNote] = [], activities: [Activity] = [],
         entries: [FoodEntry] = [], slots: [MealSlot] = [],
         mealNotes: [MealNote] = [], weights: [WeightEntry] = []
     ) -> JournalBook {
@@ -41,7 +41,7 @@ struct JournalBookTests {
     @Test("une journée muette n'entre pas dans le carnet")
     func asilentDayStaysOut() {
         #expect(build().days.isEmpty)
-        #expect(build(notes: [JournalNote(date: key("2026-08-11"), text: "  ")]).days.isEmpty)
+        #expect(build(notes: [JournalFileNote(date: key("2026-08-11"), text: "  ")]).days.isEmpty)
     }
 
     @Test("des aliments consignés sans un mot ne font pas une journée")
@@ -72,7 +72,7 @@ struct JournalBookTests {
         let slot = MealSlot(name: "Déjeuner", sortOrder: 1, targetPct: 39)
         context.insert(slot)
 
-        let written = build(notes: [JournalNote(date: key("2026-08-02"), text: "Repos.")])
+        let written = build(notes: [JournalFileNote(date: key("2026-08-02"), text: "Repos.")])
         #expect(written.days.map(\.date.raw) == ["2026-08-02"])
 
         let ran = build(activities: [makeRun(in: context, id: 1)])
@@ -105,15 +105,15 @@ struct JournalBookTests {
         // Un carnet se lit dans le sens du temps, à l'inverse de la liste du
         // journal, qui met la dernière note en haut.
         let book = build(notes: [
-            JournalNote(date: key("2026-08-11"), text: "b"),
-            JournalNote(date: key("2026-08-02"), text: "a"),
+            JournalFileNote(date: key("2026-08-11"), text: "b"),
+            JournalFileNote(date: key("2026-08-02"), text: "a"),
         ])
         #expect(book.days.map(\.date.raw) == ["2026-08-02", "2026-08-11"])
     }
 
     @Test("les tags d'une journée sont ceux de sa note")
     func adayCarriesItsTags() {
-        let book = build(notes: [JournalNote(date: key("2026-08-02"), text: "Vu #Sam.")])
+        let book = build(notes: [JournalFileNote(date: key("2026-08-02"), text: "Vu #Sam.")])
         #expect(book.days[0].tags.map(\.name) == ["Sam"])
     }
 

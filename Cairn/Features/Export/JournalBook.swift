@@ -46,7 +46,7 @@ struct JournalBook: Equatable {
     ///   convenience: the period is applied here, so a caller that hands over
     ///   its whole library gets the same book as one that pre-filtered.
     static func build(
-        from: DateKey, to: DateKey, notes: [JournalNote], activities: [Activity],
+        from: DateKey, to: DateKey, notes: [JournalFileNote], activities: [Activity],
         entries: [FoodEntry], slots: [MealSlot], mealNotes: [MealNote],
         weights: [WeightEntry]
     ) -> JournalBook {
@@ -67,7 +67,7 @@ struct JournalBook: Equatable {
             activitiesByDay[date, default: []].append(activity)
         }
 
-        var notesByDay: [DateKey: JournalNote] = [:]
+        var notesByDay: [DateKey: JournalFileNote] = [:]
         for note in notes where inRange(note.date) && spoken(note.text) != nil {
             notesByDay[note.date] = note
         }

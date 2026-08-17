@@ -284,7 +284,7 @@ struct SidebarView: View {
 
     /// Ticked tags narrow rather than widen: a note carries several, so the
     /// point of ticking a second one is to combine them. Sports work the other
-    /// way round because an activity has exactly one — see `JournalNote.has`.
+    /// way round because an activity has exactly one — see `JournalFileNote.has`.
     private func binding(for tag: JournalTag) -> Binding<Bool> {
         Binding(
             get: { journalTags.contains(tag) },

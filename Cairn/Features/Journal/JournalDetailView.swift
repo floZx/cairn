@@ -296,7 +296,7 @@ struct JournalDetailView: View {
     ///
     /// The buffer rather than the note's text, so leaving the editor shows what was
     /// just typed and not what the file said before the save.
-    private var bodyText: String { JournalNote.body(of: text) }
+    private var bodyText: String { JournalFileNote.body(of: text) }
 
     /// Reading to writing.
     ///

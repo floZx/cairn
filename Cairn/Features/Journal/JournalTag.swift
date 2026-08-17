@@ -107,7 +107,7 @@ enum JournalTagScanner {
     /// lines a person typed, and the failure mode of guessing wrong here is one
     /// missing tag, not a corrupted file.
     ///
-    /// Stricter than `JournalNote.body(of:)`, which draws the same block for
+    /// Stricter than `JournalFileNote.body(of:)`, which draws the same block for
     /// the renderer: an unterminated `---` yields nothing here, since there is
     /// no block whose keys could be read, where the renderer still has a note
     /// to show. Deliberate, and worth re-reading both before touching either.

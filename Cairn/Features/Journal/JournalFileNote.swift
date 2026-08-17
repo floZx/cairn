@@ -1,11 +1,12 @@
 import Foundation
 
-/// One day's note, as read from disk.
+/// One day's note, as read from a file in the vault.
 ///
 /// A value, not a model: the file is the truth, and this is what one file says
-/// at one moment. `tags` is derived at construction rather than stored — the
-/// text is the only thing that ever needs writing back.
-struct JournalNote: Identifiable, Equatable, Sendable {
+/// at one moment — as opposed to `JournalNote`, the `@Model` that holds what
+/// the database keeps. `tags` is derived at construction rather than stored —
+/// the text is the only thing that ever needs writing back.
+struct JournalFileNote: Identifiable, Equatable, Sendable {
     let date: DateKey
     let text: String
     /// False when the file could not be decoded. Such a note is still listed —
@@ -180,8 +181,8 @@ struct JournalNote: Identifiable, Equatable, Sendable {
 
     /// Search text and ticked tags together, newest first.
     static func filter(
-        _ notes: [JournalNote], query: String, tags: Set<JournalTag>
-    ) -> [JournalNote] {
+        _ notes: [JournalFileNote], query: String, tags: Set<JournalTag>
+    ) -> [JournalFileNote] {
         notes
             .filter { $0.has(tags) && $0.matches(query: query) }
             .sorted { $0.date > $1.date }
