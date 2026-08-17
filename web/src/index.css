@@ -1653,10 +1653,23 @@ body {
    retrait, elle ne s'ajoute pas à lui. */
 .ligne.avec-icone {
   display: grid;
-  grid-template-columns: 30px 1fr;
+  grid-template-columns: 30px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   padding-left: 14px;
+}
+
+/* `minmax(0, 1fr)` ci-dessus et `min-width: 0` ici, qui disent la même chose à
+   deux niveaux : par défaut, une case de grille comme un élément flexible
+   refusent de descendre sous la largeur minimale de leur contenu. La ligne au
+   titre le plus long poussait donc sa date sous le chevron, où elle se
+   faisait rogner. */
+.ligne.avec-icone > div {
+  min-width: 0;
+}
+
+.ligne-tete .titre {
+  min-width: 0;
 }
 
 .ligne.avec-icone::after {
