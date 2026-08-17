@@ -981,11 +981,12 @@ input, button { font: inherit; }
   border-radius: 50%;
   background: var(--champ);
   color: var(--accent);
-  font-size: 21px;
-  font-weight: 400;
-  /* Le « + » d'une police système n'est pas centré optiquement dans un
-     disque : un cheveu vers le haut le remet d'aplomb. */
-  line-height: 27px;
+  /* Les deux boutons portent un tracé, jamais un caractère : « + » et « ✎ »
+     apportent chacun leurs métriques typographiques, et les compenser à coups
+     de `line-height` donnait deux boîtes différentes — huit pixels d'écart
+     entre les deux disques, mesurés. Une icône dessinée se centre toute seule
+     dans un `display: flex`. */
+  line-height: 0;
 }
 
 .ajouter:active {
@@ -1267,12 +1268,18 @@ body {
 }
 
 /* Le crayon à côté du plus, dans la même famille mais plus discret : ajouter
-   un aliment est le geste courant, noter un repas l'exception. */
-.ajouter.note {
+   un aliment est le geste courant, noter un repas l'exception.
+   Dessiné et non écrit : le caractère « ✎ » porte ses propres métriques
+   typographiques et se posait haut dans son disque, là où un tracé se centre
+   géométriquement, comme le fait le `display: flex` du disque. */
+/* `crayon` et non `note` : cette dernière est déjà la classe des cartes du
+   journal, et le bouton en héritait leur `margin-bottom: 16px`. Sa boîte
+   faisait alors 46 points contre 30 au voisin, ce qui le calait en haut du
+   conteneur — huit pixels plus haut que le « + », mesurés. Une classe qui
+   décrit ce qu'elle est plutôt que ce qu'elle sert ne se heurte à rien. */
+.ajouter.crayon {
   margin-left: 6px;
   color: var(--texte-2);
-  font-size: 15px;
-  line-height: 30px;
 }
 
 /* Une note de repas tient en trois lignes ; celle du journal en occupe
