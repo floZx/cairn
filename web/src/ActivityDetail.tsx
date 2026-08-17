@@ -71,17 +71,20 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
     },
   })
 
+  // Au-dessus des retours anticipés, obligatoirement : un hook doit s'exécuter
+  // à chaque rendu, et le placer plus bas en faisait apparaître un de plus une
+  // fois les données arrivées — ce que React refuse net.
+  //
+  // Mémoïsée, et ce n'est pas une optimisation : `Carte` recrée sa carte quand
+  // cette référence change, et un tableau fabriqué dans le JSX en est un
+  // nouveau à chaque rendu.
+  const trace = useMemo(
+    () => traceDepuisBytea(data?.simplified_track ?? null),
+    [data?.simplified_track],
+  )
+
   if (isPending) return <p className="attenue">Chargement…</p>
   if (error) return <p className="erreur">{(error as Error).message}</p>
-
-  // Mémoïsée, et ce n'est pas une optimisation : `Carte` recrée sa carte
-  // quand cette référence change, et un tableau fabriqué dans le JSX en est
-  // un nouveau à chaque rendu. La carte se détruisait donc avant d'avoir fini
-  // de se dessiner, ce qui laissait le fond mais jamais la trace.
-  const trace = useMemo(
-    () => traceDepuisBytea(data.simplified_track),
-    [data.simplified_track],
-  )
 
   const rythme = allureOuVitesse(data.sport_type_raw, data.distance, data.moving_time)
 
