@@ -197,6 +197,81 @@ function Graphique({
   )
 }
 
+/// La courbe du poids : une ligne, et non des barres.
+///
+/// Un poids est une mesure continue, pas un total qu'on cumule par mois — le
+/// relier dit la tendance, l'empiler ne dirait rien. Les jours sans pesée sont
+/// simplement absents : la ligne les enjambe, ce qui est exactement ce qu'on
+/// lit d'une balance qu'on ne monte pas tous les jours.
+function CourbePoids({ pesees }: { pesees: { jour: string; kg: number }[] }) {
+  if (pesees.length < 2) return null
+
+  const LARGEUR = 320
+  const HAUTEUR = 90
+  const kgs = pesees.map((p) => p.kg)
+  const bas = Math.min(...kgs)
+  const haut = Math.max(...kgs)
+  // Une amplitude plancher : sur une période où le poids n'a pas bougé de
+  // trois cents grammes, une échelle collée aux valeurs ferait des montagnes
+  // d'un bruit de balance.
+  const amplitude = Math.max(haut - bas, 1)
+  const centre = (haut + bas) / 2
+  const min = centre - amplitude / 2
+  const premier = new Date(pesees[0].jour).getTime()
+  const dernier = new Date(pesees[pesees.length - 1].jour).getTime()
+  const etendue = Math.max(dernier - premier, 1)
+
+  // En abscisse par la date et non par le rang : deux pesées à trois mois
+  // d'écart ne doivent pas s'afficher côte à côte parce qu'elles se suivent
+  // dans la liste.
+  const x = (jour: string) =>
+    ((new Date(jour).getTime() - premier) / etendue) * LARGEUR
+  const y = (kg: number) => HAUTEUR - ((kg - min) / amplitude) * (HAUTEUR - 8) - 4
+
+  const trace = pesees
+    .map((p, i) => `${i ? "L" : "M"}${x(p.jour).toFixed(1)} ${y(p.kg).toFixed(1)}`)
+    .join(" ")
+
+  const format = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} kg`
+
+  return (
+    <>
+      <h4 className="titre-section">Poids</h4>
+      <div className="carte-groupe graphique">
+        <div className="tete-courbe">
+          <span>{format(pesees[pesees.length - 1].kg)}</span>
+          <span className="attenue petit">
+            de {format(bas)} à {format(haut)}
+          </span>
+        </div>
+        <svg
+          className="courbe-poids"
+          viewBox={`0 0 ${LARGEUR} ${HAUTEUR}`}
+          preserveAspectRatio="none"
+          role="img"
+          aria-label={`Poids, de ${format(bas)} à ${format(haut)}`}
+        >
+          <path
+            d={`${trace} L${LARGEUR} ${HAUTEUR} L0 ${HAUTEUR} Z`}
+            fill="var(--accent)"
+            fillOpacity="0.14"
+            stroke="none"
+          />
+          <path
+            d={trace}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      </div>
+    </>
+  )
+}
+
 export function Stats() {
   const [periode, setPeriode] = useState<Periode>("3mois")
   const [mesure, setMesure] = useState<Mesure>("temps")
@@ -205,24 +280,39 @@ export function Stats() {
   const { data, error, isPending } = useQuery({
     queryKey: ["stats", periode],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("activity")
-        .select(
-          "uuid, name, sport_type_raw, start_local_date, distance, moving_time, total_elevation_gain",
-        )
-        .is("deleted_at", null)
-        .gte("start_local_date", debutAvant.toISOString())
-        .order("start_local_date", { ascending: false })
-      if (error) throw error
-      return data as unknown as Ligne[]
+      const [sorties, poids] = await Promise.all([
+        supabase
+          .from("activity")
+          .select(
+            "uuid, name, sport_type_raw, start_local_date, distance, moving_time, total_elevation_gain",
+          )
+          .is("deleted_at", null)
+          .gte("start_local_date", debutAvant.toISOString())
+          .order("start_local_date", { ascending: false }),
+        supabase
+          .from("weight_entry")
+          .select("date_key_raw, weight_kg")
+          .is("deleted_at", null)
+          .gte("date_key_raw", debut.toISOString().slice(0, 10))
+          .order("date_key_raw"),
+      ])
+      if (sorties.error) throw sorties.error
+      if (poids.error) throw poids.error
+      return {
+        sorties: sorties.data as unknown as Ligne[],
+        pesees: (poids.data as { date_key_raw: string; weight_kg: number }[]).map((p) => ({
+          jour: p.date_key_raw,
+          kg: p.weight_kg,
+        })),
+      }
     },
   })
 
   if (isPending) return <p className="attenue">Chargement…</p>
   if (error) return <p className="erreur">{(error as Error).message}</p>
 
-  const dansLaFenetre = data.filter((a) => new Date(a.start_local_date) >= debut)
-  const avant = data.filter((a) => {
+  const dansLaFenetre = data.sorties.filter((a) => new Date(a.start_local_date) >= debut)
+  const avant = data.sorties.filter((a) => {
     const d = new Date(a.start_local_date)
     return d >= debutAvant && d < finAvant
   })
@@ -306,9 +396,14 @@ export function Stats() {
               </button>
             ))}
           </div>
-          <Graphique cases={parMois(data, debut, debutAvant, mesure)} mesure={mesure} />
+          <Graphique
+            cases={parMois(data.sorties, debut, debutAvant, mesure)}
+            mesure={mesure}
+          />
         </>
       )}
+
+      <CourbePoids pesees={data.pesees} />
 
       {sports.length > 0 && (
         <>

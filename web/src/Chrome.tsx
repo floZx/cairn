@@ -54,12 +54,14 @@ function Icone({ nom, actif }: { nom: Section; actif: boolean }) {
         </svg>
       )
     case "nutrition":
-      // Une assiette vue de dessus, plutôt qu'une fourchette : le sujet est
-      // le repas, pas le couvert.
+      // Fourchette et couteau. L'assiette vue de dessus — deux cercles
+      // concentriques — se lisait comme un bouton d'enregistrement ; le
+      // couvert est la convention, et une convention se reconnaît sans qu'on
+      // ait à la deviner.
       return (
         <svg {...commun}>
-          <circle cx="12" cy="12" r="8.5" />
-          <circle cx="12" cy="12" r="4" />
+          <path d="M7 3v7a2.5 2.5 0 002.5 2.5h0V21M7 3v4.5M9.5 3v4.5" />
+          <path d="M16.5 3c1.4 1 2 2.6 2 4.5s-.6 3.2-2 4v9.5" />
         </svg>
       )
     default:

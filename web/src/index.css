@@ -1806,3 +1806,83 @@ body {
   border-top: 0.5px solid var(--trait);
   border-radius: 0;
 }
+
+/* ---- Jauges de macros ---------------------------------------------------- */
+
+.jauges {
+  display: grid;
+  /* Deux colonnes : quatre jauges en ligne seraient illisibles sur un
+     téléphone, et une colonne unique ferait défiler pour lire un résumé. */
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 18px;
+}
+
+.jauge {
+  min-width: 0;
+}
+
+.titre-jauge {
+  color: var(--texte-2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.unite-jauge {
+  color: var(--texte-3);
+}
+
+/* Chiffres à chasse fixe : les quatre jauges s'alignent, et un total qui
+   change ne fait pas danser ce qui l'entoure. */
+.chiffre-jauge {
+  margin-top: 1px;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.barre-jauge {
+  height: 5px;
+  margin: 7px 0 4px;
+  border-radius: 3px;
+  background: var(--champ);
+  overflow: hidden;
+}
+
+.remplissage {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.remplissage.atteint { background: var(--vert); }
+.remplissage.modere  { background: var(--orange); }
+.remplissage.franc   { background: var(--erreur); }
+
+.reste-jauge {
+  color: var(--texte-2);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* La couleur ne gagne le chiffre et le reste que lorsqu'il y a quelque chose
+   à dire : sans état, ils gardent leur gris. */
+.chiffre-jauge.atteint,
+.reste-jauge.atteint { color: var(--vert); }
+.chiffre-jauge.modere,
+.reste-jauge.modere { color: var(--orange); }
+.chiffre-jauge.franc,
+.reste-jauge.franc { color: var(--erreur); }
+
+.type-du-jour {
+  margin-top: 14px;
+}
+
+/* La courbe du poids : même hauteur que celles d'une sortie, pour que les
+   deux écrans se ressemblent. */
+.courbe-poids {
+  display: block;
+  width: 100%;
+  height: 90px;
+  margin-top: 8px;
+}

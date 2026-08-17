@@ -7,6 +7,7 @@ import { AjoutAliment } from "./AjoutAliment"
 import { ModifAliment, type AlimentAModifier } from "./ModifAliment"
 import { Feuille } from "./Chrome"
 import { NoteRepas, Pesee } from "./SaisieJour"
+import { JaugeMacro } from "./JaugeMacro"
 import {
   arrondi,
   dansLeMille,
@@ -309,15 +310,36 @@ export function Nutrition() {
       {enTete}
 
       <div className="total-jour">
-        <div className="chiffre-jour">
-          <span className={"valeur" + classeDe(totalJour.kcal, journeeVisee?.kcal ?? null)}>
-            {Math.round(totalJour.kcal)}
-          </span>
-          {journeeVisee && <span className="attenue"> / {journeeVisee.kcal} kcal</span>}
-          {!journeeVisee && <span className="attenue"> kcal</span>}
+        {/* Les quatre jauges du Mac, dans son ordre : les calories d'abord,
+            puis les trois macros. Chacune porte sa ligne « reste », qui est le
+            nombre contre lequel le prochain repas se planifie vraiment. */}
+        <div className="jauges">
+          <JaugeMacro
+            titre="Calories"
+            consomme={totalJour.kcal}
+            objectif={journeeVisee?.kcal ?? null}
+            unite="kcal"
+          />
+          <JaugeMacro
+            titre="Protéines"
+            consomme={totalJour.proteines}
+            objectif={cibles ? (journeeVisee?.proteines ?? null) : null}
+            unite="g"
+          />
+          <JaugeMacro
+            titre="Glucides"
+            consomme={totalJour.glucides}
+            objectif={cibles ? (journeeVisee?.glucides ?? null) : null}
+            unite="g"
+          />
+          <JaugeMacro
+            titre="Lipides"
+            consomme={totalJour.lipides}
+            objectif={cibles ? (journeeVisee?.lipides ?? null) : null}
+            unite="g"
+          />
         </div>
-        <LigneMacros m={totalJour} objectif={cibles ? journeeVisee : null} />
-        {typeDuJour && <div className="attenue petit">{typeDuJour.name}</div>}
+        {typeDuJour && <div className="attenue petit type-du-jour">{typeDuJour.name}</div>}
         {/* La pesée du jour vit ici, sous les calories : c'est le même geste
             du matin, et lui donner un écran à elle pour un nombre serait un
             écran de trop. */}
