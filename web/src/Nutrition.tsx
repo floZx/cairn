@@ -250,8 +250,17 @@ export function Nutrition() {
   const typeDuJour = typeDeJourUUID ? types.get(typeDeJourUUID) : undefined
 
   const parCreneau = (uuid: string) => aliments.filter((a) => a.meal_slot_uuid === uuid)
-  const consommeDu = (uuid: string) => somme(...parCreneau(uuid).map(macrosDe))
-  const totalJour = somme(...aliments.map(macrosDe))
+
+  // Chaque ligne arrondie **avant** d'être sommée, jamais après : c'est la
+  // règle de `Macros.rounded()`, et son commentaire dit ce qu'elle répare —
+  // « sept lignes d'un repas lues 24, 1, 5, 3, 19, 13, 0, soit soixante-cinq,
+  // sous un titre disant 64 ». Sommer les décimales donnait ici 41 g de
+  // protéines là où le Mac en affiche 40, et un total de glucides vert là où
+  // le sien est orange. Le total du jour est celui des repas, eux-mêmes déjà
+  // arrondis — `NutritionDayModel` procède exactement ainsi.
+  const consommeDu = (uuid: string) =>
+    somme(...parCreneau(uuid).map((a) => arrondi(macrosDe(a))))
+  const totalJour = somme(...creneaux.map((c) => consommeDu(c.uuid)))
 
   // Les glucides ne sont pas un réglage : ils se déduisent de ce que les
   // calories laissent une fois les protéines et lipides comptés. Sans la
