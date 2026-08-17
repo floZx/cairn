@@ -27,11 +27,48 @@ struct CairnApp: App {
         // has already opened a separate store file — the real library is never
         // touched. Failing here is not worth a crash: the app simply starts empty.
         try? DemoData.populateIfNeeded(ModelContext(container))
-        // Before any view reads an activity. Failing is not worth a crash: the
-        // rows keep their identity and the next launch tries again. The count is
-        // discardable by design, but `try?` wraps it in its own `Optional` that
-        // `@discardableResult` does not cover — hence the explicit `_ =`.
-        _ = try? StoreMaintenance.run(ModelContext(container))
+        // Same reasoning as `AppModelContainer.make()`'s own `isTesting`: a macOS
+        // unit test bundle runs inside this application, hosted rather than
+        // standalone, so `xcodebuild test` executes this very `init()` as a side
+        // effect of launching for testing — not only when a test explicitly
+        // constructs something. `AppModelContainer.make()` already isolates the
+        // *store* file for that reason (`Cairn-tests.store`, never the real
+        // library). `StoreMaintenance.run` below now also reads and writes
+        // `UserDefaults.standard` — the real `journalFolderPath`, the real
+        // recovery marker — and unlike the store, there is no test-only domain to
+        // redirect it to without inventing one that would itself leave a file
+        // behind on every run. Skipped outright instead: nothing here is a
+        // target `CairnApp` unit tests exercise (see `MirrorWiringTests`' own
+        // doc comment on why `CairnApp` itself is not a practical test target),
+        // so skipping it changes nothing any test observes — it only stops a
+        // hosted test launch from marking this Mac's real recovery done before
+        // its real, non-test launch ever gets the chance to run it. Measured,
+        // not hypothetical: an earlier version of this line set the real
+        // `journalImportDone` to true on the very first `xcodebuild test` run.
+        let isTesting = ProcessInfo.processInfo
+            .environment["XCTestConfigurationFilePath"] != nil
+        if !isTesting {
+            // Before any view reads an activity. Failing is not worth a crash:
+            // the rows keep their identity and the next launch tries again. The
+            // count is discardable by design, but `try?` wraps it in its own
+            // `Optional` that `@discardableResult` does not cover — hence the
+            // explicit `_ =`.
+            //
+            // This is also the journal's one-time recovery from its old folder
+            // (`StoreMaintenance.recoverJournal`) — see that function's own doc
+            // comment for why it runs first, inside `run`, rather than here
+            // alongside it.
+            _ = try? StoreMaintenance.run(ModelContext(container))
+            // `app.journal` was built above, before this line ran, on whatever
+            // the store held at that moment — nothing, on the very first launch
+            // after this slice ships, since the recovery had not run yet.
+            // Without this, the window that opens a few lines down would show an
+            // empty journal until the next relaunch, even though the recovery
+            // just inserted every note. Unconditional within this branch: cheap
+            // on every other launch, where the recovery has already run and this
+            // simply re-reads what was already there.
+            app.journal.refresh()
+        }
     }
 
     var body: some Scene {

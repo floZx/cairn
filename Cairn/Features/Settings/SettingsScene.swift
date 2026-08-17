@@ -7,8 +7,9 @@ import SwiftUI
 /// and what they store. Track colour and the tile cache used to live in the
 /// sync tab, where nobody would look for them. Nutrition holds the food
 /// journal's own configuration: macro and weight targets, day types, per-meal
-/// shares, catalog status, and the one-shot suivinut import. Journal holds the
-/// one thing the daily notes need: which folder they live in. Miroir holds the
+/// shares, catalog status, and the one-shot suivinut import. Journal holds how
+/// many notes the base carries, and — the one time it happens — what the
+/// recovery from the old folder could not read cleanly. Miroir holds the
 /// Supabase project, the sign-in, and the hand-started bootstrap — Sauvegarde's
 /// counterpart for a copy that leaves the Mac rather than one that stays on it.
 struct SettingsScene: View {

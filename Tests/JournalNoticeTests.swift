@@ -7,29 +7,16 @@ import Foundation
 /// asked: a **Recharger** shown over the wrong note discards a buffer.
 @Suite("JournalNotice")
 struct JournalNoticeTests {
-    private let displayed = DateKey(raw: "2026-08-11")!
-    private let other = DateKey(raw: "2026-08-10")!
-
     @Test("rien à signaler ne pose aucun bandeau")
     func nothingWrongSaysNothing() {
-        #expect(
-            JournalNotice.notice(
-                conflict: nil, writeFailure: nil, failingDate: nil,
-                displayedDate: displayed
-            ) == nil
-        )
+        #expect(JournalNotice.notice(conflict: nil) == nil)
     }
 
     @Test("une note modifiée ailleurs propose de recharger")
     func aChangedNoteOffersToReload() throws {
-        let notice = try #require(
-            JournalNotice.notice(
-                conflict: .conflict, writeFailure: nil, failingDate: nil,
-                displayedDate: displayed
-            )
-        )
+        let notice = try #require(JournalNotice.notice(conflict: .conflict))
         #expect(notice.conflict == .changedElsewhere)
-        #expect(notice.failure == nil)
+        #expect(notice.message == nil)
         #expect(notice.conflict?.offersReload == true)
         #expect(
             notice.conflict?.message
@@ -39,12 +26,7 @@ struct JournalNoticeTests {
 
     @Test("un fichier supprimé ailleurs ne propose rien à recharger")
     func aDeletedFileHasNothingToReload() throws {
-        let notice = try #require(
-            JournalNotice.notice(
-                conflict: .vanished, writeFailure: nil, failingDate: nil,
-                displayedDate: displayed
-            )
-        )
+        let notice = try #require(JournalNotice.notice(conflict: .vanished))
         #expect(notice.conflict == .deletedElsewhere)
         #expect(notice.conflict?.offersReload == false)
         #expect(
@@ -75,94 +57,40 @@ struct JournalNoticeTests {
     /// for it would say a change was pending when it has already been taken.
     @Test("une reprise silencieuse ne dit rien")
     func adoptingIsSilent() {
-        #expect(
-            JournalNotice.notice(
-                conflict: .adopt, writeFailure: nil, failingDate: nil,
-                displayedDate: displayed
-            ) == nil
-        )
+        #expect(JournalNotice.notice(conflict: .adopt) == nil)
     }
 
-    @Test("un échec sur la note affichée annonce le blocage du changement de note")
-    func aFailureHereBlocksLeaving() throws {
-        let notice = try #require(
-            JournalNotice.notice(
-                conflict: nil, writeFailure: "La note n'a pas pu être enregistrée.",
-                failingDate: displayed, displayedDate: displayed
-            )
-        )
+    // MARK: - Le rapport de la reprise
+
+    /// Rien d'illisible : la reprise n'a rien à signaler, et un message vide
+    /// serait un mensonge de plus que le silence.
+    @Test("une reprise sans fichier illisible ne dit rien")
+    func aCleanRecoverySaysNothing() {
+        #expect(JournalNotice.notice(unreadable: []) == nil)
+    }
+
+    /// Un seul fichier : l'accord se fait au singulier, et son nom apparaît
+    /// dans le message — sans quoi le lecteur ne saurait pas lequel regarder.
+    @Test("un seul fichier illisible se dit au singulier et le nomme")
+    func oneUnreadableFileIsNamedAndSingular() throws {
+        let notice = try #require(JournalNotice.notice(unreadable: ["2026-08-17.md"]))
         #expect(notice.conflict == nil)
-        #expect(notice.failure == .here("La note n'a pas pu être enregistrée."))
-        #expect(
-            notice.failure?.consequence
-                == "Le journal ne peut pas changer de note tant que ce texte n'est pas enregistré."
-        )
+        let message = try #require(notice.message)
+        #expect(message.contains("1 fichier"))
+        #expect(!message.contains("1 fichiers"))
+        #expect(message.contains("2026-08-17.md"))
     }
 
-    /// The case the widened gate exists for: the save failed on the way out of
-    /// a note, so the store stayed there while the screen moved on. What is
-    /// typed here is refused outright, and the day that is stuck has to be
-    /// named — "ce texte" would point at text the reader cannot see.
-    @Test("un échec sur une autre note dit que la frappe ici n'est pas conservée")
-    func aFailureElsewhereNamesTheStuckDay() throws {
+    /// Plusieurs : l'accord passe au pluriel, et chaque nom est repris —
+    /// aucun n'est sacrifié pour la brièveté du message.
+    @Test("plusieurs fichiers illisibles se disent au pluriel et sont tous nommés")
+    func severalUnreadableFilesArePluralAndAllNamed() throws {
         let notice = try #require(
-            JournalNotice.notice(
-                conflict: nil, writeFailure: "La note n'a pas pu être enregistrée.",
-                failingDate: other, displayedDate: displayed
-            )
+            JournalNotice.notice(unreadable: ["2026-08-15.md", "2026-08-17-1.jpg"])
         )
-        #expect(
-            notice.failure == .elsewhere("La note n'a pas pu être enregistrée.", other)
-        )
-        let consequence = try #require(notice.failure?.consequence)
-        #expect(consequence.contains(Format.fullDate(other.date())))
-        #expect(!consequence.contains("ce texte"))
-    }
-
-    /// Nothing produces this — the store sets the message and the date
-    /// together — but of the two readings, treating it as the note on screen
-    /// is the one that cannot send the reader to a day that is not stuck.
-    @Test("un échec sans date porte sur la note affichée")
-    func aFailureWithoutADateIsReadAsThisNote() throws {
-        let notice = try #require(
-            JournalNotice.notice(
-                conflict: nil, writeFailure: "erreur", failingDate: nil,
-                displayedDate: displayed
-            )
-        )
-        #expect(notice.failure == .here("erreur"))
-    }
-
-    /// Both at once, on the note on screen: neither can be dropped. Hiding the
-    /// banner would let a save that finally goes through overwrite a change
-    /// made elsewhere with nothing said; hiding the failure would leave the
-    /// reader believing the text is on disk.
-    @Test("un conflit et un échec sur la même note se disent tous les deux")
-    func aConflictAndAFailureHereBothShow() throws {
-        let notice = try #require(
-            JournalNotice.notice(
-                conflict: .conflict, writeFailure: "erreur",
-                failingDate: displayed, displayedDate: displayed
-            )
-        )
-        #expect(notice.conflict == .changedElsewhere)
-        #expect(notice.failure == .here("erreur"))
-    }
-
-    /// And the precedence that matters: the conflict belongs to the note the
-    /// store is still editing, which is the one that failed to write. Left
-    /// standing over another note, **Recharger** — which drops the buffer, the
-    /// edited date and the baseline unconditionally — would throw away the
-    /// text that could not be saved.
-    @Test("un échec sur une autre note retire le bandeau de conflit")
-    func aFailureElsewhereWithdrawsTheBanner() throws {
-        let notice = try #require(
-            JournalNotice.notice(
-                conflict: .conflict, writeFailure: "erreur",
-                failingDate: other, displayedDate: displayed
-            )
-        )
-        #expect(notice.conflict == nil)
-        #expect(notice.failure == .elsewhere("erreur", other))
+        let message = try #require(notice.message)
+        #expect(message.contains("2 fichiers"))
+        #expect(message.contains("2026-08-15.md"))
+        #expect(message.contains("2026-08-17-1.jpg"))
     }
 }

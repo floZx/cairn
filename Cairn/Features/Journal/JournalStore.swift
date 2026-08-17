@@ -15,6 +15,13 @@ enum JournalSettings {
     /// with no note in it is a legitimate state, not a sign recovery never
     /// happened.
     static let importDoneKey = "journalImportDone"
+    /// The recovery's own report, in French, once — set by `StoreMaintenance`
+    /// alongside `importDoneKey` when `JournalImport.Outcome.unreadable` is
+    /// not empty, and read back by `JournalSettingsView`. Absent, not an
+    /// empty string, when nothing was unreadable: the empty case has to be
+    /// distinguishable from "the recovery has not run yet" for a view that
+    /// only ever reads this key, never runs the recovery itself.
+    static let importNoticeKey = "journalImportNotice"
 }
 
 /// The journal's live state: what the base holds, and what is being typed into

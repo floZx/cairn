@@ -48,6 +48,25 @@ private func seedLocalPair<Model: PersistentModel>(
 @Suite("Maintenance du store")
 @MainActor
 struct StoreMaintenanceTests {
+    /// Un domaine `UserDefaults` jetable, jamais `.standard` : depuis que
+    /// `StoreMaintenance.run` déclenche la reprise du journal, l'appeler avec
+    /// son défaut lirait et écrirait les vraies préférences de cette
+    /// machine — le vrai `journalFolderPath`, et le vrai marqueur de reprise.
+    /// Aucun des tests ci-dessous ne s'intéresse au journal ; ce domaine
+    /// jetable existe pour que la reprise qu'ils déclenchent malgré eux reste
+    /// sans conséquence.
+    private static let suitePrefix = "store-maintenance-tests-"
+
+    private func freshDefaults() -> (UserDefaults, String) {
+        let name = "\(Self.suitePrefix)\(UUID().uuidString)"
+        return (UserDefaults(suiteName: name)!, name)
+    }
+
+    private func discard(_ suiteName: String) {
+        UserDefaults().removePersistentDomain(forName: suiteName)
+        ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
+    }
+
     @Test("les uuid vides sont complétés, les autres laissés intacts")
     func fillsEmptyUUIDs() throws {
         let container = try AppModelContainer.inMemory()
@@ -59,8 +78,10 @@ struct StoreMaintenanceTests {
         context.insert(untouched)
         context.insert(empty)
         try context.save()
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
 
-        let changed = try StoreMaintenance.run(context)
+        let changed = try StoreMaintenance.run(context, defaults: defaults)
 
         #expect(changed == 1)
         #expect(untouched.uuid == kept)
@@ -84,8 +105,10 @@ struct StoreMaintenanceTests {
         context.insert(two)
         context.insert(three)
         try context.save()
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
 
-        let changed = try StoreMaintenance.run(context)
+        let changed = try StoreMaintenance.run(context, defaults: defaults)
 
         #expect(changed == 2)
         let uuids = Set([one.uuid, two.uuid, three.uuid])
@@ -217,8 +240,10 @@ struct StoreMaintenanceTests {
         ]
         #expect(Set(pairs.map(\.table)) == Set(MirrorEngine.bootstrapOrder))
         try context.save()
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
 
-        let changed = try StoreMaintenance.run(context)
+        let changed = try StoreMaintenance.run(context, defaults: defaults)
 
         #expect(changed == pairs.count)
         for pair in pairs {
@@ -228,7 +253,7 @@ struct StoreMaintenanceTests {
         }
 
         // La même passe, relancée : plus rien à réparer sur aucune des seize.
-        #expect(try StoreMaintenance.run(context) == 0)
+        #expect(try StoreMaintenance.run(context, defaults: defaults) == 0)
     }
 
     /// Les deux modèles du journal, à part : ils portent un `uuid` sujet au
@@ -258,8 +283,10 @@ struct StoreMaintenanceTests {
             ),
         ]
         try context.save()
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
 
-        let changed = try StoreMaintenance.run(context)
+        let changed = try StoreMaintenance.run(context, defaults: defaults)
 
         #expect(changed == pairs.count)
         for pair in pairs {
@@ -268,7 +295,7 @@ struct StoreMaintenanceTests {
             #expect(uuids.allSatisfy { !$0.isEmpty }, "\(pair.table) : un uuid vide")
         }
 
-        #expect(try StoreMaintenance.run(context) == 0)
+        #expect(try StoreMaintenance.run(context, defaults: defaults) == 0)
     }
 
     /// La garantie forte, insensible à toute liste écrite à la main : chaque
@@ -307,9 +334,11 @@ struct StoreMaintenanceTests {
         context.insert(one)
         context.insert(two)
         try context.save()
-        try StoreMaintenance.run(context)
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
+        try StoreMaintenance.run(context, defaults: defaults)
 
-        let changed = try StoreMaintenance.run(context)
+        let changed = try StoreMaintenance.run(context, defaults: defaults)
 
         #expect(changed == 0)
     }

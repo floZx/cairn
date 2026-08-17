@@ -9,6 +9,12 @@ import SwiftUI
 /// the recovery found the notes.
 struct JournalSettingsView: View {
     @Environment(AppEnvironment.self) private var app
+    /// The recovery's own report — `JournalSettings.importNoticeKey`, written
+    /// once by `StoreMaintenance.run` the very first time it recovers a
+    /// journal folder, absent on every launch that finds nothing to say.
+    /// This is the one screen a reader would open to check on a note the
+    /// recovery flagged, so it is where that sentence has to surface.
+    @AppStorage(JournalSettings.importNoticeKey) private var importNotice = ""
 
     var body: some View {
         Form {
@@ -21,6 +27,14 @@ struct JournalSettingsView: View {
                 Text("Journal")
             } footer: {
                 Text(footer)
+            }
+
+            if !importNotice.isEmpty {
+                Section {
+                    Text(importNotice)
+                } header: {
+                    Text("Reprise")
+                }
             }
         }
         .formStyle(.grouped)

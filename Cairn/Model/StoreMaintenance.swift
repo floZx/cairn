@@ -86,11 +86,14 @@ enum StoreMaintenance {
         repair(JournalAttachment.self, \.uuid),
     ]
 
-    /// Runs every repair in `uuidRepairs`, then the one repair that is not
-    /// about `uuid` at all.
+    /// Runs the journal's one-time recovery, then every repair in
+    /// `uuidRepairs`, then the one repair that is not about `uuid` at all.
     ///
-    /// Returns how many rows were changed, which is what makes it testable
-    /// and its idempotence checkable.
+    /// Returns how many rows the *repairs* changed — the recovery's own count
+    /// is a different thing (files, not repaired rows) and is not folded into
+    /// this one; see `recoverJournal(_:defaults:)` for where its own report
+    /// goes. Returning this count is what makes the repairs testable and
+    /// their idempotence checkable.
     ///
     /// Runs on every launch, so the pass that finds nothing to do has to stay
     /// cheap: `reissueDuplicateUUIDs` fetches `uuid` and nothing else, which
@@ -98,8 +101,19 @@ enum StoreMaintenance {
     /// eleven `Data?`, `ActivityPhoto.data`, `JournalAttachment.data`) —
     /// reading them in full every launch would cost hundreds of megabytes
     /// resident for a scan that changes nothing.
+    ///
+    /// - Parameter defaults: where the recovery reads the folder it used to
+    ///   live in (`JournalSettings.folderPathKey`) and records that it ran
+    ///   (`JournalSettings.importDoneKey`). Defaults to `.standard` for the
+    ///   application's one real call site (`CairnApp.init`) alone — every
+    ///   test passes a throwaway suite of its own, exactly the reasoning
+    ///   `MirrorEngine.init`'s own `cursor:` parameter gives at length: a
+    ///   test that let this default stand would read and write this Mac's
+    ///   real journal folder path and its real recovery marker.
     @discardableResult
-    static func run(_ context: ModelContext) throws -> Int {
+    static func run(_ context: ModelContext, defaults: UserDefaults = .standard) throws -> Int {
+        try recoverJournal(context, defaults: defaults)
+
         var changed = 0
 
         for repair in uuidRepairs {
@@ -111,6 +125,35 @@ enum StoreMaintenance {
         guard changed > 0 else { return 0 }
         try context.save()
         return changed
+    }
+
+    /// The journal folder's one-time recovery, and the cache that depends on
+    /// what it just inserted.
+    ///
+    /// First, always: `JournalAttachmentCache.rebuild` can only materialise
+    /// what the store already holds, and on the very first launch after this
+    /// slice ships, that is nothing at all until the recovery has run.
+    ///
+    /// Nothing here folds into `run`'s own return value — a row `uuidRepairs`
+    /// changed and a file the recovery imported are not the same kind of
+    /// count, and `Tests/StoreMaintenanceTests.swift` holds `run`'s count to
+    /// the repairs alone.
+    ///
+    /// The recovery's unreadable files, if any, are handed to `JournalNotice`
+    /// and the one sentence it produces is written to
+    /// `JournalSettings.importNoticeKey` — the only trace the reader gets
+    /// that a note deserves a second look, since the recovery itself runs
+    /// once and is gone by the time anyone could open the journal to notice.
+    private static func recoverJournal(
+        _ context: ModelContext, defaults: UserDefaults
+    ) throws {
+        let folderPath = defaults.string(forKey: JournalSettings.folderPathKey)
+        if let outcome = try JournalImport.runIfNeeded(
+            context, folderPath: folderPath, defaults: defaults
+        ), let message = JournalNotice.notice(unreadable: outcome.unreadable)?.message {
+            defaults.set(message, forKey: JournalSettings.importNoticeKey)
+        }
+        try JournalAttachmentCache.rebuild(context, directory: JournalAttachmentCache.directory)
     }
 
     /// One model's pass: every row keeping an identity nobody else in its own

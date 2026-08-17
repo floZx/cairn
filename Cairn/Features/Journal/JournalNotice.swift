@@ -3,18 +3,24 @@ import Foundation
 /// What the editor has to say above the text, and what the reader may do
 /// about it.
 ///
-/// Pulled out of the view because three pieces of state — a conflict, a save
-/// that failed, and which note it failed on — decide both the wording and
+/// Pulled out of the view because a conflict decides both the wording and
 /// which buttons appear, and getting that mapping wrong is not cosmetic: a
 /// **Recharger** shown over the wrong note drops a buffer that was never in
 /// conflict. A view cannot be asked that question in a test; this can.
 ///
-/// No caller in the journal any more: the notes left the shared folder, and
-/// with it went both the conflicts and the writes that could fail. What is
-/// left is a mapping from something gone wrong to what to say about it, still
-/// held to the letter by `Tests/JournalNoticeTests.swift` — the recovery has
-/// its own list of files it could not read, and this is where that will be
-/// said.
+/// `Conflict` has had no caller in the journal since the notes left the
+/// shared folder: a `context.save()` does not race a second writer the way a
+/// file on disk did. It stays regardless, still held to the letter by
+/// `Tests/JournalNoticeTests.swift`, because nothing here says the base can
+/// never gain a second writer again.
+///
+/// What this struct's other half used to hold — a write that failed, `.here`
+/// on the note itself or `.elsewhere` on the one just left — went with the
+/// folder entirely: a `context.save()` fails the way a full disk does, not
+/// the way an unplugged one did, and the recovery never produces that shape.
+/// In its place: `notice(unreadable:)`, the recovery's own report, wired
+/// from `StoreMaintenance.run` — the one call site this struct has in
+/// production today.
 struct JournalNotice: Equatable {
     /// What used to be decided when the note being edited changed on disk.
     ///
@@ -73,92 +79,48 @@ struct JournalNotice: Equatable {
         var offersReload: Bool { self == .changedElsewhere }
     }
 
-    /// A save that did not go through, and where.
-    ///
-    /// The distinction is the whole point: the two cases block different
-    /// things, and telling the reader the wrong one is worse than saying
-    /// nothing — it would have them keep typing into a note that is dropping
-    /// every keystroke.
-    enum Failure: Equatable {
-        /// On the note on screen. Typing still reaches it and each pause tries
-        /// the save again; what is blocked is leaving for another note.
-        case here(String)
-        /// On another note, which the journal has not been able to let go of.
-        /// Everything typed here is refused until that one is written.
-        case elsewhere(String, DateKey)
-
-        /// The system's own words about the failure.
-        var message: String {
-            switch self {
-            case let .here(message), let .elsewhere(message, _): message
-            }
-        }
-
-        /// What it means for the person at the keyboard, which is the part the
-        /// system message never says.
-        var consequence: String {
-            switch self {
-            case .here:
-                """
-                Le journal ne peut pas changer de note tant que ce texte n'est \
-                pas enregistré.
-                """
-            case let .elsewhere(_, date):
-                """
-                Ce que vous écrivez ici n'est pas conservé tant que la note du \
-                \(Format.fullDate(date.date())) n'est pas enregistrée.
-                """
-            }
-        }
-    }
-
     var conflict: Conflict?
-    var failure: Failure?
+    /// The recovery's own report, in French — what `notice(unreadable:)`
+    /// produces. Never set alongside `conflict`: the recovery runs once, at
+    /// launch, before an editing session exists for anything to conflict
+    /// with.
+    var message: String?
 
     /// The notice for a note on screen, or nil when there is nothing to say.
     ///
-    /// - Parameters:
-    ///   - conflict: what happened to the note being edited — not necessarily
-    ///     the one displayed.
-    ///   - writeFailure: why the last save did not go through.
-    ///   - failingDate: the note that save belonged to.
-    ///   - displayedDate: the note the editor is showing.
-    static func notice(
-        conflict: Outcome?,
-        writeFailure: String?,
-        failingDate: DateKey?,
-        displayedDate: DateKey
-    ) -> JournalNotice? {
-        let failure: Failure? = writeFailure.map { message in
-            // No date at all is read as the note on screen: the store keeps
-            // the two in lockstep, and of the two readings this is the one
-            // that cannot send the reader to a day that is not stuck.
-            guard let failingDate, failingDate != displayedDate else {
-                return .here(message)
-            }
-            return .elsewhere(message, failingDate)
+    /// - Parameter conflict: what happened to the note being edited — not
+    ///   necessarily the one displayed.
+    static func notice(conflict: Outcome?) -> JournalNotice? {
+        let banner: Conflict? = switch conflict {
+        case .conflict: .changedElsewhere
+        case .vanished: .deletedElsewhere
+        // `.adopt` is the silent case and never reaches the store's
+        // property, but a notice for it would be a lie either way.
+        case .adopt, nil: nil
         }
+        guard let banner else { return nil }
+        return JournalNotice(conflict: banner)
+    }
 
-        // A failure on another note places the conflict on that note too — a
-        // conflict only ever belongs to the note being edited, which is the
-        // one that could not be written. Its buttons would then act on a note
-        // nobody can see, and reloading discards the buffer unconditionally:
-        // pressing **Recharger** here would throw away the very text that
-        // failed to save, on a note the reader was not even looking at.
-        let banner: Conflict?
-        if case .elsewhere = failure {
-            banner = nil
-        } else {
-            banner = switch conflict {
-            case .conflict: .changedElsewhere
-            case .vanished: .deletedElsewhere
-            // `.adopt` is the silent case and never reaches the store's
-            // property, but a notice for it would be a lie either way.
-            case .adopt, nil: nil
-            }
-        }
-
-        guard banner != nil || failure != nil else { return nil }
-        return JournalNotice(conflict: banner, failure: failure)
+    /// The recovery's own report: which files it took in imperfectly — a
+    /// note whose bytes were not valid UTF-8, either kind reread and, rarer,
+    /// unreadable outright (`JournalImport.Outcome.unreadable`). Every one of
+    /// them is still in the store; this is only the trace that they deserve
+    /// a second look, and it is the only trace the reader gets — a file
+    /// imported imperfectly and said nothing about is a file nobody knows to
+    /// check.
+    ///
+    /// `nil` for an empty list rather than an empty message: called once, at
+    /// the recovery, whether or not it found anything to report.
+    static func notice(unreadable: [String]) -> JournalNotice? {
+        guard !unreadable.isEmpty else { return nil }
+        let subject = unreadable.count == 1 ? "fichier" : "fichiers"
+        let names = unreadable.joined(separator: ", ")
+        return JournalNotice(
+            message: """
+                La reprise n'a pas pu lire \(unreadable.count) \(subject) comme \
+                prévu ; repris quand même, à vérifier : \(names).
+                """
+        )
     }
 }
