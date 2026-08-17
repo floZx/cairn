@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Markdown } from "./markdown"
 import { dateLongue } from "./format"
+import { NoteEditor, jourCourant, type NoteAEditer } from "./NoteEditor"
 
 type Note = {
   uuid: string
@@ -59,6 +60,7 @@ function useImagesDuJournal() {
 
 export function Journal() {
   const images = useImagesDuJournal()
+  const [enEdition, setEnEdition] = useState<NoteAEditer | null>(null)
 
   const { data, error, isPending, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery({
@@ -89,20 +91,67 @@ export function Journal() {
     return () => observateur.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
+  if (enEdition) {
+    return <NoteEditor note={enEdition} onFerme={() => setEnEdition(null)} />
+  }
+
   if (isPending) return <p className="attenue">Chargement…</p>
   if (error) return <p className="erreur">{(error as Error).message}</p>
 
   const notes = data.pages.flat()
-  if (notes.length === 0) return <p className="attenue">Aucune note pour l'instant.</p>
+  const aujourdhui = jourCourant()
+  // Reprise plutôt que création quand la journée est déjà racontée : un
+  // journal tient une note par jour, et un second bouton « nouvelle note »
+  // qui en fabriquerait une deuxième trahirait ce que le Mac garantit.
+  const noteDuJour = notes.find((n) => n.date_key_raw === aujourdhui)
+
+  const boutonDuJour = (
+    <button
+      className="note-du-jour"
+      onClick={() =>
+        setEnEdition({
+          uuid: noteDuJour?.uuid ?? null,
+          dateKey: aujourdhui,
+          texte: noteDuJour?.text ?? "",
+        })
+      }
+    >
+      {noteDuJour ? "Compléter la note du jour" : "Écrire la note du jour"}
+    </button>
+  )
+
+  if (notes.length === 0) {
+    return (
+      <>
+        {boutonDuJour}
+        <p className="attenue">Aucune note pour l'instant.</p>
+      </>
+    )
+  }
 
   const urlImage = (chemin: string) =>
     images.data?.get(chemin.replace(/^.*\//, ""))
 
   return (
     <>
+      {boutonDuJour}
       {notes.map((note) => (
         <article className="note" key={note.uuid}>
-          <h2 className="jour">{dateLongue(note.date_key_raw)}</h2>
+          <h2 className="jour">
+            {dateLongue(note.date_key_raw)}
+            <button
+              className="lien petit"
+              onClick={() =>
+                setEnEdition({
+                  uuid: note.uuid,
+                  dateKey: note.date_key_raw,
+                  texte: note.text,
+                })
+              }
+            >
+              Modifier
+            </button>
+          </h2>
           {note.tags_raw && note.tags_raw.length > 0 && (
             <div className="etiquettes">
               {note.tags_raw.map((tag) => (

@@ -282,3 +282,75 @@ input, button { font: inherit; }
   margin: 10px 0;
   border-radius: 10px;
 }
+
+/* ---- Écriture d'une note ------------------------------------------------ */
+
+.note-du-jour {
+  width: 100%;
+  margin: 16px 0 4px;
+  padding: 12px;
+  border: 1px dashed var(--trait);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.jour {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.editeur {
+  display: flex;
+  flex-direction: column;
+  /* Toute la hauteur restante : sur un téléphone, écrire une note est la seule
+     chose qu'on fait à ce moment-là. */
+  min-height: 70vh;
+  padding-top: 12px;
+}
+
+.barre-editeur {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.barre-editeur .jour {
+  display: block;
+  font-size: 14px;
+  color: var(--attenue);
+  text-transform: capitalize;
+}
+
+.lien.fort {
+  font-weight: 600;
+}
+
+.lien:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.saisie-note {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--trait);
+  border-radius: 10px;
+  background: var(--champ);
+  color: var(--texte);
+  font: inherit;
+  line-height: 1.55;
+  resize: none;
+}
+
+.saisie-note:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
