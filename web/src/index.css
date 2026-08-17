@@ -1047,3 +1047,66 @@ input, button { font: inherit; }
 .action-rouge:active {
   background: var(--champ);
 }
+
+/* ---- Journal : ce qui vient d'ailleurs ----------------------------------- */
+
+.barre-jour .note-du-jour {
+  flex: 1;
+  margin: 0;
+}
+
+/* Le champ de date, à côté du bouton d'aujourd'hui : écrire sur un jour passé
+   n'avait aucun chemin, alors que le Mac le permet. */
+.bouton-date {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--champ);
+  color: var(--accent);
+}
+
+/* Cité et attribué, jamais fondu dans la note : une description de sortie et
+   la note du jour ne se lisent pas de la même façon, et les mêler ferait
+   croire qu'on a tout écrit d'un trait. */
+.ailleurs {
+  margin: 12px 0 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--trait);
+}
+
+.ailleurs .source {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--texte-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ailleurs p {
+  margin: 0 0 6px;
+}
+
+.ailleurs p:last-child {
+  margin-bottom: 0;
+}
+
+/* La pesée : un point, pas un mot. Une journée pesée se reconnaît d'un coup
+   d'œil sans que le chiffre encombre le titre. */
+.pastille {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+}
+
+.jour > span:first-child {
+  display: inline-flex;
+  align-items: center;
+}
