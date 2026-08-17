@@ -78,7 +78,22 @@ lus dans `.env.local`. La clé anonyme est faite pour être publique — c'est l
 politique RLS de chaque table, et elle seule, qui protège les données. La clé
 `service_role`, elle, ne doit jamais quitter le tableau de bord Supabase.
 
+### Les deux adresses
+
+**`https://cairn-2tk.pages.dev`** — la stable, celle qu'il faut. Elle sert
+toujours le dernier déploiement de la branche `main`.
+
+`https://<empreinte>.cairn-2tk.pages.dev` — celle que `wrangler` imprime après
+chaque envoi. C'est un instantané permanent de cette version-là, bon pour
+revenir en arrière ou comparer deux versions, jamais pour s'en servir : une
+application installée depuis celle-ci est figée et ne verra plus aucune mise
+à jour.
+
+(`cairn.pages.dev` était pris, d'où le suffixe.)
+
 ### Installer sur le téléphone
+
+Depuis l'adresse stable, jamais depuis celle d'un déploiement.
 
 iOS : ouvrir l'adresse dans Safari, Partager → « Sur l'écran d'accueil ».
 Android : Chrome propose « Installer l'application ».
