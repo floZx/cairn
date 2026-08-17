@@ -16,8 +16,8 @@ enum JournalAttachmentCache {
         AppModelContainer.directory.appending(path: "cache/journal-attachments")
     }
 
-    /// Writes `attachment`'s bytes under its file name if the file is not
-    /// already there, and returns its URL.
+    /// Writes `attachment`'s bytes under its file name inside `directory` if
+    /// the file is not already there, and returns its URL.
     ///
     /// Writes only when the file is missing: the file name is the key, and
     /// the bytes behind a given name never change, so rewriting an existing
@@ -26,11 +26,17 @@ enum JournalAttachmentCache {
     /// attachment carries no bytes: a missing image should stay silent,
     /// never become an empty file that reads as a corrupt one.
     ///
-    /// `directory` defaults to the application's real cache; tests pass a
-    /// throwaway one of their own so a run never writes there.
+    /// No default value for `directory`: an earlier draft defaulted it to
+    /// `Self.directory`, the application's own cache. That is exactly the
+    /// shape every test call in this file takes, so a call written without
+    /// the second argument — the form the brief's own interface sketch
+    /// shows — would silently write into the user's real cache folder
+    /// instead of a test's throwaway one. `MirrorEngine.init`'s `cursor:`
+    /// carries the identical warning, learned the same way. Every caller,
+    /// production and test alike, names the directory it means.
     @discardableResult
     static func materialise(
-        _ attachment: JournalAttachment, directory: URL = Self.directory
+        _ attachment: JournalAttachment, directory: URL
     ) throws -> URL? {
         guard let data = attachment.data else { return nil }
         try FileManager.default.createDirectory(
@@ -45,9 +51,11 @@ enum JournalAttachmentCache {
     /// Materialises everything the store holds that is missing on disk.
     ///
     /// Returns the count actually written — zero on every launch after the
-    /// first, which is what makes the cache's idempotence testable.
+    /// first, which is what makes the cache's idempotence testable. No
+    /// default for `directory`, for the same reason `materialise` has none:
+    /// see its doc comment.
     @discardableResult
-    static func rebuild(_ context: ModelContext, directory: URL = Self.directory) throws -> Int {
+    static func rebuild(_ context: ModelContext, directory: URL) throws -> Int {
         let attachments = try context.fetch(FetchDescriptor<JournalAttachment>())
         var written = 0
         for attachment in attachments {

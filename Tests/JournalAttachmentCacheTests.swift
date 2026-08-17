@@ -5,11 +5,12 @@ import SwiftData
 
 /// The cache reconstructs what is missing on disk from what the store holds.
 ///
-/// Every test that writes bytes passes its own throwaway directory rather
-/// than `JournalAttachmentCache.directory`: that property names the
-/// application's real cache folder, and a test run must never leave files
-/// there, exactly as `Tests/JournalStoreTests.swift` never points a store at
-/// the user's real journal folder.
+/// `materialise` and `rebuild` take `directory` with no default value —
+/// every test here passes its own throwaway one rather than
+/// `JournalAttachmentCache.directory`, which names the application's real
+/// cache folder. A test run must never leave files there, exactly as
+/// `Tests/JournalStoreTests.swift` never points a store at the user's real
+/// journal folder.
 @Suite("Cache des pièces jointes")
 struct JournalAttachmentCacheTests {
     /// A throwaway directory, discarded by the caller.
@@ -67,13 +68,18 @@ struct JournalAttachmentCacheTests {
     }
 
     /// Une pièce jointe sans octets ne produit aucun fichier — et surtout
-    /// aucun fichier vide, qui se lirait comme une image corrompue. Ce test
-    /// ne passe aucun répertoire jetable : `materialise` doit renvoyer nil
-    /// avant même de songer à écrire quoi que ce soit sur disque.
+    /// aucun fichier vide, qui se lirait comme une image corrompue. On lui
+    /// passe un répertoire jetable et on vérifie qu'il reste vide : pas
+    /// seulement que le retour vaut nil, ce qu'un simple réordonnancement de
+    /// la garde et de la création du dossier laisserait encore passer.
     @Test func unePieceSansOctetsNeProduitAucunFichier() throws {
+        let directory = try makeDirectory()
+        defer { discard(directory) }
         let attachment = JournalAttachment(fileName: "vide.jpg", data: Data())
         attachment.data = nil
-        #expect(try JournalAttachmentCache.materialise(attachment) == nil)
+
+        #expect(try JournalAttachmentCache.materialise(attachment, directory: directory) == nil)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
     }
 
     /// `materialise` écrit sous le répertoire jetable qu'on lui passe, jamais
