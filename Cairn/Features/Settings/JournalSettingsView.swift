@@ -26,11 +26,13 @@ struct JournalSettingsView: View {
         .formStyle(.grouped)
     }
 
+    /// Ce que la sauvegarde en fait n'est pas dit ici : l'export Markdown
+    /// existe (`JournalMarkdownExport`) mais personne ne l'appelle encore, et
+    /// une promesse en avance d'une tâche est une promesse fausse.
     private var footer: String {
         """
         Les notes du journal vivent dans la base de Cairn, et entrent donc \
-        dans la sauvegarde — qui en écrit aussi une copie en Markdown, une \
-        note par jour nommée AAAA-MM-JJ.md, qu'Obsidian ouvre telle quelle.
+        dans la sauvegarde.
         """
     }
 }

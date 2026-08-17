@@ -1312,7 +1312,7 @@ struct RootView: View {
                         Label("Supprimer", systemImage: "trash")
                     }
                     .disabled(!journalSelectionHasNote)
-                    .help("Mettre la note sélectionnée à la corbeille")
+                    .help("Supprimer la note sélectionnée")
                 }
             }
     }

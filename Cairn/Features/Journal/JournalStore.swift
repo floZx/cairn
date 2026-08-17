@@ -45,8 +45,15 @@ final class JournalStore {
     /// its string again from outside loses its selection — which put the caret
     /// at the end of the note after every letter typed anywhere else. So it
     /// cannot read the store's text back continuously; it needs to be told the
-    /// moments when the store's copy is the one to show: another note loaded,
-    /// a deletion, a line appended from outside the editor.
+    /// two moments when the store's copy is the one to show: a buffer dropped
+    /// on purpose, which today means a deletion (`discardBuffer()`), and a
+    /// line written into the note by something other than the editor
+    /// (`append(_:for:)`).
+    ///
+    /// Not a change of note: `beginEditing` never moves this counter, and
+    /// never has. The pane re-seeds its draft from its own
+    /// `.onChange(of: day.id)` — it knows which note it is showing before this
+    /// store does.
     ///
     /// A counter and not the text itself: what the editor has to know is *that*
     /// its text was replaced, and it already has `text(for:)` to read it from.

@@ -6,8 +6,24 @@ import Foundation
 struct DetailPaneWidthTests {
     /// Its own defaults domain, so the suite never reads or writes the width the
     /// app is actually using.
+    ///
+    /// Le balai est ici et non dans un `defer` parce qu'il n'y en a aucun :
+    /// ces tests prennent un domaine et le laissent. Chaque appel ramasse donc
+    /// les fichiers laissés par les précédents, de cette exécution comme des
+    /// précédentes — voir `ThrowawayDefaults.sweep(prefix:)`, qui dit pourquoi
+    /// retirer le fichier de sa propre suite ne suffirait pas.
+    ///
+    /// Le préfixe est celui de cette suite seule. Il valait `cairn.tests.`,
+    /// qui est aussi le début de `cairn.tests.mirror.` : balayer sous ce
+    /// nom-là aurait emporté les fichiers d'une suite du miroir en train de
+    /// tourner à côté.
+    private static let suitePrefix = "detail-pane-width-tests-"
+
     private func makeDefaults() -> UserDefaults {
-        let defaults = UserDefaults(suiteName: "cairn.tests.\(UUID().uuidString)")!
+        ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
+        let defaults = UserDefaults(
+            suiteName: "\(Self.suitePrefix)\(UUID().uuidString)"
+        )!
         defaults.removePersistentDomain(forName: defaults.description)
         return defaults
     }

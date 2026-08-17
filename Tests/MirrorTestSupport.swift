@@ -78,8 +78,21 @@ func freshCursor() -> (cursor: MirrorBootstrapCursor, suiteName: String) {
     return (MirrorBootstrapCursor(defaults: UserDefaults(suiteName: suiteName)!), suiteName)
 }
 
+/// Vide le domaine **et** ramasse les fichiers qu'il laisse derrière lui.
+///
+/// `removePersistentDomain(forName:)` seul ne touche pas au
+/// `~/Library/Preferences/<nom>.plist` : un fichier par suite jetable, donc un
+/// par test, à chaque exécution — vingt-quatre par passage de la suite complète
+/// pour les seules suites du miroir, mesurés. Pourquoi un balai plutôt qu'un
+/// simple `removeItem` sur ce nom-ci : voir `ThrowawayDefaults.sweep(prefix:)`,
+/// qui explique la course avec `cfprefsd`.
+///
+/// Le préfixe est celui que `freshCursor()` compose, répété ici plutôt que
+/// nommé : rien dans ce fichier ne peut être renommé, d'autres suites en
+/// dépendant au caractère près.
 func discard(_ suiteName: String) {
     UserDefaults().removePersistentDomain(forName: suiteName)
+    ThrowawayDefaults.sweep(prefix: "cairn.tests.mirror.")
 }
 
 /// A secret store already holding a valid, unexpired mirror session.

@@ -53,9 +53,13 @@ enum JournalFolder {
         for url in names {
             if let pending = pendingDownload(at: url) {
                 // A vault synced by iCloud shows not-yet-downloaded notes as
-                // `.2026-08-11.md.icloud` placeholders. Asking for the file is
-                // all that is needed: the folder watcher picks it up when it
-                // lands, so this pass simply skips it.
+                // `.2026-08-11.md.icloud` placeholders. The download is asked
+                // for and the file skipped — there is no watcher any more to
+                // pick it up when it lands, which is exactly why the recovery
+                // does not rely on this: `JournalImport.hasPendingDownloads`
+                // counts the placeholders itself and refuses to run at all
+                // while there is one, rather than letting a note still syncing
+                // be dropped for good by a pass that happens only once.
                 try? FileManager.default.startDownloadingUbiquitousItem(at: pending)
                 continue
             }
