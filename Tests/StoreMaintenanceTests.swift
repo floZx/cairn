@@ -24,6 +24,26 @@ private func seedPair<Model: PersistentModel & MirrorRow>(
     return (Model.mirrorTable, { Set([first.uuid, second.uuid]) })
 }
 
+/// La même chose, pour un modèle qui ne traverse pas le miroir — `JournalNote`
+/// et `JournalAttachment` ne conforment pas `MirrorRow`, ce que
+/// `Tests/MirrorIdentityTests.swift` fige à seize. `StoreMaintenance` répare
+/// leur identité tout de même : un défaut SwiftData ne sait pas qu'un modèle
+/// reste local. Le nom de table est fourni à la main plutôt que lu sur
+/// `MirrorRow.mirrorTable`, qui n'existe pas ici — c'est justement le point.
+@MainActor
+private func seedLocalPair<Model: PersistentModel>(
+    _ label: String,
+    _ uuid: ReferenceWritableKeyPath<Model, String>,
+    _ first: Model, _ second: Model,
+    sharing shared: String, into context: ModelContext
+) -> (table: String, uuids: () -> Set<String>) {
+    first[keyPath: uuid] = shared
+    second[keyPath: uuid] = shared
+    context.insert(first)
+    context.insert(second)
+    return (label, { Set([first[keyPath: uuid], second[keyPath: uuid]]) })
+}
+
 @Suite("Maintenance du store")
 @MainActor
 struct StoreMaintenanceTests {
@@ -76,6 +96,13 @@ struct StoreMaintenanceTests {
     /// qu'ici. Une boucle plutôt que seize tests : ce qui compte est justement
     /// qu'aucun ne manque à l'appel, et un modèle oublié se lit mieux dans une
     /// liste que dans un fichier de seize fonctions jumelles.
+    ///
+    /// `JournalNote` et `JournalAttachment` rejoignent la même passe plus bas,
+    /// dans une liste à part : ils portent un `uuid` sujet au même défaut
+    /// SwiftData, mais ne conforment pas `MirrorRow` (`Tests/MirrorIdentityTests.swift`
+    /// fige les seize), donc l'égalité avec `MirrorEngine.bootstrapOrder`
+    /// ci-dessous ne porte que sur les seize qui traversent — pas sur « tout
+    /// ce qui porte un uuid », que la seconde liste couvre séparément.
     ///
     /// La forme reproduite est celle qu'une migration légère laisse : deux
     /// lignes d'une même table portant la même valeur. Le compte attendu est
@@ -185,19 +212,43 @@ struct StoreMaintenanceTests {
                 sharing: shared, into: context
             ),
         ]
+        // Les seize qui traversent, comparés à la liste que le miroir tient
+        // lui-même — pas « tout ce qui porte un uuid », que `localPairs`
+        // couvre séparément juste en dessous.
         #expect(Set(pairs.map(\.table)) == Set(MirrorEngine.bootstrapOrder))
+
+        // Les deux modèles du journal : un uuid, sujet au même défaut
+        // SwiftData, sans traverser le miroir. `MirrorRow` ne les liste pas
+        // (`Tests/MirrorIdentityTests.swift` fige les seize à ce nombre), donc
+        // `seedLocalPair` prend son nom de table à la main plutôt que sur le
+        // protocole.
+        let localPairs = [
+            seedLocalPair(
+                "journal_note", \JournalNote.uuid,
+                JournalNote(dateKey: day, text: "Une"),
+                JournalNote(dateKey: DateKey(raw: "2026-08-17")!, text: "Deux"),
+                sharing: shared, into: context
+            ),
+            seedLocalPair(
+                "journal_attachment", \JournalAttachment.uuid,
+                JournalAttachment(fileName: "un.jpg", data: Data([0x01])),
+                JournalAttachment(fileName: "deux.jpg", data: Data([0x02])),
+                sharing: shared, into: context
+            ),
+        ]
         try context.save()
 
         let changed = try StoreMaintenance.run(context)
 
-        #expect(changed == pairs.count)
-        for pair in pairs {
+        #expect(changed == pairs.count + localPairs.count)
+        for pair in pairs + localPairs {
             let uuids = pair.uuids()
             #expect(uuids.count == 2, "\(pair.table) : les deux lignes partagent encore un uuid")
             #expect(uuids.allSatisfy { !$0.isEmpty }, "\(pair.table) : un uuid vide")
         }
 
-        // La même passe, relancée : plus rien à réparer sur aucune des seize.
+        // La même passe, relancée : plus rien à réparer, ni sur les seize, ni
+        // sur les deux locaux.
         #expect(try StoreMaintenance.run(context) == 0)
     }
 

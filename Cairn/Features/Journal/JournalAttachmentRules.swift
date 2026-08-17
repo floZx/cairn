@@ -5,7 +5,7 @@ import Foundation
 /// A value-only piece, like everything in this feature that is not
 /// `JournalFolder`: naming a file and appending a line are decisions worth
 /// testing, and neither needs a disk to be made.
-enum JournalAttachment {
+enum JournalAttachmentRules {
     /// Beside the notes, not among them: a vault whose root fills with images
     /// is a vault where the notes get hard to find.
     static let folderName = "pieces-jointes"

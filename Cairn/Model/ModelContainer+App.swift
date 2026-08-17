@@ -15,6 +15,11 @@ enum AppModelContainer {
         // lightweight migration, and the only one here that never crosses to
         // Supabase.
         MirrorOutbox.self,
+        // The journal's notes and their images — two more models, another
+        // lightweight migration. Neither conforms to `MirrorRow`: this slice
+        // is purely local, and it stays that way until a later tranche makes
+        // them cross.
+        JournalNote.self, JournalAttachment.self,
     ])
 
     /// The store file to open, decided in one place rather than scattered across

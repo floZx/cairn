@@ -66,7 +66,7 @@ enum JournalFolder {
     // MARK: - Pièces jointes
 
     static func attachmentsFolder(in folder: URL) -> URL {
-        folder.appending(path: JournalAttachment.folderName)
+        folder.appending(path: JournalAttachmentRules.folderName)
     }
 
     /// Copies a picture into the vault under a name of the journal's own.
@@ -81,7 +81,7 @@ enum JournalFolder {
         from source: URL, for date: DateKey, in folder: URL
     ) throws -> String {
         // Reduced on the way in, when it is worth it: see
-        // `JournalAttachment.maxPixels`. A picture already small enough is
+        // `JournalAttachmentRules.maxPixels`. A picture already small enough is
         // copied byte for byte — re-encoding it would only lose detail.
         if let reduced = reduced(at: source) {
             return try writeAttachment(
@@ -104,7 +104,7 @@ enum JournalFolder {
         return reduced(source)
     }
 
-    /// The picture at `url`, brought down to `JournalAttachment.maxPixels`, or
+    /// The picture at `url`, brought down to `JournalAttachmentRules.maxPixels`, or
     /// nil when it is already within it.
     ///
     /// Through ImageIO, which makes the smaller image without ever decoding
@@ -121,13 +121,13 @@ enum JournalFolder {
                   as? [CFString: Any],
               let width = properties[kCGImagePropertyPixelWidth] as? Int,
               let height = properties[kCGImagePropertyPixelHeight] as? Int,
-              max(width, height) > JournalAttachment.maxPixels,
+              max(width, height) > JournalAttachmentRules.maxPixels,
               let image = CGImageSourceCreateThumbnailAtIndex(
                   source, 0,
                   [
                       kCGImageSourceCreateThumbnailFromImageAlways: true,
                       kCGImageSourceCreateThumbnailWithTransform: true,
-                      kCGImageSourceThumbnailMaxPixelSize: JournalAttachment.maxPixels,
+                      kCGImageSourceThumbnailMaxPixelSize: JournalAttachmentRules.maxPixels,
                   ] as CFDictionary
               )
         else { return nil }
@@ -167,7 +167,7 @@ enum JournalFolder {
             (try? FileManager.default.contentsOfDirectory(atPath: attachments.path))
                 ?? []
         )
-        return JournalAttachment.fileName(for: date, extension: ext, taken: taken)
+        return JournalAttachmentRules.fileName(for: date, extension: ext, taken: taken)
     }
 
     /// The real file behind an iCloud placeholder, or nil when this is not one.

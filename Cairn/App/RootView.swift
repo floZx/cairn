@@ -999,7 +999,7 @@ struct RootView: View {
         var links: [String] = []
         var refused: [String] = []
         for url in urls {
-            guard JournalAttachment.allowedExtensions
+            guard JournalAttachmentRules.allowedExtensions
                 .contains(url.pathExtension.lowercased())
             else {
                 refused.append(url.lastPathComponent)
@@ -1009,7 +1009,7 @@ struct RootView: View {
                 let name = try JournalFolder.copyAttachment(
                     from: url, for: date, in: folder
                 )
-                links.append(JournalAttachment.link(to: name))
+                links.append(JournalAttachmentRules.link(to: name))
             } catch {
                 refused.append(url.lastPathComponent)
             }
@@ -1043,7 +1043,7 @@ struct RootView: View {
                 reduced ?? data, extension: reduced == nil ? "png" : "jpg",
                 for: date, in: folder
             )
-            append([JournalAttachment.link(to: name)], to: date)
+            append([JournalAttachmentRules.link(to: name)], to: date)
         } catch {
             fileMessage = "La photo collée n'a pas pu être écrite. "
                 + error.localizedDescription
@@ -1064,7 +1064,7 @@ struct RootView: View {
         // invisible to whoever is writing until they leave the note. The store
         // has to say the text is its own again.
         app.journal.append(
-            JournalAttachment.appending(links, to: app.journal.text(for: date)),
+            JournalAttachmentRules.appending(links, to: app.journal.text(for: date)),
             for: date
         )
     }

@@ -3,7 +3,8 @@ import SwiftData
 
 /// The one place for everything that has to happen once to an existing store.
 enum StoreMaintenance {
-    /// Gives every row that crosses to the mirror an identity of its own.
+    /// Gives every uuid-bearing row an identity of its own — the sixteen
+    /// models that cross to the mirror, and the journal's two local ones.
     ///
     /// Two cases, and the second is why this does not merely look for empty
     /// strings. A SwiftData property default is a single value in the managed
@@ -21,25 +22,32 @@ enum StoreMaintenance {
     /// objects by `uuid` and would overwrite one object per table, and an
     /// upsert carrying the same key twice is a hard `21000` from Postgres.
     ///
+    /// `JournalNote` and `JournalAttachment` never reach `MirrorEngine` — this
+    /// slice is local only — but the SwiftData mechanism that duplicates
+    /// `uuid` across existing rows does not know that, and a store restored
+    /// from a future backup would carry the exact same duplicated identity on
+    /// them. Views key off `JournalNote.uuid` the same way they key off
+    /// `Activity.uuid`, so they get the same repair.
+    ///
     /// Returns how many rows were changed, which is what makes it testable and
     /// its idempotence checkable.
     ///
     /// Runs on every launch, so the pass that finds nothing to do has to stay
     /// cheap: `reissueDuplicateUUIDs` fetches `uuid` and nothing else, which
-    /// matters for the two tables carrying blobs inline (`ActivityStreams`'
-    /// eleven `Data?`, `ActivityPhoto.data`) — reading them in full every
-    /// launch would cost hundreds of megabytes resident for a scan that
-    /// changes nothing.
+    /// matters for the tables carrying blobs inline (`ActivityStreams`'
+    /// eleven `Data?`, `ActivityPhoto.data`, `JournalAttachment.data`) —
+    /// reading them in full every launch would cost hundreds of megabytes
+    /// resident for a scan that changes nothing.
     @discardableResult
     static func run(_ context: ModelContext) throws -> Int {
         var changed = 0
 
-        // The sixteen models that cross — `MirrorRow`'s own list, and the
-        // constraint on `reissueDuplicateUUIDs` is what keeps it that: a model
-        // that does not traverse cannot be passed here by accident, and one
-        // that starts traversing has a compiler-checked place to be added.
-        // `Activity` first, because `linkPhotosToTheirActivity` below reads the
-        // uuid this pass may have just reissued.
+        // The sixteen models that cross — `MirrorRow`'s own list. Nothing
+        // pins this call list to it any more (see `reissueDuplicateUUIDs`
+        // below), so it is this explicit enumeration, not a type constraint,
+        // that has to stay complete. `Activity` first, because
+        // `linkPhotosToTheirActivity` below reads the uuid this pass may
+        // have just reissued.
         changed += try reissueDuplicateUUIDs(\Activity.uuid, in: context)
         changed += try reissueDuplicateUUIDs(\ActivityStreams.uuid, in: context)
         changed += try reissueDuplicateUUIDs(\ActivityPhoto.uuid, in: context)
@@ -57,6 +65,11 @@ enum StoreMaintenance {
         changed += try reissueDuplicateUUIDs(\FavoriteFood.uuid, in: context)
         changed += try reissueDuplicateUUIDs(\WeightEntry.uuid, in: context)
 
+        // The two that do not cross the mirror at all. Same repair, same
+        // reason: a restored backup does not know it is exempt.
+        changed += try reissueDuplicateUUIDs(\JournalNote.uuid, in: context)
+        changed += try reissueDuplicateUUIDs(\JournalAttachment.uuid, in: context)
+
         changed += try linkPhotosToTheirActivity(context)
 
         guard changed > 0 else { return 0 }
@@ -68,22 +81,26 @@ enum StoreMaintenance {
     /// table holds. Returns how many were reissued.
     ///
     /// Uniqueness is per model, not across the store: `uuid` is each mirrored
-    /// table's own primary key in `supabase/schema.sql`, and the two Storage
-    /// paths built from a `uuid` live in different buckets, so two tables
-    /// sharing a value collides with nothing.
+    /// table's own primary key in `supabase/schema.sql` (`JournalNote` and
+    /// `JournalAttachment` carry no such row at all, only the same local
+    /// convention), and the two Storage paths built from a `uuid` live in
+    /// different buckets, so two tables sharing a value collides with nothing.
     ///
     /// Takes a writable key path rather than reading `MirrorRow.uuid`, which
     /// is get-only and stays that way — a mirrored row's identity is not
-    /// something the mirror itself may rewrite. The `MirrorRow` constraint is
-    /// still there, purely to pin the list in `run` to the models that
-    /// actually cross.
+    /// something the mirror itself may rewrite. No longer constrained to
+    /// `MirrorRow`: `JournalNote` and `JournalAttachment` need the exact same
+    /// repair without crossing the mirror, so the constraint that used to pin
+    /// this to mirrored models only would have excluded them. What actually
+    /// pins the set of models repaired is the explicit call list in `run`
+    /// above, not a type constraint here.
     ///
     /// Never paged: pagination by `uuid` is exactly what a duplicated `uuid`
     /// breaks — that is the bug being repaired here — and pagination by
     /// position would shift under a row whose uuid this pass has just changed.
     /// The whole table at once, with `propertiesToFetch` keeping the scan to
     /// the one column, is the shape that cannot be wrong.
-    private static func reissueDuplicateUUIDs<Model: PersistentModel & MirrorRow>(
+    private static func reissueDuplicateUUIDs<Model: PersistentModel>(
         _ uuid: ReferenceWritableKeyPath<Model, String>, in context: ModelContext
     ) throws -> Int {
         var descriptor = FetchDescriptor<Model>()
