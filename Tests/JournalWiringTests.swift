@@ -68,16 +68,84 @@ struct JournalWiringTests {
         #expect(try context.fetch(FetchDescriptor<JournalNote>()).count == 1)
     }
 
+    /// Un environnement complet, mais rien de réel dedans — le patron de
+    /// `Tests/MirrorAutonomyTests.swift`, et pour la raison que le
+    /// doc-comment d'`AppEnvironment.init` développe sur un paragraphe :
+    /// `AppEnvironment(container:)` nu prend le vrai `KeychainStore`, le vrai
+    /// `URLSessionTransport` et `MirrorBootstrapCursor(defaults: .standard)`.
+    /// Sur une machine où le miroir est configuré — celle du propriétaire de
+    /// ce dépôt en est une — `mirrorRecorder.start()` part alors pour de
+    /// vrai, sur les vraies préférences.
+    private func throwawayEnvironment(
+        container: ModelContainer, cursor: MirrorBootstrapCursor
+    ) -> AppEnvironment {
+        AppEnvironment(
+            container: container, store: InMemorySecretStore(),
+            mirrorTransport: StubTransport(alwaysRespondingWith: 200), mirrorCursor: cursor
+        )
+    }
+
     /// Le journal n'attend plus qu'on lui désigne un dossier : il est
     /// utilisable dès la construction de l'environnement.
     @Test func leJournalEstUtilisableSansDossier() throws {
         let container = try AppModelContainer.inMemory()
-        let environment = AppEnvironment(container: container)
+        let (cursor, cursorSuite) = freshCursor()
+        defer { discard(cursorSuite) }
+        let environment = throwawayEnvironment(container: container, cursor: cursor)
         let today = environment.journal.openToday()
         environment.journal.update("une note", for: today)
         environment.journal.saveNow()
 
         #expect(environment.journal.text(for: today) == "une note")
+    }
+
+    /// La garantie la plus visible de la tranche, et celle qu'aucun test ne
+    /// portait : sans le `refresh()` que `CairnApp.init` fait suivre la
+    /// maintenance, le premier lancement après la reprise montre un journal
+    /// vide alors que la base vient d'en recevoir toutes les notes.
+    ///
+    /// Reproduit la production à la lettre, ce que
+    /// `laMaintenanceDeclencheLaReprise` ne fait pas : là-bas le même
+    /// `ModelContext` sert des deux côtés, ici la reprise reçoit un contexte
+    /// **neuf** — comme `StoreMaintenance.run(ModelContext(container))` dans
+    /// `CairnApp.init` — pendant que `JournalStore` tient, lui,
+    /// `container.mainContext`. C'est précisément cet écart-là qui rend le
+    /// `refresh()` nécessaire, et qu'un contexte partagé masquait.
+    @Test func laRepriseNEstVisibleQuApresLeRefresh() throws {
+        let container = try AppModelContainer.inMemory()
+        let folder = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "journal-wiring-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try "reprise".write(
+            to: folder.appending(path: "2026-08-17.md"), atomically: true, encoding: .utf8
+        )
+
+        let (defaults, suiteName) = freshJournalDefaults()
+        defer { discardJournalDefaults(suiteName) }
+        let cache = freshCacheDirectory()
+        defer { discardCache(cache) }
+        defaults.set(folder.path, forKey: JournalSettings.folderPathKey)
+        let (cursor, cursorSuite) = freshCursor()
+        defer { discard(cursorSuite) }
+
+        // Construit avant la reprise, comme dans `CairnApp.init` : le journal
+        // est bâti sur ce que la base tenait à cet instant, c'est-à-dire rien.
+        let environment = throwawayEnvironment(container: container, cursor: cursor)
+        #expect(environment.journal.notes.isEmpty)
+
+        try StoreMaintenance.run(
+            ModelContext(container), cacheDirectory: cache, defaults: defaults
+        )
+        // Toujours rien : le `mainContext` ne voit pas de lui-même ce qu'un
+        // autre contexte vient d'insérer. C'est ce que ce test doit
+        // établir avant tout — sans quoi le `refresh()` de la ligne suivante
+        // serait vérifié par un test qui passerait aussi bien sans lui.
+        #expect(environment.journal.notes.isEmpty)
+        environment.journal.refresh()
+
+        #expect(environment.journal.notes.count == 1)
+        #expect(environment.journal.text(for: DateKey(raw: "2026-08-17")!) == "reprise")
     }
 
     /// Un fichier illisible à la reprise se retrouve dans les préférences, en
