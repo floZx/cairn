@@ -5,6 +5,7 @@ import { nomDuSport } from "./sports"
 import { dateCourte, denivele, distance, duree } from "./format"
 import { traceDepuisBytea } from "./track"
 import { Carte } from "./Carte"
+import { Markdown } from "./markdown"
 
 type Fiche = {
   uuid: string
@@ -122,7 +123,9 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
       <Carte trace={trace} />
 
       {data.activity_description && (
-        <p style={{ marginTop: 20, whiteSpace: "pre-wrap" }}>{data.activity_description}</p>
+        <div className="description">
+          <Markdown texte={data.activity_description} />
+        </div>
       )}
     </>
   )

@@ -43,3 +43,20 @@ export function dateCourte(iso: string): string {
   const memeAnnee = date.getFullYear() === new Date().getFullYear()
   return (memeAnnee ? jour : jourAvecAnnee).format(date)
 }
+
+const jourLong = new Intl.DateTimeFormat("fr-FR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+})
+
+/// Une clé de jour du journal (`AAAA-MM-JJ`) en toutes lettres.
+///
+/// Découpée à la main plutôt que passée à `new Date` : une date seule est lue
+/// comme UTC par le navigateur, et un journal tenu à Paris verrait ses notes
+/// du soir datées de la veille.
+export function dateLongue(dateKey: string): string {
+  const [a, m, j] = dateKey.split("-").map(Number)
+  return jourLong.format(new Date(a, m - 1, j))
+}

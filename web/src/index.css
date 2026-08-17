@@ -182,3 +182,103 @@ input, button { font: inherit; }
 .entete-fiche h2 { margin: 0; font-size: 1.3rem; font-weight: 600; }
 
 .ligne { cursor: pointer; }
+
+/* ---- Onglets ------------------------------------------------------------ */
+
+.onglets {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px 10px;
+  border-bottom: 1px solid var(--trait);
+}
+
+.onglet {
+  flex: 1;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--attenue);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.onglet.actif {
+  background: var(--champ);
+  color: var(--texte);
+}
+
+/* ---- Journal ------------------------------------------------------------ */
+
+.note {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--trait);
+}
+
+.note:last-of-type {
+  border-bottom: 0;
+}
+
+.jour {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  /* La date est un repère, pas un titre : elle donne le jour sans crier. */
+  color: var(--attenue);
+  text-transform: capitalize;
+}
+
+.etiquettes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.etiquette-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--champ);
+  color: var(--attenue);
+  font-size: 12px;
+}
+
+/* Le texte des notes et celui des descriptions d'activité : même Markdown,
+   même rendu. */
+.note p,
+.description p {
+  margin: 0 0 10px;
+  line-height: 1.55;
+}
+
+.note ul,
+.description ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  line-height: 1.55;
+}
+
+.note h3,
+.note h4,
+.note h5,
+.note h6,
+.description h3,
+.description h4 {
+  margin: 14px 0 6px;
+  font-size: 15px;
+}
+
+.description {
+  margin-top: 20px;
+}
+
+/* Pleine largeur, hauteur libre : une photo de journal est un souvenir, pas
+   une vignette. */
+.image-note {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 10px 0;
+  border-radius: 10px;
+}
