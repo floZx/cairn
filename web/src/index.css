@@ -751,9 +751,12 @@ input, button { font: inherit; }
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
   border-top: 1px solid var(--trait);
-  /* La barre d'accueil de l'iPhone passe sous les onglets : sans cette marge,
-     le trait blanc coupe les libellés en deux. */
-  padding-bottom: env(safe-area-inset-bottom);
+  /* La barre d'accueil de l'iPhone passe sous les onglets : sans marge, le
+     trait blanc couperait les libellés. Mais la zone sûre entière — 34 points
+     sur un iPhone récent — laisse un vide bien plus grand que ce que le trait
+     occupe vraiment. Dix points de moins le referment sans le toucher : il
+     mesure cinq points et garde une douzaine de dégagement. */
+  padding-bottom: max(calc(env(safe-area-inset-bottom) - 10px), 4px);
 }
 
 .onglet-bas {
