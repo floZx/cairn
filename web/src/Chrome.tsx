@@ -135,8 +135,14 @@ export function Chrome({
               onClick={() => onSection(s)}
               aria-current={s === section ? "page" : undefined}
             >
-              <Icone nom={s} actif={s === section} />
-              <span>{TITRES[s]}</span>
+              {/* Le contenu dans sa propre enveloppe : c'est elle qui porte la
+                  pastille de l'onglet actif, et qui l'ajuste au texte plutôt
+                  qu'à la largeur du tiers. Une pastille aussi large qu'un tiers
+                  d'écran pour un mot de huit lettres écrase toute la barre. */}
+              <span className="dedans-onglet">
+                <Icone nom={s} actif={s === section} />
+                <span>{TITRES[s]}</span>
+              </span>
             </button>
           ))}
         </nav>
