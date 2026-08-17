@@ -24,10 +24,11 @@ enum JournalThumbnails {
 
     /// Where one thumbnail comes from.
     ///
-    /// Two origins, one strip: a picture written into the note is a file in
-    /// the vault, one carried by an outing is bytes in the store. What the row
-    /// says — "there are pictures here" — is the same either way, and a reader
-    /// scanning the list has no reason to be told which is which.
+    /// Two origins, one strip: a picture written into the note is named by a
+    /// path and read from the attachment cache, one carried by an outing is
+    /// bytes fetched straight from the store. What the row says — "there are
+    /// pictures here" — is the same either way, and a reader scanning the
+    /// list has no reason to be told which is which.
     enum Source: Hashable {
         case vault(path: String)
         case photo(id: PersistentIdentifier)
@@ -43,16 +44,15 @@ enum JournalThumbnails {
 
     /// The thumbnail for one source, decoded once.
     ///
-    /// Nil for anything that will not read: a file still coming down from
-    /// iCloud, a link to something that was moved, a photo whose bytes never
-    /// arrived. The row then shows one thumbnail fewer rather than an empty
-    /// frame, because a list is scanned and a hole in it reads as a fault.
+    /// Nil for anything that will not read: a link to a picture the journal
+    /// never held, a photo whose bytes never arrived. The row then shows one
+    /// thumbnail fewer rather than an empty frame, because a list is scanned
+    /// and a hole in it reads as a fault.
     static func image(
-        for source: Source, folder: URL?, context: ModelContext?
+        for source: Source, folder: URL, context: ModelContext?
     ) -> NSImage? {
         switch source {
         case let .vault(path):
-            guard let folder else { return nil }
             let url = folder.appending(path: path)
             return cached("vault:\(url.path)") { thumbnail(from: CGImageSourceCreateWithURL(url as CFURL, nil)) }
         case let .photo(id):
@@ -78,13 +78,6 @@ enum JournalThumbnails {
         order.append(key)
         evictIfNeeded()
         return image
-    }
-
-    /// Forgotten wholesale when the vault changes: another folder is another
-    /// set of pictures, and a path is only unique within one.
-    static func removeAll() {
-        cache.removeAll()
-        order.removeAll()
     }
 
     private static let capacity = 60
@@ -131,7 +124,7 @@ enum JournalThumbnails {
 /// The strip itself: a few squares, then how many more there are.
 struct JournalThumbnailStrip: View {
     let sources: [JournalThumbnails.Source]
-    let folder: URL?
+    let folder: URL
 
     @Environment(\.modelContext) private var modelContext
 

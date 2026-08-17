@@ -1,11 +1,14 @@
 import AppKit
-import CoreServices
 import Foundation
 import Observation
+import SwiftData
 
 /// AppStorage keys for the journal, held here so no key literal is ever
 /// duplicated — the same rule as `NutritionSettings`.
 enum JournalSettings {
+    /// Where the notes used to live. Read exactly once, by
+    /// `JournalImport.runIfNeeded`, and never written any more: the folder is
+    /// taken in at the first launch and then forgotten.
     static let folderPathKey = "journalFolderPath"
     /// Set once `JournalImport.runIfNeeded` has run, whatever it found —
     /// explicit rather than deduced from an empty store, because a journal
@@ -14,42 +17,26 @@ enum JournalSettings {
     static let importDoneKey = "journalImportDone"
 }
 
-/// The journal's live state: which folder, what is in it, and what is being
-/// typed into it right now.
+/// The journal's live state: what the base holds, and what is being typed into
+/// it right now.
 ///
-/// The folder is the only source of truth — nothing is mirrored into SwiftData.
-/// A mirror would be a second copy that diverges the first time a note is
-/// written from Obsidian on the phone, which is precisely the compatibility
-/// this feature is for.
+/// The base is the only source of truth. It used to be a folder shared with
+/// Obsidian, and half of this file existed for that one reason: a second
+/// writer meant reconciling, watching, and refusing to move on from a note
+/// whose write had failed. The phone writes through the web application now,
+/// so all of it has gone rather than been carried over — a `context.save()`
+/// does not fail the way a read-only disk or a vanished folder did.
 @MainActor
 @Observable
 final class JournalStore {
+    /// Every day the base holds, newest first, plus the one being written in.
+    ///
+    /// Values rather than the `@Model` rows themselves: `JournalDay`,
+    /// `JournalBook` and the list all take `JournalFileNote`, and the buffer
+    /// has to be able to stand in for a note that has no row yet — today's,
+    /// just opened with ⌘N.
     private(set) var notes: [JournalFileNote] = []
-    private(set) var loadError: String?
-    /// Set when the note being edited changed underneath. Cleared by the
-    /// banner's two buttons.
-    private(set) var conflict: JournalReconciliation.Outcome?
-    /// The note whose last write failed, if any.
-    ///
-    /// While this is set the store refuses to move on to another note: the
-    /// error has to stay over the text it belongs to, and that text would be
-    /// unreachable the moment the buffer was replaced. A list keeping its own
-    /// selection reads this so the two do not drift apart — the store having
-    /// stayed on a note the sidebar has left is a worse state than either.
-    private(set) var pendingWriteFailure: DateKey?
-    /// Why that last write failed, in French, for the editor to show.
-    ///
-    /// Its own property rather than `loadError`, which it would otherwise be
-    /// read from: `loadError` is cleared by any successful folder read, and the
-    /// watcher re-reads the folder on every event — an iCloud sync, a note
-    /// arriving, Obsidian touching its workspace file. The message would go
-    /// while the failure it explains was still in force, leaving an editor that
-    /// refuses to move with nothing on screen to say why. It also carries a
-    /// folder that went missing and a deletion that would not go through,
-    /// neither of which belongs over an open note. Set and cleared in lockstep
-    /// with `pendingWriteFailure`, and only with it.
-    private(set) var writeFailure: String?
-    private(set) var folder: URL?
+
     /// Moves every time the store has replaced the text of the note being
     /// edited itself, rather than taken it from the editor.
     ///
@@ -58,53 +45,54 @@ final class JournalStore {
     /// its string again from outside loses its selection — which put the caret
     /// at the end of the note after every letter typed anywhere else. So it
     /// cannot read the store's text back continuously; it needs to be told the
-    /// two moments when the store's copy is the one to show: an external change
-    /// adopted on a note with nothing unsaved (`merged(_:)`), and a buffer
-    /// dropped on purpose (**Recharger**, a deletion, another folder).
+    /// moments when the store's copy is the one to show: another note loaded,
+    /// a deletion, a line appended from outside the editor.
     ///
     /// A counter and not the text itself: what the editor has to know is *that*
     /// its text was replaced, and it already has `text(for:)` to read it from.
     /// Typing never moves it, which is the whole point.
     private(set) var textRevision = 0
 
-    private let defaults: UserDefaults
+    /// Where a note's `![](pieces-jointes/x.jpg)` resolves to.
+    ///
+    /// Not optional any more, and that is the point of the cache: the bytes
+    /// live in the base, and `JournalAttachmentCache` materialises them under
+    /// a folder that always exists. Nothing downstream — the Markdown
+    /// renderer, the thumbnails, the book — has to know anything changed, and
+    /// nothing has a reason to disable itself for want of a folder.
+    let attachmentsBase: URL
+
+    private let context: ModelContext
     /// The note being typed into, and its text. Kept apart from `notes` so the
-    /// buffer survives a reload that repopulates the list.
+    /// buffer survives a rebuild that repopulates the list.
     private var editingDate: DateKey?
     private var buffer = ""
     private var isDirty = false
-    /// The file behind the note being edited as we last knew it: what was read
-    /// from it when the note was opened, then whatever we wrote into it. This
-    /// is what tells a change made elsewhere from a folder that has not moved
-    /// under us — see `merged(_:)`.
-    private var baseline: (date: DateKey, text: String)?
     private var saveTask: Task<Void, Never>?
-    private var reloadTask: Task<Void, Never>?
-    /// The running watcher, held as an object rather than as a raw stream so
-    /// that releasing the store tears the stream down on its own — a `deinit`
-    /// is never main-actor isolated, whatever class it belongs to, so this
-    /// one's could not reach an isolated property to stop the stream itself.
-    private var stream: FolderStream?
-    /// Kept for the same reason: block-based notification observers are not
-    /// zeroed out the way target/selector ones are, so they have to be removed
-    /// by hand, and this object's `deinit` is where that can happen.
+    /// Block-based notification observers are not zeroed out the way
+    /// target/selector ones are, so they have to be removed by hand, and this
+    /// object's `deinit` is where that can happen — a `deinit` is never
+    /// main-actor isolated, whatever class it belongs to.
     private let observers = NotificationObservers()
 
     /// How long after the last keystroke the note is written.
     private static let saveDelay = Duration.milliseconds(700)
-    /// How long a burst of file-system events is allowed to settle. iCloud
-    /// drops a whole sync in one go, and re-reading the folder per file would
-    /// mean dozens of passes for one arrival.
-    private static let reloadDelay = Duration.milliseconds(300)
 
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        if let path = defaults.string(forKey: JournalSettings.folderPathKey),
-           !path.isEmpty {
-            folder = URL(fileURLWithPath: path)
-        }
-        reload()
-        startWatching()
+    /// - Parameter attachmentsBase: the cache directory, with no default
+    ///   value on purpose. `JournalAttachmentCache.materialise` carries the
+    ///   same warning for the same reason: a default of
+    ///   `JournalAttachmentCache.directory` is exactly the shape every test
+    ///   call takes, so a test that omitted it would write pictures into the
+    ///   application's real cache folder instead of its own throwaway one.
+    ///   Every caller, production and test alike, names the directory it means.
+    init(container: ModelContainer, attachmentsBase: URL) {
+        // The application's own context, not one of this store's making: the
+        // recovery inserts its notes through `StoreMaintenance`, and a store
+        // holding a context of its own would be looking at a snapshot taken
+        // before any of them arrived.
+        self.context = container.mainContext
+        self.attachmentsBase = attachmentsBase
+        refresh()
         // Anything that can take the app away has to flush the buffer first:
         // a debounce that has not fired yet is unwritten work.
         //
@@ -123,153 +111,40 @@ final class JournalStore {
         }
     }
 
-    /// Points the journal at a folder, or at none.
-    func choose(_ folder: URL?) {
-        saveNow()
-        self.folder = folder
-        defaults.set(folder?.path ?? "", forKey: JournalSettings.folderPathKey)
-        discardBuffer()
-        reload()
-        startWatching()
-    }
-
-    /// Lets go of what is being typed without writing it, and of everything
-    /// said about it.
-    ///
-    /// The three callers all mean the same thing — this note is not the one
-    /// being written in any more: another folder was chosen, the note was
-    /// deleted, or **Recharger** took the file instead. The message about a
-    /// write that failed goes with the text it belonged to, and so does the
-    /// banner: left standing, either would sit over the next note and say
-    /// something untrue about it.
-    private func discardBuffer() {
-        saveTask?.cancel()
-        saveTask = nil
-        editingDate = nil
-        buffer = ""
-        isDirty = false
-        baseline = nil
-        conflict = nil
-        pendingWriteFailure = nil
-        writeFailure = nil
-        // The editor is showing that buffer: it has to be told to take the
-        // store's text again rather than keep the one it was given.
-        textRevision += 1
-    }
-
     // MARK: - Reading
 
     func note(for date: DateKey) -> JournalFileNote? {
         notes.first { $0.date == date }
     }
 
-    /// The buffer when that note is being edited, the file's text otherwise.
+    /// The buffer when that note is being edited, the base's text otherwise.
     func text(for date: DateKey) -> String {
         editingDate == date ? buffer : (note(for: date)?.text ?? "")
     }
 
-    func reload() {
-        guard let folder else {
-            notes = []
-            loadError = nil
-            return
-        }
-        do {
-            let fresh = try JournalFolder.notes(in: folder)
-            loadError = nil
-            notes = merged(fresh)
-        } catch {
-            // The folder was renamed, moved, or sits on a volume that is not
-            // mounted. The setting is deliberately kept: losing the path
-            // because a disk was asleep would be worse than an empty screen.
-            loadError = "Le dossier du journal est introuvable. \(error.localizedDescription)"
-            notes = []
-        }
-    }
-
-    /// Reconciles what the disk now says with what is being typed.
-    private func merged(_ fresh: [JournalFileNote]) -> [JournalFileNote] {
-        guard let editingDate else { return fresh }
-        let diskText = fresh.first { $0.date == editingDate }?.text
-
-        guard isDirty else {
-            // A note that is open and saved is the ordinary resting state, and
-            // the disk is more recent than what is merely being displayed: the
-            // editor takes it, as the list does, with no banner — there is no
-            // unsaved work to arbitrate. Leaving the buffer alone would show
-            // this morning's text over the phone's, and the next keystroke
-            // would write it back over the top.
-            //
-            // A file that has gone leaves an empty note rather than a
-            // remembered one: the day holds nothing everywhere else too.
-            if buffer != diskText ?? "" {
-                buffer = diskText ?? ""
-                // Only when it really changed: the watcher fires for every
-                // note in the folder, and telling the editor to take its text
-                // again for someone else's file would move the caret to the
-                // end on an iCloud sync that has nothing to do with this note.
-                textRevision += 1
+    /// Rebuilds `notes` from what the base holds.
+    ///
+    /// Called by every write here, and by the launch once the recovery has
+    /// inserted the folder's notes — that pass writes rows this store knows
+    /// nothing about, and nothing else would ever tell it.
+    ///
+    /// The day being written in keeps its row even with no note behind it —
+    /// today's just opened, or one emptied a moment ago. The pane is built
+    /// from that row, and taking it away would tear down the editor the caret
+    /// is sitting in.
+    func refresh() {
+        let rows = (try? context.fetch(FetchDescriptor<JournalNote>())) ?? []
+        var fresh = rows
+            .compactMap { row in
+                row.dateKey.map { JournalFileNote(date: $0, text: row.text) }
             }
-            baseline = (editingDate, buffer)
-            // The day being written in keeps its row even with no file behind
-            // it — today's note just opened, or one emptied a moment ago. The
-            // pane is built from that row, and taking it away would tear down
-            // the editor the caret is sitting in.
-            return keepingBuffer(over: fresh, at: editingDate)
+            .sorted { $0.date > $1.date }
+        if let editingDate {
+            fresh = Self.placing(
+                JournalFileNote(date: editingDate, text: buffer), in: fresh
+            )
         }
-
-        // Nothing has happened to this note's file — the event was our own
-        // save coming back, or some other note in the folder changing. Keep
-        // the buffer, say nothing.
-        if let baseline, baseline.date == editingDate,
-           JournalReconciliation.isUnchanged(
-               diskText: diskText, baselineText: baseline.text
-           ) {
-            return keepingBuffer(over: fresh, at: editingDate)
-        }
-
-        let outcome = JournalReconciliation.outcome(
-            isDirty: true, bufferText: buffer, diskText: diskText
-        )
-        // Whichever way it goes, this is the file we know about from now on:
-        // the banner speaks for one change made elsewhere, and must not come
-        // straight back up on the next event about an unrelated note.
-        baseline = (editingDate, diskText ?? "")
-        switch outcome {
-        case .adopt:
-            // The file changed, but into exactly what is being typed here.
-            // Whoever wrote it, the edit is on disk, so nothing is pending.
-            isDirty = false
-            conflict = nil
-            // Including a write of ours that failed: the text it was holding
-            // the journal for is on disk now. Nothing else would ever clear
-            // this — `saveNow()` leaves on `isDirty`, which has just gone —
-            // and the journal would refuse every change of note for good,
-            // behind a message about text that is safely written.
-            pendingWriteFailure = nil
-            writeFailure = nil
-            // `fresh` already holds this text, `.adopt` being the case where
-            // the two agree word for word.
-            return fresh
-        case .conflict, .vanished:
-            conflict = outcome
-            return keepingBuffer(over: fresh, at: editingDate)
-        }
-    }
-
-    /// The disk's notes, with what is being typed standing in for one of them:
-    /// a sentence must not disappear from under the cursor. The file keeps
-    /// what it has.
-    private func keepingBuffer(
-        over fresh: [JournalFileNote], at date: DateKey
-    ) -> [JournalFileNote] {
-        Self.placing(
-            JournalFileNote(
-                date: date, text: buffer,
-                isReadable: fresh.first { $0.date == date }?.isReadable ?? true
-            ),
-            in: fresh
-        )
+        notes = fresh
     }
 
     /// `notes` with this one in it: replacing the note for that day, or slotted
@@ -291,36 +166,36 @@ final class JournalStore {
         return updated
     }
 
+    /// The row for that day, or nil.
+    private func row(for date: DateKey) -> JournalNote? {
+        let raw = date.raw
+        var descriptor = FetchDescriptor<JournalNote>(
+            predicate: #Predicate { $0.dateKeyRaw == raw }
+        )
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+
     // MARK: - Writing
 
     /// The editor has this note's text now, before a single key is pressed.
     ///
-    /// Told rather than guessed, because two things follow from it. The note
-    /// keeps a row even with no file behind it, so the pane the caret is in is
-    /// never torn down — today's note opened with ⌘N is exactly that note.
-    /// And a change arriving from the phone while the note sits open and
-    /// untouched goes through `merged(_:)` like any other: the buffer takes it
-    /// and `textRevision` moves.
+    /// Told rather than guessed: the note keeps a row even with nothing behind
+    /// it, so the pane the caret is in is never torn down — today's note
+    /// opened with ⌘N is exactly that note. That row is `refresh()`'s doing,
+    /// which is why the list is rebuilt here rather than left as it was: the
+    /// day being left may have just been emptied to nothing, and its row has
+    /// to go with it now that the buffer no longer stands for it.
     ///
-    /// That second one is the price of the editor holding its own text. It
-    /// used to read `text(for:)` live, so such a change did reach the screen
-    /// on its own — at the cost of the caret, which is the bug that started
-    /// all this. With the read-back gone, only a note the store knows to be
-    /// open gets told, so the editor has to say that it is.
-    ///
-    /// Refused while a write is pending, exactly as `update(_:for:)` is: the
-    /// text that would not reach the disk has to stay where the message about
-    /// it is. Refused under a banner for the same reason — the buffer it is
-    /// asking about would go with no answer given — though a change of note
-    /// settles the banner first, so that door is closed already.
+    /// The text comes from the base rather than from `notes`, which is the
+    /// same thing one line later and says plainly where a note's text lives.
     func beginEditing(_ date: DateKey) {
         guard editingDate != date else { return }
         saveNow()
-        guard pendingWriteFailure == nil, conflict == nil else { return }
         editingDate = date
-        buffer = note(for: date)?.text ?? ""
+        buffer = row(for: date)?.text ?? ""
         isDirty = false
-        baseline = (date, buffer)
+        refresh()
     }
 
     /// A text written by something other than the editor — a photo appended to
@@ -342,37 +217,16 @@ final class JournalStore {
     }
 
     func update(_ text: String, for date: DateKey) {
-        if editingDate != date {
-            saveNow()
-            // The note being left could not be written: stay on it. Replacing
-            // the buffer here would leave the paragraph that failed to reach
-            // the disk nowhere at all, with only a message to say so.
-            guard pendingWriteFailure == nil else {
-                // And the editor must not keep what has just been turned down:
-                // it holds its own copy of the text, so it would go on showing
-                // letters this store has never had, and drop them without a
-                // word at the next change of note — while the notice above it
-                // says, correctly, that nothing typed here is being kept.
-                textRevision += 1
-                return
-            }
-            // What the folder's last read says this note holds, which is what
-            // its file held: the buffer only ever stands in for the note being
-            // edited, and that is the one being left behind here.
-            baseline = (date, note(for: date)?.text ?? "")
-        }
-        editingDate = date
+        // The note being left is written before the buffer is handed to
+        // another day: a debounce that has not fired yet is unwritten work.
+        // Through `beginEditing`, which is a no-op on the note already open,
+        // so the one place that changes note is the one that flushes.
+        beginEditing(date)
         buffer = text
         isDirty = true
         // Shown immediately, saved in a moment: the list row's excerpt and the
         // tag list must follow the typing, not the debounce.
-        notes = Self.placing(
-            JournalFileNote(
-                date: date, text: text,
-                isReadable: note(for: date)?.isReadable ?? true
-            ),
-            in: notes
-        )
+        notes = Self.placing(JournalFileNote(date: date, text: text), in: notes)
 
         saveTask?.cancel()
         saveTask = Task { [weak self] in
@@ -385,56 +239,34 @@ final class JournalStore {
     func saveNow() {
         saveTask?.cancel()
         saveTask = nil
-        // A banner is a question put to the reader, and writing would answer
-        // it: the buffer would go over the very file the banner is warning
-        // about, while the banner stayed up offering a **Recharger** that now
-        // reloads the reader's own text. Every caller comes through here — the
-        // debounce, ⌘-Tab, quitting, changing note — so this is where the
-        // banner is protected. `dismissConflict()` is what releases it.
-        guard conflict == nil else { return }
-        guard isDirty, let folder, let date = editingDate else { return }
+        guard isDirty, let date = editingDate else { return }
         isDirty = false
-        do {
-            if JournalFileNote(date: date, text: buffer).isEmpty {
-                // Opening today's note and typing nothing must not leave an
-                // empty file in the vault. Straight out, not to the trash: it
-                // never held anything.
-                //
-                // The file goes; the note does not. This is a pause in the
-                // middle of writing — select-all, delete, think — and the row
-                // is what the pane under the caret is built from. It leaves
-                // the list on its own once another note is written in.
-                try JournalFolder.remove(date, in: folder, toTrash: false)
-                baseline = (date, "")
-            } else {
-                try JournalFolder.write(buffer, for: date, in: folder)
-                baseline = (date, buffer)
-            }
-            pendingWriteFailure = nil
-            writeFailure = nil
-            // A write that went through proves the folder is there, so a
-            // message saying otherwise has had its day.
-            loadError = nil
-        } catch {
-            isDirty = true
-            pendingWriteFailure = date
-            // Not `loadError`: that one belongs to the folder, and is shown
-            // where the folder is chosen — a note that would not save has no
-            // business appearing under « Dossier des notes » in ⌘,. The
-            // editor reads `writeFailure`, which lasts exactly as long as the
-            // block it explains.
-            writeFailure =
-                "La note n'a pas pu être enregistrée. \(error.localizedDescription)"
+        if let existing = row(for: date) {
+            existing.setText(buffer)
+            // A note emptied to nothing goes, exactly as an emptied file used
+            // to leave the vault: opening today's note and typing nothing must
+            // not leave a blank day in the journal. The rule is
+            // `JournalNote.isEmpty`, and it has not changed.
+            //
+            // The row goes; the note does not. This is a pause in the middle
+            // of writing — select-all, delete, think — and `refresh()` below
+            // puts the open day's row back on its own.
+            if existing.isEmpty { context.delete(existing) }
+        } else {
+            let note = JournalNote(dateKey: date, text: buffer)
+            // Never inserted at all when there is nothing to keep.
+            if !note.isEmpty { context.insert(note) }
         }
+        save()
+        refresh()
     }
 
     /// Inserts today's note in memory if it is not there, and returns its key.
     ///
-    /// Nothing is written: a file appears the moment something is typed, and
+    /// Nothing is written: a note appears the moment something is typed, and
     /// disappears again if the text is taken back out. The day is opened for
-    /// writing straight away, which is what keeps that fileless row through
-    /// the next folder event — ⌘N puts the caret in it, and a row that goes
-    /// takes the pane with it.
+    /// writing straight away, which is what keeps that row — ⌘N puts the caret
+    /// in it, and a row that goes takes the pane with it.
     @discardableResult
     func openToday() -> DateKey {
         open(DateKey(Date()))
@@ -442,172 +274,168 @@ final class JournalStore {
 
     /// The same for any day, which is what the sidebar's calendar clicks.
     ///
-    /// A day with no note gets an empty one in memory and nothing on disk —
-    /// so clicking last Tuesday to write the entry one forgot costs nothing if
-    /// one thinks better of it, exactly as ⌘N on today does.
+    /// A day with no note gets an empty one in memory and nothing in the base
+    /// — so clicking last Tuesday to write the entry one forgot costs nothing
+    /// if one thinks better of it, exactly as ⌘N on today does. The row comes
+    /// from `refresh()`, which keeps the open day's whether or not the base
+    /// has anything for it.
     @discardableResult
     func open(_ date: DateKey) -> DateKey {
-        if note(for: date) == nil {
-            notes = Self.placing(JournalFileNote(date: date, text: ""), in: notes)
-        }
         beginEditing(date)
         return date
     }
 
-    /// Puts the note in the trash, and only then lets go of it.
+    /// Removes the note, and only then lets go of it.
     ///
-    /// That order matters twice over. A deletion that does not go through must
-    /// not have thrown away the unsaved text of a note that is still there —
-    /// the buffer used to go first, so a locked vault cost a paragraph. And it
-    /// must not leave the editor open on a note the store no longer holds:
-    /// `discardBuffer()` clears `editingDate`, and the pane only goes away
-    /// because the row does, which is the line below. Nothing can slip in
-    /// between the two — no suspension point, one actor.
+    /// That order matters: the editor must not be left open on a note the
+    /// store no longer holds. `discardBuffer()` clears `editingDate`, and the
+    /// pane only goes away because the row does, which is the line below.
+    /// Nothing can slip in between the two — no suspension point, one actor.
     func delete(_ date: DateKey) {
-        guard let folder else { return }
-        do {
-            try JournalFolder.remove(date, in: folder, toTrash: true)
-        } catch {
-            loadError = "La note n'a pas pu être supprimée. \(error.localizedDescription)"
-            return
-        }
-        // Whatever would not write is being thrown away on purpose here, and
-        // so is any banner: both belonged to the note that has just gone.
+        if let row = row(for: date) { context.delete(row) }
+        save()
         if editingDate == date { discardBuffer() }
         notes.removeAll { $0.date == date }
-        loadError = nil
     }
 
-    // MARK: - Conflicts
-
-    /// Drops the buffer and takes the file, dismissing the banner.
+    /// Lets go of what is being typed without writing it.
     ///
-    /// The note is handed back at the end, because **Recharger** does not
-    /// close the editor: the pane is not rebuilt, the caret does not move, the
-    /// reader is still writing in that note a second later. `discardBuffer()`
-    /// clears `editingDate` — it has to, the buffer it named is gone — so
-    /// without this the store would go on thinking nobody holds the text while
-    /// the editor holds it. The next change arriving from the phone would then
-    /// land in `notes` alone: no `textRevision`, nothing said to the editor,
-    /// which would write its own copy of a text nobody has seen since over the
-    /// file, with no banner. That is the ownership rule the whole draft
-    /// mechanism rests on, and it is only true if it is restored here.
-    func reloadConflicted() {
-        let held = editingDate
-        discardBuffer()
-        reload()
-        if let held { beginEditing(held) }
+    /// The one caller means the note is not the one being written in any more:
+    /// it has just been deleted.
+    private func discardBuffer() {
+        saveTask?.cancel()
+        saveTask = nil
+        editingDate = nil
+        buffer = ""
+        isDirty = false
+        // The editor is showing that buffer: it has to be told to take the
+        // store's text again rather than keep the one it was given.
+        textRevision += 1
     }
 
-    /// Keeps the buffer, dismisses the banner — and writes it.
+    /// Writes, and says nothing when it cannot.
     ///
-    /// The writing is the point: **Garder** is the reader answering the
-    /// question, and while the banner is up nothing else may write. `baseline`
-    /// is already the file's text — `merged(_:)` set it when it raised the
-    /// banner — so the save that follows is a change against what is on disk
-    /// and not a conflict against it.
-    ///
-    /// Also what a change of note means, deliberately: leaving is keeping.
-    /// The text typed here goes to its file, and the reader is not carrying an
-    /// unanswered question onto the next note.
-    func dismissConflict() {
-        guard conflict != nil else { return }
-        conflict = nil
-        saveNow()
+    /// There is no message to show and no state to hold back: a
+    /// `context.save()` does not fail the way writing to a folder someone had
+    /// unmounted did, which is the whole reason `writeFailure` and its refusal
+    /// to change note went with the folder. What is left is a store that is
+    /// broken outright, and the next launch has nothing better to offer.
+    private func save() {
+        try? context.save()
     }
 
-    // MARK: - Watching
+    // MARK: - Pièces jointes
 
-    /// Watches the folder so a note written from Obsidian — on this Mac or
-    /// arriving over iCloud — shows up without anyone asking.
+    /// Takes pictures into the journal and writes their links at the end of
+    /// the note.
     ///
-    /// `kFSEventStreamCreateFlagFileEvents` rather than a `DispatchSource` on
-    /// the directory: a dispatch source fires when a directory *entry* changes,
-    /// which misses an editor writing into an existing file in place.
-    private func startWatching() {
-        // Releasing the old handle stops the old stream, before a second one
-        // is started on a folder that may well be the same.
-        stream = nil
-        guard let folder else { return }
-
-        var context = FSEventStreamContext(
-            version: 0,
-            info: Unmanaged.passUnretained(self).toOpaque(),
-            retain: nil, release: nil, copyDescription: nil
-        )
-        // A C callback cannot capture, so the store travels through `info` as
-        // an unretained pointer — unretained because the stream cannot outlive
-        // the store: the handle holding it is a property of this object, and
-        // is released as the object is.
-        //
-        // Safe to assume the main actor: the stream is scheduled on the main
-        // queue two lines below, so this callback only ever runs there.
-        let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
-            guard let info else { return }
-            MainActor.assumeIsolated {
-                Unmanaged<JournalStore>.fromOpaque(info)
-                    .takeUnretainedValue()
-                    .scheduleReload()
+    /// - Returns: the names refused, for the caller to say out loud. A file
+    ///   ignored in silence is a file one believes was added.
+    @discardableResult
+    func addAttachments(from urls: [URL], to date: DateKey) -> [String] {
+        var links: [String] = []
+        var refused: [String] = []
+        for url in urls {
+            guard JournalAttachmentRules.allowedExtensions
+                .contains(url.pathExtension.lowercased())
+            else {
+                refused.append(url.lastPathComponent)
+                continue
             }
+            // Reduced on the way in when it is worth it — see
+            // `JournalAttachmentRules.maxPixels`. A picture already small
+            // enough is taken byte for byte: re-encoding it would only lose
+            // detail. Reduced from the URL rather than from its bytes, so a
+            // photograph is never fully decoded to be shrunk.
+            let reduced = JournalFolder.reduced(at: url)
+            guard let data = reduced ?? (try? Data(contentsOf: url)),
+                  let link = attach(
+                      data, extension: reduced == nil
+                          ? url.pathExtension.lowercased() : "jpg",
+                      to: date
+                  )
+            else {
+                refused.append(url.lastPathComponent)
+                continue
+            }
+            links.append(link)
         }
-        guard let stream = FSEventStreamCreate(
-            nil, callback, &context,
-            [folder.path] as CFArray,
-            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
-            0.3,
-            FSEventStreamCreateFlags(
-                kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer
-            )
-        ) else { return }
-        FSEventStreamSetDispatchQueue(stream, .main)
-        guard FSEventStreamStart(stream) else {
-            // A stream that never started must not be stopped — CoreServices
-            // asserts on it — so it is let go of here rather than handed to a
-            // `FolderStream`. The folder simply goes unwatched: notes written
-            // elsewhere then show up on the next reload rather than at once.
-            FSEventStreamInvalidate(stream)
-            FSEventStreamRelease(stream)
-            return
-        }
-        self.stream = FolderStream(stream)
+        appendLinks(links, to: date)
+        return refused
     }
 
-    private func scheduleReload() {
-        reloadTask?.cancel()
-        reloadTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.reloadDelay)
-            guard !Task.isCancelled else { return }
-            self?.reload()
-        }
-    }
-}
-
-/// A started FSEvents stream, stopped and released when this object is.
-///
-/// The store cannot do this in its own `deinit`: a `deinit` is nonisolated
-/// even on a `@MainActor` class, so it may not touch the store's isolated
-/// properties. Handing the stream to an object of its own moves the teardown
-/// to a `deinit` that is allowed to run it, at the very same moment — the
-/// store is the only owner.
-private final class FolderStream {
-    private let stream: FSEventStreamRef
-
-    init(_ stream: FSEventStreamRef) {
-        self.stream = stream
+    /// The same from bytes, for what a paste hands over: the clipboard carries
+    /// an image far more often than it carries a file.
+    ///
+    /// Kept as PNG unless it had to be reduced — a screenshot is what a paste
+    /// usually is, and re-encoding one to JPEG would blur the very text it was
+    /// taken for.
+    @discardableResult
+    func addAttachment(_ data: Data, to date: DateKey) -> Bool {
+        let reduced = JournalFolder.reduced(data)
+        guard let link = attach(
+            reduced ?? data, extension: reduced == nil ? "png" : "jpg", to: date
+        ) else { return false }
+        appendLinks([link], to: date)
+        return true
     }
 
-    deinit {
-        FSEventStreamStop(stream)
-        FSEventStreamInvalidate(stream)
-        FSEventStreamRelease(stream)
+    /// One picture into the base and into the cache, and the Markdown line
+    /// that points at it.
+    ///
+    /// The name is the key, and it is unique across the whole journal — which
+    /// is why the taken set is every attachment the base holds rather than the
+    /// day's. Materialised straight away so the thumbnail the list is about to
+    /// draw has a file to read.
+    private func attach(
+        _ data: Data, extension ext: String, to date: DateKey
+    ) -> String? {
+        let taken = Set(
+            ((try? context.fetch(FetchDescriptor<JournalAttachment>())) ?? [])
+                .map(\.fileName)
+        )
+        let attachment = JournalAttachment(
+            fileName: JournalAttachmentRules.fileName(
+                for: date, extension: ext, taken: taken
+            ),
+            data: data
+        )
+        context.insert(attachment)
+        save()
+        // A cache that could not be written loses nothing — it is derived, and
+        // rebuilt at the next launch — so the picture still counts as added.
+        // The explicit `_ =`: `@discardableResult` does not cover the second
+        // `Optional` that `try?` wraps the returned URL in, exactly as
+        // `CairnApp.init` notes about `StoreMaintenance.run`.
+        _ = try? JournalAttachmentCache.materialise(
+            attachment, directory: attachmentsBase
+        )
+        return JournalAttachmentRules.link(to: attachment.fileName)
+    }
+
+    /// The links at the end of the note, through the store.
+    ///
+    /// `open` first: a day listed only because an outing wrote something has
+    /// no note yet, and writing into it has to create one. `append` rather
+    /// than `update`, so the editor is told the text is the store's again.
+    private func appendLinks(_ links: [String], to date: DateKey) {
+        guard !links.isEmpty else { return }
+        open(date)
+        append(
+            JournalAttachmentRules.appending(links, to: text(for: date)),
+            for: date
+        )
     }
 }
 
 /// Notification observers that unregister themselves when their owner goes.
 ///
 /// A block-based observer is not zeroed out the way a target/selector one is:
-/// the notification centre holds the block until the token is handed back. The
-/// same isolation rule as `FolderStream` applies, and so does the same answer.
+/// the notification centre holds the block until the token is handed back. A
+/// `deinit` is nonisolated even on a `@MainActor` class, so it may not touch
+/// the store's isolated properties — handing the tokens to an object of their
+/// own moves the teardown to a `deinit` that is allowed to run it, at the very
+/// same moment, the store being the only owner.
 private final class NotificationObservers {
     private var tokens: [any NSObjectProtocol] = []
 

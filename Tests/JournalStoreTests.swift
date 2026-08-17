@@ -1,15 +1,25 @@
 import Testing
 import Foundation
+import SwiftData
 @testable import Cairn
 
-/// The store's own wiring, driven without a clock: `saveNow()` and `reload()`
-/// are called where the debounce and the folder watcher would call them, so
-/// nothing here waits on a timer or on an FSEvents delivery.
+/// The store's own wiring, driven without a clock: `saveNow()` is called where
+/// the debounce would call it, so nothing here waits on a timer.
+///
+/// The mounting is what is left of it once the folder has gone: an in-memory
+/// container, and a throwaway directory for the attachment cache. No journal
+/// folder, no `UserDefaults` suite — the store reads neither any more.
 @MainActor
 @Suite("JournalStore")
 struct JournalStoreTests {
-    /// A throwaway directory, discarded by the caller.
-    private func makeFolder() throws -> URL {
+    /// A throwaway attachment cache, discarded by the caller.
+    ///
+    /// Never `JournalAttachmentCache.directory`, which names the
+    /// application's real cache folder — the same rule
+    /// `Tests/JournalAttachmentCacheTests.swift` states at length, and the
+    /// reason `JournalStore.init` takes this directory rather than defaulting
+    /// to it.
+    private func makeCache() throws -> URL {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appending(path: "journal-store-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(
@@ -18,511 +28,316 @@ struct JournalStoreTests {
         return url
     }
 
-    /// A store on that folder, with defaults of its own — never `.standard`,
-    /// which belongs to whatever app is running the tests.
-    private func makeStore(in folder: URL) -> JournalStore {
-        let store = JournalStore(
-            defaults: UserDefaults(suiteName: defaultsSuite(for: folder))!
-        )
-        store.choose(folder)
-        return store
-    }
-
-    private func defaultsSuite(for folder: URL) -> String {
-        "CairnTests.\(folder.lastPathComponent)"
-    }
-
-    /// Removes the folder and the defaults that went with it.
-    private func discard(_ folder: URL) {
-        try? FileManager.default.removeItem(at: folder)
-        UserDefaults().removePersistentDomain(forName: defaultsSuite(for: folder))
+    private func discard(_ url: URL) {
+        try? FileManager.default.removeItem(at: url)
     }
 
     private let day = DateKey(raw: "2026-08-01")!
     private let otherDay = DateKey(raw: "2026-07-31")!
 
-    /// What the file actually holds, which is the only thing a test about
-    /// losing someone else's sentence can believe.
-    private func fileText(_ date: DateKey, in folder: URL) throws -> String {
-        try String(
-            contentsOf: JournalFolder.url(for: date, in: folder), encoding: .utf8
-        )
+    /// What the base actually holds, which is the only thing a test about a
+    /// note reaching the store can believe.
+    private func rows(_ container: ModelContainer) throws -> [JournalNote] {
+        try ModelContext(container)
+            .fetch(FetchDescriptor<JournalNote>())
+            .sorted { $0.dateKeyRaw > $1.dateKeyRaw }
     }
 
-    @Test("notre propre écriture qui revient ne lève pas de conflit")
-    func ourOwnWriteComingBackIsSilent() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
+    @Test("un texte écrit se relit dans la base")
+    func atextWrittenIsReadBackFromTheStore() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
 
-        store.update("un", for: day)
+        store.update("Promenade avec #Sam.", for: day)
         store.saveNow()
-        // The pause was long enough to save, and the sentence went on
-        // afterwards — which is when the watcher delivers our own write.
-        store.update("un, deux", for: day)
-        store.reload()
 
-        #expect(store.conflict == nil)
-        #expect(store.text(for: day) == "un, deux")
+        #expect(store.text(for: day) == "Promenade avec #Sam.")
+        let rows = try rows(container)
+        #expect(rows.count == 1)
+        #expect(rows[0].text == "Promenade avec #Sam.")
+        // The tags follow the text, since `setText` is what wrote it.
+        #expect(rows[0].tags == Set([JournalTag(name: "Sam")!]))
     }
 
-    @Test("une réécriture ailleurs lève un conflit, et une seule fois")
-    func anOutsideRewriteRaisesOneConflict() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
+    /// The list follows the typing, not the debounce: the row's excerpt and
+    /// its chips are drawn from `notes`, which must not wait 700 ms.
+    @Test("la liste suit la frappe, sans attendre l'enregistrement")
+    func thelistFollowsTheTypingRatherThanTheSave() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
 
-        store.update("ma phrase", for: day)
-        store.saveNow()
-        store.update("ma phrase, et la suite", for: day)
-        try JournalFolder.write("celle du téléphone", for: day, in: folder)
-        store.reload()
+        store.update("du texte", for: day)
 
-        #expect(store.conflict == .conflict)
-        // What is being typed stays under the cursor; the file keeps its own.
-        #expect(store.text(for: day) == "ma phrase, et la suite")
-
-        // Dismissed, then another event about a folder that has not moved
-        // again: the banner must not come straight back up.
-        store.dismissConflict()
-        store.reload()
-        #expect(store.conflict == nil)
-        #expect(store.text(for: day) == "ma phrase, et la suite")
+        #expect(store.note(for: day)?.text == "du texte")
+        #expect(try rows(container).isEmpty)
     }
 
-    /// The banner asks a question; nothing but the answer may settle it.
-    ///
-    /// A banner can only go up while something is unsaved, which is to say
-    /// while a save is already pending: the debounce firing 600 ms later, a ⌘-Tab
-    /// away from the window, or a click on another note would otherwise write
-    /// the buffer over the very file the banner is warning about — and leave
-    /// the banner up, still offering a **Recharger** that now reloads the
-    /// reader's own text over the sentence written on the phone.
-    @Test("le bandeau de conflit suspend l'enregistrement du tampon")
-    func aConflictHoldsTheSaveBack() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-
-        store.update("ma phrase", for: day)
-        store.saveNow()
-        store.update("ma phrase, et la suite", for: day)
-        try JournalFolder.write("celle du téléphone", for: day, in: folder)
-        store.reload()
-        #expect(store.conflict == .conflict)
-
-        // The debounce fires, the window loses focus, the app is quit: all
-        // three come here, and none of them may answer for the reader.
-        store.saveNow()
-        #expect(try fileText(day, in: folder) == "celle du téléphone")
-        #expect(store.conflict == .conflict)
-        #expect(store.text(for: day) == "ma phrase, et la suite")
-    }
-
-    @Test("« Garder » écrit le tampon et retire le bandeau")
-    func keepingWritesTheBuffer() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-
-        store.update("ma phrase", for: day)
-        store.saveNow()
-        store.update("ma phrase, et la suite", for: day)
-        try JournalFolder.write("celle du téléphone", for: day, in: folder)
-        store.reload()
-        #expect(store.conflict == .conflict)
-
-        store.dismissConflict()
-        #expect(store.conflict == nil)
-        #expect(try fileText(day, in: folder) == "ma phrase, et la suite")
-    }
-
-    /// A write that failed, then someone else putting exactly that text on
-    /// disk. The edit is saved — by another hand, but saved — so the journal
-    /// has nothing left to hold on to.
-    @Test("une adoption externe purge l'échec d'écriture")
-    func anAdoptionPurgesTheWriteFailure() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-
-        store.update("à sauver", for: day)
-        try FileManager.default.removeItem(at: folder)
-        store.saveNow()
-        #expect(store.pendingWriteFailure == day)
-
-        // The folder comes back with the phone's copy of the same paragraph.
-        try FileManager.default.createDirectory(
-            at: folder, withIntermediateDirectories: true
-        )
-        try JournalFolder.write("à sauver", for: day, in: folder)
-        store.reload()
-        #expect(store.pendingWriteFailure == nil)
-        #expect(store.writeFailure == nil)
-
-        // Which is what lets the journal move on: nothing else ever clears
-        // that flag, `saveNow()` having nothing left to write.
-        store.update("une autre note", for: otherDay)
-        #expect(store.text(for: otherDay) == "une autre note")
-    }
-
-    /// The three ways of letting go of a note on purpose. Each clears the
-    /// buffer; each has to clear the message that belonged to it, or the
-    /// journal stays frozen over a note nobody is on any more.
-    @Test("changer de dossier purge l'échec d'écriture")
-    func choosingAnotherFolderPurgesTheWriteFailure() throws {
-        let folder = try makeFolder()
-        let other = try makeFolder()
-        defer { discard(folder); discard(other) }
-        let store = makeStore(in: folder)
-
-        store.update("à sauver", for: day)
-        try FileManager.default.removeItem(at: folder)
-        store.saveNow()
-        #expect(store.writeFailure != nil)
-
-        store.choose(other)
-        #expect(store.pendingWriteFailure == nil)
-        #expect(store.writeFailure == nil)
-    }
-
-    @Test("supprimer la note purge l'échec d'écriture")
-    func deletingTheNotePurgesTheWriteFailure() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-
-        store.update("à sauver", for: day)
-        try FileManager.default.removeItem(at: folder)
-        store.saveNow()
-        #expect(store.writeFailure != nil)
-
-        try FileManager.default.createDirectory(
-            at: folder, withIntermediateDirectories: true
-        )
-        store.delete(day)
-        #expect(store.pendingWriteFailure == nil)
-        #expect(store.writeFailure == nil)
-    }
-
-    @Test("recharger depuis le disque purge l'échec d'écriture")
-    func reloadingFromDiskPurgesTheWriteFailure() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-
-        store.update("à sauver", for: day)
-        try FileManager.default.removeItem(at: folder)
-        store.saveNow()
-        #expect(store.writeFailure != nil)
-
-        try FileManager.default.createDirectory(
-            at: folder, withIntermediateDirectories: true
-        )
-        store.reloadConflicted()
-        #expect(store.pendingWriteFailure == nil)
-        #expect(store.writeFailure == nil)
-    }
-
-    /// **Recharger** does not close the editor: the pane is not rebuilt, the
-    /// caret stays where it is. So the store has to go on knowing that the
-    /// note is held, or the next change arriving from the phone lands in
-    /// `notes` without a word to the editor — which then writes its own copy
-    /// of a text nobody has seen since, over the file, with no banner.
-    ///
-    /// The editor's rule is played out here in three lines, because the whole
-    /// point is what the *view* does with what the store says: it takes the
-    /// store's text when `textRevision` moves, and never otherwise.
-    @Test("après Recharger, la note reste tenue par l'éditeur")
-    func afterReloadingTheNoteIsStillHeld() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-
-        var editorText = ""
-        var seenRevision = -1
-        func editorFollows() {
-            guard store.textRevision != seenRevision else { return }
-            seenRevision = store.textRevision
-            editorText = store.text(for: day)
-        }
-
-        store.update("ma phrase", for: day)
-        store.saveNow()
-        editorFollows()
-        store.update("ma phrase, et la suite", for: day)
-        editorText = "ma phrase, et la suite"
-        try JournalFolder.write("celle du téléphone", for: day, in: folder)
-        store.reload()
-        #expect(store.conflict == .conflict)
-
-        // The reader takes the file. The editor is still on this note.
-        store.reloadConflicted()
-        editorFollows()
-        #expect(editorText == "celle du téléphone")
-
-        // The rest of the sync arrives — an iCloud burst delivers a vault in
-        // several goes — and has to reach the editor.
-        try JournalFolder.write("celle du téléphone, suite", for: day, in: folder)
-        store.reload()
-        editorFollows()
-        #expect(editorText == "celle du téléphone, suite")
-
-        // One letter typed into it: what the editor sends is what the editor
-        // holds, and nothing typed can rescue a text it was never shown.
-        store.update(editorText + " et moi", for: day)
-        store.saveNow()
-        let onDisk = try fileText(day, in: folder)
-        #expect(onDisk.contains("suite"))
-    }
-
-    @Test("une note enregistrée et ouverte suit le disque, sans bandeau")
-    func anOpenSavedNoteFollowsTheDisk() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
+    /// A second store on the same container reads what the first one wrote:
+    /// the text is in the base, not in a buffer somebody happens to hold.
+    @Test("un second magasin sur la même base relit la note")
+    func asecondStoreOnTheSameContainerReadsTheNote() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
 
         store.update("écrit ici", for: day)
         store.saveNow()
-        // Nothing is unsaved, so nothing is at stake: the phone's sentence is
-        // the more recent one and the editor takes it, as the list does.
-        try JournalFolder.write("écrit sur le téléphone", for: day, in: folder)
-        store.reload()
 
-        #expect(store.text(for: day) == "écrit sur le téléphone")
-        #expect(store.conflict == nil)
-
-        // And the file we know about followed, so typing on top of what was
-        // just adopted is not a conflict against a change already taken.
-        store.update("écrit sur le téléphone, puis ici", for: day)
-        store.reload()
-        #expect(store.conflict == nil)
-        #expect(store.text(for: day) == "écrit sur le téléphone, puis ici")
+        let reopened = JournalStore(container: container, attachmentsBase: cache)
+        #expect(reopened.text(for: day) == "écrit ici")
+        #expect(reopened.notes.map(\.date) == [day])
     }
 
-    @Test("un enregistrement en échec retient la note ouverte")
-    func aFailedWriteHoldsTheNoteOpen() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-
-        store.update("à sauver", for: day)
-        // The folder goes away under it — a volume unmounted, a vault moved.
-        try FileManager.default.removeItem(at: folder)
-        store.saveNow()
-        #expect(store.pendingWriteFailure == day)
-
-        store.update("une autre note", for: otherDay)
-        #expect(store.pendingWriteFailure == day)
-        #expect(store.text(for: day) == "à sauver")
-        #expect(store.text(for: otherDay) == "")
-
-        // Written at last: the note is let go of and one can move on.
-        try FileManager.default.createDirectory(
-            at: folder, withIntermediateDirectories: true
-        )
-        store.saveNow()
-        #expect(store.pendingWriteFailure == nil)
-        store.update("une autre note", for: otherDay)
-        #expect(store.text(for: otherDay) == "une autre note")
-        #expect(store.text(for: day) == "à sauver")
-    }
-
-    /// The message has to last exactly as long as the block it explains.
-    ///
-    /// `loadError` cannot carry it: any successful folder read clears that one,
-    /// and the watcher re-reads the folder on every event — an iCloud sync, a
-    /// note arriving, another app touching a file. The editor would go quiet
-    /// while still refusing to move.
-    @Test("le message d'échec survit à une relecture du dossier")
-    func aFailureMessageOutlivesAReload() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-
-        store.update("à sauver", for: day)
-        try FileManager.default.removeItem(at: folder)
-        store.saveNow()
-        #expect(store.writeFailure != nil)
-
-        // The folder comes back — a volume remounted — and the watcher fires.
-        // Nothing has been saved yet: the note is still held.
-        try FileManager.default.createDirectory(
-            at: folder, withIntermediateDirectories: true
-        )
-        store.reload()
-        #expect(store.loadError == nil)
-        #expect(store.pendingWriteFailure == day)
-        #expect(store.writeFailure != nil)
-
-        // Written at last, and only then does the message go.
-        store.saveNow()
-        #expect(store.pendingWriteFailure == nil)
-        #expect(store.writeFailure == nil)
-    }
-
-    /// The file goes; the note being written in stays.
+    /// The row goes; the note being written in stays.
     ///
     /// Select-all, delete, then a pause to think about the next sentence: the
-    /// file must not be left empty in the vault, and the row under the caret
-    /// must not go with it — the pane showing it would be torn down mid-edit.
-    @Test("une note réduite à des blancs quitte le dossier, pas la liste")
-    func aNoteEmptiedToWhitespaceLeavesTheFolderButNotTheList() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-        let file = JournalFolder.url(for: day, in: folder)
+    /// base must not keep an empty note, and the row under the caret must not
+    /// go with it — the pane showing it would be torn down mid-edit. The rule
+    /// is `JournalNote.isEmpty`, unchanged from the day it was a file.
+    @Test("une note réduite à des blancs quitte la base, pas la liste")
+    func anoteEmptiedToWhitespaceLeavesTheStoreButNotTheList() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
 
         store.update("du texte", for: day)
         store.saveNow()
-        #expect(FileManager.default.fileExists(atPath: file.path))
+        #expect(try rows(container).count == 1)
 
         store.update("  \n  ", for: day)
         store.saveNow()
-        #expect(!FileManager.default.fileExists(atPath: file.path))
+        #expect(try rows(container).isEmpty)
         #expect(store.note(for: day) != nil)
 
-        // And it survives the watcher noticing the file we just removed.
-        store.reload()
+        // And it survives the list being rebuilt from the base.
+        store.refresh()
         #expect(store.note(for: day) != nil)
     }
 
     @Test("la note du jour seule n'écrit rien")
     func openingTodayWritesNothing() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
 
         let today = store.openToday()
         store.saveNow()
 
         #expect(store.note(for: today) != nil)
-        #expect(try JournalFolder.notes(in: folder).isEmpty)
+        #expect(try rows(container).isEmpty)
     }
+
+    /// ⌘N puts today's note in the list without writing a row. A list rebuilt
+    /// from the base must not take back the note the caret was just placed in.
+    @Test("la note du jour ouverte survit à une relecture de la base")
+    func todaysOpenNoteSurvivesARefresh() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
+
+        let today = store.openToday()
+        store.refresh()
+
+        #expect(store.note(for: today) != nil)
+    }
+
+    /// Leaving a note writes it: the debounce may not have fired, and the
+    /// text typed into the note being left is not the next note's business.
+    @Test("changer de note enregistre celle qu'on quitte")
+    func leavingAnoteWritesIt() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
+
+        store.update("le premier jour", for: day)
+        store.update("le second jour", for: otherDay)
+
+        #expect(try rows(container).map(\.text) == ["le premier jour"])
+        #expect(store.text(for: day) == "le premier jour")
+        #expect(store.text(for: otherDay) == "le second jour")
+
+        store.saveNow()
+        #expect(try rows(container).map(\.text) == ["le premier jour", "le second jour"])
+    }
+
+    @Test("ouvrir une note donne le texte que la base tient")
+    func openinganoteHandsBackTheStoresText() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        context.insert(JournalNote(dateKey: day, text: "du matin"))
+        try context.save()
+
+        let store = JournalStore(container: container, attachmentsBase: cache)
+        store.beginEditing(day)
+        #expect(store.text(for: day) == "du matin")
+    }
+
+    @Test("supprimer une note la retire de la base et de la liste")
+    func deletinganoteRemovesItEverywhere() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
+
+        store.update("à supprimer", for: day)
+        store.saveNow()
+
+        store.delete(day)
+        #expect(store.note(for: day) == nil)
+        #expect(try rows(container).isEmpty)
+
+        // And nothing left over writes it back: the buffer went with the note.
+        store.saveNow()
+        #expect(try rows(container).isEmpty)
+    }
+
+    // MARK: - La révision du texte
 
     /// The signal the editor waits on to take the store's text again.
     ///
     /// It must not move under the typing: the editor holds its own copy
     /// precisely so that a `TextEditor` is never handed its string back from
     /// outside, which is what threw the caret to the end of the note after
-    /// every letter typed in the middle of a sentence. Our own save coming
-    /// back through the watcher is the case that would have moved it.
+    /// every letter typed in the middle of a sentence.
     @Test("taper ne fait pas avancer la révision du texte")
     func typingNeverMovesTheTextRevision() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
         let start = store.textRevision
 
         store.update("un", for: day)
         store.update("un, deux", for: day)
         store.saveNow()
-        store.reload()
+        store.refresh()
         store.update("un, deux, trois", for: day)
 
         #expect(store.textRevision == start)
     }
 
-    /// A note open in the editor, nothing typed into it, and the phone's
-    /// version lands. The buffer takes it — there is nothing to arbitrate —
-    /// and the editor has to be told, or it would keep the old text on screen
-    /// and write it back over the new one at the next keystroke.
-    @Test("le texte arrivé du téléphone fait avancer la révision")
-    func anAdoptedDiskTextMovesTheTextRevision() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        try JournalFolder.write("du matin", for: day, in: folder)
-        let store = makeStore(in: folder)
+    /// A deletion is one of the two moments the store's copy wins: the text
+    /// the editor was holding is not there any more.
+    @Test("supprimer la note fait avancer la révision du texte")
+    func deletingTheNoteMovesTheTextRevision() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
 
-        store.beginEditing(day)
-        #expect(store.text(for: day) == "du matin")
-        let opened = store.textRevision
-
-        try JournalFolder.write("écrit sur le téléphone", for: day, in: folder)
-        store.reload()
-        #expect(store.text(for: day) == "écrit sur le téléphone")
-        #expect(store.textRevision == opened + 1)
-
-        // And an event about a folder that has not moved since leaves it be:
-        // an iCloud sync must not walk the caret to the end of the note.
-        store.reload()
-        #expect(store.textRevision == opened + 1)
-    }
-
-    /// A keystroke the store turns down has to be taken back off the screen.
-    ///
-    /// While another note's write is pending, `update(_:for:)` refuses every
-    /// change: the text that would not reach the disk has to stay where the
-    /// message about it is. The editor holds its own copy now, so without a
-    /// word from the store it would go on showing letters this store has never
-    /// had — and drop them silently at the next change of note, having just
-    /// told the reader, in the notice above, that they are not being kept.
-    @Test("une frappe refusée est reprise à l'éditeur")
-    func arefusedKeystrokeIsTakenBack() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-
-        store.update("à sauver", for: day)
-        try FileManager.default.removeItem(at: folder)
+        store.update("à supprimer", for: day)
         store.saveNow()
-        #expect(store.pendingWriteFailure == day)
-        let held = store.textRevision
-
-        store.update("une autre note", for: otherDay)
-        #expect(store.text(for: otherDay) == "")
-        #expect(store.textRevision > held)
-    }
-
-    /// The one case where the text on screen is deliberately *not* the file's:
-    /// the banner keeps the typing, so the editor must not be re-seeded.
-    @Test("un conflit ne fait pas avancer la révision du texte")
-    func aConflictNeverMovesTheTextRevision() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-
-        store.update("ma phrase", for: day)
-        store.saveNow()
-        store.update("ma phrase, et la suite", for: day)
         let typed = store.textRevision
 
-        try JournalFolder.write("celle du téléphone", for: day, in: folder)
-        store.reload()
-        #expect(store.conflict == .conflict)
-        #expect(store.textRevision == typed)
-    }
-
-    @Test("recharger depuis le disque fait avancer la révision")
-    func reloadingFromDiskMovesTheTextRevision() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
-
-        store.update("ma phrase", for: day)
-        store.saveNow()
-        store.update("ma phrase, et la suite", for: day)
-        try JournalFolder.write("celle du téléphone", for: day, in: folder)
-        store.reload()
-        let typed = store.textRevision
-
-        store.reloadConflicted()
-        #expect(store.text(for: day) == "celle du téléphone")
+        store.delete(day)
         #expect(store.textRevision > typed)
+        #expect(store.text(for: day) == "")
     }
 
-    /// ⌘N puts today's note in the list without writing a file. The folder is
-    /// watched, and an iCloud vault delivers events for its own reasons: a
-    /// re-read must not take back the note the caret was just placed in.
-    @Test("la note du jour ouverte survit à une relecture du dossier")
-    func todaysOpenNoteSurvivesAReload() throws {
-        let folder = try makeFolder()
-        defer { discard(folder) }
-        let store = makeStore(in: folder)
+    /// A line added from outside the editor — a photo, today the only case —
+    /// is invisible to whoever is writing until the store says the text is
+    /// its own again.
+    @Test("un texte ajouté hors de l'éditeur fait avancer la révision")
+    func atextAppendedFromOutsideMovesTheTextRevision() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
 
-        let today = store.openToday()
-        store.reload()
+        store.update("ma phrase", for: day)
+        let typed = store.textRevision
 
-        #expect(store.note(for: today) != nil)
+        store.append("ma phrase\n\n![](pieces-jointes/x.jpg)", for: day)
+        #expect(store.textRevision > typed)
+        #expect(store.text(for: day).hasSuffix("![](pieces-jointes/x.jpg)"))
+    }
+
+    // MARK: - Les pièces jointes
+
+    @Test("une photo déposée entre en base, dans le cache, et dans la note")
+    func adroppedPictureEntersTheStoreTheCacheAndTheNote() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
+        let source = cache.appending(path: "IMG_4032.JPG")
+        let bytes = Data([0xFF, 0xD8, 0xFF, 0xDB])
+        try bytes.write(to: source)
+
+        #expect(store.addAttachments(from: [source], to: day).isEmpty)
+
+        let attachments = try ModelContext(container)
+            .fetch(FetchDescriptor<JournalAttachment>())
+        #expect(attachments.count == 1)
+        // The name is the journal's own, not the camera's: two "IMG_4032.jpg"
+        // would eventually meet.
+        #expect(attachments[0].fileName == "2026-08-01-1.jpg")
+        // The bytes are the ones dropped: a picture already under the ceiling
+        // is taken untouched.
+        #expect(attachments[0].data == bytes)
+        // Materialised, so `MarkdownText` and the thumbnails resolve a URL.
+        #expect(
+            try Data(contentsOf: cache.appending(path: "2026-08-01-1.jpg")) == bytes
+        )
+        #expect(store.text(for: day) == "![](pieces-jointes/2026-08-01-1.jpg)")
+        // The original stays where it was: a journal that swallowed originals
+        // is a journal one stops dropping things on.
+        #expect(FileManager.default.fileExists(atPath: source.path))
+    }
+
+    @Test("deux photos du même jour ne se marchent pas dessus")
+    func twoPicturesOfTheSameDayCoexist() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
+
+        store.addAttachment(Data([0x89, 0x50]), to: day)
+        store.addAttachment(Data([0x89, 0x51]), to: day)
+
+        let names = try ModelContext(container)
+            .fetch(FetchDescriptor<JournalAttachment>())
+            .map(\.fileName)
+            .sorted()
+        #expect(names == ["2026-08-01-1.png", "2026-08-01-2.png"])
+        #expect(
+            store.text(for: day)
+                == """
+                ![](pieces-jointes/2026-08-01-1.png)
+
+                ![](pieces-jointes/2026-08-01-2.png)
+                """
+        )
+    }
+
+    /// Refused out loud rather than in silence: a file one believes was added
+    /// is worse than one that says why it was not.
+    @Test("un fichier qui n'est pas une image est refusé par son nom")
+    func afileThatIsNotAPictureIsRefusedByName() throws {
+        let cache = try makeCache()
+        defer { discard(cache) }
+        let container = try AppModelContainer.inMemory()
+        let store = JournalStore(container: container, attachmentsBase: cache)
+        let source = cache.appending(path: "notes.txt")
+        try Data("x".utf8).write(to: source)
+
+        #expect(store.addAttachments(from: [source], to: day) == ["notes.txt"])
+        #expect(store.text(for: day) == "")
+        #expect(
+            try ModelContext(container)
+                .fetch(FetchDescriptor<JournalAttachment>())
+                .isEmpty
+        )
     }
 }

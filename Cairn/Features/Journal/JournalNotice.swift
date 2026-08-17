@@ -8,7 +8,30 @@ import Foundation
 /// which buttons appear, and getting that mapping wrong is not cosmetic: a
 /// **Recharger** shown over the wrong note drops a buffer that was never in
 /// conflict. A view cannot be asked that question in a test; this can.
+///
+/// No caller in the journal any more: the notes left the shared folder, and
+/// with it went both the conflicts and the writes that could fail. What is
+/// left is a mapping from something gone wrong to what to say about it, still
+/// held to the letter by `Tests/JournalNoticeTests.swift` — the recovery has
+/// its own list of files it could not read, and this is where that will be
+/// said.
 struct JournalNotice: Equatable {
+    /// What used to be decided when the note being edited changed on disk.
+    ///
+    /// Lived in `JournalReconciliation` while the folder was shared with
+    /// Obsidian and something had to arbitrate between a sentence typed here
+    /// and one typed on the phone. That arbitration has gone with the second
+    /// writer; the vocabulary stays here, where the only remaining reader of
+    /// it is, rather than in a file whose one rule no longer applies.
+    enum Outcome: Equatable {
+        /// Take what the other copy says.
+        case adopt
+        /// It changed under an unsaved edit: keep the buffer, warn.
+        case conflict
+        /// It went away under an unsaved edit: keep the buffer, warn.
+        case vanished
+    }
+
     /// The note moved under an unsaved edit.
     ///
     /// What is on screen is the typing, never the file — losing a sentence to
@@ -95,13 +118,13 @@ struct JournalNotice: Equatable {
     /// The notice for a note on screen, or nil when there is nothing to say.
     ///
     /// - Parameters:
-    ///   - conflict: `JournalStore.conflict`, which belongs to the note being
-    ///     edited — not necessarily the one displayed.
-    ///   - writeFailure: `JournalStore.writeFailure`.
-    ///   - failingDate: `JournalStore.pendingWriteFailure`.
+    ///   - conflict: what happened to the note being edited — not necessarily
+    ///     the one displayed.
+    ///   - writeFailure: why the last save did not go through.
+    ///   - failingDate: the note that save belonged to.
     ///   - displayedDate: the note the editor is showing.
     static func notice(
-        conflict: JournalReconciliation.Outcome?,
+        conflict: Outcome?,
         writeFailure: String?,
         failingDate: DateKey?,
         displayedDate: DateKey
@@ -116,13 +139,12 @@ struct JournalNotice: Equatable {
             return .elsewhere(message, failingDate)
         }
 
-        // A failure on another note places the conflict on that note too — the
-        // store only ever raises one for the note it is editing, which is the
-        // one it could not write. Its buttons would then act on a note nobody
-        // can see, and `reloadConflicted()` discards the buffer, the edited
-        // date and the baseline unconditionally: pressing **Recharger** here
-        // would throw away the very text that failed to save, on a note the
-        // reader was not even looking at.
+        // A failure on another note places the conflict on that note too — a
+        // conflict only ever belongs to the note being edited, which is the
+        // one that could not be written. Its buttons would then act on a note
+        // nobody can see, and reloading discards the buffer unconditionally:
+        // pressing **Recharger** here would throw away the very text that
+        // failed to save, on a note the reader was not even looking at.
         let banner: Conflict?
         if case .elsewhere = failure {
             banner = nil

@@ -3,6 +3,10 @@ import AppKit
 import Foundation
 @testable import Cairn
 
+/// The reading half, which is all that is left: naming the files, listing a
+/// folder of them, and bringing a picture down to size. Nothing here writes a
+/// note any more — that went with the folder, and what remains serves the
+/// recovery.
 @Suite("JournalFolder")
 struct JournalFolderTests {
     /// A throwaway directory, removed by the caller.
@@ -13,6 +17,18 @@ struct JournalFolderTests {
             at: url, withIntermediateDirectories: true
         )
         return url
+    }
+
+    /// A note file, laid down by hand.
+    ///
+    /// `JournalFolder.write` used to do this and no longer exists: Cairn does
+    /// not write into a journal folder any more. What these tests need is a
+    /// folder that already holds notes — the state a first launch finds — so
+    /// the fixture writes the bytes itself.
+    private func write(_ text: String, for date: DateKey, in folder: URL) throws {
+        try Data(text.utf8).write(
+            to: folder.appending(path: JournalFolder.fileName(for: date))
+        )
     }
 
     @Test("le nom de fichier est la date suivie de .md")
@@ -29,14 +45,12 @@ struct JournalFolderTests {
         #expect(JournalFolder.date(fromFileName: "2026-08-11") == nil)
     }
 
-    @Test("aller-retour écriture puis lecture")
-    func writeThenRead() throws {
+    @Test("une note du dossier est lue avec ses étiquettes")
+    func anoteIsReadWithItsTags() throws {
         let folder = try makeFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
 
-        try JournalFolder.write(
-            "Promenade avec #Sam.", for: DateKey(raw: "2026-08-11")!, in: folder
-        )
+        try write("Promenade avec #Sam.", for: DateKey(raw: "2026-08-11")!, in: folder)
         let notes = try JournalFolder.notes(in: folder)
         #expect(notes.count == 1)
         #expect(notes[0].date.raw == "2026-08-11")
@@ -62,7 +76,7 @@ struct JournalFolderTests {
             to: folder.appending(path: "sous-dossier/2026-08-11.md"),
             atomically: true, encoding: .utf8
         )
-        try JournalFolder.write("bon", for: DateKey(raw: "2026-08-11")!, in: folder)
+        try write("bon", for: DateKey(raw: "2026-08-11")!, in: folder)
 
         let notes = try JournalFolder.notes(in: folder)
         #expect(notes.map(\.date.raw) == ["2026-08-11"])
@@ -75,31 +89,12 @@ struct JournalFolderTests {
         defer { try? FileManager.default.removeItem(at: folder) }
 
         for raw in ["2026-08-09", "2026-08-11", "2026-08-10"] {
-            try JournalFolder.write(raw, for: DateKey(raw: raw)!, in: folder)
+            try write(raw, for: DateKey(raw: raw)!, in: folder)
         }
         #expect(
             try JournalFolder.notes(in: folder).map(\.date.raw)
                 == ["2026-08-11", "2026-08-10", "2026-08-09"]
         )
-    }
-
-    @Test("une suppression hors corbeille efface le fichier")
-    func removeWithoutTrash() throws {
-        let folder = try makeFolder()
-        defer { try? FileManager.default.removeItem(at: folder) }
-
-        let date = DateKey(raw: "2026-08-11")!
-        try JournalFolder.write("x", for: date, in: folder)
-        try JournalFolder.remove(date, in: folder, toTrash: false)
-        #expect(try JournalFolder.notes(in: folder).isEmpty)
-    }
-
-    @Test("supprimer une note absente ne lève pas")
-    func removingAMissingNoteIsSilent() throws {
-        let folder = try makeFolder()
-        defer { try? FileManager.default.removeItem(at: folder) }
-
-        try JournalFolder.remove(DateKey(raw: "2026-08-11")!, in: folder, toTrash: false)
     }
 
     @Test("un fichier illisible est listé plutôt qu'omis")
@@ -109,12 +104,14 @@ struct JournalFolderTests {
 
         // 0xFF 0xFE 0xFF 0xFE is not valid UTF-8, so decoding fails and the
         // note is listed with isReadable: false instead — there is no
-        // fallback encoding.
+        // fallback encoding. `JournalImport` reads that flag and rereads the
+        // raw bytes rather than letting a damaged file become a blank note.
         try Data([0xFF, 0xFE, 0xFF, 0xFE]).write(
             to: folder.appending(path: "2026-08-11.md")
         )
         let notes = try JournalFolder.notes(in: folder)
         #expect(notes.count == 1)
+        #expect(!notes[0].isReadable)
         #expect(notes[0].summary == "contenu illisible")
     }
 
@@ -123,7 +120,7 @@ struct JournalFolderTests {
         let folder = try makeFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
 
-        try JournalFolder.write("réelle", for: DateKey(raw: "2026-08-10")!, in: folder)
+        try write("réelle", for: DateKey(raw: "2026-08-10")!, in: folder)
         try Data().write(to: folder.appending(path: ".2026-08-11.md.icloud"))
 
         let notes = try JournalFolder.notes(in: folder)
@@ -148,64 +145,18 @@ struct JournalFolderTests {
         #expect(try JournalFolder.notes(in: folder).isEmpty)
     }
 
-    // MARK: - Pièces jointes
-
-    @Test("une pièce jointe copiée prend son nom du jour")
-    func acopiedAttachmentIsRenamed() throws {
+    @Test("le dossier des pièces jointes porte le nom que les liens citent")
+    func theattachmentsFolderIsTheOneTheLinksName() throws {
         let folder = try makeFolder()
-        let source = folder.appending(path: "IMG_4032.JPG")
-        try Data([0xFF, 0xD8]).write(to: source)
+        defer { try? FileManager.default.removeItem(at: folder) }
 
-        let name = try JournalFolder.copyAttachment(
-            from: source, for: DateKey(raw: "2026-08-13")!, in: folder
+        #expect(
+            JournalFolder.attachmentsFolder(in: folder).lastPathComponent
+                == JournalAttachmentRules.folderName
         )
-        #expect(name == "2026-08-13-1.jpg")
-
-        let written = JournalFolder.attachmentsFolder(in: folder)
-            .appending(path: name)
-        #expect(FileManager.default.fileExists(atPath: written.path))
-        // L'original n'est pas déplacé : la photo reste où elle était.
-        #expect(FileManager.default.fileExists(atPath: source.path))
     }
 
-    @Test("deux pièces jointes du même jour ne se marchent pas dessus")
-    func twoAttachmentsOfTheSameDayCoexist() throws {
-        let folder = try makeFolder()
-        let day = DateKey(raw: "2026-08-13")!
-        let first = try JournalFolder.writeAttachment(
-            Data([0x89]), extension: "png", for: day, in: folder
-        )
-        let second = try JournalFolder.writeAttachment(
-            Data([0x89]), extension: "png", for: day, in: folder
-        )
-        #expect(first == "2026-08-13-1.png")
-        #expect(second == "2026-08-13-2.png")
-    }
-
-    @Test("le dossier des pièces jointes se crée au besoin")
-    func theattachmentsFolderIsCreated() throws {
-        let folder = try makeFolder()
-        let attachments = JournalFolder.attachmentsFolder(in: folder)
-        #expect(!FileManager.default.fileExists(atPath: attachments.path))
-
-        _ = try JournalFolder.writeAttachment(
-            Data([0x89]), extension: "png",
-            for: DateKey(raw: "2026-08-13")!, in: folder
-        )
-        #expect(FileManager.default.fileExists(atPath: attachments.path))
-    }
-
-    @Test("une pièce jointe n'est pas une note")
-    func anattachmentIsNotANote() throws {
-        let folder = try makeFolder()
-        try JournalFolder.write("Note.", for: DateKey(raw: "2026-08-13")!, in: folder)
-        _ = try JournalFolder.writeAttachment(
-            Data([0x89]), extension: "png",
-            for: DateKey(raw: "2026-08-13")!, in: folder
-        )
-        // Le listing est plat par nature : le sous-dossier n'y entre pas.
-        #expect(try JournalFolder.notes(in: folder).count == 1)
-    }
+    // MARK: - Réduction des images
 
     /// Une image PNG de la taille demandée, écrite dans le dossier.
     @MainActor
@@ -226,41 +177,32 @@ struct JournalFolderTests {
     }
 
     @MainActor
-    @Test("une grande photo est réduite en entrant dans le coffre")
-    func alargePictureIsReducedOnTheWayIn() throws {
+    @Test("une grande photo est réduite sous le plafond")
+    func alargePictureIsBroughtUnderTheCeiling() throws {
         let folder = try makeFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
         let source = try writeImage(3000, named: "grande.png", in: folder)
 
-        let name = try JournalFolder.copyAttachment(
-            from: source, for: DateKey(raw: "2026-08-13")!, in: folder
-        )
-        // Réencodée : une photo réduite est un JPEG, quoi qu'elle fût.
-        #expect(name.hasSuffix(".jpg"))
-
-        let stored = JournalFolder.attachmentsFolder(in: folder).appending(path: name)
-        let image = NSImage(contentsOf: stored)!
+        let reduced = try #require(JournalFolder.reduced(at: source))
+        let image = try #require(NSImage(data: reduced))
         #expect(max(image.size.width, image.size.height) <= 2048)
         // Et bien plus légère que l'original.
-        let storedSize = try FileManager.default
-            .attributesOfItem(atPath: stored.path)[.size] as! Int
         let sourceSize = try FileManager.default
             .attributesOfItem(atPath: source.path)[.size] as! Int
-        #expect(storedSize < sourceSize)
+        #expect(reduced.count < sourceSize)
     }
 
     @MainActor
-    @Test("une image déjà petite est copiée telle quelle")
-    func asmallPictureIsCopiedUntouched() throws {
+    @Test("une image déjà petite n'est pas réencodée")
+    func asmallPictureIsLeftAlone() throws {
         let folder = try makeFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
         let source = try writeImage(400, named: "petite.png", in: folder)
 
-        let name = try JournalFolder.copyAttachment(
-            from: source, for: DateKey(raw: "2026-08-13")!, in: folder
-        )
-        // Son extension survit, et ses octets aussi : réencoder ce qui ne
-        // coûte rien ne ferait que perdre du détail.
-        #expect(name.hasSuffix(".png"))
-        let stored = JournalFolder.attachmentsFolder(in: folder).appending(path: name)
-        #expect(try Data(contentsOf: stored) == (try Data(contentsOf: source)))
+        // Nil veut dire « rien à faire » : réencoder ce qui ne coûte rien ne
+        // ferait que perdre du détail, et c'est l'appelant qui garde alors les
+        // octets d'origine, extension comprise.
+        #expect(JournalFolder.reduced(at: source) == nil)
+        #expect(JournalFolder.reduced(try Data(contentsOf: source)) == nil)
     }
 }

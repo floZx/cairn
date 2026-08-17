@@ -290,11 +290,17 @@ struct JournalThumbnailsTests {
         #expect(JournalThumbnails.strip(of: []).extra == 0)
     }
 
-    @Test("sans coffre, aucun fichier n'est cherché")
-    func withoutAVaultNothingIsLoaded() {
+    /// The cache always exists, so there is no "no folder" case any more —
+    /// what is left is a link to a picture the journal never held. The row
+    /// shows one thumbnail fewer rather than an empty frame.
+    @Test("une image absente du cache ne donne pas de miniature")
+    func amissingPictureYieldsNoThumbnail() {
         #expect(
             JournalThumbnails.image(
-                for: .vault(path: "x.jpg"), folder: nil, context: nil
+                for: .vault(path: "x.jpg"),
+                folder: URL(fileURLWithPath: NSTemporaryDirectory())
+                    .appending(path: "journal-thumbnails-\(UUID().uuidString)"),
+                context: nil
             ) == nil
         )
     }

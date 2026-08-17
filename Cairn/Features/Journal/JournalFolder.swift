@@ -3,11 +3,14 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// The only place that touches the disk.
+/// The one place that knows how to read a folder of daily notes.
 ///
-/// Everything else in the Journal works on values, which is what makes it
-/// testable without a file system — and what makes the rules about what is and
-/// is not a note readable in one place.
+/// Reading only, since the notes moved into the base: this half stays for the
+/// recovery, which is now its only caller — a fresh installation, or a store
+/// restored from an old backup, still has a first launch to make. Everything
+/// that wrote into the folder has gone with the folder itself: Cairn reads it
+/// once and never touches it again, which is what makes an automatic recovery
+/// safe to run without asking.
 enum JournalFolder {
     static let fileExtension = "md"
 
@@ -26,6 +29,9 @@ enum JournalFolder {
         return DateKey(raw: url.deletingPathExtension().lastPathComponent)
     }
 
+    /// Where that day's note sits. Kept although nothing writes any more:
+    /// `JournalImport` rereads the raw bytes of a file that would not decode
+    /// as UTF-8, and this is how it names it.
     static func url(for date: DateKey, in folder: URL) -> URL {
         folder.appending(path: fileName(for: date))
     }
@@ -69,43 +75,25 @@ enum JournalFolder {
         folder.appending(path: JournalAttachmentRules.folderName)
     }
 
-    /// Copies a picture into the vault under a name of the journal's own.
-    ///
-    /// Copied and not moved: the photo the user dropped goes on living where
-    /// it was, in a library or a download folder, and a journal that swallowed
-    /// originals would be a journal one stops dropping things on.
-    ///
-    /// - Returns: the name written, which is what the note's link points at.
-    @discardableResult
-    static func copyAttachment(
-        from source: URL, for date: DateKey, in folder: URL
-    ) throws -> String {
-        // Reduced on the way in, when it is worth it: see
-        // `JournalAttachmentRules.maxPixels`. A picture already small enough is
-        // copied byte for byte — re-encoding it would only lose detail.
-        if let reduced = reduced(at: source) {
-            return try writeAttachment(
-                reduced, extension: "jpg", for: date, in: folder
-            )
-        }
-        let name = try prepareName(
-            extension: source.pathExtension, for: date, in: folder
-        )
-        try FileManager.default.copyItem(
-            at: source, to: attachmentsFolder(in: folder).appending(path: name)
-        )
-        return name
-    }
+    // MARK: - Réduction des images
 
-    /// The same from bytes, for what a paste hands over.
+    /// A picture brought down to `JournalAttachmentRules.maxPixels`, or nil
+    /// when it is already within it.
+    ///
+    /// Kept here rather than following the writing out of this file: reducing
+    /// an image is what `JournalStore` does to every picture entering the
+    /// base, and the rule — through ImageIO, orientation carried over, an
+    /// already-small picture left alone — has nothing to do with folders.
+    ///
+    /// This form for what a paste hands over: the clipboard carries an image
+    /// far more often than it carries a file.
     static func reduced(_ data: Data) -> Data? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil)
         else { return nil }
         return reduced(source)
     }
 
-    /// The picture at `url`, brought down to `JournalAttachmentRules.maxPixels`, or
-    /// nil when it is already within it.
+    /// The same from a file, which is what a drop hands over.
     ///
     /// Through ImageIO, which makes the smaller image without ever decoding
     /// the whole one, and which carries the EXIF orientation over — a photo
@@ -144,32 +132,6 @@ enum JournalFolder {
         return data as Data
     }
 
-    /// The same from bytes — what a paste hands over: the clipboard carries an
-    /// image far more often than it carries a file.
-    @discardableResult
-    static func writeAttachment(
-        _ data: Data, extension ext: String, for date: DateKey, in folder: URL
-    ) throws -> String {
-        let name = try prepareName(extension: ext, for: date, in: folder)
-        try data.write(to: attachmentsFolder(in: folder).appending(path: name))
-        return name
-    }
-
-    /// A free name, with the folder made ready to receive it.
-    private static func prepareName(
-        extension ext: String, for date: DateKey, in folder: URL
-    ) throws -> String {
-        let attachments = attachmentsFolder(in: folder)
-        try FileManager.default.createDirectory(
-            at: attachments, withIntermediateDirectories: true
-        )
-        let taken = Set(
-            (try? FileManager.default.contentsOfDirectory(atPath: attachments.path))
-                ?? []
-        )
-        return JournalAttachmentRules.fileName(for: date, extension: ext, taken: taken)
-    }
-
     /// The real file behind an iCloud placeholder, or nil when this is not one.
     private static func pendingDownload(at url: URL) -> URL? {
         let name = url.lastPathComponent
@@ -177,23 +139,5 @@ enum JournalFolder {
         let real = String(name.dropFirst().dropLast(".icloud".count))
         guard date(fromFileName: real) != nil else { return nil }
         return url.deletingLastPathComponent().appending(path: real)
-    }
-
-    static func write(_ text: String, for date: DateKey, in folder: URL) throws {
-        try Data(text.utf8).write(to: url(for: date, in: folder), options: .atomic)
-    }
-
-    /// - Parameter toTrash: true for a deletion the user asked for — these are
-    ///   their files in their own vault, and a mistake has to be undoable.
-    ///   False for a note emptied to nothing, which never held anything worth
-    ///   filling a trash with.
-    static func remove(_ date: DateKey, in folder: URL, toTrash: Bool) throws {
-        let target = url(for: date, in: folder)
-        guard FileManager.default.fileExists(atPath: target.path) else { return }
-        if toTrash {
-            try FileManager.default.trashItem(at: target, resultingItemURL: nil)
-        } else {
-            try FileManager.default.removeItem(at: target)
-        }
     }
 }

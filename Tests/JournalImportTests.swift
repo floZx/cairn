@@ -27,13 +27,34 @@ struct JournalImportTests {
         return url
     }
 
+    private static let suitePrefix = "journal-import-tests-"
+
     private func freshDefaults() -> (UserDefaults, String) {
-        let name = "journal-import-tests-\(UUID().uuidString)"
+        let name = "\(Self.suitePrefix)\(UUID().uuidString)"
         return (UserDefaults(suiteName: name)!, name)
     }
 
-    private func discard(_ suiteName: String) {
-        UserDefaults().removePersistentDomain(forName: suiteName)
+    /// Le domaine **et** son fichier.
+    ///
+    /// `removePersistentDomain(forName:)` seul vide le domaine et laisse le
+    /// `.plist` dans `~/Library/Preferences` : un fichier par suite jetable,
+    /// donc un par test, à chaque exécution de la suite. Mesuré, pas supposé —
+    /// des milliers s'y étaient accumulés avant que le fichier soit retiré à
+    /// la main. Le bundle de test tourne dans l'application hôte, qui n'est
+    /// pas en bac à sable (`Cairn.entitlements`), donc le chemin est bien
+    /// celui-là.
+    ///
+    /// La synchronisation avant le retrait n'est pas décorative : `cfprefsd`
+    /// écrit le fichier quand il veut, et un `removeItem` lancé avant qu'il
+    /// l'ait fait supprime un fichier qui n'existe pas encore — puis le
+    /// démon l'écrit derrière nous. C'est exactement ce qu'a montré une
+    /// première version de ce correctif : le compte du dossier montait
+    /// toujours. `try?` : un domaine auquel rien n'a été posé ne produit
+    /// aucun fichier, et il n'y a alors rien à retirer.
+    private func discard(_ defaults: UserDefaults, _ suiteName: String) {
+        defaults.removePersistentDomain(forName: suiteName)
+        CFPreferencesAppSynchronize(suiteName as CFString)
+        ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
     }
 
     /// Le cas nominal : les notes et les images entrent en base.
@@ -44,7 +65,7 @@ struct JournalImportTests {
         )
         defer { try? FileManager.default.removeItem(at: folder) }
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
 
         let outcome = try JournalImport.runIfNeeded(
@@ -63,7 +84,7 @@ struct JournalImportTests {
         let folder = try makeFolder(notes: ["2026-08-17": "une note"])
         defer { try? FileManager.default.removeItem(at: folder) }
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
 
         _ = try JournalImport.runIfNeeded(context, folderPath: folder.path, defaults: defaults)
@@ -79,7 +100,7 @@ struct JournalImportTests {
     /// un iCloud pas encore descendu perdrait tout le journal.
     @Test func unDossierIntrouvableNeSeMarquePasFait() throws {
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
         let absent = "/tmp/journal-qui-nexiste-pas-\(UUID().uuidString)"
 
@@ -98,7 +119,7 @@ struct JournalImportTests {
     /// rien à faire, et jamais rien à refaire.
     @Test func sansDossierLaRepriseSeMarqueFaiteImmediatement() throws {
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
 
         let first = try JournalImport.runIfNeeded(context, folderPath: nil, defaults: defaults)
@@ -117,7 +138,7 @@ struct JournalImportTests {
         let rawBytes = Data([0xFF, 0xFE, 0x00, 0x01])
         try rawBytes.write(to: folder.appending(path: "2026-08-17.md"))
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
 
         let outcome = try JournalImport.runIfNeeded(
@@ -151,7 +172,7 @@ struct JournalImportTests {
         let text = "avant\0apres"
         try Data(text.utf8).write(to: folder.appending(path: "2026-08-17.md"))
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
 
         let outcome = try JournalImport.runIfNeeded(
@@ -195,7 +216,7 @@ struct JournalImportTests {
         let folder = try makeFolder(notes: [:])
         defer { try? FileManager.default.removeItem(at: folder) }
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
 
         let first = try JournalImport.runIfNeeded(
@@ -220,7 +241,7 @@ struct JournalImportTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         try Data().write(to: folder.appending(path: ".2026-08-17.md.icloud"))
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
 
         #expect(throws: (any Error).self) {
@@ -242,7 +263,7 @@ struct JournalImportTests {
         let sub = folder.appending(path: JournalAttachmentRules.folderName)
         try Data().write(to: sub.appending(path: ".DS_Store"))
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
 
         let outcome = try JournalImport.runIfNeeded(
@@ -265,7 +286,7 @@ struct JournalImportTests {
         let sub = folder.appending(path: JournalAttachmentRules.folderName)
         try Data().write(to: sub.appending(path: ".2026-08-17-2.jpg.icloud"))
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
 
         #expect(throws: (any Error).self) {
@@ -290,7 +311,7 @@ struct JournalImportTests {
             .appending(path: "sub.jpg")
         try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
 
         let outcome = try JournalImport.runIfNeeded(

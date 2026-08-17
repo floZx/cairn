@@ -12,10 +12,10 @@ final class AppEnvironment {
     let oauth: OAuthFlow
     let engine: SyncEngine
     let progress: SyncProgress
-    /// The journal's folder, notes and watcher. Held here like every other
-    /// long-lived piece of the app, so the window and the Settings scene get
-    /// the same instance rather than two views of one folder.
-    let journal = JournalStore()
+    /// The journal's notes and what is being typed into one. Held here like
+    /// every other long-lived piece of the app, so the window and the Settings
+    /// scene get the same instance rather than two views of one journal.
+    let journal: JournalStore
 
     let mirrorClient: MirrorClient
     let mirror: MirrorEngine
@@ -85,6 +85,12 @@ final class AppEnvironment {
         )
         self.isAuthenticated = store.tokens() != nil
         self.hasCredentials = store.credentials() != nil
+        // The application's own cache folder, named here rather than defaulted
+        // inside the store: see `JournalStore.init`'s own `attachmentsBase`
+        // parameter, and `JournalAttachmentCache.materialise` before it.
+        self.journal = JournalStore(
+            container: container, attachmentsBase: JournalAttachmentCache.directory
+        )
 
         // Entirely local and synchronous: `MirrorClient.isConfigured` reads
         // the keychain, never the network, and `MirrorBootstrapCursor` only

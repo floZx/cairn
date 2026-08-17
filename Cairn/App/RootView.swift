@@ -222,9 +222,6 @@ struct RootView: View {
         ) {
             Button("Supprimer", role: .destructive) {
                 if let date = journalPendingDeletion {
-                    // Deleted first: `delete` clears any failed-write flag on
-                    // that date, and only then will `selectJournalNote` agree
-                    // to leave it.
                     app.journal.delete(date)
                     if journalSelection == date { selectJournalNote(nil) }
                 }
@@ -232,7 +229,7 @@ struct RootView: View {
             }
             Button("Annuler", role: .cancel) { journalPendingDeletion = nil }
         } message: {
-            Text("Le fichier part à la corbeille : il reste récupérable.")
+            Text("La note est retirée du journal.")
         }
         .alert(
             "Échec de l'enregistrement",
@@ -272,12 +269,6 @@ struct RootView: View {
                 onCancel: { showsJournalExport = false }
             )
         }
-        // Another vault is another set of pictures, and a path is only unique
-        // within one: the thumbnails cached for the last folder would answer
-        // for files the new one never had.
-        .onChange(of: app.journal.folder) { _, _ in
-            JournalThumbnails.removeAll()
-        }
         .onAppear {
             // ⌘N means "make the thing this section is about": an activity in
             // the list, today's note in the journal. One shortcut rather than
@@ -292,7 +283,7 @@ struct RootView: View {
             app.requestEditSelection = { if let selected { editor = .edit(selected) } }
             app.requestDeleteSelection = {
                 if showsJournal {
-                    journalPendingDeletion = journalSelectionHasFile
+                    journalPendingDeletion = journalSelectionHasNote
                         ? journalSelection : nil
                 } else {
                     pendingDeletion = selected
@@ -431,9 +422,9 @@ struct RootView: View {
         JournalDay.filter(journalDays, query: journalQuery, tags: journalTags)
     }
 
-    /// Whether the selected day has a file of its own to delete. A day listed
+    /// Whether the selected day has a note of its own to delete. A day listed
     /// only because an outing, a meal or a weigh-in wrote something has none.
-    private var journalSelectionHasFile: Bool {
+    private var journalSelectionHasNote: Bool {
         guard let journalSelection,
               let day = journalDays.first(where: { $0.date == journalSelection })
         else { return false }
@@ -447,15 +438,7 @@ struct RootView: View {
         JournalTagTally.rows(for: journalDays.map(\.tags))
     }
 
-    /// The list's selection, which stays put while a write is failing.
-    ///
-    /// `JournalStore.update(_:for:)` refuses to leave a note whose last write
-    /// failed — it keeps the buffer, the edited date and its baseline where
-    /// they are — and it refuses silently. A selection that moved anyway would
-    /// leave the list showing one note while the store still edited another,
-    /// and every word typed into the row on screen would go into the note
-    /// behind it. So the selection follows the store's rule rather than
-    /// discovering it too late.
+    /// The list's selection.
     private var journalSelectionBinding: Binding<DateKey?> {
         Binding(
             get: { journalSelection },
@@ -469,10 +452,8 @@ struct RootView: View {
     /// The sidebar calendar's day: the open note, or today when none is.
     ///
     /// Setting it goes the long way round on purpose. `selectJournalNote`
-    /// flushes and may refuse — a note whose write failed is not one the list
-    /// may leave — so the day is only opened in the store once the move has
-    /// actually been agreed. Opening first would insert a row and hand the
-    /// store a note the list never moved to.
+    /// flushes what the buffer holds first, so the day is only opened in the
+    /// store once the note being left has been written.
     ///
     /// The editor is deliberately not focused. ⌘N means "write today", so it
     /// puts the caret in; clicking a day means "show me that day", and a note
@@ -526,16 +507,10 @@ struct RootView: View {
     }
 
     private func selectJournalNote(_ date: DateKey?) {
-        // The flush first, then the guard. A debounce that has not fired yet
-        // is unwritten work, and it is *this* write that fails when a vault
-        // has gone: reading the flag before flushing asks about a failure that
-        // has not happened, lets the selection move, and only then discovers
-        // it — the store stays on the note it could not write while the list
-        // shows another, and everything typed into the one on screen is
-        // refused. Worse with nothing selected: the pane collapses, so the
-        // message explaining the refusal has nowhere left to render.
+        // The flush first: a debounce that has not fired yet is unwritten
+        // work, and the note being left must not lose its last sentence to the
+        // pane being rebuilt on another day.
         app.journal.saveNow()
-        guard app.journal.pendingWriteFailure == nil else { return }
         journalSelection = date
     }
 
@@ -578,39 +553,25 @@ struct RootView: View {
                     )
                     .vimKeys(performOutsideTheList)
                 } else if showsJournal {
-                    Group {
-                        if app.journal.folder == nil {
-                            JournalEmptyView(onChooseFolder: chooseJournalFolder)
-                        } else {
-                            JournalListView(
-                                days: filteredJournalDays,
-                                query: journalQuery,
-                                // A folder that was renamed, or sits on a
-                                // volume nobody mounted: the setting is kept,
-                                // so the section has to be the one place that
-                                // says why it is empty. Without it the list
-                                // offered « ⌘N ouvre la note du jour », which
-                                // opens a note that cannot be written.
-                                loadError: app.journal.loadError,
-                attachmentsBase: app.journal.folder,
-                                selection: journalSelectionBinding,
-                                focusRequest: journalListFocus,
-                                onCommand: performInJournal,
-                                onSelectTag: { journalTags.insert($0) },
-                                onOpenEditor: { journalEditorFocus += 1 },
-                                onDelete: { journalPendingDeletion = $0 }
-                            )
-                            .searchable(
-                                text: $journalQuery,
-                                prompt: "Rechercher dans le journal"
-                            )
-                            // The same `FocusState` as the activity list's
-                            // field: only one of the two is ever on screen, and
-                            // a second one would be a second thing for `/` to
-                            // aim at.
-                            .searchFocused($searchFieldFocused)
-                        }
-                    }
+                    JournalListView(
+                        days: filteredJournalDays,
+                        query: journalQuery,
+                        attachmentsBase: app.journal.attachmentsBase,
+                        selection: journalSelectionBinding,
+                        focusRequest: journalListFocus,
+                        onCommand: performInJournal,
+                        onSelectTag: { journalTags.insert($0) },
+                        onOpenEditor: { journalEditorFocus += 1 },
+                        onDelete: { journalPendingDeletion = $0 }
+                    )
+                    .searchable(
+                        text: $journalQuery,
+                        prompt: "Rechercher dans le journal"
+                    )
+                    // The same `FocusState` as the activity list's field: only
+                    // one of the two is ever on screen, and a second one would
+                    // be a second thing for `/` to aim at.
+                    .searchFocused($searchFieldFocused)
                 } else if showsNutrition {
                     // The vim modifier lives inside the view here — it must go
                     // dead while the add/edit sheets are up, and only the view
@@ -719,16 +680,7 @@ struct RootView: View {
         }
         // A pending debounce is unwritten work: leaving the note or the section
         // has to flush it, not race it.
-        .onChange(of: journalSelection) { _, _ in
-            app.journal.saveNow()
-            // The banner belongs to the note it was raised over, and the flush
-            // above has just settled it the way "Garder" would — the buffer
-            // went to the file. Left standing it would sit over the next note
-            // and say something untrue about it. Only on a change of note:
-            // leaving the section keeps the same note selected, so coming back
-            // to a banner still up is right.
-            app.journal.dismissConflict()
-        }
+        .onChange(of: journalSelection) { _, _ in app.journal.saveNow() }
         .onChange(of: sidebarSelection) { _, _ in app.journal.saveNow() }
         .toolbar { syncToolbar }
     }
@@ -888,27 +840,11 @@ struct RootView: View {
         }
     }
 
-    private func chooseJournalFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.prompt = "Choisir"
-        panel.message = "Choisissez le dossier qui contient vos notes du jour"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        app.journal.choose(url)
-    }
-
     /// Opens today's note, creating it if it is not there. Nothing is written
     /// until something is typed — see `JournalStore.openToday`.
     private func openTodaysNote() {
-        guard app.journal.folder != nil else {
-            chooseJournalFolder()
-            return
-        }
         // Through `selectJournalNote`, never by assigning `journalSelection`:
-        // the store refuses to leave a note whose write failed, and a direct
-        // write here would move the list while the store stayed behind — the
-        // desynchronisation task 6 built that guard to prevent.
+        // that is the one path that flushes the note being left.
         selectJournalNote(app.journal.openToday())
         // One tick later, for the same reason `VimKeys` waits before claiming
         // focus. With nothing selected the detail column is showing
@@ -987,86 +923,27 @@ struct RootView: View {
     /// The order matters. The days are gathered first so an empty period can be
     /// refused before anything slow starts — and before a save panel asks where
     /// to put a PDF that would hold nothing but its cover.
-    /// Copies each picture into the vault and appends its link to the note.
+    /// Takes each picture into the journal and appends its link to the note.
     ///
-    /// Through the store like any keystroke: the note stays a Markdown file
-    /// someone else can edit, and Cairn only ever adds a line to it.
+    /// Through the store, which owns the bytes, the cache and the text alike:
+    /// this view only says which files were dropped, and hears back which of
+    /// them were refused.
     private func addJournalPhotos(_ urls: [URL], to date: DateKey) {
-        guard let folder = app.journal.folder else {
-            fileMessage = "Aucun dossier de journal n'est choisi."
-            return
-        }
-        var links: [String] = []
-        var refused: [String] = []
-        for url in urls {
-            guard JournalAttachmentRules.allowedExtensions
-                .contains(url.pathExtension.lowercased())
-            else {
-                refused.append(url.lastPathComponent)
-                continue
-            }
-            do {
-                let name = try JournalFolder.copyAttachment(
-                    from: url, for: date, in: folder
-                )
-                links.append(JournalAttachmentRules.link(to: name))
-            } catch {
-                refused.append(url.lastPathComponent)
-            }
-        }
-        append(links, to: date)
-        if !refused.isEmpty {
-            // Named rather than dropped in silence: a file one believes was
-            // added is worse than one that says why it was not.
-            fileMessage = refused.count == 1
-                ? "« \(refused[0]) » n'a pas pu être ajouté : seules les images "
-                    + "JPEG, PNG et HEIC entrent dans une note."
-                : "Ces fichiers n'ont pas pu être ajoutés : "
-                    + refused.joined(separator: ", ")
-        }
+        let refused = app.journal.addAttachments(from: urls, to: date)
+        guard !refused.isEmpty else { return }
+        // Named rather than dropped in silence: a file one believes was added
+        // is worse than one that says why it was not.
+        fileMessage = refused.count == 1
+            ? "« \(refused[0]) » n'a pas pu être ajouté : seules les images "
+                + "JPEG, PNG et HEIC entrent dans une note."
+            : "Ces fichiers n'ont pas pu être ajoutés : "
+                + refused.joined(separator: ", ")
     }
 
-    /// The same from the clipboard, which carries bytes and no name. Written
-    /// as PNG: it is what a screenshot already is, and re-encoding one to JPEG
-    /// would blur the very text it was taken for.
+    /// The same from the clipboard, which carries bytes and no name.
     private func pasteJournalPhoto(_ data: Data, to date: DateKey) {
-        guard let folder = app.journal.folder else {
-            fileMessage = "Aucun dossier de journal n'est choisi."
-            return
-        }
-        do {
-            // Reduced like a dropped file: a screenshot of a large screen
-            // goes over the limit too. Re-encoded to JPEG when it does — a
-            // photograph, which is what that size means.
-            let reduced = JournalFolder.reduced(data)
-            let name = try JournalFolder.writeAttachment(
-                reduced ?? data, extension: reduced == nil ? "png" : "jpg",
-                for: date, in: folder
-            )
-            append([JournalAttachmentRules.link(to: name)], to: date)
-        } catch {
-            fileMessage = "La photo collée n'a pas pu être écrite. "
-                + error.localizedDescription
-        }
-    }
-
-    /// The links at the end of the note, through the store — which is what
-    /// keeps the row's excerpt, the tags and the reconciliation in step.
-    ///
-    /// `open` first, for the reason the editor's own entry point states: a day
-    /// listed only because an outing wrote something has no note in the store
-    /// yet, and writing into it has to create one.
-    private func append(_ links: [String], to date: DateKey) {
-        guard !links.isEmpty else { return }
-        app.journal.open(date)
-        // `append` rather than `update`: the editor holds its own copy of the
-        // text and never reads it back, so a line added from outside stays
-        // invisible to whoever is writing until they leave the note. The store
-        // has to say the text is its own again.
-        app.journal.append(
-            JournalAttachmentRules.appending(links, to: app.journal.text(for: date)),
-            for: date
-        )
+        guard !app.journal.addAttachment(data, to: date) else { return }
+        fileMessage = "La photo collée n'a pas pu être ajoutée à la note."
     }
 
     private func exportJournalPDF() async {
@@ -1089,9 +966,10 @@ struct RootView: View {
             journalExportProgress = .drawing(done: done, total: total)
         }
 
-        // The pictures written in the notes themselves, read from the vault.
+        // The pictures written in the notes themselves, read from the cache
+        // the store materialises them into.
         let noteImages = JournalBookAssets.noteImages(
-            for: book, vault: app.journal.folder
+            for: book, vault: app.journal.attachmentsBase
         ) { done, total in
             journalExportProgress = .drawing(done: done, total: total)
         }
@@ -1189,36 +1067,21 @@ struct RootView: View {
                     day: day,
                     text: app.journal.text(for: date),
                     textRevision: app.journal.textRevision,
-                    // The store's three pieces of state go in, one notice comes
-                    // out — the mapping is `JournalNotice`'s, and tested there.
-                    notice: JournalNotice.notice(
-                        conflict: app.journal.conflict,
-                        writeFailure: app.journal.writeFailure,
-                        failingDate: app.journal.pendingWriteFailure,
-                        displayedDate: date
-                    ),
                     focusRequest: journalEditorFocus,
                     // `open` rather than `beginEditing`: a day that is in the
                     // list only because an outing wrote something has no note
                     // in the store yet, and writing into it has to create one.
-                    // Nothing reaches the disk until a character is typed.
+                    // Nothing is written until a character is typed.
                     onBeginEditing: { app.journal.open(date) },
                     onEdit: { app.journal.update($0, for: date) },
                     onSelectTag: { journalTags.insert($0) },
                     onSelectActivity: { openActivity($0) },
-                    onReloadFromDisk: { app.journal.reloadConflicted() },
-                    onDismissConflict: { app.journal.dismissConflict() },
                     onLeaveEditor: { journalListFocus += 1 },
-                    attachmentsBase: app.journal.folder,
+                    attachmentsBase: app.journal.attachmentsBase,
                     onAddPhotos: { addJournalPhotos($0, to: date) },
                     onPastePhoto: { pasteJournalPhoto($0, to: date) }
                 )
                 .frame(minWidth: Self.detailMinWidth)
-                // Another vault is another pane. The date is the only identity
-                // a note has, so without this a folder change that happens to
-                // hold the same day would leave the pane open — in the editor,
-                // on a file it has never shown.
-                .id(app.journal.folder)
             } else {
                 collapsedDetailColumn
             }
@@ -1448,7 +1311,7 @@ struct RootView: View {
                     } label: {
                         Label("Supprimer", systemImage: "trash")
                     }
-                    .disabled(!journalSelectionHasFile)
+                    .disabled(!journalSelectionHasNote)
                     .help("Mettre la note sélectionnée à la corbeille")
                 }
             }

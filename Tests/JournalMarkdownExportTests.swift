@@ -10,13 +10,20 @@ struct JournalMarkdownExportTests {
     /// `Tests/JournalImportTests.swift`. Sans ça, chaque exécution laisse un
     /// domaine et un fichier de préférences derrière elle : mesuré, pas
     /// supposé.
+    private static let suitePrefix = "journal-markdown-export-tests-"
+
     private func freshDefaults() -> (UserDefaults, String) {
-        let name = "journal-markdown-export-tests-\(UUID().uuidString)"
+        let name = "\(Self.suitePrefix)\(UUID().uuidString)"
         return (UserDefaults(suiteName: name)!, name)
     }
 
-    private func discard(_ suiteName: String) {
-        UserDefaults().removePersistentDomain(forName: suiteName)
+    /// Le domaine **et** son fichier : voir `discard(_:)` dans
+    /// `Tests/JournalImportTests.swift`, qui dit pourquoi le second ne suit
+    /// pas le premier.
+    private func discard(_ defaults: UserDefaults, _ suiteName: String) {
+        defaults.removePersistentDomain(forName: suiteName)
+        CFPreferencesAppSynchronize(suiteName as CFString)
+        ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
     }
 
     /// LA garantie de la tranche : un dossier repris puis réexporté est le
@@ -75,7 +82,7 @@ struct JournalMarkdownExportTests {
         try bytes.write(to: attachmentsFolder.appending(path: "2026-08-17-1.jpg"))
 
         let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
+        defer { discard(defaults, suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
         _ = try JournalImport.runIfNeeded(
             context, folderPath: source.path, defaults: defaults

@@ -10,11 +10,11 @@ struct JournalListView: View {
     /// The live search text, so a row can show the passage that matched rather
     /// than its first line.
     let query: String
-    /// Why there is nothing to list, when the folder itself is the reason.
-    let loadError: String?
-    /// The vault, for the thumbnails a row shows. Nil until a folder is
-    /// chosen, and the rows are then text only.
-    let attachmentsBase: URL?
+    /// Where the thumbnails a row shows resolve to: the attachment cache,
+    /// which always exists. `loadError` stood beside it while a folder could
+    /// go missing under the journal; nothing can now, so an empty list means
+    /// an empty journal and nothing else.
+    let attachmentsBase: URL
     @Binding var selection: DateKey?
     var focusRequest: Int
     let onCommand: (VimCommand) -> Bool
@@ -65,7 +65,7 @@ struct JournalListView: View {
     /// typing never reorders the list, and a day appearing or disappearing is
     /// an insertion the table measures for itself. When the count moves, every
     /// row from the first difference on has shifted onto other content, so they
-    /// are all named — a fresh reload of the folder, not a keystroke.
+    /// are all named — a list rebuilt from the base, not a keystroke.
     static func changedRows(from old: [JournalDay], to new: [JournalDay]) -> IndexSet {
         guard old.count == new.count else {
             let firstDifference = zip(old, new).prefix { $0 == $1 }.count
@@ -97,8 +97,6 @@ struct JournalListView: View {
         // On appearance alone, which here means on entering the section: no
         // `.id(…)` rebuilds this view for a search or a tag, so Escape can
         // clear the selection without the next pass putting it straight back.
-        // The binding is the guarded one, so a note whose write failed still
-        // refuses to be left.
         .onAppear {
             if let first = Self.initialSelection(days: days, current: selection) {
                 selection = first
@@ -106,28 +104,15 @@ struct JournalListView: View {
         }
         .overlay {
             if days.isEmpty {
-                // The folder first: an empty list because the vault is not
-                // there is not an empty journal, and inviting ⌘N would open a
-                // note nothing can write. Only when the list is empty — a
-                // deletion that would not go through also sets this message,
-                // and that one must not blank out the notes still listed.
-                if let loadError {
-                    ContentUnavailableView(
-                        "Dossier indisponible",
-                        systemImage: "folder.badge.questionmark",
-                        description: Text(loadError)
+                ContentUnavailableView(
+                    "Aucune note",
+                    systemImage: "text.book.closed",
+                    description: Text(
+                        query.isEmpty
+                            ? "⌘N ouvre la note du jour."
+                            : "Aucune note ne contient « \(query) »."
                     )
-                } else {
-                    ContentUnavailableView(
-                        "Aucune note",
-                        systemImage: "text.book.closed",
-                        description: Text(
-                            query.isEmpty
-                                ? "⌘N ouvre la note du jour."
-                                : "Aucune note ne contient « \(query) »."
-                        )
-                    )
-                }
+                )
             }
         }
         .vimKeys(focusRequest: focusRequest) { command in
@@ -147,10 +132,10 @@ struct JournalListView: View {
                 guard selection != nil else { return false }
                 onOpenEditor()
                 return true
-            // Same for `x`: the thing this screen can delete is a note *file*.
-            // A day that is in the list only because an outing, a meal or a
-            // weigh-in wrote something has no file to trash, and that text is
-            // edited where it lives. Refused rather than swallowed, so the
+            // Same for `x`: the thing this screen can delete is the day's own
+            // note. A day that is in the list only because an outing, a meal
+            // or a weigh-in wrote something has none of its own, and that text
+            // is edited where it lives. Refused rather than swallowed, so the
             // press falls through instead of raising a dialog that would do
             // nothing.
             case .delete:

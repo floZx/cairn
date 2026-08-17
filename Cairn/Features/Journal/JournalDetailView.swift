@@ -46,10 +46,6 @@ struct JournalDetailView: View {
     /// Moves when the store replaced that text itself rather than took it from
     /// here. The signal the draft waits for.
     let textRevision: Int
-    /// What the header has to say about this note, decided by `JournalNotice`
-    /// rather than here: which wording, and which buttons, is the one thing in
-    /// this view where being wrong loses text.
-    let notice: JournalNotice?
     var focusRequest: Int
     /// The editor is taking this note's text: the store holds the day open
     /// from here on, so its row survives a folder event and a change arriving
@@ -60,14 +56,14 @@ struct JournalDetailView: View {
     /// Opening one of the day's outings, which leaves the journal for the
     /// section that can actually show a map and a set of charts.
     let onSelectActivity: (PersistentIdentifier) -> Void
-    let onReloadFromDisk: () -> Void
-    let onDismissConflict: () -> Void
     let onLeaveEditor: () -> Void
-    /// The vault, for resolving what a note's pictures point at. Nil until a
-    /// folder is chosen — the pane still reads, it simply shows no picture.
-    let attachmentsBase: URL?
+    /// Where a note's pictures resolve to: the attachment cache, which always
+    /// exists. It used to be the vault, and nil until a folder was chosen —
+    /// hence the disabled button and the refused drops this view no longer
+    /// has any reason to make.
+    let attachmentsBase: URL
     /// The files a gesture produced, in the order they arrived. This view only
-    /// gathers them; copying into the vault and writing the line belongs to
+    /// gathers them; taking them into the base and writing the line belongs to
     /// whoever holds the store.
     let onAddPhotos: ([URL]) -> Void
     /// The same for pasted bytes, which carry no file at all — a screenshot is
@@ -106,9 +102,7 @@ struct JournalDetailView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 Divider()
-                if !day.note.isReadable {
-                    unreadable
-                } else if editing.isEditing(day.id) {
+                if editing.isEditing(day.id) {
                     editor
                 } else {
                     reader
@@ -166,7 +160,6 @@ struct JournalDetailView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Ajouter une photo à cette note")
-                .disabled(attachmentsBase == nil)
             }
             if !day.tags.isEmpty {
                 FlowLayout(spacing: 4) {
@@ -175,14 +168,11 @@ struct JournalDetailView: View {
                     }
                 }
             }
-            // Between what identifies the note and what warns about it: the
-            // day's outings and its food journal belong with the date they
-            // happened on, while the banners belong as close as possible to
-            // the text they are about.
+            // Under what identifies the note: the day's outings and its food
+            // journal belong with the date they happened on, not with the
+            // text somebody wrote about it.
             JournalDayActivities(date: day.date, onSelect: onSelectActivity)
             JournalDayNutrition(date: day.date)
-            if let conflict = notice?.conflict { banner(conflict) }
-            if let failure = notice?.failure { self.failure(failure) }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -195,12 +185,10 @@ struct JournalDetailView: View {
     private func photoGestures(_ content: some View) -> some View {
         content
             .dropDestination(for: URL.self) { urls, _ in
-                guard attachmentsBase != nil else { return false }
                 onAddPhotos(urls)
                 return true
             }
             .onPasteCommand(of: [.fileURL, .png, .jpeg, .heic]) { providers in
-                guard attachmentsBase != nil else { return }
                 paste(providers)
             }
     }
@@ -303,10 +291,8 @@ struct JournalDetailView: View {
     /// The focus is claimed one tick later: the field does not exist yet in
     /// this update pass, and `@FocusState` set before its view is inserted does
     /// not stick — the same reason `RootView` defers its own bump after opening
-    /// today's note. Unreadable notes are refused here rather than at each call
-    /// site: `e` or Return on such a row would ask for focus nothing can take.
+    /// today's note.
     private func beginEditing() {
-        guard day.note.isReadable else { return }
         // The store's text, as of now: it may well have moved while the note
         // was merely being read, and the draft is only ever seeded here, on a
         // change of note, and on `textRevision`.
@@ -349,68 +335,5 @@ struct JournalDetailView: View {
                 onLeaveEditor()
                 return .handled
             }
-    }
-
-    private var unreadable: some View {
-        ContentUnavailableView(
-            "Contenu illisible",
-            systemImage: "exclamationmark.triangle",
-            description: Text(
-                """
-                Ce fichier n'a pas pu être lu comme du texte. Il est laissé \
-                intact : l'ouvrir ici pour écrire dessus effacerait ce qu'il \
-                contient peut-être encore.
-                """
-            )
-        )
-        .frame(maxHeight: .infinity)
-    }
-
-    /// The file moved under an unsaved edit. What is on screen is the typing,
-    /// never the file — losing a sentence to a sync is the one failure this
-    /// whole mechanism exists to prevent.
-    ///
-    /// Two lines, like the failure below it: nothing writes while this is up,
-    /// so the second one says what leaving the question unanswered costs.
-    @ViewBuilder
-    private func banner(_ conflict: JournalNotice.Conflict) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(conflict.message)
-                    .font(.callout)
-                Text(conflict.consequence)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 8)
-            if conflict.offersReload {
-                Button("Recharger", action: onReloadFromDisk)
-            }
-            Button("Garder", action: onDismissConflict)
-        }
-        .padding(8)
-        .background(.quaternary, in: .rect(cornerRadius: 6))
-    }
-
-    /// The last save did not go through.
-    ///
-    /// Two lines and no buttons, deliberately: there is nothing to choose here,
-    /// only something to know. The second line is the one that matters — a
-    /// journal that has stopped taking a keystroke, or stopped changing note,
-    /// with nothing said is read as a broken app rather than as text held back
-    /// for its own safety. Which of the two it is, `JournalNotice` decides.
-    private func failure(_ failure: JournalNotice.Failure) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(.red)
-                Text(failure.message)
-            }
-            Text(failure.consequence)
-                .foregroundStyle(.secondary)
-        }
-        .font(.caption)
     }
 }
