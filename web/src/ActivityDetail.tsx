@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo } from "react"
+import { Suspense, lazy, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { nomDuSport } from "./sports"
@@ -10,6 +10,9 @@ import { traceDepuisBytea } from "./track"
 // téléchargement d'un moteur de cartographie.
 const Carte = lazy(() => import("./Carte").then((m) => ({ default: m.Carte })))
 import { Markdown } from "./markdown"
+import { Courbes } from "./Courbes"
+import { NoteActivite } from "./NoteActivite"
+import { Feuille } from "./Chrome"
 
 type Fiche = {
   uuid: string
@@ -24,6 +27,7 @@ type Fiche = {
   average_watts: number | null
   calories: number | null
   activity_description: string | null
+  edited_fields: string[] | null
   simplified_track: string | null
 }
 
@@ -59,6 +63,7 @@ function allureOuVitesse(sport: string, metres: number, secondes: number) {
 }
 
 export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () => void }) {
+  const [enEdition, setEnEdition] = useState(false)
   const { data, error, isPending } = useQuery({
     queryKey: ["activite", uuid],
     queryFn: async () => {
@@ -67,7 +72,7 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
         .select(
           "uuid, name, sport_type_raw, start_local_date, distance, moving_time, " +
             "total_elevation_gain, average_heartrate, max_heartrate, average_watts, " +
-            "calories, activity_description, simplified_track",
+            "calories, activity_description, edited_fields, simplified_track",
         )
         .eq("uuid", uuid)
         .single()
@@ -128,11 +133,32 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
         <Carte trace={trace} />
       </Suspense>
 
-      {data.activity_description && (
-        <div className="description carte-groupe">
-          <Markdown texte={data.activity_description} />
-        </div>
+      <Courbes activiteUUID={uuid} />
+
+      {enEdition && (
+        <Feuille titre="Note de sortie" onFerme={() => setEnEdition(false)}>
+          <NoteActivite
+            uuid={uuid}
+            texte={data.activity_description ?? ""}
+            champsEdites={data.edited_fields ?? []}
+            onFerme={() => setEnEdition(false)}
+          />
+        </Feuille>
       )}
+
+      <div className="description carte-groupe">
+        <div className="tete-description">
+          <span className="attenue petit">Note</span>
+          <button className="lien petit" onClick={() => setEnEdition(true)}>
+            {data.activity_description ? "Modifier" : "Écrire"}
+          </button>
+        </div>
+        {data.activity_description ? (
+          <Markdown texte={data.activity_description} />
+        ) : (
+          <p className="attenue">Rien de noté sur cette sortie.</p>
+        )}
+      </div>
     </>
   )
 }

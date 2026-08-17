@@ -380,7 +380,7 @@ struct MirrorPullNutritionTests {
         )
     }
 
-    /// Six tables sont relues, et `journal_note` reste la première.
+    /// Sept tables sont relues, et `journal_note` reste la première.
     ///
     /// Dérivée d'aucune autre liste, celle-ci : elle dit exactement ce que le
     /// navigateur sait écrire, et le jour où il apprend à écrire autre chose
@@ -392,6 +392,9 @@ struct MirrorPullNutritionTests {
                 "weight_entry",
                 // En dernier : ses octets se téléchargent un par un.
                 "journal_attachment",
+                // Deux colonnes sur cinquante — voir
+                // `applyActivityDescriptions`.
+                "activity",
             ]
         )
     }

@@ -1213,3 +1213,39 @@ body {
   opacity: 0;
   pointer-events: none;
 }
+
+/* ---- Courbes -------------------------------------------------------------- */
+
+.courbes {
+  margin-top: 16px;
+}
+
+.courbe + .courbe {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--trait);
+}
+
+.tete-courbe {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* `height` fixée et `width: 100%` : le `viewBox` s'étire à la largeur
+   disponible, et la courbe garde la même hauteur d'un téléphone à l'autre. */
+.courbe svg {
+  display: block;
+  width: 100%;
+  height: 72px;
+}
+
+.tete-description {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}

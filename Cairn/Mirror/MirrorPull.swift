@@ -32,6 +32,9 @@ extension MirrorEngine {
         // donc c'est la table la plus lente. Tout ce qui se lit vite doit
         // être arrivé avant qu'elle commence.
         "journal_attachment",
+        // `activity`, mais **deux colonnes seulement** — voir
+        // `applyActivityDescriptions`. Le reste appartient à Strava.
+        "activity",
     ]
 
     /// Rows per page. Smaller than `batchSize`'s 200 for no deep reason
@@ -188,6 +191,7 @@ extension MirrorEngine {
         case "meal_note": return try applyMealNotes(body)
         case "weight_entry": return try applyWeightEntries(body)
         case "journal_attachment": return try await applyJournalAttachments(body)
+        case "activity": return try applyActivityDescriptions(body)
         default:
             // `pullOrder` is a closed, hand-written list and this `switch`
             // is meant to cover every entry in it. Thrown, never asserted,
@@ -359,6 +363,66 @@ extension MirrorEngine {
             entry.fat100 = row.fat100
             entry.grams = row.grams
             entry.sortOrder = row.sort_order
+            outcome.applied += 1
+        }
+        try save(context, outcome)
+        return outcome
+    }
+
+    private struct ActivityRow: Decodable {
+        let uuid: String
+        let activity_description: String?
+        let edited_fields: [String]?
+        let edited_at: String?
+        let updated_at: String
+    }
+
+    /// La description d'une sortie, et elle seule.
+    ///
+    /// La seule entorse à la règle qui ouvre ce fichier — « rien d'autre que
+    /// le Mac n'écrit une activité » — et elle est taillée au plus juste :
+    /// deux colonnes sur la cinquantaine que porte la table. Distance, durée,
+    /// dénivelé, trace, sport : tout cela vient de Strava par le Mac, et une
+    /// copie périmée de ces valeurs redescendant du miroir écraserait ce que
+    /// la synchronisation vient d'établir. La description, elle, n'est écrite
+    /// que par une personne — jamais par une montre.
+    ///
+    /// `edited_fields` suit la description parce qu'il la protège :
+    /// `ImportMapper` n'écrase `activityDescription` que si `notes` n'y figure
+    /// pas. Le porter ici évite qu'une phrase écrite au téléphone soit reprise
+    /// par Strava à la synchronisation suivante.
+    ///
+    /// Une suppression n'est pas lue : une activité effacée l'est sur le Mac,
+    /// qui la range alors dans `discarded_activity`, et la faire disparaître
+    /// d'ici serait donner au navigateur un pouvoir qu'il n'a pas.
+    private func applyActivityDescriptions(_ body: Data) throws -> PullOutcome {
+        let rows = try decode([ActivityRow].self, from: body)
+        var outcome = PullOutcome(rowCount: rows.count)
+        let context = ModelContext(container)
+        let pending = try pendingUUIDs(table: "activity", in: context)
+        var existing: [String: Activity] = [:]
+        for activity in try context.fetch(FetchDescriptor<Activity>()) {
+            existing[activity.uuid] = activity
+        }
+
+        for row in rows {
+            noteNewest(row.updated_at, in: &outcome)
+            guard !pending.contains(row.uuid),
+                  let local = existing[row.uuid],
+                  // Sans horloge d'auteur, rien à arbitrer : la ligne date
+                  // d'avant que le navigateur sache écrire une description.
+                  let editedAt = row.edited_at.flatMap(Self.date(from:))
+            else { continue }
+            // Strictement plus récent que ce que le Mac a lui-même daté : une
+            // ligne qu'il vient de pousser revient avec son propre
+            // `edited_at`, et la réappliquer ne serait qu'un aller-retour.
+            if let localEdit = local.editedAt, editedAt <= localEdit { continue }
+            guard local.activityDescription != row.activity_description else { continue }
+
+            local.activityDescription = row.activity_description
+            local.markEdited(
+                Set((row.edited_fields ?? []).compactMap(ActivityField.init(rawValue:)))
+            )
             outcome.applied += 1
         }
         try save(context, outcome)
