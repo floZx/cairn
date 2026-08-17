@@ -280,3 +280,66 @@ struct MirrorPushCoverageTests {
         }
     }
 }
+
+/// Les objectifs nutritionnels, qui ne passent pas par l'outbox.
+@Suite("Objectifs nutritionnels")
+@MainActor
+struct MirrorNutritionTargetTests {
+    /// Ils partent à chaque poussée, outbox vide comprise : rien n'écrit dans
+    /// SwiftData quand on les change, donc rien ne les inscrirait jamais dans
+    /// une outbox, et une poussée conditionnelle ne les enverrait donc jamais.
+    @Test func lesObjectifsPartentMemeSansRienDAutre() async throws {
+        let container = try AppModelContainer.inMemory()
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let transport = StubTransport(alwaysRespondingWith: 201)
+        let engine = MirrorEngine(
+            client: MirrorClient(store: try configuredStore(), transport: transport),
+            container: container, progress: MirrorProgress(), cursor: cursor
+        )
+
+        try await engine.push(
+            nutritionTargets: .init(proteinG: 130, fatG: 66, weightGoalKg: 70)
+        )
+
+        let tables = await transport.tableOrder()
+        #expect(tables == ["nutrition_target"])
+    }
+
+    /// La ligne porte l'identifiant de la personne comme clé : une seule ligne
+    /// par compte, et pas de clé fixe qui se heurterait d'un compte à l'autre.
+    @Test func laLigneEstIdentifieeParLaPersonne() async throws {
+        let container = try AppModelContainer.inMemory()
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let transport = StubTransport(alwaysRespondingWith: 201)
+        let engine = MirrorEngine(
+            client: MirrorClient(store: try configuredStore(), transport: transport),
+            container: container, progress: MirrorProgress(), cursor: cursor
+        )
+
+        try await engine.push(
+            nutritionTargets: .init(proteinG: 130, fatG: 66, weightGoalKg: 70)
+        )
+
+        // `configuredStore()` pose la session sur l'identifiant « u ».
+        #expect(await transport.upsertedUUIDs(table: "nutrition_target") == ["u"])
+    }
+
+    /// Sans objectifs fournis, rien ne part — une poussée qui n'a rien d'autre
+    /// à faire ne doit pas inventer une requête.
+    @Test func sansObjectifsRienNePart() async throws {
+        let container = try AppModelContainer.inMemory()
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let transport = StubTransport(alwaysRespondingWith: 201)
+        let engine = MirrorEngine(
+            client: MirrorClient(store: try configuredStore(), transport: transport),
+            container: container, progress: MirrorProgress(), cursor: cursor
+        )
+
+        try await engine.push()
+
+        #expect(await transport.requests().isEmpty)
+    }
+}

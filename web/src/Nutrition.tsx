@@ -4,12 +4,12 @@ import { supabase } from "./supabase"
 import { dateLongue } from "./format"
 import { jourCourant } from "./NoteEditor"
 import {
-  ZERO,
   arrondi,
   dansLeMille,
   depassement,
   macrosDe,
   objectifsAdaptatifs,
+  objectifsDuJour,
   somme,
   type EtatRepas,
   type Macros,
@@ -38,19 +38,28 @@ function useReglages() {
     queryKey: ["nutrition-reglages"],
     staleTime: Infinity,
     queryFn: async () => {
-      const [creneaux, types] = await Promise.all([
+      const [creneaux, types, cibles] = await Promise.all([
         supabase
           .from("meal_slot")
           .select("uuid, name, sort_order, target_pct")
           .is("deleted_at", null)
           .order("sort_order"),
         supabase.from("day_type").select("uuid, name, kcal_target").is("deleted_at", null),
+        // Une seule ligne, celle de la personne connectée. Écrite par le Mac
+        // à chaque synchronisation, jamais d'ici.
+        supabase
+          .from("nutrition_target")
+          .select("protein_g, fat_g")
+          .is("deleted_at", null)
+          .maybeSingle(),
       ])
       if (creneaux.error) throw creneaux.error
       if (types.error) throw types.error
+      if (cibles.error) throw cibles.error
       return {
         creneaux: creneaux.data as Creneau[],
         types: new Map((types.data as TypeDeJour[]).map((t) => [t.uuid, t])),
+        cibles: cibles.data as { protein_g: number; fat_g: number } | null,
       }
     },
   })
@@ -111,11 +120,29 @@ function classeDe(consomme: number, objectif: number | null): string {
   return dansLeMille(consomme, objectif) ? " atteint" : ""
 }
 
-function LigneMacros({ m, sansUnite }: { m: Macros; sansUnite?: boolean }) {
+/// `objectif` à `null` quand il n'y en a pas : le chiffre s'affiche seul,
+/// sans couleur. Un nombre coloré sans repère ne veut rien dire.
+function LigneMacros({
+  m,
+  objectif,
+  sansUnite,
+}: {
+  m: Macros
+  objectif?: Macros | null
+  sansUnite?: boolean
+}) {
   const a = arrondi(m)
+  const part = (valeur: number, cible: number | undefined, lettre: string) => (
+    <span className={classeDe(valeur, cible ?? null)}>
+      {valeur} {lettre}
+    </span>
+  )
   return (
     <span className="macros">
-      {a.proteines} P · {a.glucides} G · {a.lipides} L{sansUnite ? "" : " (g)"}
+      {part(a.proteines, objectif?.proteines, "P")} ·{" "}
+      {part(a.glucides, objectif?.glucides, "G")} ·{" "}
+      {part(a.lipides, objectif?.lipides, "L")}
+      {sansUnite ? "" : " (g)"}
     </span>
   )
 }
@@ -166,7 +193,7 @@ export function Nutrition() {
     )
   }
 
-  const { creneaux, types } = donneesReglages
+  const { creneaux, types, cibles } = donneesReglages
   const { typeDeJourUUID, aliments, notes } = donneesJournee
   const typeDuJour = typeDeJourUUID ? types.get(typeDeJourUUID) : undefined
 
@@ -174,12 +201,13 @@ export function Nutrition() {
   const consommeDu = (uuid: string) => somme(...parCreneau(uuid).map(macrosDe))
   const totalJour = somme(...aliments.map(macrosDe))
 
-  // Les protéines et lipides visés vivent dans les préférences du Mac
-  // (`@AppStorage`), que rien ne recopie dans Supabase : seules les calories
-  // ont un objectif ici. Rien n'est inventé pour combler — un objectif de
-  // macro fabriqué serait pire que pas d'objectif du tout.
+  // Les glucides ne sont pas un réglage : ils se déduisent de ce que les
+  // calories laissent une fois les protéines et lipides comptés. Sans la
+  // ligne `nutrition_target` — un Mac qui n'a pas encore synchronisé depuis
+  // cette version — les objectifs de macros restent absents plutôt
+  // qu'inventés, et seules les calories gardent une cible.
   const journeeVisee: Macros | null = typeDuJour
-    ? { ...ZERO, kcal: typeDuJour.kcal_target }
+    ? objectifsDuJour(typeDuJour.kcal_target, cibles?.protein_g ?? 0, cibles?.fat_g ?? 0)
     : null
 
   const etats: EtatRepas[] = creneaux.map((c) => ({
@@ -201,7 +229,7 @@ export function Nutrition() {
           {journeeVisee && <span className="attenue"> / {journeeVisee.kcal} kcal</span>}
           {!journeeVisee && <span className="attenue"> kcal</span>}
         </div>
-        <LigneMacros m={totalJour} />
+        <LigneMacros m={totalJour} objectif={cibles ? journeeVisee : null} />
         {typeDuJour && <div className="attenue petit">{typeDuJour.name}</div>}
       </div>
 

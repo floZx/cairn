@@ -417,7 +417,35 @@ final class AppEnvironment {
     /// Replays the outbox: everything changed locally since the last
     /// successful push.
     func pushNow() {
-        runMirror { [mirror] in try await mirror.push() }
+        runMirror { [mirror, targets = nutritionTargets] in
+            try await mirror.push(nutritionTargets: targets)
+        }
+    }
+
+    /// Les trois objectifs nutritionnels, lus dans `defaults` — jamais dans
+    /// `UserDefaults.standard` en dur : c'est l'instance que cet environnement
+    /// a reçue, et un test qui en injecte une jetable doit rester jetable.
+    ///
+    /// `double(forKey:)` répond `0` pour une clé absente, ce qui n'est pas la
+    /// valeur par défaut voulue : les trois sont donc lues par `object(forKey:)`
+    /// avant de retomber sur celles de `NutritionSettings`, la même précaution
+    /// que `syncsOnLaunch` prend juste au-dessus.
+    private var nutritionTargets: MirrorEngine.NutritionTargets {
+        func lire(_ key: String, _ defaut: Double) -> Double {
+            defaults.object(forKey: key) as? Double ?? defaut
+        }
+        return MirrorEngine.NutritionTargets(
+            proteinG: lire(
+                NutritionSettings.proteinTargetKey,
+                NutritionSettings.defaultProteinTargetG
+            ),
+            fatG: lire(
+                NutritionSettings.fatTargetKey, NutritionSettings.defaultFatTargetG
+            ),
+            weightGoalKg: lire(
+                NutritionSettings.weightGoalKey, NutritionSettings.defaultWeightGoalKg
+            )
+        )
     }
 
     /// The full round trip: read what was written elsewhere, then send what
@@ -435,7 +463,7 @@ final class AppEnvironment {
     /// different directions, and a network that refused the read has no say
     /// over whether three days of local edits get to leave.
     func syncMirrorNow() {
-        runMirror { [mirror, journal, mirrorProgress] in
+        runMirror { [mirror, journal, mirrorProgress, targets = nutritionTargets] in
             var echecDeLecture: Error?
             do {
                 // Le journal ne se relit pas tout seul : il tient sa liste en
@@ -450,7 +478,7 @@ final class AppEnvironment {
             } catch {
                 echecDeLecture = error
             }
-            try await mirror.push()
+            try await mirror.push(nutritionTargets: targets)
             // La poussée vient de reposer `.idle` en finissant proprement, et
             // sans cette ligne l'échec de la lecture disparaîtrait derrière
             // elle sans un mot. Une première version se contentait d'un

@@ -173,3 +173,20 @@ export function objectifsAdaptatifs(
     return pctFutur > 0 ? multiplie(budgetFutur, r.pct / pctFutur) : budgetFutur
   })
 }
+
+/// Les objectifs du jour : les calories viennent du type de jour, protéines et
+/// lipides sont globaux, les glucides se déduisent de ce qui reste —
+/// `(kcal − 4P − 9L) / 4`, plancher à zéro.
+export function objectifsDuJour(
+  kcal: number | null,
+  proteines: number,
+  lipides: number,
+): Macros | null {
+  if (kcal === null) return null
+  return {
+    kcal,
+    proteines,
+    lipides,
+    glucides: Math.max(0, (kcal - 4 * proteines - 9 * lipides) / 4),
+  }
+}

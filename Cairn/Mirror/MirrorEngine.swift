@@ -293,10 +293,27 @@ actor MirrorEngine {
     /// from the single fetch at the top of this method, and `purge` only
     /// ever deletes objects out of that fixed set — nothing this call did
     /// not itself read is ever at risk of being purged.
-    func push() async throws {
+    /// Les trois objectifs nutritionnels, tels que l'appelant les a lus.
+    ///
+    /// Passés en argument plutôt que lus ici : ils vivent dans
+    /// `UserDefaults.standard`, et un acteur du miroir qui irait les y
+    /// chercher lui-même ferait exactement ce que `MirrorEngine.init`
+    /// interdit à son curseur — lire les préférences du processus qui
+    /// exécute les tests. `nil` quand personne ne les fournit, et alors rien
+    /// n'est envoyé.
+    struct NutritionTargets: Sendable, Equatable {
+        var proteinG: Double
+        var fatG: Double
+        var weightGoalKg: Double
+    }
+
+    func push(nutritionTargets: NutritionTargets? = nil) async throws {
         do {
             guard let userID = await client.userID else {
                 throw MirrorError.notConfigured
+            }
+            if let nutritionTargets {
+                try await sendNutritionTargets(nutritionTargets, userID: userID)
             }
             // Before any row, for the same reason `bootstrap()` does this
             // first: a row's `storage_path` is emitted unconditionally, so a
@@ -364,6 +381,51 @@ actor MirrorEngine {
     }
 
     private static func rowKey(table: String, uuid: String) -> String { "\(table)|\(uuid)" }
+
+    /// Les objectifs nutritionnels, réécrits à chaque poussée.
+    ///
+    /// Hors outbox, seul de tout le miroir à l'être, et pour une raison
+    /// précise : l'outbox est nourrie par les enregistrements SwiftData, or
+    /// ces trois nombres n'en provoquent aucun — les changer dans les
+    /// réglages n'écrit que dans `UserDefaults`. Les envoyer sans condition
+    /// coûte une requête par synchronisation et évite de leur inventer un
+    /// modèle, une migration et cinq vues à recâbler.
+    ///
+    /// L'`uuid` est l'identifiant de la personne : une ligne et une seule,
+    /// et une clé fixe se heurterait d'un compte à l'autre.
+    ///
+    private func sendNutritionTargets(
+        _ targets: NutritionTargets, userID: String
+    ) async throws {
+        var row = Self.nutritionTargetRow(targets, userID: userID)
+        // Apposé ici et non dans la composition, comme `pushRows` le fait pour
+        // les dix-huit autres : `edited_at` appartient au moteur, jamais à la
+        // ligne. Faute de mieux, c'est l'heure de l'envoi — rien ne date le
+        // moment où ces réglages ont changé, et personne d'autre que le Mac ne
+        // les écrit, donc il n'y a rien à arbitrer.
+        row["edited_at"] = .date(Date())
+        try await client.upsert(table: "nutrition_target", rows: [row])
+    }
+
+    /// La ligne elle-même, à part de son envoi.
+    ///
+    /// Nommée plutôt qu'écrite dans l'appel, pour la seule raison que
+    /// `Tests/MirrorRowSchemaTests.swift` la compare aux colonnes de
+    /// `supabase/schema.sql` comme il le fait des dix-huit `MirrorRow`. Cette
+    /// table n'a pas de modèle — elle n'a donc pas la conformance qui la
+    /// ferait surveiller toute seule, et une colonne ajoutée d'un côté sans
+    /// l'autre passerait sans bruit.
+    static func nutritionTargetRow(
+        _ targets: NutritionTargets, userID: String
+    ) -> [String: MirrorValue] {
+        [
+            "uuid": .string(userID),
+            "user_id": .string(userID),
+            "protein_g": .double(targets.proteinG),
+            "fat_g": .double(targets.fatG),
+            "weight_goal_kg": .double(targets.weightGoalKg),
+        ]
+    }
 
     /// The page size a push uses for one table's non-deletion batch — the
     /// same two constants `bootstrap()` already picked and already

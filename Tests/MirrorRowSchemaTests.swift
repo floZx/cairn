@@ -99,6 +99,26 @@ struct MirrorRowSchemaTests {
         ]
     }
 
+    /// La ligne des objectifs nutritionnels colle à sa table, elle aussi.
+    ///
+    /// Elle n'a pas de `MirrorRow` — elle ne passe pas par l'outbox, faute de
+    /// modèle SwiftData derrière — donc rien ne la surveillerait sans ce test,
+    /// et une colonne ajoutée d'un côté seulement passerait sans bruit.
+    @Test func laLigneDesObjectifsCorrespondAuSchema() throws {
+        let schema = try #require(Self.schemaColumns())
+        let columns = try #require(
+            schema["nutrition_target"],
+            "table « nutrition_target » absente de supabase/schema.sql"
+        )
+        let emitted = Set(
+            MirrorEngine.nutritionTargetRow(
+                .init(proteinG: 130, fatG: 66, weightGoalKg: 70), userID: "u"
+            ).keys
+        )
+
+        #expect(emitted == columns.subtracting(Self.reservedColumns))
+    }
+
     /// Every model's row matches its table's columns exactly, once the four
     /// reserved ones are set aside — no column either side is missing, none
     /// is extra, and none of the sixteen ever emits a reserved column. This
@@ -109,10 +129,24 @@ struct MirrorRowSchemaTests {
             Self.schemaColumns(),
             "schema.sql introuvable ou vide : le garde-fou ne peut pas s'exécuter"
         )
-        // Sanity on the parse itself: eighteen tables, matching the eighteen
-        // conformances below. A regression in the regex would otherwise show
-        // up as every table silently missing rather than as a clear failure.
-        #expect(schema.count == 18)
+        // Toute table du schéma est soit portée par un `MirrorRow`, soit
+        // nommée ici comme n'en ayant délibérément pas.
+        //
+        // Un simple compte — « dix-huit tables » — tenait la place avant, et
+        // il aurait suffi de l'incrémenter pour faire taire l'ajout d'une
+        // table que rien n'envoie. Cette forme-ci ne se laisse pas taire : y
+        // ajouter un nom est un geste qu'on ne fait pas par distraction.
+        let sansModele: Set<String> = ["nutrition_target"]
+        let portees = Set(Self.allRows().map { type(of: $0).mirrorTable })
+        #expect(
+            Set(schema.keys) == portees.union(sansModele),
+            """
+            tables du schéma que rien n'envoie : \
+            \(Set(schema.keys).subtracting(portees.union(sansModele)).sorted()) ; \
+            tables envoyées et absentes du schéma : \
+            \(portees.subtracting(schema.keys).sorted())
+            """
+        )
 
         for row in Self.allRows() {
             let table = type(of: row).mirrorTable
