@@ -22,7 +22,7 @@ enum JournalImport {
 
     /// Runs once. Returns nil when it did nothing because it had already run.
     ///
-    /// Three cases the three tests below hold to:
+    /// Three cases `Tests/JournalImportTests.swift` holds to:
     ///
     /// - No folder was ever designated (`folderPath` nil or empty): the
     ///   marker is set straight away, since there is nothing to recover and
@@ -72,15 +72,34 @@ enum JournalImport {
 
     /// The text a note enters the store with.
     ///
-    /// `JournalFolder.notes(in:)` already read this file once and gave up an
-    /// empty string on it — `isReadable` false is its way of saying the bytes
-    /// were not valid UTF-8. Rather than keep that empty string, which would
-    /// quietly turn a damaged file into a blank note, this rereads the file's
-    /// raw bytes and carries them into the store through ISO Latin-1: a total,
-    /// one-to-one mapping from every byte value to one Unicode scalar, so
-    /// nothing is lost, guessed at, or replaced with U+FFFD the way decoding
-    /// as UTF-8 would. `name` is appended to `unreadable` here, next to the
-    /// only place that knows this file failed to decode as text.
+    /// `JournalFolder.notes(in:)` already tried to decode this file as UTF-8
+    /// and failed — `isReadable` false is its way of saying so, with an empty
+    /// string standing in for what it could not read. Keeping that empty
+    /// string would quietly turn a damaged file into a blank note, so this
+    /// rereads the file's raw bytes instead and carries them into the store
+    /// through `encodeBytesLosslessly`, below.
+    ///
+    /// What this does *not* promise: that exporting the note later
+    /// reproduces the original bytes. A note built this way, re-encoded as
+    /// UTF-8 on the way out — which is what a plain `Data(text.utf8)` export
+    /// does, the same one `JournalFolder.write` uses today — comes back as
+    /// different bytes, even though no character was lost or altered on the
+    /// way in: `encodeBytesLosslessly` is bijective, `Data(text.utf8)` is
+    /// not the matching inverse of it.
+    /// `docs/specs/2026-08-17-journal-en-base-design.md` sets the
+    /// round-trip bar at *character*-identical text and *byte*-identical
+    /// images, not byte-identical text, and this satisfies exactly that bar.
+    ///
+    /// That gap is acceptable because the file this reconstructs from is
+    /// never touched: recovery only ever reads it, so the original stays on
+    /// the user's disk, unedited, for as long as they keep it. A note that
+    /// comes back as something else on export is a copy going astray, not
+    /// the only record of it disappearing — the source of truth was never
+    /// at risk. Deliberately not solved by adding a flag to `JournalNote` to
+    /// tell such a note apart from an ordinary one: that would be a column
+    /// every row carries for the sake of the rare one that needs it, and
+    /// tranche 3 would have to carry it all the way to Supabase too. The
+    /// file on disk is the backup of last resort; that is enough.
     private static func text(
         for fileNote: JournalFileNote, in folder: URL, unreadable: inout [String]
     ) throws -> String {
@@ -88,7 +107,32 @@ enum JournalImport {
         let url = JournalFolder.url(for: fileNote.date, in: folder)
         let raw = try Data(contentsOf: url)
         unreadable.append(url.lastPathComponent)
-        return String(data: raw, encoding: .isoLatin1) ?? ""
+        return encodeBytesLosslessly(raw)
+    }
+
+    /// Every byte of `data`, carried into a `String` one Unicode scalar per
+    /// byte — total and bijective, so nothing is lost, guessed at, or
+    /// replaced with U+FFFD the way a forced UTF-8 decode would be.
+    ///
+    /// Shifted into the Private Use Area (U+E000...U+E0FF) rather than left
+    /// at each byte's own value, which would be plain ISO Latin-1
+    /// (U+0000...U+00FF) — the first version of this function used exactly
+    /// that, and it lost data anyway. A byte of 0x00 becomes the scalar
+    /// U+0000, and SwiftData's persistence truncates a `String` attribute at
+    /// an embedded NUL character on save — the classic C-string-length bug —
+    /// silently dropping everything after it. Measured directly against
+    /// this store, not read about: every other byte value round-tripped
+    /// correctly under Latin-1, only 0x00 did not, in exactly the way this
+    /// function exists to prevent. Shifting the whole range into the
+    /// Private Use Area sidesteps the bug for every byte at once, rather
+    /// than special-casing 0x00 and leaving a mapping that still assumes
+    /// the store will accept whichever scalar a byte happens to produce.
+    private static func encodeBytesLosslessly(_ data: Data) -> String {
+        String(
+            String.UnicodeScalarView(
+                data.map { Unicode.Scalar(0xE000 + UInt32($0))! }
+            )
+        )
     }
 
     /// Every picture in `pieces-jointes/`, orphaned or not.

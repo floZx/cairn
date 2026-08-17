@@ -114,9 +114,8 @@ struct JournalImportTests {
         let folder = try makeFolder(notes: ["2026-08-16": "lisible"])
         defer { try? FileManager.default.removeItem(at: folder) }
         // Des octets qui ne sont pas de l'UTF-8 valide.
-        try Data([0xFF, 0xFE, 0x00, 0x01]).write(
-            to: folder.appending(path: "2026-08-17.md")
-        )
+        let rawBytes = Data([0xFF, 0xFE, 0x00, 0x01])
+        try rawBytes.write(to: folder.appending(path: "2026-08-17.md"))
         let (defaults, suiteName) = freshDefaults()
         defer { discard(suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
@@ -127,5 +126,36 @@ struct JournalImportTests {
 
         #expect(outcome?.unreadable == ["2026-08-17.md"])
         #expect(outcome?.notes == 2)
+        // Pas une chaîne vide, pas des points d'interrogation : les octets
+        // repris tels quels, un octet pour un caractère du plan privé
+        // Unicode (U+E000...), exactement ce que documente
+        // `JournalImport.encodeBytesLosslessly`.
+        let notes = try context.fetch(FetchDescriptor<JournalNote>())
+        let unreadableNote = notes.first { $0.dateKeyRaw == "2026-08-17" }
+        let expected = String(
+            String.UnicodeScalarView(rawBytes.map { Unicode.Scalar(0xE000 + UInt32($0))! })
+        )
+        #expect(unreadableNote?.text == expected)
+    }
+
+    /// Un dossier désigné mais vide — jamais une note écrite dedans — se
+    /// marque fait comme n'importe quel autre : sinon la reprise
+    /// réessaierait indéfiniment un dossier où il n'y a rien à trouver.
+    @Test func unDossierVideSeMarqueFaiteAussi() throws {
+        let folder = try makeFolder(notes: [:])
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
+        let context = ModelContext(try AppModelContainer.inMemory())
+
+        let first = try JournalImport.runIfNeeded(
+            context, folderPath: folder.path, defaults: defaults
+        )
+        #expect(first?.notes == 0)
+
+        let second = try JournalImport.runIfNeeded(
+            context, folderPath: folder.path, defaults: defaults
+        )
+        #expect(second == nil)
     }
 }
