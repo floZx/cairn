@@ -19,6 +19,10 @@
   --orange: #ff9500;
   /* Les anciens noms, gardés le temps que tout soit repris. */
   --attenue: var(--texte-2);
+  /* La couleur qu'un liseré renvoie : blanche sur un fond clair, blanche aussi
+     sur un fond sombre — c'est la lumière qui frappe le bord, pas le fond qui
+     transparaît. */
+  --lueur: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -35,6 +39,28 @@
     --vert: #30d158;
     --orange: #ff9f0a;
   }
+}
+
+/* ---- La matière ----------------------------------------------------------
+   Une approximation du Liquid Glass d'iOS 26, et il faut dire laquelle : la
+   vraie matière d'Apple **réfracte** ce qui passe dessous, en déplaçant les
+   pixels comme le ferait une lentille. Un navigateur ne sait pas faire cela
+   sans un filtre SVG de déplacement ou du WebGL, et les deux coûtent trop
+   cher pour une barre qu'on traverse en défilant.
+   Ce qui suit reprend le reste, qui porte l'essentiel : le flou saturé, le
+   liseré qui accroche la lumière en haut, l'ombre portée qui décolle la barre
+   du fond, et surtout le fait qu'elle **flotte** au-dessus du contenu au lieu
+   d'être posée contre le bord. */
+.matiere {
+  background: color-mix(in srgb, var(--carte) 48%, transparent);
+  -webkit-backdrop-filter: blur(26px) saturate(190%);
+  backdrop-filter: blur(26px) saturate(190%);
+  border: 0.5px solid color-mix(in srgb, var(--lueur) 28%, transparent);
+  box-shadow:
+    0 6px 24px rgba(0, 0, 0, 0.16),
+    /* Le liseré supérieur : c'est lui qui donne l'épaisseur, sans quoi la
+       barre n'est qu'un rectangle flou. */
+    inset 0 0.5px 0 color-mix(in srgb, var(--lueur) 55%, transparent);
 }
 
 * { box-sizing: border-box; }
@@ -136,7 +162,12 @@ input, button { font: inherit; }
   text-decoration: none;
 }
 
-.contenu { padding: 0 16px calc(24px + env(safe-area-inset-bottom)); }
+/* De quoi laisser passer la dernière ligne sous la barre flottante : 49 points
+   de barre, sa marge basse, et l'air qu'il faut pour qu'on voie bien qu'elle
+   continue dessous plutôt que de s'arrêter net. */
+.contenu {
+  padding: 0 16px calc(78px + max(calc(env(safe-area-inset-bottom) - 10px), 8px));
+}
 
 .attenue { color: var(--texte-2); }
 /* 15 pt : le corps secondaire d'iOS, pas un corps réduit au hasard. */
@@ -679,6 +710,8 @@ input, button { font: inherit; }
   height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* Le repère des onglets, qui flottent en absolu par-dessus le défilement. */
+  position: relative;
 }
 
 /* La barre compacte, toujours là, translucide comme celles du système : le
@@ -693,11 +726,13 @@ input, button { font: inherit; }
   gap: 12px;
   min-height: 44px;
   padding: calc(env(safe-area-inset-top) + 6px) 16px 8px;
-  background: color-mix(in srgb, var(--fond) 78%, transparent);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
-  /* Le filet n'apparaît qu'une fois le grand titre replié, comme sur iOS. */
-  border-bottom: 1px solid transparent;
+  background: color-mix(in srgb, var(--fond) 68%, transparent);
+  -webkit-backdrop-filter: blur(26px) saturate(190%);
+  backdrop-filter: blur(26px) saturate(190%);
+  /* Le filet n'apparaît qu'une fois le grand titre replié, comme sur iOS.
+     Elle ne flotte pas, elle : un titre s'ancre au bord, seule la barre
+     d'onglets se détache. */
+  border-bottom: 0.5px solid transparent;
   transition: border-color 0.2s ease;
 }
 
@@ -744,30 +779,35 @@ input, button { font: inherit; }
 
 /* ---- Onglets du bas ------------------------------------------------------ */
 
+/* Détachée du bord, en capsule : c'est le trait le plus reconnaissable de
+   l'iOS 26, et celui qui change le plus l'allure. Le contenu passe dessous et
+   se devine à travers, au lieu de s'arrêter contre elle. */
 .onglets-bas {
-  z-index: 2;
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  /* Posée sur la zone sûre, moins ce que la barre d'accueil n'occupe pas
+     vraiment : elle mesure cinq points là où la zone en fait trente-quatre. */
+  bottom: max(calc(env(safe-area-inset-bottom) - 10px), 8px);
+  z-index: 3;
   display: flex;
-  background: color-mix(in srgb, var(--fond) 78%, transparent);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
-  border-top: 1px solid var(--trait);
-  /* La barre d'accueil de l'iPhone passe sous les onglets : sans marge, le
-     trait blanc couperait les libellés. Mais la zone sûre entière — 34 points
-     sur un iPhone récent — laisse un vide bien plus grand que ce que le trait
-     occupe vraiment. Dix points de moins le referment sans le toucher : il
-     mesure cinq points et garde une douzaine de dégagement. */
-  padding-bottom: max(calc(env(safe-area-inset-bottom) - 10px), 4px);
+  border-radius: 26px;
+  overflow: hidden;
+  /* Un peu d'air en bas : sans lui les libellés touchent le bord de la
+     capsule, et l'ensemble a l'air d'y avoir été poussé de force. */
+  padding-bottom: 5px;
 }
 
 .onglet-bas {
   flex: 1;
+  border-radius: 22px;
+  /* La hauteur d'Apple, moins l'air ajouté sous la capsule. */
+  height: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  /* 49 pt, la hauteur qu'Apple donne à sa barre d'onglets. */
-  height: 49px;
-  padding: 6px 0 0;
+  padding: 5px 0 0;
   border: 0;
   background: transparent;
   color: var(--attenue);

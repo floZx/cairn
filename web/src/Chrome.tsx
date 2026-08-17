@@ -127,7 +127,7 @@ export function Chrome({
       </div>
 
       {!masquerOnglets && (
-        <nav className="onglets-bas" aria-label="Sections">
+        <nav className="onglets-bas matiere" aria-label="Sections">
           {(Object.keys(TITRES) as Section[]).map((s) => (
             <button
               key={s}
