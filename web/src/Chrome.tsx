@@ -99,6 +99,14 @@ export function Chrome({
   const [replie, setReplie] = useState(false)
   const zone = useRef<HTMLDivElement>(null)
 
+  // Chaque vue garde sa position de défilement : les quatre onglets, et la
+  // fiche par-dessus. Revenir d'une activité remettait la liste en haut, ce
+  // qui après un filtre à quarante résultats oblige à tout refaire défiler.
+  const vue = masquerOnglets ? "fiche" : section
+  const positions = useRef<Record<string, number>>({})
+  const vueCourante = useRef(vue)
+  vueCourante.current = vue
+
   // Deux seuils au lieu d'un : à seuil unique, un doigt posé pile dessus fait
   // clignoter le titre à chaque pixel de défilement.
   useEffect(() => {
@@ -107,18 +115,29 @@ export function Chrome({
     const surDefilement = () => {
       const y = cible.scrollTop
       setReplie((etait) => (etait ? y > 24 : y > 52))
+      // Retenue au fil du défilement plutôt qu'au moment de partir : à ce
+      // moment-là le contenu a déjà changé, et la position lue ne serait plus
+      // celle de la vue qu'on quitte.
+      positions.current[vueCourante.current] = y
     }
     cible.addEventListener("scroll", surDefilement, { passive: true })
     return () => cible.removeEventListener("scroll", surDefilement)
   }, [])
 
-  // Le repli est propre à l'écran : passer d'un onglet défilé à un onglet
-  // remis en haut laisserait sinon un titre compact au-dessus d'un contenu
-  // qui commence.
   useEffect(() => {
-    zone.current?.scrollTo({ top: 0 })
-    setReplie(false)
-  }, [section, masquerOnglets])
+    const cible = zone.current
+    if (!cible) return
+    const y = positions.current[vue] ?? 0
+    // Après le rendu, et une seconde fois au coup d'horloge suivant : au
+    // retour d'une fiche, la liste peut n'avoir pas encore repris sa hauteur,
+    // et un défilement demandé trop tôt se fait rogner à ce que le conteneur
+    // mesure à cet instant.
+    const poser = () => cible.scrollTo({ top: y })
+    poser()
+    const t = requestAnimationFrame(poser)
+    setReplie(y > 52)
+    return () => cancelAnimationFrame(t)
+  }, [vue])
 
   return (
     <div className="chassis">
