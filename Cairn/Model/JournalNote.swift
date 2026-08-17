@@ -52,4 +52,23 @@ final class JournalNote {
         self.tagsRaw = JournalTagScanner.tags(in: text).map(\.name)
         self.updatedAt = Date()
     }
+
+    /// What `MirrorEngine.pull()` applies: a text written on another device,
+    /// with the moment its author wrote it.
+    ///
+    /// `setText` would be wrong here on its one remaining line — it stamps
+    /// `updatedAt = Date()`, the moment of *arrival*, which would make every
+    /// pulled note look freshly edited on this Mac. The next push would then
+    /// send it straight back as if the Mac had authored it, and the note
+    /// would win any later arbitration against its own source. `editedAt` is
+    /// the web's clock, and copying it is what keeps the two sides ordered.
+    ///
+    /// The tags are recomputed here rather than taken from the row, even
+    /// though the row carries `tags_raw`: `JournalTagScanner` is this app's
+    /// rule, the web holds a port of it, and where the two ever disagree the
+    /// original is the one that should decide what this store keeps.
+    func applyMirrored(text: String, editedAt: Date) {
+        setText(text)
+        self.updatedAt = editedAt
+    }
 }

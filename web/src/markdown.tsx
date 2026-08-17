@@ -23,6 +23,11 @@ export function enBlocs(markdown: string): Bloc[] {
   const sansAvantPropos = markdown.replace(/^---\n[\s\S]*?\n---\n?/, "")
   const blocs: Bloc[] = []
   let liste: string[] = []
+  // Une ligne vide clôt le paragraphe en cours. Sans ce drapeau, `viderListe`
+  // suffisait à finir une liste mais pas un paragraphe : la ligne suivante
+  // retrouvait le dernier bloc, y voyait un paragraphe, et s'y recollait —
+  // une note écrite en trois paragraphes s'affichait d'un seul tenant.
+  let coupe = false
 
   const viderListe = () => {
     if (liste.length) {
@@ -35,31 +40,36 @@ export function enBlocs(markdown: string): Bloc[] {
     const nette = ligne.trim()
     if (!nette) {
       viderListe()
+      coupe = true
       continue
     }
     const image = nette.match(imageSeule)
     if (image) {
       viderListe()
       blocs.push({ sorte: "image", alt: image[1], chemin: image[2] })
+      coupe = true
       continue
     }
     const titre = nette.match(/^(#{1,6})\s+(.*)$/)
     if (titre) {
       viderListe()
       blocs.push({ sorte: "titre", niveau: titre[1].length, texte: titre[2] })
+      coupe = true
       continue
     }
     const puce = nette.match(/^[-*]\s+(.*)$/)
     if (puce) {
       liste.push(puce[1])
+      coupe = true
       continue
     }
     viderListe()
     // Les lignes consécutives se rejoignent, comme en Markdown : un retour
     // simple n'est pas un paragraphe.
     const dernier = blocs[blocs.length - 1]
-    if (dernier?.sorte === "paragraphe") dernier.texte += " " + nette
+    if (!coupe && dernier?.sorte === "paragraphe") dernier.texte += " " + nette
     else blocs.push({ sorte: "paragraphe", texte: nette })
+    coupe = false
   }
   viderListe()
   return blocs

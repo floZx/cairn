@@ -30,6 +30,7 @@ struct MirrorBootstrapCursor: Sendable {
 
     private static let lastPushAtKey = "mirror.lastPushAt"
     private static let cursorKeyPrefix = "mirror.bootstrapCursor."
+    private static let pullKeyPrefix = "mirror.pullCursor."
 
     init(defaults: UserDefaults) {
         self.defaults = defaults
@@ -60,6 +61,29 @@ struct MirrorBootstrapCursor: Sendable {
         defaults.set(date.timeIntervalSince1970, forKey: Self.lastPushAtKey)
     }
 
+    /// The server clock of the newest row this table has ever pulled — the
+    /// `updated_at` a next call asks for everything at or after.
+    ///
+    /// A different key space from `lastUUID`, and deliberately: a bootstrap
+    /// walks `uuid` ascending through what the Mac holds, a pull walks
+    /// `updated_at` ascending through what Supabase holds. Two orders, two
+    /// positions, and a single key would have one overwrite the other.
+    ///
+    /// `nil` when this table has never been pulled, on the same reasoning as
+    /// `lastPushAt()`: `0` from a missing key reads as "never", not as 1970.
+    func lastPulledAt(for table: String) -> Date? {
+        let epoch = defaults.double(forKey: Self.pullKey(for: table))
+        return epoch > 0 ? Date(timeIntervalSince1970: epoch) : nil
+    }
+
+    func setLastPulledAt(_ date: Date, for table: String) {
+        defaults.set(date.timeIntervalSince1970, forKey: Self.pullKey(for: table))
+    }
+
+    private static func pullKey(for table: String) -> String {
+        "\(pullKeyPrefix)\(table)"
+    }
+
     /// Erases every position this cursor has ever recorded: every table's
     /// `lastUUID` and `lastPushAt`. `AppEnvironment.forgetMirror()`'s
     /// counterpart, on the store side, to `SecretStore.clearMirror()` on the
@@ -80,7 +104,7 @@ struct MirrorBootstrapCursor: Sendable {
     /// that list to stay correct.
     func clear() {
         for key in defaults.dictionaryRepresentation().keys
-        where key.hasPrefix(Self.cursorKeyPrefix) {
+        where key.hasPrefix(Self.cursorKeyPrefix) || key.hasPrefix(Self.pullKeyPrefix) {
             defaults.removeObject(forKey: key)
         }
         defaults.removeObject(forKey: Self.lastPushAtKey)
@@ -92,10 +116,14 @@ struct MirrorBootstrapCursor: Sendable {
 /// main-actor `MirrorProgress` the same way `SyncEngine` reports into
 /// `SyncProgress`.
 actor MirrorEngine {
-    private let client: MirrorClient
-    private let container: ModelContainer
+    // Internes plutôt que privés — `private` en Swift est une portée de
+    // fichier, et `MirrorPull.swift` est l'autre moitié de cet acteur, tenue à
+    // part pour ne pas ajouter deux cents lignes à un fichier qui en fait déjà
+    // mille. Le module reste la frontière : rien hors de Cairn ne les voit.
+    let client: MirrorClient
+    let container: ModelContainer
     private let progress: MirrorProgress
-    private let cursor: MirrorBootstrapCursor
+    let cursor: MirrorBootstrapCursor
 
     /// Rows per upsert, and per page fetched from SwiftData. Small enough
     /// that a batch which fails resends little on retry; large enough that
@@ -411,13 +439,26 @@ actor MirrorEngine {
             return try await pushRows(FavoriteFood.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "weight_entry":
             return try await pushRows(WeightEntry.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
+        case "journal_note":
+            return try await pushRows(JournalNote.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
+        case "journal_attachment":
+            return try await pushRows(JournalAttachment.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         default:
-            // Unreachable: every entry's `table` was written by
-            // `MirrorRecorder` from `MirrorRow.mirrorTable`, and that
-            // protocol is conformed by exactly the sixteen models this
-            // `switch` covers.
-            assertionFailure("table de miroir inconnue : \(table)")
-            return 0
+            // Every entry's `table` was written by `MirrorRecorder` from
+            // `MirrorRow.mirrorTable`, and that protocol is conformed by
+            // exactly the eighteen models this `switch` covers. Thrown
+            // rather than asserted, for the reason `MirrorError.unknownTable`
+            // records.
+            //
+            // It was sixteen until the journal moved into the store, and the
+            // two missing cases were not a cosmetic gap: a note edited on the
+            // Mac after the initial bootstrap landed here, tripped the
+            // assertion in a debug build, and in release returned 0 — the
+            // outbox entry neither sent nor purged, so it came back on every
+            // push forever. `Tests/MirrorPushCoverageTests.swift` now derives
+            // the expectation from `bootstrapOrder` rather than from a
+            // second hand-written list.
+            throw MirrorError.unknownTable(table)
         }
     }
 
@@ -968,9 +1009,12 @@ actor MirrorEngine {
         case "journal_attachment":
             try await sendBatches(JournalAttachment.self, table: table, userID: userID)
         default:
-            // Unreachable: `bootstrapOrder` is a closed, hand-written list
-            // and this `switch` covers every entry in it.
-            assertionFailure("table de miroir inconnue : \(table)")
+            // `bootstrapOrder` is a closed, hand-written list and this
+            // `switch` is meant to cover every entry in it. Thrown rather
+            // than asserted — see `MirrorError.unknownTable`, which carries
+            // the measurement: an assertion here made the guard test crash
+            // the runner, and a crashed run reports as a pass.
+            throw MirrorError.unknownTable(table)
         }
     }
 
@@ -1112,7 +1156,7 @@ actor MirrorEngine {
         )
     }
 
-    private func setPhase(_ phase: MirrorPhase) async {
+    func setPhase(_ phase: MirrorPhase) async {
         await MainActor.run { progress.phase = phase }
     }
 

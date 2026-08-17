@@ -225,7 +225,7 @@ final class AppEnvironment {
     /// Sends whatever the outbox has accumulated since the last successful
     /// push, once per launch.
     ///
-    /// Nothing else calls `pushNow()` but the settings button, and a mirror
+    /// Nothing else calls `syncMirrorNow()` but the settings button, and a mirror
     /// nobody ever opens the settings for would keep a trail that only ever
     /// grows: `MirrorRecorder`'s own doc comment justifies its conditional
     /// start by "a recorder started at launch would grow the store by one
@@ -240,7 +240,7 @@ final class AppEnvironment {
     /// screen belonging to a feature its owner never asked for.
     private func pushMirrorOnLaunch() {
         guard isMirrorConfigured, isMirrorSignedIn else { return }
-        pushNow()
+        syncMirrorNow()
     }
 
     /// Reads the last successful run back out of the store.
@@ -416,6 +416,27 @@ final class AppEnvironment {
     /// successful push.
     func pushNow() {
         runMirror { [mirror] in try await mirror.push() }
+    }
+
+    /// The full round trip: read what was written elsewhere, then send what
+    /// was written here.
+    ///
+    /// Read first, and the order is load-bearing in one direction only. Both
+    /// sequences converge — a note edited on both sides is arbitrated by
+    /// `edited_at` either way — but reading first means the store already
+    /// holds the web's version when the push looks at the outbox, so the two
+    /// never cross on the wire. Pushing first would send the Mac's copy, then
+    /// immediately pull the web's back over it: the same end state, one
+    /// wasted request, and a moment where the wrong text was in Supabase.
+    ///
+    /// A failed pull does not stop the push. The two carry different data in
+    /// different directions, and a network that refused the read has no say
+    /// over whether three days of local edits get to leave.
+    func syncMirrorNow() {
+        runMirror { [mirror] in
+            do { try await mirror.pull() } catch is CancellationError { throw CancellationError() } catch {}
+            try await mirror.push()
+        }
     }
 
     /// Runs one mirror operation with the same shape `runSync` gives Strava,

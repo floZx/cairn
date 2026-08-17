@@ -82,7 +82,7 @@ struct MirrorSettingsView: View {
                         !app.isMirrorConfigured || !app.isMirrorSignedIn
                             || app.mirrorProgress.isRunning
                     )
-                Button("Pousser les modifications") { app.pushNow() }
+                Button("Synchroniser") { app.syncMirrorNow() }
                     .disabled(
                         !app.isMirrorConfigured || !app.isMirrorSignedIn
                             || app.mirrorProgress.isRunning

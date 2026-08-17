@@ -80,6 +80,23 @@ enum MirrorError: LocalizedError, Sendable, Equatable {
     /// A session obtained from Supabase that could not be written to the
     /// local secret store.
     case storageFailed(String)
+    /// A table the engine was asked to send or read that its own dispatch
+    /// does not know.
+    ///
+    /// An error rather than the `assertionFailure` that used to sit on those
+    /// branches, and the reason is a measured one: `journal_note` and
+    /// `journal_attachment` were missing from `pushTable` for a whole
+    /// tranche, and the guard test written to catch it *did* trip the
+    /// assertion — but a trap kills the test process, and `xcodebuild`
+    /// reports a run that died before recording anything as
+    /// « 0 tests … passed ». The bug was green. Thrown, it fails the test and
+    /// puts a sentence in front of the user instead of closing the app.
+    case unknownTable(String)
+    /// A response body whose shape is not the one the pull expects — a
+    /// column renamed on the Supabase side, typically. Distinct from
+    /// `.encodingFailed`, which is this Mac failing to compose a request:
+    /// this one says the other end changed underneath us.
+    case decodingFailed(String)
 
     /// French, on the model of `StravaError.errorDescription` — without this,
     /// `error.localizedDescription` falls back to `NSError`'s generic English
@@ -96,6 +113,10 @@ enum MirrorError: LocalizedError, Sendable, Equatable {
             "La session Supabase a expiré ou a été révoquée. Reconnectez-vous."
         case let .http(status, body):
             "Supabase a répondu \(status) : \(body)"
+        case let .unknownTable(table):
+            "Table de miroir inconnue : \(table)"
+        case let .decodingFailed(message):
+            "Réponse Supabase illisible : \(message)"
         case let .transport(message):
             "Erreur réseau : \(message)"
         case let .encodingFailed(message):
@@ -273,6 +294,57 @@ actor MirrorClient {
 
         let (data, response) = try await send(request)
         try Self.checkStatus(response, data: data)
+    }
+
+    /// Everything in one table that Supabase has touched since `since`,
+    /// oldest first — `pull()`'s only way in.
+    ///
+    /// Returns the raw response body rather than decoded rows, and that is
+    /// not laziness: this is an `actor`, so anything it hands back crosses an
+    /// isolation boundary, and `[[String: Any]]` — what `JSONSerialization`
+    /// would give — is not `Sendable`. `Data` is, and the engine is where the
+    /// shape of a row is known anyway.
+    ///
+    /// `gte`, not `gt`: two rows can share an `updated_at` to the
+    /// microsecond, and a page that ends between them would leave the second
+    /// one behind forever if the next call asked for strictly-greater. The
+    /// cost is re-reading the last row of each page, which applying is
+    /// idempotent about; the cost of `gt` would be silent loss.
+    ///
+    /// `deleted_at` is **not** filtered out. A tombstone is precisely what a
+    /// pull needs to see — a row filtered away here is a deletion the Mac
+    /// would never learn about.
+    func fetchChanged(table: String, since: Date?, limit: Int) async throws -> Data {
+        let credentials = try validCredentials()
+        let token = try await validAccessToken(credentials: credentials)
+
+        var components = URLComponents(
+            url: credentials.projectURL.appendingPathComponent("rest/v1/\(table)"),
+            resolvingAgainstBaseURL: false
+        )!
+        var query = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "order", value: "updated_at.asc"),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        if let since {
+            query.append(
+                URLQueryItem(
+                    name: "updated_at",
+                    value: "gte.\(Self.iso8601.string(from: since))"
+                )
+            )
+        }
+        components.queryItems = query
+
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue(credentials.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await send(request)
+        try Self.checkStatus(response, data: data)
+        return data
     }
 
     // MARK: - Storage

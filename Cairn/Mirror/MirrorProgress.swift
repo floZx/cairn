@@ -18,6 +18,11 @@ enum MirrorPhase: Sendable, Equatable {
     /// against this sweep's own fixed target — see `uploadPendingPhotos`.
     case uploadingBlobs(kind: String, done: Int, total: Int)
     case bootstrapping(table: String, done: Int, total: Int)
+    /// `pull()` en vol : les lignes que quelqu'un d'autre a écrites, relues.
+    /// `done` compte les lignes appliquées, sans total — le serveur ne dit
+    /// pas d'avance combien il en reste, et un total inventé serait un
+    /// mensonge sur une barre de progression.
+    case pulling(done: Int)
     case pushing(done: Int, total: Int)
     case failed(String)
 }
@@ -48,7 +53,7 @@ final class MirrorProgress {
     var isRunning: Bool {
         switch phase {
         case .idle, .failed: false
-        case .uploadingBlobs, .bootstrapping, .pushing: true
+        case .uploadingBlobs, .bootstrapping, .pushing, .pulling: true
         }
     }
 
@@ -67,6 +72,11 @@ final class MirrorProgress {
             "Amorçage… \(table) \(done)/\(total)"
         case let .pushing(done, total):
             "Envoi… \(done)/\(total)"
+        // Sans total, à la différence des trois au-dessus : le serveur ne dit
+        // pas d'avance combien de lignes il a à donner, et « 12/12 » suivi de
+        // « 13/13 » serait une barre qui recule.
+        case let .pulling(done):
+            done > 0 ? "Réception… \(done)" : "Réception…"
         case let .failed(message):
             "Échec : \(message)"
         }
