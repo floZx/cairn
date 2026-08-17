@@ -79,7 +79,17 @@ export function NoteEditor({
       if (error) throw error
     },
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["journal"] })
+      // « journal-journees » et non « journal » : l'écran a été réécrit pour
+      // assembler ses jours depuis quatre sources, sa clé a changé, et cette
+      // invalidation est restée sur l'ancienne. Elle ne visait plus rien, donc
+      // la liste gardait la note d'avant jusqu'au prochain chargement.
+      //
+      // Le préfixe suffit : les créneaux complètent la clé, et les nommer ici
+      // ferait dépendre l'éditeur d'un détail de l'écran qui l'affiche.
+      client.invalidateQueries({ queryKey: ["journal-journees"] })
+      // Les pièces jointes aussi : une photo vient peut-être d'être ajoutée à
+      // cette note, et son URL signée est mise en cache pour douze heures.
+      client.invalidateQueries({ queryKey: ["pieces-jointes"] })
       onFerme()
     },
   })
