@@ -226,3 +226,88 @@ export function Pesee({
     </>
   )
 }
+
+/// Le type de journée, et donc son objectif calorique.
+///
+/// Le réglage le plus conséquent de la journée : il fixe la cible dont les
+/// quatre jauges se déduisent. Listé avec ses calories, parce que c'est le
+/// chiffre qui rend le choix parlant — « Qualité » ne dit rien, « Qualité,
+/// 2400 kcal » dit tout.
+export function TypeDeJournee({
+  dateKey,
+  jourUUID,
+  typeChoisi,
+  types,
+  onFerme,
+}: {
+  dateKey: string
+  /// L'identité de la ligne du jour, quand elle existe déjà.
+  jourUUID: string | null
+  typeChoisi: string | null
+  types: { uuid: string; name: string; kcal_target: number }[]
+  onFerme: () => void
+}) {
+  const client = useQueryClient()
+
+  const choisir = useMutation({
+    mutationFn: async (uuid: string | null) => {
+      const maintenant = new Date().toISOString()
+      const { error } = await supabase.from("nutrition_day").upsert({
+        // Une ligne par jour, reprise si elle existe : deux lignes pour le
+        // même jour donneraient deux objectifs, et le Mac en afficherait un
+        // au hasard.
+        uuid: jourUUID ?? crypto.randomUUID(),
+        user_id: await identifiant(),
+        date_key_raw: dateKey,
+        day_type_uuid: uuid,
+        edited_at: maintenant,
+        deleted_at: null,
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["nutrition-jour", dateKey] })
+      onFerme()
+    },
+  })
+
+  return (
+    <>
+      <div className="barre-editeur">
+        <button className="lien" onClick={onFerme} disabled={choisir.isPending}>
+          Annuler
+        </button>
+        <span className="jour">Type de journée</span>
+        <span />
+      </div>
+      {choisir.error && <p className="erreur">{(choisir.error as Error).message}</p>}
+
+      <ul className="liste-actions">
+        {types.map((t) => (
+          <li key={t.uuid}>
+            <button
+              className={t.uuid === typeChoisi ? "option-jour active" : "option-jour"}
+              onClick={() => choisir.mutate(t.uuid)}
+              disabled={choisir.isPending}
+            >
+              <span>{t.name}</span>
+              <span className="attenue">{t.kcal_target} kcal</span>
+            </button>
+          </li>
+        ))}
+        <li>
+          {/* Aucun type est un choix, pas une absence : une journée sans
+              objectif se lit alors comme telle plutôt que comme un oubli. */}
+          <button
+            className={typeChoisi === null ? "option-jour active" : "option-jour"}
+            onClick={() => choisir.mutate(null)}
+            disabled={choisir.isPending}
+          >
+            <span>Aucun</span>
+            <span className="attenue">sans objectif</span>
+          </button>
+        </li>
+      </ul>
+    </>
+  )
+}

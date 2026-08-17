@@ -6,7 +6,7 @@ import { jourCourant } from "./NoteEditor"
 import { AjoutAliment } from "./AjoutAliment"
 import { ModifAliment, type AlimentAModifier } from "./ModifAliment"
 import { Feuille } from "./Chrome"
-import { NoteRepas, Pesee } from "./SaisieJour"
+import { NoteRepas, Pesee, TypeDeJournee } from "./SaisieJour"
 import { JaugeMacro } from "./JaugeMacro"
 import {
   arrondi,
@@ -21,7 +21,7 @@ import {
 } from "./macros"
 
 type Creneau = { uuid: string; name: string; sort_order: number; target_pct: number }
-type TypeDeJour = { uuid: string; name: string; kcal_target: number }
+type TypeDeJour = { uuid: string; name: string; kcal_target: number; sort_order: number }
 type Aliment = {
   uuid: string
   meal_slot_uuid: string | null
@@ -50,7 +50,11 @@ function useReglages() {
           .select("uuid, name, sort_order, target_pct")
           .is("deleted_at", null)
           .order("sort_order"),
-        supabase.from("day_type").select("uuid, name, kcal_target").is("deleted_at", null),
+        supabase
+          .from("day_type")
+          .select("uuid, name, kcal_target, sort_order")
+          .is("deleted_at", null)
+          .order("sort_order"),
         // Une seule ligne, celle de la personne connectée. Écrite par le Mac
         // à chaque synchronisation, jamais d'ici.
         supabase
@@ -71,6 +75,9 @@ function useReglages() {
       return {
         creneaux: creneaux.data as Creneau[],
         types: new Map((types.data as TypeDeJour[]).map((t) => [t.uuid, t])),
+        // La liste ordonnée en plus de la table : la feuille les propose du
+        // plus calme au plus chargé, ce qu'une `Map` ne garantit pas.
+        typesOrdonnes: types.data as TypeDeJour[],
         cibles: cibles.error
           ? null
           : (cibles.data as { protein_g: number; fat_g: number } | null),
@@ -86,7 +93,7 @@ function useJournee(dateKey: string) {
       const [jour, aliments, notes, pesee] = await Promise.all([
         supabase
           .from("nutrition_day")
-          .select("day_type_uuid")
+          .select("uuid, day_type_uuid")
           .eq("date_key_raw", dateKey)
           .is("deleted_at", null)
           .maybeSingle(),
@@ -115,6 +122,7 @@ function useJournee(dateKey: string) {
       if (notes.error) throw notes.error
       if (pesee.error) throw pesee.error
       return {
+        jourUUID: (jour.data?.uuid as string | undefined) ?? null,
         typeDeJourUUID: (jour.data?.day_type_uuid as string | null) ?? null,
         aliments: aliments.data as Aliment[],
         notes: notes.data as NoteDeRepas[],
@@ -182,6 +190,7 @@ export function Nutrition() {
   const [enModification, setEnModification] = useState<AlimentAModifier | null>(null)
   const [noteDe, setNoteDe] = useState<{ uuid: string; nom: string } | null>(null)
   const [peseeOuverte, setPeseeOuverte] = useState(false)
+  const [typeOuvert, setTypeOuvert] = useState(false)
   const reglages = useReglages()
   const journee = useJournee(dateKey)
 
@@ -236,8 +245,8 @@ export function Nutrition() {
     )
   }
 
-  const { creneaux, types, cibles } = donneesReglages
-  const { typeDeJourUUID, aliments, notes, pesee } = donneesJournee
+  const { creneaux, types, typesOrdonnes, cibles } = donneesReglages
+  const { jourUUID, typeDeJourUUID, aliments, notes, pesee } = donneesJournee
   const typeDuJour = typeDeJourUUID ? types.get(typeDeJourUUID) : undefined
 
   const parCreneau = (uuid: string) => aliments.filter((a) => a.meal_slot_uuid === uuid)
@@ -280,6 +289,17 @@ export function Nutrition() {
             noteUUID={notes.find((n) => n.meal_slot_uuid === noteDe.uuid)?.uuid ?? null}
             texte={notes.find((n) => n.meal_slot_uuid === noteDe.uuid)?.note ?? ""}
             onFerme={() => setNoteDe(null)}
+          />
+        </Feuille>
+      )}
+      {typeOuvert && (
+        <Feuille titre="Type de journée" onFerme={() => setTypeOuvert(false)}>
+          <TypeDeJournee
+            dateKey={dateKey}
+            jourUUID={jourUUID}
+            typeChoisi={typeDeJourUUID}
+            types={typesOrdonnes}
+            onFerme={() => setTypeOuvert(false)}
           />
         </Feuille>
       )}
@@ -336,7 +356,14 @@ export function Nutrition() {
             unite="g"
           />
         </div>
-        {typeDuJour && <div className="attenue petit type-du-jour">{typeDuJour.name}</div>}
+        {/* Le type de journée est ce qui fixe toutes les cibles au-dessus :
+            il se choisit là où on les lit, et non dans un réglage à part. */}
+        <button className="ligne-pesee type-du-jour" onClick={() => setTypeOuvert(true)}>
+          <span>Journée</span>
+          <span className={typeDuJour ? "valeur-pesee" : "valeur-pesee attenue"}>
+            {typeDuJour ? `${typeDuJour.name} · ${typeDuJour.kcal_target} kcal` : "Choisir"}
+          </span>
+        </button>
         {/* La pesée du jour vit ici, sous les calories : c'est le même geste
             du matin, et lui donner un écran à elle pour un nombre serait un
             écran de trop. */}
