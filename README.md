@@ -220,31 +220,35 @@ cumulés globalement ; la distance se lit par sport.
 
 ## Journal
 
-Une note Markdown par jour, dans un dossier que vous choisissez. Le format est
-celui des notes du jour d'Obsidian — `AAAA-MM-JJ.md` à la racine du dossier —,
-donc un coffre existant s'ouvre tel quel et une note écrite ici s'ouvre là-bas.
-Le reste du dossier est ignoré, sous-dossiers compris. Il se choisit au premier
-écran de la section, ou dans les réglages. Le nombre de notes trouvées s'affiche
-aussitôt, dans les réglages comme en pastille de la barre latérale : c'est ce
-qui confirme qu'on a montré le dossier des notes et non son parent.
+Une note Markdown par jour, dans la base de Cairn — au sens propre : `Cairn.store`,
+comme les activités et le reste. Ça n'a pas toujours été vrai. Le journal vivait
+dans un dossier que vous désigniez vous-même, au format des notes du jour
+d'Obsidian (`AAAA-MM-JJ.md` à la racine, pièces jointes dans `pieces-jointes/`) ;
+Cairn le lisait, l'écrivait et le surveillait en continu, comme un second
+Obsidian. Ce dossier n'existe plus pour Cairn : à la première ouverture de cette
+version, chaque note et chaque image en ont été reprises une fois pour toutes,
+puis il n'a plus été touché — il reste sur le disque, tel quel, si vous voulez
+le rouvrir dans Obsidian par vous-même.
 
-**Le dossier est la base.** Rien n'est recopié dans celle de Cairn : un miroir
-serait une seconde source, qui divergerait dès la première note écrite depuis le
-téléphone. Cairn lit, écrit et surveille des fichiers, c'est tout. Une note
-modifiée ailleurs apparaît sans qu'on ait rien à faire ; si elle change pendant
-que vous tapez dedans, c'est votre texte qui reste à l'écran, et un bandeau
-propose de recharger le fichier ou de garder ce que vous avez écrit — de le
-garder seulement, si le fichier a été supprimé ailleurs : il n'y a plus rien à
-recharger. **Tant que ce bandeau est là, rien ne s'écrit** : c'est votre réponse
-qui tranche, et non la temporisation de 0,7 s, qui écrirait votre texte
-par-dessus le fichier dont le bandeau vient de vous prévenir. « Garder » écrit
-alors ce que vous avez tapé ; changer de note revient au même. Quitter Cairn
-sans avoir répondu laisse en revanche le fichier tel que l'autre écriture l'a
-fait, et le bandeau le dit sous la question plutôt que de choisir pour vous.
+**Ce qui est gagné : la sauvegarde.** Le dossier ne partait jamais dans la
+sauvegarde iCloud de Cairn — l'y recopier n'aurait rien protégé, il était déjà
+ailleurs sur le disque. La base, elle, y part avec tout le reste : les notes du
+journal sont maintenant aussi irremplaçables qu'une activité, et aussi
+protégées. La compatibilité Obsidian survit à sa manière : chaque sauvegarde
+en ressort un dossier Markdown, du même format qu'avant, qui s'ouvre comme un
+coffre — voir « Sauvegarde ».
 
-Un fichier illisible est tout de même listé — une note invisible est une note
-perdue — mais l'éditeur le refuse, plutôt que d'écrire par-dessus ce qu'il n'a
-pas su lire.
+**Ce qui est perdu : Obsidian, donc le téléphone.** Écrire dans le dossier
+depuis Obsidian — sur le Mac ou sur le téléphone — écrivait directement dans
+ce que Cairn lisait, et c'était la seule façon de noter une sortie depuis la
+poche en marchant vers la voiture. Une note d'aujourd'hui ne s'écrit plus que
+depuis le Mac, au clavier de Cairn, jusqu'à ce qu'une application web reprenne
+la saisie mobile. Rien ne la remplace pour l'instant, et ce n'est pas la peine
+de le maquiller.
+
+Le nombre de notes reste visible dans les réglages ; ce n'est plus la preuve
+qu'on a montré le bon dossier — il n'y a plus de dossier à montrer — mais celle
+que la reprise a bien trouvé ce qu'il y avait à trouver.
 
 **On lit la note rendue, on écrit dedans au clic.** Le volet de droite affiche
 les titres, les listes et les citations, et devient un champ de texte dès qu'on
@@ -254,33 +258,35 @@ revient rendue. Un journal se relit bien plus souvent qu'il ne s'écrit, et les
 que lire — écrire coûte alors un clic, ou la touche qu'on tapait déjà pour
 écrire. Le curseur, lui, ne suit pas le clic : il se pose en fin de texte, ce
 sont deux vues et SwiftUI ne transporte pas de l'une à l'autre l'endroit où l'on
-a cliqué. Le frontmatter YAML n'est pas rendu ; il reste dans le fichier, et
-dans l'éditeur.
+a cliqué. Le frontmatter YAML n'est pas rendu ; il reste dans le texte, et dans
+l'éditeur.
 
 L'enregistrement est automatique : 0,7 s après la dernière frappe, et tout de
 suite quand vous changez de note, quittez la section, passez à une autre
 application ou quittez Cairn. Une note ouverte et laissée vide n'est jamais
-écrite — un fichier vide dans un coffre est une ligne de plus à ignorer. Vider
-une note existante la supprime donc du disque, et **ce fichier-là ne passe pas
-par la corbeille**, à la différence d'une suppression demandée (`x`, ⌘⌫) qui,
-après confirmation, y met le fichier, d'où il reste récupérable. La ligne, elle,
-reste dans la liste tant que c'est la note où vous écrivez : tout effacer pour
-recommencer ne doit pas fermer le volet sous le curseur.
+écrite — une ligne vide de plus n'a rien à faire dans la base. Vider une note
+existante la supprime donc de la base, sans confirmation, exactement comme un
+fichier vidé quittait autrefois le dossier. Une suppression demandée (`x`,
+⌘⌫) passe par une confirmation, mais aboutit au même définitif : la base n'a
+pas de corbeille, ce n'est plus un fichier qu'on pourrait repêcher dans celle
+du Mac. La ligne, elle, reste dans la liste tant que c'est la note où vous
+écrivez : tout effacer pour recommencer ne doit pas fermer le volet sous le
+curseur.
 
 **Un calendrier** occupe le haut de la barre latérale, le même composant que
 pour l'alimentation : une pastille sur les jours qui portent une note, un clic
 pour y aller. Cliquer un jour vide ouvre une note blanche pour ce jour-là — de
-quoi rédiger l'entrée de mardi dernier qu'on avait sautée, sans qu'un fichier
-apparaisse si l'on se ravise. Le curseur n'est pas placé dans le texte : cliquer
+quoi rédiger l'entrée de mardi dernier qu'on avait sautée, sans qu'une note
+apparaisse dans la base si l'on se ravise. Le curseur n'est pas placé dans le texte : cliquer
 un jour veut dire « montre-moi », pas « écris » ; c'est ⌘N qui veut dire écrire.
 
 **Le journal réunit deux sources.** Un jour apparaît dans la liste s'il a une
-note dans le coffre, ou si l'une de ses sorties porte une note écrite dans
+note dans la base, ou si l'une de ses sorties porte une note écrite dans
 Strava — de sorte qu'une journée dont vous n'aviez parlé que sur la sortie
 elle-même se retrouve là où vous la cherchez. La recherche lit les deux, et les
-tags des deux comptent dans la barre latérale. Le coffre reste la seule chose
-que Cairn écrit : la note d'une activité se modifie dans l'activité, et écrire
-dans un jour qui n'existait que par une sortie y crée le fichier.
+tags des deux comptent dans la barre latérale. Le journal reste la seule chose
+que Cairn écrit ici : la note d'une activité se modifie dans l'activité, et
+écrire dans un jour qui n'existait que par une sortie y crée la note.
 
 **Les sorties du jour** sont rappelées au-dessus de la note : l'heure, le sport,
 le nom, la distance, la durée, le dénivelé, et surtout **la note écrite sur
@@ -310,9 +316,10 @@ d'un clic.
 Le dièse ne s'affiche nulle part : ni dans la barre latérale, ni sur les
 pastilles, ni dans une note lue — celle du jour comme celle d'une activité, dans
 son détail et dans l'aperçu de sa fenêtre d'édition. C'est de la syntaxe, pas de
-la lecture : elle reste dans le fichier, qu'Obsidian attend ainsi, et dans
-l'éditeur, où l'on écrit du Markdown. Le tag n'est pas coloré pour autant — une
-couleur d'accent le ferait passer pour quelque chose qu'on peut cliquer.
+la lecture : elle reste dans le texte, qu'Obsidian attend ainsi dans l'export
+Markdown, et dans l'éditeur, où l'on écrit du Markdown. Le tag n'est pas coloré
+pour autant — une couleur d'accent le ferait passer pour quelque chose qu'on
+peut cliquer.
 
 La recherche porte sur le texte entier de toutes les notes, sans index : dix ans
 de journal tiennent en quelques mégaoctets, et une recherche sur des données déjà
@@ -324,8 +331,8 @@ Le volet de droite retient une largeur propre au journal : un éditeur qui occup
 toute la hauteur n'appelle pas la même largeur que la carte et les chiffres
 d'une activité.
 
-Ces notes ne partent pas dans la sauvegarde iCloud de Cairn : le dossier y est
-déjà, et l'y recopier ne protégerait de rien.
+Ces notes partent maintenant dans la sauvegarde iCloud de Cairn, comme le reste
+de la base — voir « Sauvegarde ».
 
 ## Alimentation et poids
 
@@ -367,14 +374,18 @@ a changé. Les réglages en donnent la date et un bouton pour en forcer une.
 C'est une sauvegarde et non une synchronisation, délibérément : une synchro
 propage une suppression en quelques secondes, ce qui ne protège pas de l'erreur
 contre laquelle on sauvegarde le plus souvent. Trois versions datées sont
-conservées.
+conservées, de la base comme de l'export Markdown du journal.
 
-Les deux moitiés sont traitées différemment parce qu'elles se comportent
+Les trois parts sont traitées différemment parce qu'elles se comportent
 différemment. La base est un fichier SQLite que l'application tient ouvert :
 il est extrait par `VACUUM INTO` sur une connexion en lecture seule, ce qui
 donne une copie cohérente sans toucher au fichier en service, puis compressé —
 112 Mo deviennent 39. Les photos sont des milliers de fichiers jamais modifiés
-après écriture : seules les manquantes sont envoyées.
+après écriture : seules les manquantes sont envoyées. Le journal, lui, ressort
+en clair de la même occasion, par une connexion en lecture seule elle aussi :
+un dossier `journal-markdown-AAAA-MM-JJ-HHMM`, une note par jour au format
+Markdown et ses pièces jointes à côté — de quoi le relire, ou le rouvrir dans
+Obsidian, sans passer par Cairn.
 
 Un fichier `COMMENT-RESTAURER.txt` accompagne les copies. Le catalogue Open Food
 Facts n'est pas sauvegardé : il se retélécharge.
@@ -587,16 +598,17 @@ Tout vit dans `~/Library/Application Support/Cairn/` :
 
 | | |
 |---|---|
-| `Cairn.store` | la base : activités, alimentation, pesées |
-| `.Cairn_SUPPORT/` | les photos, que SwiftData stocke hors de la base |
+| `Cairn.store` | la base : activités, alimentation, pesées, notes du journal |
+| `.Cairn_SUPPORT/` | les photos et les pièces jointes du journal, que SwiftData stocke hors de la base |
 | `off.db` | le catalogue Open Food Facts, retéléchargeable |
 
 Les deux premiers sont irremplaçables et partent dans la sauvegarde iCloud ; le
 troisième non, puisqu'il se reconstruit.
 
-Les notes du journal font exception : elles vivent dans le dossier que vous avez
-désigné, et nulle part ailleurs. Cairn n'en garde aucune copie — ni ici, ni dans
-la sauvegarde.
+Le journal n'a plus d'exception : ses notes vivaient dans un dossier à part,
+que Cairn ne recopiait nulle part ; elles vivent maintenant dans `Cairn.store`
+comme le reste, et partent donc dans la sauvegarde avec lui. La sauvegarde en
+tire en plus, à chaque fois, un export Markdown — voir « Sauvegarde ».
 
 ## Licence
 

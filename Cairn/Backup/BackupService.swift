@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// Copies the library somewhere it survives this Mac.
 ///
@@ -6,12 +7,16 @@ import Foundation
 /// deletion within seconds, which is no protection at all against the mistake
 /// a backup is most often needed for. Dated snapshots, a few of them kept.
 ///
-/// Two things are copied, and they are copied differently because they behave
-/// differently. The journal is one SQLite file the app has open at all times,
-/// so it is extracted with `VACUUM INTO` — a consistent point-in-time copy
-/// taken through a read-only connection, which never touches the file in use.
-/// The photographs are thousands of files that never change once written, so
-/// they are mirrored, and only the ones missing at the far end are sent.
+/// Three things are copied, and they are copied differently because they
+/// behave differently. The store is one SQLite file the app has open at all
+/// times, so it is extracted with `VACUUM INTO` — a consistent point-in-time
+/// copy taken through a read-only connection, which never touches the file in
+/// use. The photographs are thousands of files that never change once
+/// written, so they are mirrored, and only the ones missing at the far end
+/// are sent. The journal's notes live in that same SQLite file, but a row in
+/// a `.sqlite.gz` nobody opens except to restore is not what "your notes come
+/// back out in Markdown" was supposed to mean — so they also come out a
+/// second time, in the open, through a read-only connection of their own.
 enum BackupService {
     enum Failure: LocalizedError {
         case noICloudDrive
@@ -80,6 +85,10 @@ enum BackupService {
         )
 
         try writeSnapshot(of: store, into: destination, at: now)
+        try writeJournalMarkdown(
+            journalContext(at: store), into: destination,
+            stamp: BackupPlan.timestamp(for: now)
+        )
         try mirrorPhotos(from: photos, into: destination.appending(path: "Photos"))
         rotate(in: destination)
         try? restoreInstructions.write(
@@ -91,7 +100,7 @@ enum BackupService {
         return now
     }
 
-    // MARK: - The journal
+    // MARK: - The store
 
     private static func writeSnapshot(
         of store: URL, into destination: URL, at date: Date
@@ -145,6 +154,45 @@ enum BackupService {
         }
     }
 
+    // MARK: - The journal's notes
+
+    /// Every folder this writes starts with this, `rotate` filters on it, and
+    /// nothing else in the destination ever gets this prefix — so the two
+    /// stay each other's exact inverse.
+    private static let markdownPrefix = "journal-markdown-"
+
+    /// Writes the journal out as `journal-markdown-<stamp>/`, beside the
+    /// sqlite snapshot named from that same `stamp`
+    /// (`BackupPlan.timestamp(for:)`) — so a reader can tell at a glance
+    /// which backup the two came from.
+    ///
+    /// Takes the stamp rather than a `Date`, and a `ModelContext` rather than
+    /// a store URL: what actually writes the files is
+    /// `JournalMarkdownExport.write`, already proven byte-for-byte faithful
+    /// by its own round-trip test. This is only the naming and the wiring.
+    static func writeJournalMarkdown(
+        _ context: ModelContext, into destination: URL, stamp: String
+    ) throws {
+        try JournalMarkdownExport.write(
+            context, to: destination.appending(path: markdownPrefix + stamp)
+        )
+    }
+
+    /// A context on the same store the sqlite snapshot above just read,
+    /// opened `allowsSave: false` for the same reason `writeSnapshot` opens
+    /// its own connection read-only: the app's live connection is never
+    /// disturbed, and this one can never turn into a second writer by
+    /// accident. Apple's own pattern for a widget reading its host app's
+    /// store — this just reads back in-process instead of across an App
+    /// Group.
+    private static func journalContext(at store: URL) throws -> ModelContext {
+        let configuration = ModelConfiguration(url: store, allowsSave: false)
+        let container = try ModelContainer(
+            for: AppModelContainer.schema, configurations: configuration
+        )
+        return ModelContext(container)
+    }
+
     // MARK: - The photographs
 
     /// Copies across only what is missing.
@@ -178,8 +226,18 @@ enum BackupService {
         let manager = FileManager.default
         let names = (try? manager.contentsOfDirectory(
             atPath: destination.path(percentEncoded: false)
-        ))?.filter { $0.hasPrefix("journal-") } ?? []
-        for name in BackupPlan.snapshotsToDelete(names) {
+        )) ?? []
+        // Each family rotated on its own, same `keep` policy applied twice:
+        // one alphabetical list mixing both would let a run of Markdown
+        // folders crowd every sqlite snapshot out of the last three kept, or
+        // the other way around, well before either was actually three deep.
+        let sqliteSnapshots = names.filter {
+            $0.hasPrefix("journal-") && !$0.hasPrefix(markdownPrefix)
+        }
+        let markdownExports = names.filter { $0.hasPrefix(markdownPrefix) }
+        let stale = BackupPlan.snapshotsToDelete(sqliteSnapshots)
+            + BackupPlan.snapshotsToDelete(markdownExports)
+        for name in stale {
             try? manager.removeItem(at: destination.appending(path: name))
         }
     }
@@ -199,9 +257,16 @@ enum BackupService {
         ===================
 
         journal-AAAA-MM-JJ-HHMM.sqlite.gz
-            La base : activités, journal alimentaire, pesées. La plus récente
-            est la dernière par ordre alphabétique. Les trois dernières sont
-            conservées, les plus anciennes sont effacées automatiquement.
+            La base : activités, journal alimentaire, pesées, notes du
+            journal. La plus récente est la dernière par ordre alphabétique.
+            Les trois dernières sont conservées, les plus anciennes sont
+            effacées automatiquement.
+
+        journal-markdown-AAAA-MM-JJ-HHMM/
+            Les mêmes notes du journal, en clair : un fichier Markdown par
+            jour, ouvrable dans Obsidian ou n'importe quel éditeur de texte.
+            Même politique que la base : les trois derniers dossiers sont
+            conservés, les plus anciens effacés automatiquement.
 
         Photos/
             Les photos des activités, une par fichier. Rien n'y est jamais

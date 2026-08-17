@@ -50,7 +50,14 @@ enum BackupPlan {
 
     /// The name of the snapshot taken at `date`, sortable as a string.
     static func snapshotName(for date: Date) -> String {
-        "journal-\(stamp.string(from: date)).sqlite"
+        "journal-\(timestamp(for: date)).sqlite"
+    }
+
+    /// The `AAAA-MM-JJ-HHMM` stamp both the sqlite snapshot and the journal's
+    /// Markdown export are named from — one formatter, so the two always
+    /// agree on what "the same backup" was taken at.
+    static func timestamp(for date: Date) -> String {
+        stamp.string(from: date)
     }
 
     private static let stamp: DateFormatter = {

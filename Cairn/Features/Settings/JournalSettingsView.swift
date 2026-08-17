@@ -40,13 +40,16 @@ struct JournalSettingsView: View {
         .formStyle(.grouped)
     }
 
-    /// Ce que la sauvegarde en fait n'est pas dit ici : l'export Markdown
-    /// existe (`JournalMarkdownExport`) mais personne ne l'appelle encore, et
-    /// une promesse en avance d'une tâche est une promesse fausse.
+    /// La tâche 6 avait dû taire la moitié de cette phrase : l'export
+    /// Markdown existait déjà (`JournalMarkdownExport`) mais rien ne
+    /// l'appelait encore, et une promesse en avance d'une tâche est une
+    /// promesse fausse. `BackupService.run` l'appelle désormais — dette de
+    /// cette tâche-là, payée par la tâche 8.
     private var footer: String {
         """
         Les notes du journal vivent dans la base de Cairn, et entrent donc \
-        dans la sauvegarde.
+        dans la sauvegarde ; elle en tient aussi un export Markdown, à côté, \
+        pour les relire sans Cairn au besoin.
         """
     }
 }
