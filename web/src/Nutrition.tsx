@@ -200,15 +200,12 @@ export function Nutrition() {
         <input
           type="date"
           value={dateKey}
-          max={jourCourant()}
           onChange={(e) => e.target.value && setDateKey(e.target.value)}
         />
       </label>
       <button
         className="lien"
         onClick={() => setDateKey(decale(dateKey, 1))}
-        // Rien après aujourd'hui : le journal se tient, il ne se prévoit pas.
-        disabled={dateKey >= jourCourant()}
       >
         ›
       </button>
