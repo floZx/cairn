@@ -75,6 +75,26 @@ compteur reste.
 `JournalTag`, `JournalNotice`, et le carnet PDF. Ils reçoivent du texte et des
 étiquettes, et continueront d'en recevoir.
 
+### Comment une image de note s'affiche encore
+
+C'est ce qui rend vraie la phrase ci-dessus, et il faut le dire, sans quoi elle
+serait fausse. `attachmentsBase: URL?` descend aujourd'hui de `RootView`
+jusqu'à `MarkdownText` et `JournalThumbnails`, qui résolvent
+`pieces-jointes/x.jpg` contre un dossier réel. Des octets en base n'ont pas
+d'URL.
+
+Plutôt que d'apprendre à ces vues à lire autre chose qu'un chemin, les octets
+sont **matérialisés dans un cache** :
+`~/Library/Application Support/Cairn/cache/journal-attachments/`, un fichier par
+pièce jointe, sous son nom d'origine. `attachmentsBase` pointe là, et tout ce
+qui est en aval — le rendu Markdown, les vignettes, le carnet PDF — continue de
+travailler sur des URL sans savoir que quoi que ce soit a changé.
+
+Ce cache est **dérivé et reconstructible**, au même titre que `off.db` : le
+supprimer ne perd rien, la base reste la source. Il se remplit à la reprise puis
+à chaque écriture d'une pièce jointe, et se reconstruit au lancement s'il
+manque.
+
 ## Le modèle
 
 `JournalNote` **devient** le `@Model`, plutôt que d'ajouter une couche de
@@ -119,8 +139,13 @@ Elle vit dans `StoreMaintenance`, dont le rôle déclaré est déjà « tout ce 
 doit arriver une fois à un magasin existant ».
 
 Elle a besoin du dossier, donc la moitié **lecture** de `JournalFolder`
-lui est rattachée — nommage des fichiers, lecture d'un dossier de notes,
-résolution du signet — tandis que la moitié écriture part immédiatement. Cette
+lui est rattachée — nommage des fichiers, lecture d'un dossier de notes —
+tandis que la moitié écriture part immédiatement.
+
+Aucun signet à portée de sécurité n'entre en jeu : `Cairn.entitlements` déclare
+`com.apple.security.app-sandbox` à `false`, donc le chemin du dossier est une
+chaîne ordinaire dans les préférences (`journalFolderPath`) et s'ouvre
+directement. Cette
 moitié lecture **reste dans le code de façon permanente**, et non « le temps de
 la reprise » : une installation neuve, ou un magasin restauré depuis une
 sauvegarde ancienne, aura encore un premier lancement à faire. Elle devient le
