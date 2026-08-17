@@ -7,6 +7,11 @@ import Observation
 /// duplicated — the same rule as `NutritionSettings`.
 enum JournalSettings {
     static let folderPathKey = "journalFolderPath"
+    /// Set once `JournalImport.runIfNeeded` has run, whatever it found —
+    /// explicit rather than deduced from an empty store, because a journal
+    /// with no note in it is a legitimate state, not a sign recovery never
+    /// happened.
+    static let importDoneKey = "journalImportDone"
 }
 
 /// The journal's live state: which folder, what is in it, and what is being
