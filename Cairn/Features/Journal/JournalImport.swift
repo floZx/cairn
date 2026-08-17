@@ -149,35 +149,57 @@ enum JournalImport {
         )
     }
 
-    /// The one substitution `encodeBytesLosslessly` makes, and the one every
-    /// note's text is held to before it enters the store: `0x00` — or, here,
-    /// the character U+0000 — becomes U+E000 (Private Use Area).
+    /// The substitution every note's text is held to before it enters the
+    /// store: `0x00` — or, here, the character U+0000 — becomes U+E000
+    /// (Private Use Area), the same shift `encodeBytesLosslessly` makes byte
+    /// by byte on the reconstructed path.
+    ///
+    /// A second shift makes the pair injective: a U+E000 the user actually
+    /// typed — private-use characters are legal UTF-8, nothing stops one
+    /// landing in a file — becomes U+E001, rather than colliding with the
+    /// NUL stand-in and reading back as a literal NUL on export. Without
+    /// it, task 5's round-trip test on a note holding a literal U+E000 is
+    /// what catches an export that turns a character the user wrote into a
+    /// byte they never wrote — a real change of character, not merely of
+    /// encoding, and so a violation of the round-trip bar
+    /// (`docs/specs/2026-08-17-journal-en-base-design.md`).
     ///
     /// Not `private`: `unescapingNUL(_:)` right below is its exact inverse,
     /// and an export writing `JournalNote.text` back out to a file needs
     /// that inverse to undo this before encoding the result as UTF-8 —
-    /// otherwise the substitution this function makes would reach the file
-    /// as a literal U+E000 where the original had a NUL. Kept beside its
-    /// inverse on purpose: two functions that answer each other belong at
-    /// the same address, not duplicated at their caller's.
+    /// otherwise the substitutions this function makes would reach the file
+    /// as literal U+E000 or U+E001 where the original had a NUL or a
+    /// private-use character. Kept beside its inverse on purpose: two
+    /// functions that answer each other belong at the same address, not
+    /// duplicated at their caller's.
     static func escapingNUL(_ text: String) -> String {
         String(
             String.UnicodeScalarView(
-                text.unicodeScalars.map { $0.value == 0 ? Unicode.Scalar(0xE000)! : $0 }
+                text.unicodeScalars.map {
+                    switch $0.value {
+                    case 0: return Unicode.Scalar(0xE000)!
+                    case 0xE000: return Unicode.Scalar(0xE001)!
+                    default: return $0
+                    }
+                }
             )
         )
     }
 
     /// The exact inverse of `escapingNUL(_:)`: every U+E000 becomes U+0000
-    /// again. `Tests/JournalImportTests.swift`'s
+    /// again, and every U+E001 becomes U+E000 — undoing the second shift
+    /// that keeps the pair injective in the presence of a literal U+E000.
+    /// `Tests/JournalImportTests.swift`'s
     /// `laSubstitutionDuNulEtSonInverseFontLAllerRetour` holds the pair to a
     /// function-to-function round trip rather than a hand-written one, which
-    /// is what keeps them answering each other as either is touched.
+    /// is what keeps them answering each other as either is touched — its
+    /// text now carries a literal U+E000 alongside the NUL, exactly the case
+    /// this second shift exists for.
     ///
     /// What an export needs is exactly this, not a byte-level inverse of
     /// `encodeBytesLosslessly`: whatever produced `JournalNote.text` — the
     /// readable path or the reconstructed one — the store now holds a
-    /// `String`, and undoing this one substitution before encoding it as
+    /// `String`, and undoing these substitutions before encoding it as
     /// UTF-8 is what writing it back to a file means. For a note that went
     /// through `escapingNUL(_:)` on the way in, that reproduces the
     /// original file's bytes exactly. For one rebuilt by
@@ -187,7 +209,13 @@ enum JournalImport {
     static func unescapingNUL(_ text: String) -> String {
         String(
             String.UnicodeScalarView(
-                text.unicodeScalars.map { $0.value == 0xE000 ? Unicode.Scalar(0)! : $0 }
+                text.unicodeScalars.map {
+                    switch $0.value {
+                    case 0xE000: return Unicode.Scalar(0)!
+                    case 0xE001: return Unicode.Scalar(0xE000)!
+                    default: return $0
+                    }
+                }
             )
         )
     }

@@ -174,9 +174,12 @@ struct JournalImportTests {
     /// propre inverse : l'un défait exactement ce que l'autre a fait,
     /// aller-retour de fonction à fonction plutôt que par un texte
     /// recalculé à la main — c'est ce que l'export de la tâche 5
-    /// consommera.
+    /// consommera. Le U+E000 littéral, à côté du vrai NUL, couvre la
+    /// collision que la paire doit éviter : un caractère U+E000 tapé par
+    /// l'utilisateur ne doit jamais ressortir comme le NUL de quelqu'un
+    /// d'autre.
     @Test func laSubstitutionDuNulEtSonInverseFontLAllerRetour() {
-        let text = "avant\0apres, à bientôt — « citation »"
+        let text = "avant\0apres\u{E000}encore, à bientôt — « citation »"
         #expect(JournalImport.unescapingNUL(JournalImport.escapingNUL(text)) == text)
     }
 
