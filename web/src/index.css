@@ -1,0 +1,120 @@
+:root {
+  color-scheme: light dark;
+  --fond: #ffffff;
+  --texte: #1a1a1a;
+  --attenue: #6b6b6b;
+  --trait: #e2e2e2;
+  --champ: #f6f6f6;
+  --accent: #0a84ff;
+  --erreur: #d7263d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fond: #141414;
+    --texte: #f2f2f2;
+    --attenue: #9a9a9a;
+    --trait: #2c2c2c;
+    --champ: #1e1e1e;
+    --accent: #4da3ff;
+    --erreur: #ff6b7d;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fond);
+  color: var(--texte);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Sous l'encoche et au-dessus de la barre d'accueil, une fois installée. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+input, button { font: inherit; }
+
+.centre {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.carte {
+  width: 100%;
+  max-width: 22rem;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.carte h1 {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.carte p.sous {
+  margin: 0 0 12px;
+  color: var(--attenue);
+  font-size: 0.9rem;
+}
+
+.champ {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--champ);
+  color: var(--texte);
+  border: 1px solid var(--trait);
+  border-radius: 10px;
+}
+
+.champ:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.bouton {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bouton:disabled { opacity: 0.5; cursor: default; }
+
+.erreur {
+  margin: 0;
+  color: var(--erreur);
+  font-size: 0.9rem;
+}
+
+.barre {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--trait);
+}
+
+.barre h1 { margin: 0; font-size: 1.15rem; font-weight: 600; }
+
+.lien {
+  background: none;
+  border: none;
+  color: var(--attenue);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9rem;
+  text-decoration: underline;
+}
+
+.contenu { padding: 20px; }
