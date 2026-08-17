@@ -40,9 +40,25 @@ xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=ma
 Lancer cette suite ne touche jamais votre bibliothèque : un bundle de test macOS
 s'exécute à l'intérieur de l'application hôte, et sans précaution chaque
 `xcodebuild test` ouvrirait — et migrerait — vos données réelles comme simple
-effet de bord de son lancement. Le nom du fichier de base est décidé en un seul
-endroit, `AppModelContainer.storeFileName(isTesting:isDemo:)`, et sous test c'est
-toujours un fichier jetable.
+effet de bord de son lancement. La question « suis-je sous test ? » est posée en
+un seul endroit, `AppModelContainer.isTesting`, et quatre chemins en dépendent :
+
+- **la base** : sous test, c'est toujours un fichier jetable
+  (`AppModelContainer.storeFileName(isTesting:isDemo:)`) ;
+- **les préférences** : la reprise du journal de `StoreMaintenance.run` — qui
+  lirait le vrai `journalFolderPath` et poserait le vrai marqueur de reprise —
+  ne s'exécute pas depuis un lancement de test, et chaque test qui l'appelle
+  passe un domaine `UserDefaults` jetable, balayé après lui
+  (`Tests/ThrowawayDefaults.swift`) ;
+- **la sauvegarde** : elle vise le vrai `Cairn.store` et le vrai dossier iCloud
+  Drive, donc elle ne part pas non plus depuis un lancement de test ;
+- **le cache des pièces jointes** : son dossier est un paramètre sans valeur par
+  défaut, jamais deviné par la fonction qui le remplit, et chaque test nomme le
+  sien.
+
+Aucun test ne doit laisser de fichier dans `~/Library/Preferences` ni dans le
+dossier de cache de l'application ; les deux se vérifient en les comptant avant
+et après une exécution complète.
 
 L'application construite est alors à `build/Build/Products/Debug/Cairn.app`.
 Ce `-derivedDataPath` n'est pas cosmétique : sans lui, Xcode écrit dans son
@@ -577,7 +593,7 @@ retour à la ligne.
 | `j` `k` | note suivante / précédente |
 | `e` `n` · ⏎ | écrire dans la note sélectionnée |
 | `échap` | quitter l'éditeur, puis vider la recherche, puis les tags, puis la sélection |
-| `x` · ⌘⌫ | mettre la note à la corbeille, après confirmation |
+| `x` · ⌘⌫ | supprimer la note, après confirmation — sans corbeille |
 | `h` · ⌥⌘I | fermer le volet de droite |
 | ⌘N | la note du jour, créée au besoin |
 | `/` | aller au champ de recherche |
@@ -601,9 +617,12 @@ Tout vit dans `~/Library/Application Support/Cairn/` :
 | `Cairn.store` | la base : activités, alimentation, pesées, notes du journal |
 | `.Cairn_SUPPORT/` | les photos et les pièces jointes du journal, que SwiftData stocke hors de la base |
 | `off.db` | le catalogue Open Food Facts, retéléchargeable |
+| `cache/journal-attachments/` | les images du journal recopiées en clair, pour que l'éditeur et les vignettes les affichent |
 
-Les deux premiers sont irremplaçables et partent dans la sauvegarde iCloud ; le
-troisième non, puisqu'il se reconstruit.
+Les deux premiers sont irremplaçables et partent dans la sauvegarde iCloud ; les
+deux autres non, puisqu'ils se reconstruisent. Le dossier `cache/` en
+particulier peut être supprimé sans rien perdre : chaque fichier y est réécrit
+depuis la base au lancement suivant.
 
 Le journal n'a plus d'exception : ses notes vivaient dans un dossier à part,
 que Cairn ne recopiait nulle part ; elles vivent maintenant dans `Cairn.store`

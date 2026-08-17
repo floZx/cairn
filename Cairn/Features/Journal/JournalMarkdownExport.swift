@@ -3,8 +3,8 @@ import SwiftData
 
 /// Writes the store's journal back out as the Markdown folder
 /// `JournalImport` once read in — the other half of the round trip
-/// `Tests/JournalMarkdownExportTests.swift` holds to. Not called from
-/// anywhere yet: task 8 is what wires this into the backup service.
+/// `Tests/JournalMarkdownExportTests.swift` holds to. Called by
+/// `BackupService.run`, which writes one such folder beside every snapshot.
 ///
 /// The bar, from `docs/specs/2026-08-17-journal-en-base-design.md`: a note's
 /// text comes back identical *character* for character, and an attachment's
@@ -32,12 +32,17 @@ enum JournalMarkdownExport {
             // crashing: an export is not the place to first discover a row
             // some future writer left malformed.
             guard let dateKey = note.dateKey else { continue }
-            // `note.text` carries `escapingNUL`'s substitutions —
-            // U+0000 → U+E000, and a literal U+E000 → U+E001, so the pair
-            // stays injective. `unescapingNUL` undoes exactly that before
-            // this ever becomes UTF-8 bytes: skipping it would send U+E000
-            // to the file in place of the NUL the user actually wrote, a
-            // real change of character rather than of encoding.
+            // `note.text` carries `escapingNUL`'s substitutions — a
+            // two-scalar prefix code: U+0000 becomes U+E000 U+E001, and a
+            // literal U+E000 is doubled. (Not the single-scalar shift an
+            // earlier draft of this comment described, U+0000 → U+E000 and
+            // U+E000 → U+E001: task 5 proved that one is not injective, a
+            // literal U+E001 colliding with an escaped U+E000. See
+            // `escapingNUL(_:)`, which tells that story where it belongs.)
+            // `unescapingNUL` undoes exactly that before this ever becomes
+            // UTF-8 bytes: skipping it would send the escape pair to the
+            // file in place of the NUL the user actually wrote, a real
+            // change of character rather than of encoding.
             let text = JournalImport.unescapingNUL(note.text)
             try Data(text.utf8).write(
                 to: destination.appending(path: JournalFolder.fileName(for: dateKey)),

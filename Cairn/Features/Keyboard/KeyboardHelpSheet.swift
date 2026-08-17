@@ -58,7 +58,7 @@ struct KeyboardHelpSheet: View {
             ("e / n / ⏎", "écrire dans la note sélectionnée"),
             ("h", "fermer le volet de droite (aussi ⌥⌘I)"),
             ("échap", "quitter l'éditeur, puis vider la recherche, les tags, la sélection"),
-            ("x / ⌘⌫", "mettre la note à la corbeille, après confirmation"),
+            ("x / ⌘⌫", "supprimer la note, après confirmation — sans corbeille"),
             ("⌘N", "la note du jour, créée au besoin"),
         ]),
         Group(title: "Chercher", rows: [

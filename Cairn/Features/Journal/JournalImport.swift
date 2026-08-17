@@ -230,8 +230,19 @@ enum JournalImport {
     /// the reconstructed path. Rather than throw text like that away, that
     /// lone marker is passed through as itself: this function does not
     /// promise a byte-exact inverse of `encodeBytesLosslessly` — see that
-    /// function's doc comment on the round-trip bar this clears — only that
-    /// it never loses a character trying.
+    /// function's doc comment on the round-trip bar this clears.
+    ///
+    /// It does not promise to keep every character on that path either, and
+    /// the case is worth naming rather than hiding behind "never loses a
+    /// character trying", which is what this comment used to claim: two
+    /// consecutive `0x00` bytes reach this function as two consecutive
+    /// `escapeMarker`s, which the doubling rule above reads as one literal
+    /// U+E000 — two scalars in, one out. That path only ever carries a file
+    /// this application already failed to read as UTF-8, whose name is
+    /// reported in `Outcome.unreadable` for a human to look at, so the bar
+    /// there is "keep something rather than nothing", not fidelity. A note
+    /// that came in through `escapingNUL(_:)` — every readable file, which
+    /// is to say all of them but the damaged ones — round-trips exactly.
     ///
     /// What an export needs is exactly this, not a byte-level inverse of
     /// `encodeBytesLosslessly`: whatever produced `JournalNote.text` — the
