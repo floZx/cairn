@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 
 /// Le châssis de l'application : ce qui ne change pas d'un écran à l'autre.
 ///
@@ -177,7 +178,14 @@ export function Feuille({
     return () => removeEventListener("keydown", surEchap)
   }, [onFerme])
 
-  return (
+  // Rendue dans le corps du document, jamais à sa place dans l'arbre : la
+  // barre de navigation porte un `backdrop-filter`, et une propriété de
+  // filtre crée un **bloc conteneur** pour tout descendant en
+  // `position: fixed`. Le voile s'y retrouvait enfermé, haut de quelques
+  // dizaines de pixels, et la feuille s'affichait en haut de l'écran par
+  //-dessus la barre au lieu de couvrir la page. Mesuré : le bouton de compte
+  // vit dans cette barre.
+  return createPortal(
     <div className="voile" onClick={onFerme}>
       <div
         className={montee ? "feuille-modale montee" : "feuille-modale"}
@@ -188,6 +196,7 @@ export function Feuille({
         <div className="poignee" aria-hidden />
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -7,6 +7,7 @@ import { ActivityDetail } from "./ActivityDetail"
 import { Journal } from "./Journal"
 import { Nutrition } from "./Nutrition"
 import { Chrome, type Section } from "./Chrome"
+import { BoutonCompte } from "./Compte"
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -58,11 +59,7 @@ export function App() {
       section={section}
       onSection={setSection}
       masquerOnglets={surUneFiche}
-      action={
-        <button className="lien" onClick={() => supabase.auth.signOut()}>
-          Quitter
-        </button>
-      }
+      action={<BoutonCompte />}
     >
       {surUneFiche ? (
         <ActivityDetail uuid={ouverte} onRetour={() => history.back()} />

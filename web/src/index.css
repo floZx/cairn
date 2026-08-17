@@ -989,3 +989,61 @@ input, button { font: inherit; }
 .carte-trace {
   margin-top: 4px;
 }
+
+/* ---- Compte -------------------------------------------------------------- */
+
+/* Discret : la couleur d'accent le rend touchable sans le faire crier, et il
+   ne prend que la place d'une icône. */
+.bouton-compte {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.bouton-compte:active {
+  opacity: 0.5;
+}
+
+.titre-feuille {
+  margin: 8px 0 2px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.courriel {
+  margin: 0 0 20px;
+}
+
+.liste-actions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--carte);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.action-rouge {
+  width: 100%;
+  padding: 13px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--erreur);
+  font: inherit;
+  font-size: 17px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.action-rouge:active {
+  background: var(--champ);
+}
