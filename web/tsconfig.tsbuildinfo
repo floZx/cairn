@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/signin.tsx","./src/main.tsx","./src/supabase.ts","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/activitylist.tsx","./src/app.tsx","./src/signin.tsx","./src/format.ts","./src/main.tsx","./src/sports.ts","./src/supabase.ts","./src/vite-env.d.ts"],"version":"5.9.3"}

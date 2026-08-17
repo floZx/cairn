@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import type { Session } from "@supabase/supabase-js"
 import { supabase } from "./supabase"
 import { SignIn } from "./SignIn"
+import { ActivityList } from "./ActivityList"
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -33,10 +34,7 @@ export function App() {
         </button>
       </header>
       <main className="contenu">
-        <p>Connecté en tant que {session.user.email}.</p>
-        <p style={{ color: "var(--attenue)" }}>
-          La liste des activités arrive à la prochaine étape.
-        </p>
+        <ActivityList />
       </main>
     </>
   )
