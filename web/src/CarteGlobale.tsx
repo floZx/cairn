@@ -4,6 +4,16 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import { supabase } from "./supabase"
 import { traceDepuisBytea } from "./track"
 import { bornes, type Filtre, type Zone } from "./criteres"
+import { ChoixFond } from "./ChoixFond"
+import {
+  FONDS,
+  fondRetenu,
+  reliefRetenu,
+  retenirFond,
+  retenirRelief,
+  sourcesDuFond,
+  type Fond,
+} from "./fonds"
 
 /// Toutes les traces sur une même carte.
 ///
@@ -13,22 +23,14 @@ import { bornes, type Filtre, type Zone } from "./criteres"
 /// Une page arrivée est une page tracée.
 const PAR_PAGE = 150
 
-/// Le fond, identique à celui d'une fiche : c'est la même carte, à une autre
-/// échelle, et deux fonds différents pour un même pays se remarqueraient.
-const FOND = {
+/// Le fond, celui-là même que la fiche emploie : c'est la même carte à une
+/// autre échelle, et deux fonds différents pour un même pays se
+/// remarqueraient. Le choix est d'ailleurs retenu en commun.
+function styleAvec(fond: Fond) {
+  return {
   version: 8 as const,
   sources: {
-    ign: {
-      type: "raster" as const,
-      tiles: [
-        "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile" +
-          "&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM" +
-          "&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
-      ],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: "© IGN — Géoplateforme",
-    },
+    ...sourcesDuFond(fond),
     traces: {
       type: "geojson" as const,
       data: { type: "FeatureCollection" as const, features: [] },
@@ -39,7 +41,7 @@ const FOND = {
     },
   },
   layers: [
-    { id: "ign", type: "raster" as const, source: "ign" },
+    { id: "fond", type: "raster" as const, source: "fond" },
     // Sous les traces : la zone est un cadre, pas un calque qui les couvre.
     {
       id: "zone-fond",
@@ -59,7 +61,7 @@ const FOND = {
       source: "traces",
       layout: { "line-cap": "round" as const, "line-join": "round" as const },
       paint: {
-        "line-color": "#e5332a",
+        "line-color": FONDS[fond].trace,
         // Fin et translucide : sur un massif parcouru cent fois, des traits
         // opaques feraient une tache rouge. Superposées, les passes répétées
         // ressortent d'elles-mêmes — c'est ce qu'on vient lire sur une carte
@@ -69,6 +71,18 @@ const FOND = {
       },
     },
   ],
+  }
+}
+
+
+/// Exécute une action sur la carte une fois son style prêt.
+///
+/// `setStyle` et `setTerrain` lèvent « Style is not done loading » si on les
+/// appelle avant, et les effets de React partent bien avant que MapLibre ait
+/// fini de charger le sien.
+function quandPret(instance: maplibregl.Map, action: () => void) {
+  if (instance.isStyleLoaded()) action()
+  else instance.once("load", action)
 }
 
 type Trait = GeoJSON.Feature<GeoJSON.LineString, { uuid: string }>
@@ -182,19 +196,27 @@ export function CarteGlobale({
   const [chargees, setChargees] = useState(0)
   const [total, setTotal] = useState<number | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
+  const [fond, setFond] = useState<Fond>(fondRetenu)
+  const [relief, setRelief] = useState(reliefRetenu)
+  const premierFond = useRef(true)
+  const premierRelief = useRef(true)
 
   useEffect(() => {
     if (!conteneur.current) return
     const instance = new maplibregl.Map({
       container: conteneur.current,
-      style: structuredClone(FOND),
+      style: styleAvec(fondRetenu()),
       // La France entière : le premier cadrage, avant que la moindre trace ne
       // dise où regarder. Il sera resserré dès la première page.
       center: [2.5, 46.6],
       zoom: 4.6,
     })
     carte.current = instance
-    instance.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right")
+    if (reliefRetenu()) {
+      instance.on("load", () =>
+        instance.setTerrain({ source: "relief", exaggeration: 1.3 }),
+      )
+    }
 
     // Toucher une trace ouvre sa sortie — c'est la question qu'on pose à une
     // carte d'ensemble : « c'était laquelle, celle-là ? »
@@ -231,7 +253,42 @@ export function CarteGlobale({
     // `setData` serait sans effet et sans erreur, ce qui est le pire des deux.
     if (carte.current?.isStyleLoaded()) poser()
     else carte.current?.once("load", poser)
-  }, [filtre.zone])
+  }, [filtre.zone, fond])
+
+  // Changer de fond réécrit le style, ce qui emporte traces et zone : le
+  // chargement les repose, et l'effet ci-dessous s'en charge par sa
+  // dépendance au fond.
+  useEffect(() => {
+    const instance = carte.current
+    if (!instance) return
+    if (premierFond.current) {
+      premierFond.current = false
+      return
+    }
+    quandPret(instance, () => {
+      instance.setStyle(styleAvec(fond))
+      if (relief) {
+        instance.once("styledata", () =>
+          instance.setTerrain({ source: "relief", exaggeration: 1.3 }),
+        )
+      }
+    })
+    retenirFond(fond)
+  }, [fond, relief])
+
+  useEffect(() => {
+    const instance = carte.current
+    if (!instance) return
+    if (premierRelief.current) {
+      premierRelief.current = false
+      return
+    }
+    quandPret(instance, () => {
+      instance.setTerrain(relief ? { source: "relief", exaggeration: 1.3 } : null)
+      instance.easeTo({ pitch: relief ? 55 : 0, duration: 400 })
+    })
+    retenirRelief(relief)
+  }, [relief])
 
   // Le chargement, relancé à chaque changement de filtre.
   useEffect(() => {
@@ -242,8 +299,14 @@ export function CarteGlobale({
     setErreur(null)
 
     const poser = () => {
-      const source = carte.current?.getSource("traces") as maplibregl.GeoJSONSource | undefined
-      source?.setData({ type: "FeatureCollection", features: traits })
+      const instance = carte.current
+      if (!instance) return
+      // Après un changement de fond, le style est neuf et ses sources ne sont
+      // pas encore là : y écrire serait sans effet et sans erreur.
+      quandPret(instance, () => {
+        const source = instance.getSource("traces") as maplibregl.GeoJSONSource | undefined
+        source?.setData({ type: "FeatureCollection", features: traits })
+      })
     }
 
     ;(async () => {
@@ -312,7 +375,7 @@ export function CarteGlobale({
     return () => {
       annule = true
     }
-  }, [filtre])
+  }, [filtre, fond])
 
   const poserLaZone = () => {
     const limites = carte.current?.getBounds()
@@ -327,7 +390,9 @@ export function CarteGlobale({
 
   return (
     <div className="carte-globale">
-      <div className="toile-carte" ref={conteneur} />
+      <div className="toile-carte" ref={conteneur}>
+        <ChoixFond fond={fond} onFond={setFond} relief={relief} onRelief={setRelief} />
+      </div>
       <div className="pied-carte">
         <span className="attenue petit">
           {erreur
