@@ -821,6 +821,13 @@ input, button { font: inherit; }
   background: var(--trait);
 }
 
+/* Les enfants d'une feuille gardent leur hauteur. Sans cela, `flex-direction:
+   column` les répartit, et une carte de cinq lignes se retrouvait écrasée sur
+   une seule au milieu du formulaire de filtres. */
+.feuille-modale > * {
+  flex: none;
+}
+
 /* Une feuille porte déjà sa marge et sa hauteur : celles que les éditeurs se
    donnaient quand ils occupaient tout l'écran feraient double emploi. */
 .feuille-modale .feuille,
@@ -1248,4 +1255,111 @@ body {
   align-items: baseline;
   justify-content: space-between;
   margin-bottom: 6px;
+}
+
+/* ---- Recherche et filtres ------------------------------------------------ */
+
+.barre-recherche {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.barre-recherche .recherche {
+  flex: 1;
+}
+
+.bouton-filtre {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--champ);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+/* Plein quand un filtre est posé : sans marque, on oublie qu'on ne voit
+   qu'une partie de ses sorties, et la liste paraît avoir maigri toute seule. */
+.bouton-filtre.actif {
+  background: var(--accent);
+  color: #fff;
+}
+
+.resume-filtre {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--champ);
+  color: var(--texte-2);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pastilles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.pastille-choix {
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--champ);
+  color: var(--texte);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.pastille-choix.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.criteres {
+  margin-bottom: 4px;
+  background: var(--carte);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.critere-nombre {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 16px;
+}
+
+.critere-nombre + .critere-nombre {
+  box-shadow: inset 0 1px 0 var(--trait);
+}
+
+.saisie-nombre {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.saisie-nombre input {
+  width: 4.5em;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--champ);
+  color: var(--texte);
+  font: inherit;
+  text-align: right;
 }

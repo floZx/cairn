@@ -21,6 +21,11 @@ const noms: Record<string, string> = {
   other: "Autre",
 }
 
+/// Les sports dans l'ordre où le Mac les propose — celui de `SportType`, qui
+/// n'est ni alphabétique ni celui d'usage : les vélos d'abord, puis la course
+/// à pied, puis le reste.
+export const SPORTS = Object.keys(noms)
+
 export function nomDuSport(brut: string): string {
   // Une valeur inconnue s'affiche telle quelle plutôt que de devenir « Autre » :
   // si le Mac se met un jour à écrire un sport que le web ne connaît pas, le
