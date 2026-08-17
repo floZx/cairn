@@ -8,3 +8,4 @@ xcuserdata/
 node_modules/
 web/dist/
 .env.local
+web/tsconfig.tsbuildinfo

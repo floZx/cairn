@@ -50,3 +50,40 @@ La clé `service_role`, elle, contourne RLS. Elle n'a rien à faire ici.
   l'application macOS gère déjà.
 - **uPlot** (à venir) — sur des traces de plusieurs milliers de points, les
   bibliothèques à base de SVG s'effondrent.
+
+## Mise en ligne
+
+Hébergée sur Cloudflare Pages, en dépôt direct : le paquet est construit ici
+puis téléversé. Pas de connexion entre le dépôt Git et l'hébergeur —
+l'intégration continue coûterait une chaîne de plus à surveiller pour une
+application qu'une seule personne déploie, et les identifiants Supabase sont
+figés dans le paquet à la construction, donc c'est cette machine qui doit les
+avoir, jamais un serveur de build.
+
+Une seule fois, pour autoriser cette machine (ouvre le navigateur, c'est un
+compte Cloudflare) :
+
+```
+npx wrangler login
+```
+
+Ensuite, à chaque fois :
+
+```
+npm run deploy
+```
+
+Ce que le paquet emporte : `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`,
+lus dans `.env.local`. La clé anonyme est faite pour être publique — c'est la
+politique RLS de chaque table, et elle seule, qui protège les données. La clé
+`service_role`, elle, ne doit jamais quitter le tableau de bord Supabase.
+
+### Installer sur le téléphone
+
+iOS : ouvrir l'adresse dans Safari, Partager → « Sur l'écran d'accueil ».
+Android : Chrome propose « Installer l'application ».
+
+Le service worker ne met en cache que la coquille — le JavaScript, le CSS, les
+icônes. Rien de Supabase : une réponse d'API en cache serait un journal périmé
+qu'on croit à jour. Le Mac est la copie qui fonctionne hors ligne ; ici, sans
+réseau, l'application se lance et le dit.

@@ -3,8 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#111111" />
     <title>Cairn</title>
+    <!-- iOS n'a jamais lu le `theme_color` du manifeste : c'est cette balise
+         qui teinte la barre d'état d'une application ajoutée à l'écran
+         d'accueil. Dédoublée par thème, aux deux `--fond` de index.css : une
+         seule valeur laisserait une barre noire au-dessus d'un fond blanc la
+         moitié du temps. -->
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)" />
+    <link rel="apple-touch-icon" href="/icone-180.png" />
   </head>
   <body>
     <div id="root"></div>

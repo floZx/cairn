@@ -1,10 +1,14 @@
-import { useMemo } from "react"
+import { Suspense, lazy, useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { nomDuSport } from "./sports"
 import { dateCourte, denivele, distance, duree } from "./format"
 import { traceDepuisBytea } from "./track"
-import { Carte } from "./Carte"
+// Chargée à la demande : MapLibre pèse à lui seul les quatre cinquièmes du
+// paquet, et le journal — l'écran qu'on ouvre le plus depuis un téléphone —
+// ne s'en sert jamais. Sans ce découpage, lire une note coûtait le
+// téléchargement d'un moteur de cartographie.
+const Carte = lazy(() => import("./Carte").then((m) => ({ default: m.Carte })))
 import { Markdown } from "./markdown"
 
 type Fiche = {
@@ -120,7 +124,9 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
         )}
       </div>
 
-      <Carte trace={trace} />
+      <Suspense fallback={<div className="carte-trace" />}>
+        <Carte trace={trace} />
+      </Suspense>
 
       {data.activity_description && (
         <div className="description">

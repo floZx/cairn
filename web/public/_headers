@@ -1,0 +1,20 @@
+# Le service worker ne doit jamais être servi depuis un cache : c'est lui qui
+# décide quand tout le reste se renouvelle, et un sw.js d'hier fige la version
+# d'hier pour de bon.
+/sw.js
+  Cache-Control: no-cache
+
+/registerSW.js
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache
+
+# Les fichiers d'assets portent leur empreinte dans leur nom : ils ne changent
+# jamais de contenu, donc autant qu'ils ne soient plus jamais redemandés.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
