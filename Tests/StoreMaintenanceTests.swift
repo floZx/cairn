@@ -28,8 +28,9 @@ private func seedPair<Model: PersistentModel & MirrorRow>(
 /// et `JournalAttachment` ne conforment pas `MirrorRow`, ce que
 /// `Tests/MirrorIdentityTests.swift` fige à seize. `StoreMaintenance` répare
 /// leur identité tout de même : un défaut SwiftData ne sait pas qu'un modèle
-/// reste local. Le nom de table est fourni à la main plutôt que lu sur
-/// `MirrorRow.mirrorTable`, qui n'existe pas ici — c'est justement le point.
+/// reste local. Le libellé est fourni par l'appelant plutôt que lu sur
+/// `MirrorRow.mirrorTable`, qui n'existe pas ici — au site d'appel, c'est
+/// `Schema.entityName(for:)` qui le fournit, pas un nom inventé à la main.
 @MainActor
 private func seedLocalPair<Model: PersistentModel>(
     _ label: String,
@@ -97,12 +98,14 @@ struct StoreMaintenanceTests {
     /// qu'aucun ne manque à l'appel, et un modèle oublié se lit mieux dans une
     /// liste que dans un fichier de seize fonctions jumelles.
     ///
-    /// `JournalNote` et `JournalAttachment` rejoignent la même passe plus bas,
-    /// dans une liste à part : ils portent un `uuid` sujet au même défaut
-    /// SwiftData, mais ne conforment pas `MirrorRow` (`Tests/MirrorIdentityTests.swift`
-    /// fige les seize), donc l'égalité avec `MirrorEngine.bootstrapOrder`
-    /// ci-dessous ne porte que sur les seize qui traversent — pas sur « tout
-    /// ce qui porte un uuid », que la seconde liste couvre séparément.
+    /// `JournalNote` et `JournalAttachment`, qui ne conforment pas
+    /// `MirrorRow`, ont leur propre test juste en dessous plutôt que de
+    /// rejoindre `pairs` ici : mélanger les deux aurait rendu l'égalité avec
+    /// `MirrorEngine.bootstrapOrder` fausse, et le nom de ce test menteur.
+    /// La garantie que rien de ce qui porte un `uuid` n'échappe à la
+    /// réparation, mirrorée ou non, est portée plus loin encore par
+    /// `everySchemaEntityCarryingAUUIDIsRepaired`, qui lit le schéma au lieu
+    /// d'énumérer des modèles à la main.
     ///
     /// La forme reproduite est celle qu'une migration légère laisse : deux
     /// lignes d'une même table portant la même valeur. Le compte attendu est
@@ -212,25 +215,43 @@ struct StoreMaintenanceTests {
                 sharing: shared, into: context
             ),
         ]
-        // Les seize qui traversent, comparés à la liste que le miroir tient
-        // lui-même — pas « tout ce qui porte un uuid », que `localPairs`
-        // couvre séparément juste en dessous.
         #expect(Set(pairs.map(\.table)) == Set(MirrorEngine.bootstrapOrder))
+        try context.save()
 
-        // Les deux modèles du journal : un uuid, sujet au même défaut
-        // SwiftData, sans traverser le miroir. `MirrorRow` ne les liste pas
-        // (`Tests/MirrorIdentityTests.swift` fige les seize à ce nombre), donc
-        // `seedLocalPair` prend son nom de table à la main plutôt que sur le
-        // protocole.
-        let localPairs = [
+        let changed = try StoreMaintenance.run(context)
+
+        #expect(changed == pairs.count)
+        for pair in pairs {
+            let uuids = pair.uuids()
+            #expect(uuids.count == 2, "\(pair.table) : les deux lignes partagent encore un uuid")
+            #expect(uuids.allSatisfy { !$0.isEmpty }, "\(pair.table) : un uuid vide")
+        }
+
+        // La même passe, relancée : plus rien à réparer sur aucune des seize.
+        #expect(try StoreMaintenance.run(context) == 0)
+    }
+
+    /// Les deux modèles du journal, à part : ils portent un `uuid` sujet au
+    /// même défaut SwiftData que les seize mirrorés, mais ne conforment pas
+    /// `MirrorRow` (`Tests/MirrorIdentityTests.swift` fige leur nombre à
+    /// seize), donc ils ne peuvent pas rejoindre `pairs` ci-dessus sans
+    /// fausser sa comparaison à `MirrorEngine.bootstrapOrder`.
+    @Test("les deux modèles locaux du journal ressortent avec des uuid distincts")
+    func splitsDuplicatedUUIDsForLocalJournalModels() throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let shared = "64D8A062-4BAC-4EAF-BB62-5803626D04E5"
+        let day = DateKey(raw: "2026-08-16")!
+
+        let pairs = [
             seedLocalPair(
-                "journal_note", \JournalNote.uuid,
+                Schema.entityName(for: JournalNote.self), \JournalNote.uuid,
                 JournalNote(dateKey: day, text: "Une"),
                 JournalNote(dateKey: DateKey(raw: "2026-08-17")!, text: "Deux"),
                 sharing: shared, into: context
             ),
             seedLocalPair(
-                "journal_attachment", \JournalAttachment.uuid,
+                Schema.entityName(for: JournalAttachment.self), \JournalAttachment.uuid,
                 JournalAttachment(fileName: "un.jpg", data: Data([0x01])),
                 JournalAttachment(fileName: "deux.jpg", data: Data([0x02])),
                 sharing: shared, into: context
@@ -240,16 +261,38 @@ struct StoreMaintenanceTests {
 
         let changed = try StoreMaintenance.run(context)
 
-        #expect(changed == pairs.count + localPairs.count)
-        for pair in pairs + localPairs {
+        #expect(changed == pairs.count)
+        for pair in pairs {
             let uuids = pair.uuids()
             #expect(uuids.count == 2, "\(pair.table) : les deux lignes partagent encore un uuid")
             #expect(uuids.allSatisfy { !$0.isEmpty }, "\(pair.table) : un uuid vide")
         }
 
-        // La même passe, relancée : plus rien à réparer, ni sur les seize, ni
-        // sur les deux locaux.
         #expect(try StoreMaintenance.run(context) == 0)
+    }
+
+    /// La garantie forte, insensible à toute liste écrite à la main : chaque
+    /// entité du schéma portant une propriété nommée `uuid` — mirrorée ou
+    /// non — doit se retrouver dans `StoreMaintenance.uuidRepairs`. Les deux
+    /// côtés de la comparaison sont lus par réflexion sur des sources
+    /// indépendantes (`AppModelContainer.schema` d'un côté, le tableau que
+    /// `StoreMaintenance.run` parcourt réellement de l'autre), donc un modèle
+    /// ajouté au schéma avec un `uuid` par défaut et jamais raccordé à la
+    /// réparation fait tomber ce test plutôt que de rester invisible jusqu'à
+    /// une restauration de sauvegarde en production — voir l'en-tête de
+    /// `Cairn/Model/StoreMaintenance.swift`.
+    @Test("toute entité du schéma portant un uuid est raccordée à la réparation")
+    func everySchemaEntityCarryingAUUIDIsRepaired() {
+        let entitiesWithUUID = Set(
+            AppModelContainer.schema.entities
+                .filter { entity in
+                    entity.storedProperties.contains { $0.name == "uuid" }
+                }
+                .map(\.name)
+        )
+        let repairedEntities = Set(StoreMaintenance.uuidRepairs.map(\.entityName))
+
+        #expect(repairedEntities == entitiesWithUUID)
     }
 
     @Test("relancer sur un store déjà réparé ne change plus rien")

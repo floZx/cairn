@@ -3,12 +3,38 @@ import SwiftData
 
 /// The one place for everything that has to happen once to an existing store.
 enum StoreMaintenance {
-    /// Gives every uuid-bearing row an identity of its own — the sixteen
-    /// models that cross to the mirror, and the journal's two local ones.
+    /// One model's repair, tied to the schema entity it targets.
     ///
-    /// Two cases, and the second is why this does not merely look for empty
-    /// strings. A SwiftData property default is a single value in the managed
-    /// model, and a lightweight migration applied it to every existing row: the
+    /// The tie is what makes the guarantee checkable without a second
+    /// hand-written list: `Tests/StoreMaintenanceTests.swift` compares
+    /// `entityName` across every entry here against every entity
+    /// `AppModelContainer.schema` reports as carrying a `uuid` property,
+    /// read reflectively off `Schema.Entity.storedProperties` rather than
+    /// copied out by hand. A model added to the schema with a `uuid` and
+    /// never wired up below shows up there as a name present on one side and
+    /// missing on the other — red, not a silent gap that only a restored
+    /// backup would ever reveal.
+    struct UUIDRepair {
+        let entityName: String
+        let reissue: (ModelContext) throws -> Int
+    }
+
+    /// Builds one `UUIDRepair`, reading its entity name off `Schema` itself
+    /// rather than repeating the class name as a string — the one place a
+    /// typo here could otherwise separate the two sides of the guarantee.
+    private static func repair<Model: PersistentModel>(
+        _ type: Model.Type, _ uuid: ReferenceWritableKeyPath<Model, String>
+    ) -> UUIDRepair {
+        UUIDRepair(entityName: Schema.entityName(for: type)) {
+            try reissueDuplicateUUIDs(uuid, in: $0)
+        }
+    }
+
+    /// Every uuid-bearing model in `AppModelContainer.schema` — the sixteen
+    /// that cross to the mirror, and the journal's two local ones.
+    ///
+    /// A SwiftData property default is a single value in the managed model,
+    /// and a lightweight migration applied it to every existing row: the
     /// user's 840 activities came out of it sharing one uuid — measured, not
     /// supposed. Views key off that identity.
     ///
@@ -17,20 +43,54 @@ enum StoreMaintenance {
     /// `MigrationPlan`, so it is the very same lightweight migration that
     /// applies them — 5 672 laps, 852 stream rows, 343 photos and 828 food
     /// entries each sharing one value on the real library. Nothing above
-    /// tolerates that: `MirrorEngine` pages by `uuid > cursor` and would call a
-    /// table finished after its first page, `blobStoragePath` names Storage
-    /// objects by `uuid` and would overwrite one object per table, and an
-    /// upsert carrying the same key twice is a hard `21000` from Postgres.
+    /// tolerates that: `MirrorEngine` pages by `uuid > cursor` and would call
+    /// a table finished after its first page, `blobStoragePath` names
+    /// Storage objects by `uuid` and would overwrite one object per table,
+    /// and an upsert carrying the same key twice is a hard `21000` from
+    /// Postgres.
     ///
-    /// `JournalNote` and `JournalAttachment` never reach `MirrorEngine` — this
-    /// slice is local only — but the SwiftData mechanism that duplicates
-    /// `uuid` across existing rows does not know that, and a store restored
-    /// from a future backup would carry the exact same duplicated identity on
-    /// them. Views key off `JournalNote.uuid` the same way they key off
-    /// `Activity.uuid`, so they get the same repair.
+    /// `JournalNote` and `JournalAttachment` never reach `MirrorEngine` —
+    /// this slice is local only — but the SwiftData mechanism that
+    /// duplicates `uuid` across existing rows does not know that, and a
+    /// store restored from a future backup would carry the exact same
+    /// duplicated identity on them. Views key off `JournalNote.uuid` the
+    /// same way they key off `Activity.uuid`, so they get the same repair.
     ///
-    /// Returns how many rows were changed, which is what makes it testable and
-    /// its idempotence checkable.
+    /// `Activity` first, because `linkPhotosToTheirActivity` in `run` reads
+    /// the uuid this pass may have just reissued.
+    ///
+    /// `nonisolated(unsafe)`: each `reissue` closure captures a
+    /// `ReferenceWritableKeyPath`, which the compiler does not treat as
+    /// `Sendable` for an arbitrary `Model`, so a `@Sendable` closure type
+    /// here would not type-check. The array itself is never mutated after
+    /// this initializer runs — a `let`, built once — which is exactly the
+    /// case that annotation is for.
+    nonisolated(unsafe) static let uuidRepairs: [UUIDRepair] = [
+        repair(Activity.self, \.uuid),
+        repair(ActivityStreams.self, \.uuid),
+        repair(ActivityPhoto.self, \.uuid),
+        repair(Lap.self, \.uuid),
+        repair(Gear.self, \.uuid),
+        repair(Athlete.self, \.uuid),
+        repair(DiscardedActivity.self, \.uuid),
+        repair(DayType.self, \.uuid),
+        repair(MealSlot.self, \.uuid),
+        repair(NutritionDay.self, \.uuid),
+        repair(FoodEntry.self, \.uuid),
+        repair(MealNote.self, \.uuid),
+        repair(Recipe.self, \.uuid),
+        repair(RecipeItem.self, \.uuid),
+        repair(FavoriteFood.self, \.uuid),
+        repair(WeightEntry.self, \.uuid),
+        repair(JournalNote.self, \.uuid),
+        repair(JournalAttachment.self, \.uuid),
+    ]
+
+    /// Runs every repair in `uuidRepairs`, then the one repair that is not
+    /// about `uuid` at all.
+    ///
+    /// Returns how many rows were changed, which is what makes it testable
+    /// and its idempotence checkable.
     ///
     /// Runs on every launch, so the pass that finds nothing to do has to stay
     /// cheap: `reissueDuplicateUUIDs` fetches `uuid` and nothing else, which
@@ -42,33 +102,9 @@ enum StoreMaintenance {
     static func run(_ context: ModelContext) throws -> Int {
         var changed = 0
 
-        // The sixteen models that cross — `MirrorRow`'s own list. Nothing
-        // pins this call list to it any more (see `reissueDuplicateUUIDs`
-        // below), so it is this explicit enumeration, not a type constraint,
-        // that has to stay complete. `Activity` first, because
-        // `linkPhotosToTheirActivity` below reads the uuid this pass may
-        // have just reissued.
-        changed += try reissueDuplicateUUIDs(\Activity.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\ActivityStreams.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\ActivityPhoto.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\Lap.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\Gear.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\Athlete.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\DiscardedActivity.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\DayType.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\MealSlot.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\NutritionDay.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\FoodEntry.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\MealNote.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\Recipe.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\RecipeItem.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\FavoriteFood.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\WeightEntry.uuid, in: context)
-
-        // The two that do not cross the mirror at all. Same repair, same
-        // reason: a restored backup does not know it is exempt.
-        changed += try reissueDuplicateUUIDs(\JournalNote.uuid, in: context)
-        changed += try reissueDuplicateUUIDs(\JournalAttachment.uuid, in: context)
+        for repair in uuidRepairs {
+            changed += try repair.reissue(context)
+        }
 
         changed += try linkPhotosToTheirActivity(context)
 
@@ -80,20 +116,20 @@ enum StoreMaintenance {
     /// One model's pass: every row keeping an identity nobody else in its own
     /// table holds. Returns how many were reissued.
     ///
-    /// Uniqueness is per model, not across the store: `uuid` is each mirrored
-    /// table's own primary key in `supabase/schema.sql` (`JournalNote` and
-    /// `JournalAttachment` carry no such row at all, only the same local
-    /// convention), and the two Storage paths built from a `uuid` live in
-    /// different buckets, so two tables sharing a value collides with nothing.
+    /// Uniqueness is per model, not across the store: `uuid` is each
+    /// mirrored table's own primary key in `supabase/schema.sql`
+    /// (`JournalNote` and `JournalAttachment` carry no such row at all, only
+    /// the same local convention), and the two Storage paths built from a
+    /// `uuid` live in different buckets, so two tables sharing a value
+    /// collides with nothing.
     ///
     /// Takes a writable key path rather than reading `MirrorRow.uuid`, which
     /// is get-only and stays that way — a mirrored row's identity is not
-    /// something the mirror itself may rewrite. No longer constrained to
+    /// something the mirror itself may rewrite. Not constrained to
     /// `MirrorRow`: `JournalNote` and `JournalAttachment` need the exact same
-    /// repair without crossing the mirror, so the constraint that used to pin
-    /// this to mirrored models only would have excluded them. What actually
-    /// pins the set of models repaired is the explicit call list in `run`
-    /// above, not a type constraint here.
+    /// repair without crossing the mirror. What pins the set of models
+    /// repaired is `uuidRepairs` above, checked against the schema by
+    /// `Tests/StoreMaintenanceTests.swift` — not a type constraint here.
     ///
     /// Never paged: pagination by `uuid` is exactly what a duplicated `uuid`
     /// breaks — that is the bug being repaired here — and pagination by

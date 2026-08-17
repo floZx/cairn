@@ -16,11 +16,15 @@ final class JournalNote {
     var uuid: String = UUID().uuidString
 
     var dateKeyRaw: String = ""
-    var text: String = ""
+    /// Readable freely, but settable only through `setText` from outside
+    /// this file: a direct assignment would leave `tagsRaw` describing a
+    /// text that is no longer there, which is exactly the silent drift
+    /// `setText` exists to prevent.
+    private(set) var text: String = ""
     /// `JournalTag.name` values, without their `#` — kept in step with
     /// `text` by `setText`, never written anywhere else.
-    var tagsRaw: [String] = []
-    var updatedAt: Date = Date.distantPast
+    private(set) var tagsRaw: [String] = []
+    private(set) var updatedAt: Date = Date.distantPast
 
     init(dateKey: DateKey, text: String) {
         self.dateKeyRaw = dateKey.raw
