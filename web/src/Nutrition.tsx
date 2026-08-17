@@ -4,6 +4,7 @@ import { supabase } from "./supabase"
 import { dateLongue } from "./format"
 import { jourCourant } from "./NoteEditor"
 import { AjoutAliment } from "./AjoutAliment"
+import { ModifAliment, type AlimentAModifier } from "./ModifAliment"
 import {
   arrondi,
   dansLeMille,
@@ -166,6 +167,7 @@ function LigneMacros({
 export function Nutrition() {
   const [dateKey, setDateKey] = useState(jourCourant)
   const [ajoutDans, setAjoutDans] = useState<{ uuid: string; nom: string } | null>(null)
+  const [enModification, setEnModification] = useState<AlimentAModifier | null>(null)
   const reglages = useReglages()
   const journee = useJournee(dateKey)
 
@@ -198,6 +200,16 @@ export function Nutrition() {
       </button>
     </div>
   )
+
+  if (enModification) {
+    return (
+      <ModifAliment
+        aliment={enModification}
+        dateKey={dateKey}
+        onFerme={() => setEnModification(null)}
+      />
+    )
+  }
 
   if (ajoutDans) {
     return (
@@ -324,11 +336,27 @@ export function Nutrition() {
                 const m = arrondi(macrosDe(ligne))
                 return (
                   <li key={ligne.uuid}>
-                    <span className="nom">{ligne.food_name}</span>
-                    <span className="attenue petit">
-                      {Math.round(ligne.grams)} g
-                    </span>
-                    <span className="kcal">{m.kcal}</span>
+                    {/* Toute la ligne est le bouton : sur un téléphone, viser
+                        un nom de trois lettres pour corriger une quantité est
+                        une cible qu'on rate. */}
+                    <button
+                      className="ligne-aliment"
+                      onClick={() =>
+                        setEnModification({
+                          uuid: ligne.uuid,
+                          nom: ligne.food_name,
+                          grammes: ligne.grams,
+                          kcal100: ligne.kcal100,
+                          protein100: ligne.protein100,
+                          carbs100: ligne.carbs100,
+                          fat100: ligne.fat100,
+                        })
+                      }
+                    >
+                      <span className="nom">{ligne.food_name}</span>
+                      <span className="attenue petit">{Math.round(ligne.grams)} g</span>
+                      <span className="kcal">{m.kcal}</span>
+                    </button>
                   </li>
                 )
               })}

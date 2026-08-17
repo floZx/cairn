@@ -442,7 +442,18 @@ input, button { font: inherit; }
 }
 
 .aliments li {
+  display: block;
+}
+
+.ligne-aliment {
   display: grid;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   /* Le poids et les calories à largeur fixe, le nom prend le reste : une
      colonne de chiffres qui ne s'aligne pas ne se lit pas. */
   grid-template-columns: 1fr auto 3.5em;
@@ -580,4 +591,16 @@ input, button { font: inherit; }
   font: inherit;
   font-size: 22px;
   text-align: right;
+}
+
+.zone-suppression {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: auto;
+  padding-top: 24px;
+}
+
+.lien.danger {
+  color: var(--erreur);
 }
