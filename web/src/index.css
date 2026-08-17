@@ -52,7 +52,7 @@
    du fond, et surtout le fait qu'elle **flotte** au-dessus du contenu au lieu
    d'être posée contre le bord. */
 .matiere {
-  background: color-mix(in srgb, var(--carte) 48%, transparent);
+  background: color-mix(in srgb, var(--carte) 36%, transparent);
   -webkit-backdrop-filter: blur(26px) saturate(190%);
   backdrop-filter: blur(26px) saturate(190%);
   border: 0.5px solid color-mix(in srgb, var(--lueur) 28%, transparent);
@@ -718,15 +718,21 @@ input, button { font: inherit; }
    contenu qui passe dessous se devine, ce qui dit qu'on défile sous elle
    plutôt que derrière un bandeau opaque. */
 .barre-nav {
-  position: relative;
-  z-index: 2;
+  /* Posée par-dessus le défilement, comme les onglets : c'est ce qui fait
+     qu'une matière translucide a quelque chose à laisser voir. Ancrée au bord,
+     elle, là où les onglets se détachent — un titre ne flotte pas. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
   min-height: 44px;
   padding: calc(env(safe-area-inset-top) + 6px) 16px 8px;
-  background: color-mix(in srgb, var(--fond) 68%, transparent);
+  background: color-mix(in srgb, var(--fond) 55%, transparent);
   -webkit-backdrop-filter: blur(26px) saturate(190%);
   backdrop-filter: blur(26px) saturate(190%);
   /* Le filet n'apparaît qu'une fois le grand titre replié, comme sur iOS.
@@ -762,6 +768,9 @@ input, button { font: inherit; }
 .defilement {
   flex: 1;
   overflow-y: auto;
+  /* La hauteur de la barre du haut, qui la surplombe désormais : sans cette
+     réserve, le grand titre naîtrait dessous. */
+  padding-top: calc(env(safe-area-inset-top) + 50px);
   /* L'inertie du doigt : sans elle le défilement s'arrête net et c'est le
      deuxième détail, après les onglets, qui trahit une page web. */
   -webkit-overflow-scrolling: touch;
@@ -817,8 +826,21 @@ input, button { font: inherit; }
   transition: color 0.15s ease;
 }
 
+/* La pastille derrière l'onglet actif : c'est elle qui donne l'épaisseur de
+   verre, et son absence était la vraie différence avec les barres d'iOS 26.
+   Un rectangle flou sans relief se lit comme un bandeau ; le même avec une
+   pastille claire se lit comme une lentille posée dessus. */
 .onglet-bas.actif {
   color: var(--accent);
+  background: color-mix(in srgb, var(--lueur) 16%, transparent);
+  box-shadow: inset 0 0.5px 0 color-mix(in srgb, var(--lueur) 40%, transparent);
+}
+
+@media (prefers-color-scheme: light) {
+  .onglet-bas.actif {
+    background: color-mix(in srgb, #000000 6%, transparent);
+    box-shadow: inset 0 0.5px 0 color-mix(in srgb, #ffffff 80%, transparent);
+  }
 }
 
 .onglet-bas:active {
