@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { dateLongue } from "./format"
 import { jourCourant } from "./NoteEditor"
+import { AjoutAliment } from "./AjoutAliment"
 import {
   arrondi,
   dansLeMille,
@@ -164,6 +165,7 @@ function LigneMacros({
 
 export function Nutrition() {
   const [dateKey, setDateKey] = useState(jourCourant)
+  const [ajoutDans, setAjoutDans] = useState<{ uuid: string; nom: string } | null>(null)
   const reglages = useReglages()
   const journee = useJournee(dateKey)
 
@@ -196,6 +198,17 @@ export function Nutrition() {
       </button>
     </div>
   )
+
+  if (ajoutDans) {
+    return (
+      <AjoutAliment
+        dateKey={dateKey}
+        slotUUID={ajoutDans.uuid}
+        slotNom={ajoutDans.nom}
+        onFerme={() => setAjoutDans(null)}
+      />
+    )
+  }
 
   const erreur = reglages.error ?? journee.error
   if (erreur) {
@@ -271,9 +284,18 @@ export function Nutrition() {
             <section className="repas vide" key={creneau.uuid}>
               <h3>
                 {creneau.name}
-                {objectif && (
-                  <span className="attenue"> {Math.round(objectif.kcal)} kcal prévues</span>
-                )}
+                <span>
+                  {objectif && (
+                    <span className="attenue">{Math.round(objectif.kcal)} kcal prévues</span>
+                  )}
+                  <button
+                    className="ajouter"
+                    onClick={() => setAjoutDans({ uuid: creneau.uuid, nom: creneau.name })}
+                    aria-label={`Ajouter à ${creneau.name}`}
+                  >
+                    +
+                  </button>
+                </span>
               </h3>
             </section>
           )
@@ -282,9 +304,18 @@ export function Nutrition() {
           <section className="repas" key={creneau.uuid}>
             <h3>
               {creneau.name}
-              <span className={"kcal-repas" + classeDe(consomme.kcal, objectif?.kcal ?? null)}>
-                {Math.round(consomme.kcal)}
-                {objectif && <span className="attenue"> / {Math.round(objectif.kcal)}</span>}
+              <span>
+                <span className={"kcal-repas" + classeDe(consomme.kcal, objectif?.kcal ?? null)}>
+                  {Math.round(consomme.kcal)}
+                  {objectif && <span className="attenue"> / {Math.round(objectif.kcal)}</span>}
+                </span>
+                <button
+                  className="ajouter"
+                  onClick={() => setAjoutDans({ uuid: creneau.uuid, nom: creneau.name })}
+                  aria-label={`Ajouter à ${creneau.name}`}
+                >
+                  +
+                </button>
               </span>
             </h3>
             {note && <p className="note-repas">{note}</p>}

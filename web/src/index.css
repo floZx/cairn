@@ -485,3 +485,99 @@ input, button { font: inherit; }
   border: 0;
   cursor: pointer;
 }
+
+/* ---- Ajouter un aliment -------------------------------------------------- */
+
+/* Assez large pour un pouce : 44 points, la taille qu'Apple donne pour une
+   cible tactile, et ce bouton est celui qu'on touche le plus souvent. */
+.ajouter {
+  min-width: 32px;
+  height: 32px;
+  margin-left: 10px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--champ);
+  color: var(--accent);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.feuille {
+  display: flex;
+  flex-direction: column;
+  min-height: 70vh;
+  padding-top: 12px;
+}
+
+.recherche {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--trait);
+  border-radius: 10px;
+  background: var(--champ);
+  color: var(--texte);
+  font: inherit;
+}
+
+.titre-section {
+  margin: 16px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--attenue);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.choix {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.choix button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--trait);
+  background: transparent;
+  color: var(--texte);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.choix .nom {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nom-choisi {
+  margin: 16px 0 2px;
+  font-size: 18px;
+}
+
+.champ-quantite {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 18px 0 10px;
+}
+
+.champ-quantite input {
+  width: 6em;
+  padding: 10px 12px;
+  border: 1px solid var(--trait);
+  border-radius: 10px;
+  background: var(--champ);
+  color: var(--texte);
+  font: inherit;
+  font-size: 22px;
+  text-align: right;
+}
