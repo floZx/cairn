@@ -16,15 +16,18 @@ enum JournalImport {
     struct Outcome: Equatable {
         var notes: Int
         var attachments: Int
-        /// File names that failed to enter the store as ordinary text: the
-        /// bytes were not valid UTF-8, or — rarer — could not even be
-        /// reread. Imported anyway, empty in that second case.
+        /// Names — notes and attachments both — that failed to enter the
+        /// store as their ordinary bytes: a note whose bytes were not valid
+        /// UTF-8, or either one reread and, rarer, unreadable outright.
+        /// Imported anyway where that is possible, empty text in the second
+        /// case for a note, simply not counted for an attachment.
         var unreadable: [String]
     }
 
     /// Thrown to abort a run without marking it done: at least one daily
-    /// note is still an iCloud placeholder. Never escapes as a documented
-    /// failure — the point is only that this run must not succeed at all.
+    /// note, or one picture in `pieces-jointes/`, is still an iCloud
+    /// placeholder. Never escapes as a documented failure — the point is
+    /// only that this run must not succeed at all.
     private struct PendingDownloads: Error {}
 
     /// Runs once. Returns nil when it did nothing because it had already run.
@@ -36,10 +39,10 @@ enum JournalImport {
     ///   nothing to retry either.
     /// - The folder cannot be read (unplugged disk, iCloud not yet synced
     ///   down): `JournalFolder.notes(in:)` throws.
-    /// - At least one daily note is still an iCloud placeholder
-    ///   (`hasPendingDownloads`): a note stuck syncing when this ran must not
-    ///   be dropped from the journal for good, so this run aborts the same
-    ///   way a folder that cannot be listed does.
+    /// - At least one note or picture is still an iCloud placeholder
+    ///   (`hasPendingDownloads`): stuck syncing when this ran must not mean
+    ///   dropped from the journal for good, so this run aborts the same way
+    ///   a folder that cannot be listed does.
     /// - A file exists but fails to decode: it is still counted and still
     ///   imported — see `text(for:)` below — and its name is reported in
     ///   `unreadable`. This run still marks itself done: looping on a
@@ -79,7 +82,9 @@ enum JournalImport {
 
             guard !hasPendingDownloads(in: folder) else { throw PendingDownloads() }
 
-            let attachmentCount = importAttachments(from: folder, into: context)
+            let attachmentCount = importAttachments(
+                from: folder, into: context, unreadable: &unreadable
+            )
 
             try context.save()
             defaults.set(true, forKey: JournalSettings.importDoneKey)
@@ -106,7 +111,7 @@ enum JournalImport {
     /// taking it in empty.
     ///
     /// Readable text is not exempt from the one substitution
-    /// `encodeBytesLosslessly` makes, either: see `escapingNUL(_ text:)`.
+    /// `encodeBytesLosslessly` makes, either: see `escapingNUL(_:)`.
     private static func text(
         for fileNote: JournalFileNote, in folder: URL, unreadable: inout [String]
     ) -> String {
@@ -144,12 +149,18 @@ enum JournalImport {
         )
     }
 
-    /// The same one substitution as `encodeBytesLosslessly`, for text that
-    /// already decoded as UTF-8 without trouble: a file can be perfectly
-    /// valid UTF-8 and still carry a literal NUL character partway through,
-    /// so every note passes through this on its way into the store, not
-    /// only the ones `JournalFolder.notes(in:)` gave up on.
-    private static func escapingNUL(_ text: String) -> String {
+    /// The one substitution `encodeBytesLosslessly` makes, and the one every
+    /// note's text is held to before it enters the store: `0x00` — or, here,
+    /// the character U+0000 — becomes U+E000 (Private Use Area).
+    ///
+    /// Not `private`: `unescapingNUL(_:)` right below is its exact inverse,
+    /// and an export writing `JournalNote.text` back out to a file needs
+    /// that inverse to undo this before encoding the result as UTF-8 —
+    /// otherwise the substitution this function makes would reach the file
+    /// as a literal U+E000 where the original had a NUL. Kept beside its
+    /// inverse on purpose: two functions that answer each other belong at
+    /// the same address, not duplicated at their caller's.
+    static func escapingNUL(_ text: String) -> String {
         String(
             String.UnicodeScalarView(
                 text.unicodeScalars.map { $0.value == 0 ? Unicode.Scalar(0xE000)! : $0 }
@@ -157,24 +168,71 @@ enum JournalImport {
         )
     }
 
-    /// Whether the folder still holds at least one iCloud placeholder for a
-    /// daily note — `.2026-08-17.md.icloud`, the marker Files.app leaves for
-    /// a note not yet synced down.
+    /// The exact inverse of `escapingNUL(_:)`: every U+E000 becomes U+0000
+    /// again. `Tests/JournalImportTests.swift`'s
+    /// `laSubstitutionDuNulEtSonInverseFontLAllerRetour` holds the pair to a
+    /// function-to-function round trip rather than a hand-written one, which
+    /// is what keeps them answering each other as either is touched.
     ///
-    /// `JournalFolder.notes(in:)` already skips these silently and starts
-    /// their download, which is the right behaviour for every other
-    /// caller — the folder watcher picks the note up once it lands. This
-    /// recovery is the one caller that runs exactly once, so the same
-    /// silence would mean a note still syncing when it ran never enters the
-    /// store at all, not late. `JournalFolder.notes(in:)` reports nothing
-    /// about what it skipped, so this checks the directory listing directly.
+    /// What an export needs is exactly this, not a byte-level inverse of
+    /// `encodeBytesLosslessly`: whatever produced `JournalNote.text` — the
+    /// readable path or the reconstructed one — the store now holds a
+    /// `String`, and undoing this one substitution before encoding it as
+    /// UTF-8 is what writing it back to a file means. For a note that went
+    /// through `escapingNUL(_:)` on the way in, that reproduces the
+    /// original file's bytes exactly. For one rebuilt by
+    /// `encodeBytesLosslessly` from a file that was never valid UTF-8 to
+    /// begin with, it does not — by design, see that function's doc comment
+    /// on the round-trip bar this clears.
+    static func unescapingNUL(_ text: String) -> String {
+        String(
+            String.UnicodeScalarView(
+                text.unicodeScalars.map { $0.value == 0xE000 ? Unicode.Scalar(0)! : $0 }
+            )
+        )
+    }
+
+    /// Whether the folder still holds at least one iCloud placeholder — a
+    /// daily note (`.2026-08-17.md.icloud`) or a picture in
+    /// `pieces-jointes/` (`.2026-08-17-1.jpg.icloud`) — the marker
+    /// Files.app leaves for something not yet synced down.
+    ///
+    /// Both, not only notes: the first version of this function only looked
+    /// at the folder's root, which closed the hole for notes and left it
+    /// wide open for pictures — a `.jpg.icloud` placeholder has the
+    /// extension `icloud`, `importAttachments`'s allow-list turns it away
+    /// in silence, and the run would have gone on to succeed and mark
+    /// itself done with that picture never entering the store.
+    ///
+    /// `JournalFolder.notes(in:)` already skips note placeholders silently
+    /// and starts their download, which is the right behaviour for every
+    /// other caller — the folder watcher picks the note up once it lands.
+    /// This recovery is the one caller that runs exactly once, so the same
+    /// silence would mean something still syncing when it ran never enters
+    /// the store at all, not late. Neither `JournalFolder.notes(in:)` nor
+    /// `importAttachments` reports what it skipped, so this checks both
+    /// directory listings directly.
     private static func hasPendingDownloads(in folder: URL) -> Bool {
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path)
+        hasPendingDownloads(atPath: folder.path) { JournalFolder.date(fromFileName: $0) != nil }
+            || hasPendingDownloads(atPath: JournalFolder.attachmentsFolder(in: folder).path) {
+                JournalAttachmentRules.allowedExtensions.contains(
+                    URL(fileURLWithPath: $0).pathExtension.lowercased()
+                )
+            }
+    }
+
+    /// One directory's placeholders, matched against whatever makes a name
+    /// a real one for that directory — a date for notes, an allowed
+    /// extension for attachments. A directory that cannot be listed (no
+    /// `pieces-jointes/` at all, the ordinary case) holds none.
+    private static func hasPendingDownloads(
+        atPath path: String, validName isValid: (String) -> Bool
+    ) -> Bool {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: path)
         else { return false }
         return names.contains { name in
             guard name.hasPrefix("."), name.hasSuffix(".icloud") else { return false }
-            let inner = String(name.dropFirst().dropLast(".icloud".count))
-            return JournalFolder.date(fromFileName: inner) != nil
+            return isValid(String(name.dropFirst().dropLast(".icloud".count)))
         }
     }
 
@@ -189,12 +247,21 @@ enum JournalImport {
     /// Filtered by `JournalAttachmentRules.allowedExtensions`, the same
     /// list a paste or a drop is held to: without it, `contentsOfDirectory`
     /// hands back everything in the folder without distinction —
-    /// `.DS_Store`, a stray sub-directory, an `.icloud` placeholder for a
-    /// picture not yet synced down — and each would otherwise become a
-    /// `JournalAttachment` of its own, or abort the run trying to read one
-    /// as `Data`. The extension check turns both away before either
-    /// happens.
-    private static func importAttachments(from folder: URL, into context: ModelContext) -> Int {
+    /// `.DS_Store`, a stray sub-directory — and each would otherwise become
+    /// a `JournalAttachment` of its own, or abort the run trying to read
+    /// one as `Data`. An `.icloud` placeholder is turned away by the same
+    /// check, but `hasPendingDownloads` is what stands between it and being
+    /// silently dropped for good — this function runs only once that has
+    /// confirmed there is none left to worry about.
+    ///
+    /// A name that passes the extension check but still fails to read — a
+    /// permissions problem, a name that turned out to be a directory — is
+    /// not silently dropped either: it goes into `unreadable`, the same
+    /// list a damaged note's name goes into, rather than disappearing
+    /// without a trace the way an early version of this function let it.
+    private static func importAttachments(
+        from folder: URL, into context: ModelContext, unreadable: inout [String]
+    ) -> Int {
         let attachmentsFolder = JournalFolder.attachmentsFolder(in: folder)
         guard let names = try? FileManager.default.contentsOfDirectory(
             atPath: attachmentsFolder.path
@@ -203,9 +270,12 @@ enum JournalImport {
         var count = 0
         for name in names.sorted() {
             let ext = URL(fileURLWithPath: name).pathExtension.lowercased()
-            guard JournalAttachmentRules.allowedExtensions.contains(ext),
-                  let data = try? Data(contentsOf: attachmentsFolder.appending(path: name))
-            else { continue }
+            guard JournalAttachmentRules.allowedExtensions.contains(ext) else { continue }
+            guard let data = try? Data(contentsOf: attachmentsFolder.appending(path: name))
+            else {
+                unreadable.append(name)
+                continue
+            }
             context.insert(JournalAttachment(fileName: name, data: data))
             count += 1
         }

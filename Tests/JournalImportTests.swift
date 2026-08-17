@@ -164,9 +164,20 @@ struct JournalImportTests {
         let note = notes.first { $0.dateKeyRaw == "2026-08-17" }
         // Les 11 caractères d'"avant\0apres" sont tous là — pas les 5 d'
         // "avant" seul, ce que rendrait la troncature au NUL si la
-        // substitution n'avait pas eu lieu.
+        // substitution n'avait pas eu lieu. Défaite avec la vraie fonction
+        // inverse, pas un remplacement recalculé à la main.
         #expect(note?.text.unicodeScalars.count == 11)
-        #expect(note?.text.replacingOccurrences(of: "\u{E000}", with: "\0") == text)
+        #expect(note.map { JournalImport.unescapingNUL($0.text) } == text)
+    }
+
+    /// Le couple qui protège chaque note du piège du NUL doit rester son
+    /// propre inverse : l'un défait exactement ce que l'autre a fait,
+    /// aller-retour de fonction à fonction plutôt que par un texte
+    /// recalculé à la main — c'est ce que l'export de la tâche 5
+    /// consommera.
+    @Test func laSubstitutionDuNulEtSonInverseFontLAllerRetour() {
+        let text = "avant\0apres, à bientôt — « citation »"
+        #expect(JournalImport.unescapingNUL(JournalImport.escapingNUL(text)) == text)
     }
 
     /// Un dossier désigné mais vide — jamais une note écrite dedans — se
@@ -212,10 +223,9 @@ struct JournalImportTests {
         #expect(try context.fetch(FetchDescriptor<JournalNote>()).isEmpty)
     }
 
-    /// Les fichiers cachés (`.DS_Store`) et les substituts iCloud de pièces
-    /// jointes ne deviennent pas des `JournalAttachment` — l'extension est
-    /// le filtre, la même liste qu'un dépôt ou un collage.
-    @Test func lesFichiersCachesNeDeviennentPasDesPiecesJointes() throws {
+    /// Un fichier caché (`.DS_Store`) ne devient pas un `JournalAttachment` —
+    /// l'extension est le filtre, la même liste qu'un dépôt ou un collage.
+    @Test func unFichierCacheNeDevientPasUnePieceJointe() throws {
         let folder = try makeFolder(
             notes: [:],
             attachments: ["2026-08-17-1.jpg": Data(repeating: 0x7F, count: 4)]
@@ -223,7 +233,6 @@ struct JournalImportTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let sub = folder.appending(path: JournalAttachmentRules.folderName)
         try Data().write(to: sub.appending(path: ".DS_Store"))
-        try Data().write(to: sub.appending(path: ".2026-08-17-2.jpg.icloud"))
         let (defaults, suiteName) = freshDefaults()
         defer { discard(suiteName) }
         let context = ModelContext(try AppModelContainer.inMemory())
@@ -236,8 +245,33 @@ struct JournalImportTests {
         #expect(try context.fetch(FetchDescriptor<JournalAttachment>()).count == 1)
     }
 
+    /// Une image encore un substitut iCloud non téléchargé ne doit pas
+    /// marquer la reprise faite : le trou fermé pour les notes existait
+    /// aussi côté images, avant que `hasPendingDownloads` ne regarde
+    /// `pieces-jointes/`.
+    @Test func unSubstitutICloudDUneImageEnAttenteNeMarquePasFait() throws {
+        let folder = try makeFolder(
+            notes: [:], attachments: ["2026-08-17-1.jpg": Data(repeating: 0x7F, count: 4)]
+        )
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let sub = folder.appending(path: JournalAttachmentRules.folderName)
+        try Data().write(to: sub.appending(path: ".2026-08-17-2.jpg.icloud"))
+        let (defaults, suiteName) = freshDefaults()
+        defer { discard(suiteName) }
+        let context = ModelContext(try AppModelContainer.inMemory())
+
+        #expect(throws: (any Error).self) {
+            try JournalImport.runIfNeeded(context, folderPath: folder.path, defaults: defaults)
+        }
+
+        #expect(!defaults.bool(forKey: JournalSettings.importDoneKey))
+        #expect(try context.fetch(FetchDescriptor<JournalAttachment>()).isEmpty)
+    }
+
     /// Un sous-dossier dans `pieces-jointes/` — improbable, mais pas
-    /// impossible — ne doit pas faire échouer toute la reprise.
+    /// impossible — ne doit pas faire échouer toute la reprise, et ne doit
+    /// pas non plus disparaître sans laisser de trace : son nom passe le
+    /// filtre d'extension, mais `Data(contentsOf:)` échoue sur un dossier.
     @Test func unSousDossierDansPiecesJointesNInterrompNienImporte() throws {
         let folder = try makeFolder(
             notes: [:],
@@ -256,5 +290,6 @@ struct JournalImportTests {
         )
 
         #expect(outcome?.attachments == 1)
+        #expect(outcome?.unreadable == ["sub.jpg"])
     }
 }
