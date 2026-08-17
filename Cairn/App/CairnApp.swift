@@ -77,7 +77,16 @@ struct CairnApp: App {
         WindowGroup {
             RootView()
                 .environment(app)
-                .task { app.syncOnLaunch() }
+                // Under the guard for the same reason the two `.task`s around
+                // it are, and it is the one that bit: `syncOnLaunch` pushes to
+                // the mirror, which refreshes the Supabase session — and a
+                // Supabase refresh token is single-use and rotating. Every
+                // hosted test launch spent the real one, stored the new one,
+                // and left the user's actual app holding a token Supabase had
+                // already retired: 401, `clearMirrorSession()`, signed out
+                // with no idea why. It also runs the Strava summary pass, on
+                // the real tokens and the real 2 000-a-day quota.
+                .task { if !AppModelContainer.isTesting { app.syncOnLaunch() } }
                 // At most once a day, and only if the library moved — see
                 // `BackupPlan`. Off the main thread, so a launch never waits
                 // on a hundred megabytes.
