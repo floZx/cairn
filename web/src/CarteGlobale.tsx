@@ -33,9 +33,26 @@ const FOND = {
       type: "geojson" as const,
       data: { type: "FeatureCollection" as const, features: [] },
     },
+    zone: {
+      type: "geojson" as const,
+      data: { type: "FeatureCollection" as const, features: [] },
+    },
   },
   layers: [
     { id: "ign", type: "raster" as const, source: "ign" },
+    // Sous les traces : la zone est un cadre, pas un calque qui les couvre.
+    {
+      id: "zone-fond",
+      type: "fill" as const,
+      source: "zone",
+      paint: { "fill-color": "#007aff", "fill-opacity": 0.08 },
+    },
+    {
+      id: "zone-bord",
+      type: "line" as const,
+      source: "zone",
+      paint: { "line-color": "#007aff", "line-width": 1.6, "line-dasharray": [3, 2] },
+    },
     {
       id: "traces",
       type: "line" as const,
@@ -55,6 +72,27 @@ const FOND = {
 }
 
 type Trait = GeoJSON.Feature<GeoJSON.LineString, { uuid: string }>
+
+/// Le rectangle d'une zone, comme MapLibre l'attend : un anneau fermé, dont
+/// le dernier point répète le premier.
+function rectangle(z: Zone): GeoJSON.Feature<GeoJSON.Polygon> {
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [z.minLon, z.minLat],
+          [z.maxLon, z.minLat],
+          [z.maxLon, z.maxLat],
+          [z.minLon, z.maxLat],
+          [z.minLon, z.minLat],
+        ],
+      ],
+    },
+  }
+}
 
 /// Le cadrage sur la masse des traces, et non sur leurs extrêmes.
 ///
@@ -179,6 +217,22 @@ export function CarteGlobale({
     // elle-même, et la reconstruire perdrait le cadrage à chaque frappe.
   }, [onOuvrir])
 
+  // La zone, dessinée dès qu'elle change — et au montage, ce qui est le cas
+  // qui manquait : revenir sur la carte après avoir filtré ne la montrait pas.
+  useEffect(() => {
+    const poser = () => {
+      const source = carte.current?.getSource("zone") as maplibregl.GeoJSONSource | undefined
+      source?.setData({
+        type: "FeatureCollection",
+        features: filtre.zone ? [rectangle(filtre.zone)] : [],
+      })
+    }
+    // Au montage, le style n'est pas encore chargé et la source n'existe pas :
+    // `setData` serait sans effet et sans erreur, ce qui est le pire des deux.
+    if (carte.current?.isStyleLoaded()) poser()
+    else carte.current?.once("load", poser)
+  }, [filtre.zone])
+
   // Le chargement, relancé à chaque changement de filtre.
   useEffect(() => {
     let annule = false
@@ -237,7 +291,15 @@ export function CarteGlobale({
           // appartient au doigt, et la recadrer sous lui serait la lui
           // reprendre.
           if (depuis === 0 && traits.length > 0 && carte.current) {
-            const limites = cadrageUtile(traits)
+            // Sur la zone quand il y en a une : c'est elle qu'on revient voir,
+            // et cadrer sur les traces qu'elle a retenues donnerait un cadre
+            // plus serré qu'elle, dont le bord sortirait de l'écran.
+            const limites = filtre.zone
+              ? new maplibregl.LngLatBounds(
+                  [filtre.zone.minLon, filtre.zone.minLat],
+                  [filtre.zone.maxLon, filtre.zone.maxLat],
+                )
+              : cadrageUtile(traits)
             if (limites) carte.current.fitBounds(limites, { padding: 32, animate: false })
           }
           if (data.length < PAR_PAGE) break
