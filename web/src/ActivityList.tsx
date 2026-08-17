@@ -240,7 +240,17 @@ export function ActivityList({ onOuvrir }: { onOuvrir: (uuid: string) => void })
         <Suspense fallback={<p className="attenue">Chargement de la carte…</p>}>
           <CarteGlobale
             filtre={filtre}
-            onZone={(zone) => setFiltre((f) => ({ ...f, zone }))}
+            onZone={(zone) => {
+              setFiltre((f) => ({ ...f, zone }))
+              // Poser une zone renvoie à la liste : c'est ce qu'on est venu
+              // chercher, et rester sur la carte donnait un dézoom aussitôt
+              // après — le filtre ayant changé, le chargement repart et sa
+              // première page recadre sous le doigt.
+              //
+              // La retirer ne referme pas : on la retire pour continuer à
+              // regarder la carte, pas pour la quitter.
+              if (zone) setSurLaCarte(false)
+            }}
             onOuvrir={onOuvrir}
           />
         </Suspense>
