@@ -466,3 +466,22 @@ input, button { font: inherit; }
   padding-top: 6px;
   text-align: right;
 }
+
+/* Le champ de date couvre la date écrite : c'est elle qu'on lit, lui qu'on
+   touche. `opacity: 0` plutôt que `display: none`, sans quoi Safari refuse
+   d'ouvrir le sélecteur. */
+.choix-jour {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.choix-jour input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: 0;
+  cursor: pointer;
+}

@@ -172,7 +172,20 @@ export function Nutrition() {
       <button className="lien" onClick={() => setDateKey(decale(dateKey, -1))}>
         ‹
       </button>
-      <span className="jour">{dateLongue(dateKey)}</span>
+      {/* Un champ de date natif plutôt qu'un calendrier maison : sur un
+          téléphone il ouvre le sélecteur du système, et remonter à juin
+          coûtait cinquante clics sur la flèche. La date en toutes lettres
+          reste au-dessus — `input[type=date]` affiche « 26/06/2026 », ce qui
+          ne dit pas quel jour de la semaine c'était. */}
+      <label className="choix-jour">
+        <span className="jour">{dateLongue(dateKey)}</span>
+        <input
+          type="date"
+          value={dateKey}
+          max={jourCourant()}
+          onChange={(e) => e.target.value && setDateKey(e.target.value)}
+        />
+      </label>
       <button
         className="lien"
         onClick={() => setDateKey(decale(dateKey, 1))}
@@ -289,9 +302,18 @@ export function Nutrition() {
                 )
               })}
             </ul>
-            {lignes.length > 1 && (
+            {/* Les macros du repas contre celles que son objectif adaptatif
+                lui alloue — la même question que les calories juste au-dessus,
+                posée pour les trois autres. Affichée dès qu'il y a un aliment,
+                même un seul : savoir si ce qu'on vient de manger tient dans le
+                repas ne dépend pas du nombre de lignes. */}
+            {lignes.length > 0 && (
               <div className="sous-total">
-                <LigneMacros m={consomme} sansUnite />
+                <LigneMacros
+                  m={consomme}
+                  objectif={cibles ? objectif : null}
+                  sansUnite
+                />
               </div>
             )}
           </section>
