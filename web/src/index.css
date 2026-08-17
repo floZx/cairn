@@ -1691,18 +1691,6 @@ body {
   );
 }
 
-/* La grande icône en filigrane, dans le coin : elle nomme le sport d'un coup
-   d'œil sans prendre une ligne de texte. Débordante et rognée, comme sur le
-   Mac — entière et centrée, elle deviendrait une illustration. */
-.entete-fiche > .icone-sport {
-  position: absolute;
-  top: calc(env(safe-area-inset-top) + 22px);
-  right: -18px;
-  opacity: 0.14;
-  stroke-width: 1.1;
-  pointer-events: none;
-}
-
 .entete-fiche .retour {
   position: relative;
   display: block;

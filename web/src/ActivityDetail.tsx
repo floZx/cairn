@@ -112,10 +112,8 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
 
   return (
     <>
-      {/* Le halo du sport, sa grande icône en filigrane, la date entière et
-          les pastilles : l'en-tête de la fiche du Mac, dans l'ordre où elle
-          les pose. Le dégradé s'éteint à 45 % de la hauteur, comme
-          `SportWash`. */}
+      {/* Le halo du sport, la date entière et les pastilles. Le dégradé
+          s'éteint à 45 % de la hauteur, comme `SportWash`. */}
       <div
         className="entete-fiche"
         style={
@@ -124,7 +122,6 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
           } as React.CSSProperties
         }
       >
-        <IconeSport sport={data.sport_type_raw} taille={120} />
         {/* Le retour est dans le halo, non au-dessus : posé dehors, le
             dégradé commençait par une arête horizontale juste sous lui, là où
             sur le Mac il part du haut du volet. */}
