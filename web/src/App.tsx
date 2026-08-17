@@ -8,6 +8,7 @@ import { Journal } from "./Journal"
 import { Nutrition } from "./Nutrition"
 import { Stats } from "./Stats"
 import { Chrome, type Section } from "./Chrome"
+import { AUCUN, type Filtre } from "./criteres"
 import { BoutonCompte } from "./Compte"
 
 export function App() {
@@ -45,6 +46,12 @@ export function App() {
 
   const [section, setSection] = useState<Section>("activites")
 
+  // Le filtre et la vue carte vivent ici, et non dans la liste : ouvrir une
+  // fiche démonte la liste, et son état partait avec elle. On filtrait, on
+  // ouvrait un résultat, on revenait — et tout était à refaire.
+  const [filtre, setFiltre] = useState<Filtre>(AUCUN)
+  const [surLaCarte, setSurLaCarte] = useState(false)
+
   function ouvrir(uuid: string) {
     history.pushState(null, "", `?activite=${uuid}`)
     setOuverte(uuid)
@@ -65,7 +72,13 @@ export function App() {
       {surUneFiche ? (
         <ActivityDetail uuid={ouverte} onRetour={() => history.back()} />
       ) : section === "activites" ? (
-        <ActivityList onOuvrir={ouvrir} />
+        <ActivityList
+          onOuvrir={ouvrir}
+          filtre={filtre}
+          onFiltre={setFiltre}
+          surLaCarte={surLaCarte}
+          onCarte={setSurLaCarte}
+        />
       ) : section === "journal" ? (
         <Journal />
       ) : section === "nutrition" ? (

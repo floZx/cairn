@@ -6,7 +6,6 @@ import { dateCourte, denivele, distance, duree } from "./format"
 import { Feuille } from "./Chrome"
 import { Filtres } from "./Filtres"
 import {
-  AUCUN,
   bornes,
   estActif,
   passeLeSecondFiltre,
@@ -100,13 +99,34 @@ async function chargerPage(depuis: number, filtre: Filtre) {
   return data as unknown as Activite[]
 }
 
-export function ActivityList({ onOuvrir }: { onOuvrir: (uuid: string) => void }) {
-  const [filtre, setFiltre] = useState<Filtre>(AUCUN)
+export function ActivityList({
+  onOuvrir,
+  filtre,
+  onFiltre,
+  surLaCarte,
+  onCarte,
+}: {
+  onOuvrir: (uuid: string) => void
+  /// Détenus par `App` : ouvrir une fiche démonte cette liste, et un état
+  /// gardé ici repartirait à zéro au retour.
+  filtre: Filtre
+  onFiltre: (f: Filtre) => void
+  surLaCarte: boolean
+  onCarte: (v: boolean) => void
+}) {
+  const setFiltre = (maj: Filtre | ((f: Filtre) => Filtre)) =>
+    onFiltre(typeof maj === "function" ? maj(filtre) : maj)
+  const setSurLaCarte = (maj: boolean | ((v: boolean) => boolean)) =>
+    onCarte(typeof maj === "function" ? maj(surLaCarte) : maj)
+
   const [feuilleOuverte, setFeuilleOuverte] = useState(false)
-  const [surLaCarte, setSurLaCarte] = useState(false)
   // Le texte tapé et le filtre appliqué sont deux choses : sans ce délai,
   // chaque lettre relancerait une requête et referait toutes les pages.
-  const [saisie, setSaisie] = useState("")
+  //
+  // Amorcé sur le filtre en cours, et non sur une chaîne vide : au retour
+  // d'une fiche, une saisie repartie à zéro effacerait la recherche trois
+  // cents millisecondes plus tard, juste après l'avoir affichée.
+  const [saisie, setSaisie] = useState(() => filtre.recherche)
   useEffect(() => {
     const t = setTimeout(() => setFiltre((f) => ({ ...f, recherche: saisie })), 300)
     return () => clearTimeout(t)
