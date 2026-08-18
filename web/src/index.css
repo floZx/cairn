@@ -1310,6 +1310,10 @@ body {
    décrit ce qu'elle est plutôt que ce qu'elle sert ne se heurte à rien. */
 .ajouter.crayon {
   margin-left: 6px;
+  /* Les mêmes douze pixels que le « + » prend à sa gauche. Passé devant le
+     compteur, le crayon n'avait plus rien à sa droite et se retrouvait collé
+     au chiffre, quand l'autre bouton respirait. */
+  margin-right: 12px;
   color: var(--texte-2);
 }
 
