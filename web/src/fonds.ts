@@ -15,6 +15,12 @@ type Definition = {
   /// Les fonds sombres veulent une trace claire, et l'inverse : une ligne
   /// rouge sur une photo aérienne de forêt disparaît.
   trace: string
+  /// Une carte de papier, par opposition à une photo.
+  ///
+  /// Ce qui est dessiné se renverse — c'est ainsi qu'on obtient une carte
+  /// sombre là où la source n'en propose pas. Ce qui est photographié, non :
+  /// une forêt en négatif ne ressemble plus à rien.
+  papier: boolean
 }
 
 export const FONDS: Record<Fond, Definition> = {
@@ -24,6 +30,7 @@ export const FONDS: Record<Fond, Definition> = {
     format: "image/png",
     attribution: "© IGN — Géoplateforme",
     trace: "#e5332a",
+    papier: true,
   },
   carte: {
     nom: "Carte IGN",
@@ -31,6 +38,7 @@ export const FONDS: Record<Fond, Definition> = {
     format: "image/png",
     attribution: "© IGN — Géoplateforme",
     trace: "#c1121f",
+    papier: true,
   },
   satellite: {
     nom: "Satellite",
@@ -40,6 +48,7 @@ export const FONDS: Record<Fond, Definition> = {
     // Le rouge se perd dans la végétation d'une photo aérienne ; le jaune
     // tient sur la forêt comme sur la roche.
     trace: "#ffd60a",
+    papier: false,
   },
 }
 
@@ -91,16 +100,48 @@ export function retenirRelief(actif: boolean) {
 /// La source d'altitude est déclarée même quand le relief est éteint : une
 /// source ajoutée après coup demande de reconstruire le style, et l'allumer
 /// doit rester instantané.
+/// L'application est-elle en thème sombre ?
+function sombre(): boolean {
+  return matchMedia("(prefers-color-scheme: dark)").matches
+}
+
 /// La couche du dessous, sous les tuiles.
 ///
-/// Blanche, et non transparente : les PNG de l'IGN laissent voir au travers là
-/// où la carte est vide, et sans rien dessous c'est le noir de la page qui
-/// apparaissait — un plan blanc à traits fins se lisait alors comme une photo
-/// de nuit. La photo aérienne, elle, est opaque et ne la voit jamais.
-export const COUCHE_DU_DESSOUS = {
-  id: "papier",
-  type: "background" as const,
-  paint: { "background-color": "#ffffff" },
+/// Les PNG de l'IGN laissent voir au travers là où la carte est vide : sans
+/// rien dessous, c'est le noir de la page qui apparaissait, et un plan à traits
+/// fins se lisait comme une photo de nuit. Elle prend la couleur du papier une
+/// fois renversé, pour que les trous se confondent avec lui.
+export function coucheDuDessous(fond: Fond) {
+  const papier = FONDS[fond].papier
+  return {
+    id: "papier",
+    type: "background" as const,
+    paint: { "background-color": papier && sombre() ? "#0f0f11" : "#ffffff" },
+  }
+}
+
+/// La peinture des tuiles.
+///
+/// En thème sombre, une carte de papier est renversée : l'IGN n'en publie pas
+/// de version nocturne, et une grande page blanche dans le noir éblouit. Le
+/// renversement se fait ici, dans la couche du fond, et non par un filtre CSS
+/// sur la toile — celui-là retournerait aussi les traces, dont les couleurs
+/// sont justement choisies.
+///
+/// `brightness-min` à un et `brightness-max` à zéro : la rampe de MapLibre est
+/// prise à l'envers, ce qui donne `1 − c` sur chaque canal. La rotation de
+/// teinte remet ensuite les couleurs d'aplomb — sans elle, le bleu des
+/// rivières vire à l'orange.
+export function peintureDuFond(fond: Fond) {
+  if (!FONDS[fond].papier || !sombre()) return {}
+  return {
+    "raster-brightness-min": 1,
+    "raster-brightness-max": 0,
+    "raster-hue-rotate": 180,
+    // Le renversement crève les couleurs : sans cette retenue, les routes
+    // ressortent en fluo là où elles étaient discrètes.
+    "raster-saturation": -0.35,
+  }
 }
 
 export function sourcesDuFond(fond: Fond) {

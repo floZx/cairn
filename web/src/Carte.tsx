@@ -4,9 +4,10 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import type { Coordonnee } from "./track"
 import { ChoixFond } from "./ChoixFond"
 import {
-  COUCHE_DU_DESSOUS,
+  coucheDuDessous,
   FONDS,
   fondRetenu,
+  peintureDuFond,
   reliefRetenu,
   retenirFond,
   retenirRelief,
@@ -35,8 +36,13 @@ function styleAvec(trace: Coordonnee[], fond: Fond) {
       },
     },
     layers: [
-      COUCHE_DU_DESSOUS,
-      { id: "fond", type: "raster" as const, source: "fond" },
+      coucheDuDessous(fond),
+      {
+        id: "fond",
+        type: "raster" as const,
+        source: "fond",
+        paint: peintureDuFond(fond),
+      },
       {
         id: "trace",
         type: "line" as const,

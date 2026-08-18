@@ -6,8 +6,9 @@ import { traceDepuisBytea } from "./track"
 import { bornes, type Filtre, type Zone } from "./criteres"
 import { ChoixFond } from "./ChoixFond"
 import {
-  COUCHE_DU_DESSOUS,
+  coucheDuDessous,
   fondRetenu,
+  peintureDuFond,
   reliefRetenu,
   retenirFond,
   retenirRelief,
@@ -65,8 +66,13 @@ function styleAvec(fond: Fond) {
     },
   },
   layers: [
-    COUCHE_DU_DESSOUS,
-    { id: "fond", type: "raster" as const, source: "fond" },
+    coucheDuDessous(fond),
+    {
+      id: "fond",
+      type: "raster" as const,
+      source: "fond",
+      paint: peintureDuFond(fond),
+    },
     // Sous les traces : la zone est un cadre, pas un calque qui les couvre.
     {
       id: "zone-fond",
