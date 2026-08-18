@@ -430,9 +430,6 @@ export function Nutrition({
               <h3>
                 {creneau.name}
                 <span>
-                  {objectif && (
-                    <span className="attenue">{Math.round(objectif.kcal)} kcal prévues</span>
-                  )}
                   <button
                     className="ajouter crayon"
                     onClick={() => setNoteDe({ uuid: creneau.uuid, nom: creneau.name })}
@@ -453,6 +450,9 @@ export function Nutrition({
                     <path d="M14.5 5.5l4 4" />
                   </svg>
                   </button>
+                  {objectif && (
+                    <span className="attenue">{Math.round(objectif.kcal)} kcal prévues</span>
+                  )}
                   <button
                     className="ajouter"
                     onClick={() => setAjoutDans({ uuid: creneau.uuid, nom: creneau.name })}
@@ -478,13 +478,13 @@ export function Nutrition({
         }
         return (
           <section className="repas" key={creneau.uuid}>
+            {/* Le crayon passe devant le compteur : le chiffre se retrouve
+                ainsi collé au « + », qui est l'action qu'on vient chercher en
+                le lisant — « il me reste tant, j'ajoute ». Le crayon, lui, ne
+                répond pas au chiffre et n'a rien à faire entre les deux. */}
             <h3>
               {creneau.name}
               <span>
-                <span className={"kcal-repas" + classeDe(consomme.kcal, objectif?.kcal ?? null)}>
-                  {Math.round(consomme.kcal)}
-                  {objectif && <span className="attenue"> / {Math.round(objectif.kcal)}</span>}
-                </span>
                 <button
                   className="ajouter crayon"
                   onClick={() => setNoteDe({ uuid: creneau.uuid, nom: creneau.name })}
@@ -505,6 +505,10 @@ export function Nutrition({
                   <path d="M14.5 5.5l4 4" />
                   </svg>
                 </button>
+                <span className={"kcal-repas" + classeDe(consomme.kcal, objectif?.kcal ?? null)}>
+                  {Math.round(consomme.kcal)}
+                  {objectif && <span className="attenue"> / {Math.round(objectif.kcal)}</span>}
+                </span>
                 <button
                   className="ajouter"
                   onClick={() => setAjoutDans({ uuid: creneau.uuid, nom: creneau.name })}
