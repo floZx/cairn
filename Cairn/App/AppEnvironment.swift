@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftData
 import Observation
@@ -32,6 +33,11 @@ final class AppEnvironment {
     /// reads too.
     private let mirrorCursor: MirrorBootstrapCursor
     private var mirrorTask: Task<Void, Never>?
+    /// La boucle qui relève le miroir toute seule. Voir `startMirrorPolling()`.
+    private var mirrorPollTask: Task<Void, Never>?
+    /// Quand la dernière relève automatique est partie, pour ne pas en lancer
+    /// deux coup sur coup lorsqu'on passe d'une fenêtre à l'autre.
+    private var lastAutomaticMirrorSync: Date?
 
     var isAuthenticated: Bool
     var hasCredentials: Bool
@@ -218,8 +224,87 @@ final class AppEnvironment {
     func syncOnLaunch() {
         restoreLastSyncDate()
         pushMirrorOnLaunch()
+        startMirrorPolling()
         guard syncsOnLaunch, isAuthenticated else { return }
         syncSummariesOnly()
+    }
+
+    /// Combien de temps sépare deux relèves du miroir.
+    ///
+    /// Cinq minutes. Une relève à vide coûte une requête par table, sept en
+    /// tout : chacune s'arrête à sa première page incomplète, et un curseur
+    /// qui n'a rien à lire ne lit rien. C'est assez court pour qu'une note
+    /// écrite sur le téléphone arrive pendant qu'on regarde ailleurs, assez
+    /// long pour qu'une journée entière d'application ouverte ne fasse pas
+    /// mille appels.
+    static let mirrorPollInterval: Duration = .seconds(300)
+
+    /// Deux relèves automatiques ne se suivent jamais de plus près que cela.
+    ///
+    /// Passer d'une fenêtre à l'autre et revenir ne doit pas relancer une
+    /// lecture qui vient de finir.
+    static let mirrorPollFloor: TimeInterval = 30
+
+    /// Relève le miroir à intervalle régulier, tant que l'application vit.
+    ///
+    /// C'est la réponse à un défaut que Florian a signalé le 18 août 2026 :
+    /// une note écrite sur le téléphone n'arrivait sur le Mac qu'au lancement
+    /// suivant, la seule lecture étant celle de `pushMirrorOnLaunch`. Relancer
+    /// l'application pour lire son propre journal n'est pas un usage.
+    ///
+    /// La boucle tourne sans se soucier des réglages, et c'est délibéré :
+    /// c'est au moment de partir qu'on regarde si le miroir est configuré et
+    /// la session ouverte. Redémarrer la boucle à chaque changement de réglage
+    /// demanderait de les observer ; deux conditions relues toutes les cinq
+    /// minutes coûtent moins qu'un observateur de plus.
+    ///
+    /// Rien ici ne s'inquiète d'un recouvrement : `runMirror` garde un seul
+    /// créneau et rend la main tout de suite s'il est pris. Un tic qui tombe
+    /// pendant un amorçage est un tic sauté, ce qui est le bon comportement.
+    private func startMirrorPolling() {
+        mirrorPollTask?.cancel()
+        mirrorPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                // Le sommeil d'abord : le lancement vient de pousser, et une
+                // relève immédiate ne ferait que doubler la précédente.
+                try? await Task.sleep(for: Self.mirrorPollInterval)
+                guard !Task.isCancelled, let self else { return }
+                self.syncMirrorAutomatically()
+            }
+        }
+        observeActivation()
+    }
+
+    /// Relève le miroir en revenant au Mac.
+    ///
+    /// C'est le moment même où l'on vient voir ce qui a été écrit ailleurs, et
+    /// attendre le prochain quart de tour serait exactement ce qu'on cherche à
+    /// éviter. L'observateur ne capture pas `self` fortement : l'application
+    /// vit aussi longtemps que lui, mais un cycle de rétention n'a jamais
+    /// arrangé personne.
+    private func observeActivation() {
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: nil,
+        ) { [weak self] _ in
+            // Par une tâche du grand acteur plutôt qu'en supposant l'isolement
+            // depuis la file principale : la notification arrive sur le fil
+            // qui la publie, et l'ordonnancer est plus honnête que l'affirmer.
+            Task { @MainActor in self?.syncMirrorAutomatically() }
+        }
+    }
+
+    /// Une relève que personne n'a demandée : elle ne part que si le miroir a
+    /// de quoi parler, et jamais dans la foulée d'une autre.
+    private func syncMirrorAutomatically() {
+        guard isMirrorConfigured, isMirrorSignedIn else { return }
+        if let derniere = lastAutomaticMirrorSync,
+           Date().timeIntervalSince(derniere) < Self.mirrorPollFloor {
+            return
+        }
+        lastAutomaticMirrorSync = Date()
+        syncMirrorNow()
     }
 
     /// Sends whatever the outbox has accumulated since the last successful
