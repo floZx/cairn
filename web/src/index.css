@@ -911,9 +911,11 @@ input, button { font: inherit; }
   /* `svh` et non `dvh` : la hauteur dynamique change chaque fois que le
      clavier monte ou descend, et la feuille se redimensionnait en pleine
      animation d'ouverture — d'où un contenu qui saute. La petite hauteur, elle,
-     ne bouge pas ; la feuille déborde alors vers le bas, ce que son propre
-     défilement absorbe. */
-  max-height: 92svh;
+     ne bouge pas.
+     Bornée en plus par le voile, qui suit la fenêtre visuelle : clavier levé,
+     quatre-vingt-douze pour cent de l'écran entier dépasseraient par le haut,
+     et c'est la barre « Annuler / Enregistrer » qui sortait du cadre. */
+  max-height: min(92svh, 100%);
   display: flex;
   flex-direction: column;
   overflow-y: auto;

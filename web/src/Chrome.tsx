@@ -242,6 +242,38 @@ export function Feuille({
     return () => removeEventListener("keydown", surEchap)
   }, [onFerme])
 
+  // Le voile se cale sur la fenêtre **visuelle**, pas sur celle de mise en
+  // page.
+  //
+  // `interactive-widget=resizes-content` règle le cas d'Android, où le clavier
+  // rétrécit alors la mise en page et où un `position: fixed` suit tout seul.
+  // iOS ne connaît pas cette directive : la mise en page garde toute sa
+  // hauteur, le clavier se pose par-dessus, et la feuille — ancrée en bas —
+  // se retrouve dessous. Safari fait alors défiler la page pour montrer le
+  // champ, ce qui emporte le voile vers le haut : la barre « Annuler /
+  // Enregistrer » sortait de l'écran.
+  //
+  // `visualViewport` dit exactement ce qui reste visible. Le voile s'y colle,
+  // et la feuille vient se poser sur le clavier plutôt que derrière.
+  const voile = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const vue = window.visualViewport
+    if (!vue) return
+    const suivre = () => {
+      const boite = voile.current
+      if (!boite) return
+      boite.style.top = `${vue.offsetTop}px`
+      boite.style.bottom = `${Math.max(0, innerHeight - vue.height - vue.offsetTop)}px`
+    }
+    suivre()
+    vue.addEventListener("resize", suivre)
+    vue.addEventListener("scroll", suivre)
+    return () => {
+      vue.removeEventListener("resize", suivre)
+      vue.removeEventListener("scroll", suivre)
+    }
+  }, [])
+
   // Rendue dans le corps du document, jamais à sa place dans l'arbre : la
   // barre de navigation porte un `backdrop-filter`, et une propriété de
   // filtre crée un **bloc conteneur** pour tout descendant en
@@ -250,7 +282,7 @@ export function Feuille({
   //-dessus la barre au lieu de couvrir la page. Mesuré : le bouton de compte
   // vit dans cette barre.
   return createPortal(
-    <div className="voile" onClick={onFerme}>
+    <div className="voile" ref={voile} onClick={onFerme}>
       <div
         className={montee ? "feuille-modale montee" : "feuille-modale"}
         role="dialog"
