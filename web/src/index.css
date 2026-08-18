@@ -1116,6 +1116,15 @@ input, button { font: inherit; }
    sur le halo du sport, et un chevron seul n'a jamais eu besoin qu'on lui dise
    d'où il revient. */
 .barre-nav .retour {
+  /* La matière est réglée pour une barre large : sur un disque de trente-deux
+     pixels, son ombre portée de huit pixels vers le bas fait un quart du
+     diamètre, et son liseré du haut est trois fois plus vif que celui du bas.
+     Le disque paraît alors monter, et ce qu'il contient descendre. Ici l'ombre
+     est courte et le liseré égal des deux côtés. */
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.28),
+    inset 0 0.5px 0 color-mix(in srgb, var(--lueur) 42%, transparent),
+    inset 0 -0.5px 0 color-mix(in srgb, var(--lueur) 30%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;

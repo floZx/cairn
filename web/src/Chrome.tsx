@@ -166,12 +166,15 @@ export function Chrome({
               strokeLinejoin="round"
               aria-hidden
             >
-              {/* Décalé de trois quarts d'unité vers la droite pour tomber au
-                  milieu. Le tracé va de 7,5 à 15 dans une boîte de 24 : son
-                  encre est centrée sur 11,25, pas sur 12. Un demi-pixel de
-                  travers, que l'écran d'un téléphone rend visible là où celui
-                  d'un ordinateur le noie. */}
-              <path d="M15.75 4.5L8.25 12l7.5 7.5" />
+              {/* Un demi-point à gauche du centre géométrique, et c'est voulu.
+                  Un chevron n'est pas symétrique : sa pointe est un trait qui
+                  converge, ses deux becs s'ouvrent et pèsent plus lourd.
+                  Centré au compas — l'encre exactement sur douze, extrémités
+                  arrondies comprises — il se lit tout de même poussé à droite ;
+                  mesuré sur un agrandissement, d'environ un pixel.
+                  La moitié seulement de cette mesure : une correction optique
+                  trop franche déplace le défaut au lieu de le corriger. */}
+              <path d="M15.25 4.5L7.75 12l7.5 7.5" />
             </svg>
           </button>
         )}
