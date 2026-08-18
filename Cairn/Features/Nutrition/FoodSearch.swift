@@ -62,32 +62,36 @@ enum FoodSearch {
         return matching + ranked
     }
 
-    /// À quel point ce produit *est* ce qu'on a demandé — zéro étant le mieux.
+    /// À quel point ce produit répond à ce qu'on a demandé — zéro étant le
+    /// mieux.
     ///
-    /// Trois rangs, et deux défauts distincts à réparer.
+    /// Trois critères, dans cet ordre, et le second vient d'une mesure qui a
+    /// renversé l'intuition de départ.
     ///
-    /// Le premier : « une banane est une banane, c'est pas un code-barre ».
-    /// Tout ce qui vient d'un primeur est sans marque — une courgette, une
-    /// tomate — et les vingt références de marque qui les précédaient ne
-    /// proposaient qu'un choix arbitraire entre des fiches inégalement
-    /// remplies. Sans marque et nommé exactement : rang 0.
+    /// **Le nom d'abord.** Chercher « banane » et recevoir « Barre énergie
+    /// banane coco » avant « Bananes » est un mauvais classement, marque ou
+    /// pas. L'égalité se juge au pluriel près et sur la recherche entière :
+    /// « skyr danone » ne promeut donc rien, aucun produit ne s'appelant
+    /// ainsi, et tout reste dans l'ordre du moteur.
     ///
-    /// Le second : chercher « banane » et recevoir « Barre énergie banane
-    /// coco » avant « Bananes » est un mauvais classement, marque ou pas. Un
-    /// nom qui vaut la recherche entière passe donc devant un nom qui la
-    /// contient : rang 1 contre rang 2.
+    /// **La donnée ensuite.** L'intention était « le générique d'abord, une
+    /// banane est une banane ». Puis j'ai compté, le 18 août 2026, sur les
+    /// cinquante premiers de trois catégories d'Open Food Facts : dix-sept
+    /// bananes génériques sans marque, sept courgettes, une tomate — et
+    /// **aucune** ne porte de fibres. Ce sont des fiches nues, un nom et rien
+    /// d'autre. Mettre le générique devant sans réserve, c'était donc garantir
+    /// un tiret à chaque saisie. Un produit renseigné passe devant un produit
+    /// muet.
     ///
-    /// L'égalité de nom se juge au pluriel près, et sur la recherche entière :
-    /// « banane » vaut « Banane » et « Bananes », jamais « Barre chocolatée à
-    /// la banane ». Et « skyr danone » ne promeut rien — aucun produit ne
-    /// s'appelle ainsi, tous restent au rang 2 dans l'ordre du moteur. Une
-    /// règle plus large ferait passer un « Skyr » générique devant le « Skyr
-    /// Danone » qu'on vient précisément de nommer.
+    /// **L'absence de marque enfin**, pour départager. C'est là qu'elle a sa
+    /// place : entre deux bananes également documentées, celle du primeur.
     static func rank(_ hit: Hit, needle: String) -> Int {
         let name = normalized(hit.name).trimmingCharacters(in: .whitespaces)
         let whole = name == needle || name == needle + "s" || needle == name + "s"
-        guard whole else { return 2 }
-        return hit.brands.trimmingCharacters(in: .whitespaces).isEmpty ? 0 : 1
+        guard whole else { return 4 }
+        let documented = hit.fiber100 != nil
+        let brandless = hit.brands.trimmingCharacters(in: .whitespaces).isEmpty
+        return (documented ? 0 : 2) + (brandless ? 0 : 1)
     }
 
     private static func key(_ hit: Hit) -> String {

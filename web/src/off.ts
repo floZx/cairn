@@ -115,28 +115,28 @@ export function assemble(
   return [...correspondants, ...classes]
 }
 
-/// À quel point ce produit *est* ce qu'on a demandé — zéro étant le mieux.
+/// À quel point ce produit répond à ce qu'on a demandé — zéro étant le mieux.
 ///
-/// Porté de `FoodSearch.rank`. Trois rangs, et deux défauts distincts à
-/// réparer.
+/// Porté de `FoodSearch.rank`. Trois critères, dans cet ordre.
 ///
-/// Le premier : « une banane est une banane, c'est pas un code-barre ». Tout
-/// ce qui vient d'un primeur est sans marque — une courgette, une tomate — et
-/// les vingt références de marque qui les précédaient ne proposaient qu'un
-/// choix arbitraire entre des fiches inégalement remplies.
+/// **Le nom d'abord.** Chercher « banane » et recevoir « Barre énergie banane
+/// coco » avant « Bananes » est un mauvais classement, marque ou pas.
+/// L'égalité se juge au pluriel près et sur la recherche entière : « skyr
+/// danone » ne promeut rien, tout reste dans l'ordre du moteur.
 ///
-/// Le second : chercher « banane » et recevoir « Barre énergie banane coco »
-/// avant « Bananes » est un mauvais classement, marque ou pas. C'est ce que
-/// rend le moteur d'Open Food Facts, mesuré le 18 août 2026 — et c'est le
-/// défaut que ce rang répare vraiment sur le web, leur moteur ne remontant
-/// aucune banane sans marque, même sur cinquante résultats.
+/// **La donnée ensuite**, et ce critère vient d'une mesure qui a renversé
+/// l'intuition de départ. Le 18 août 2026, sur les cinquante premiers de trois
+/// catégories : dix-sept bananes génériques sans marque, sept courgettes, une
+/// tomate — et aucune ne porte de fibres. Ce sont des fiches nues. Mettre le
+/// générique devant sans réserve, c'était garantir un tiret à chaque saisie.
 ///
-/// L'égalité de nom se juge au pluriel près et sur la recherche entière :
-/// « skyr danone » ne promeut rien, tout reste au rang 2 dans l'ordre du
-/// moteur.
+/// **L'absence de marque enfin**, pour départager : entre deux bananes
+/// également documentées, celle du primeur.
 export function rang(aliment: Aliment, aiguille: string): number {
   const nom = normalise(aliment.nom).trim()
   const entier = nom === aiguille || nom === aiguille + "s" || aiguille === nom + "s"
-  if (!entier) return 2
-  return aliment.marque.trim() === "" ? 0 : 1
+  if (!entier) return 4
+  const renseigne = aliment.fiber100 !== null
+  const sansMarque = aliment.marque.trim() === ""
+  return (renseigne ? 0 : 2) + (sansMarque ? 0 : 1)
 }

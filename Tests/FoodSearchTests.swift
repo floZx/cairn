@@ -14,38 +14,54 @@ struct FoodSearchTests {
     }
 
     private func plain(
-        _ name: String, code: String? = nil, id: String? = nil
+        _ name: String, code: String? = nil, id: String? = nil,
+        fibres: Double? = nil
     ) -> FoodSearch.Hit {
         FoodSearch.Hit(
             id: id ?? "hit:\(name)", name: name, brands: "", kcal100: 100,
-            protein100: 5, carbs100: 10, fat100: 3, productCode: code,
-            favoriteGrams: nil
+            protein100: 5, carbs100: 10, fat100: 3, fiber100: fibres,
+            productCode: code, favoriteGrams: nil
         )
     }
 
     private func marque(
-        _ name: String, _ brand: String, code: String
+        _ name: String, _ brand: String, code: String, fibres: Double? = 2
     ) -> FoodSearch.Hit {
         FoodSearch.Hit(
             id: "hit:\(code)", name: name, brands: brand, kcal100: 100,
-            protein100: 5, carbs100: 10, fat100: 3, productCode: code,
-            favoriteGrams: nil
+            protein100: 5, carbs100: 10, fat100: 3, fiber100: fibres,
+            productCode: code, favoriteGrams: nil
         )
     }
 
-    @Test("le générique sans marque passe devant les produits de marque")
-    func genericComesFirst() {
-        // Une banane est une banane : celle du primeur n'a pas de code-barre,
-        // et c'est elle qu'on cherche en tapant « banane ».
+    @Test("à données égales, le générique sans marque passe devant")
+    func brandlessWinsTheTie() {
+        // Une banane est une banane : celle du primeur n'a pas de marque, et
+        // c'est elle qu'on cherche en tapant « banane ».
         let merged = FoodSearch.assemble(
             query: "banane", favorites: [], recents: [],
             catalog: [
-                marque("Banane", "Chiquita", code: "1"),
-                marque("Banane bio", "Carrefour", code: "2"),
-                plain("Bananes", code: "3"),
+                marque("Banane", "Chiquita", code: "1", fibres: 2),
+                marque("Banane bio", "Carrefour", code: "2", fibres: 2),
+                plain("Bananes", code: "3", fibres: 2),
             ]
         )
-        #expect(merged.map(\.id) == ["hit:Bananes", "hit:1", "hit:2"])
+        #expect(merged.map(\.productCode) == ["3", "1", "2"])
+    }
+
+    @Test("un produit renseigné passe devant un générique muet")
+    func documentedBeatsEmptyGeneric() {
+        // Mesuré le 18 août 2026 : sur les cinquante premiers de trois
+        // catégories, aucun générique sans marque ne porte de fibres. Les
+        // mettre devant sans réserve garantissait un tiret à chaque saisie.
+        let merged = FoodSearch.assemble(
+            query: "banane", favorites: [], recents: [],
+            catalog: [
+                plain("Bananes", code: "1", fibres: nil),
+                marque("Banane", "Bio Leclerc", code: "2", fibres: 3.1),
+            ]
+        )
+        #expect(merged.map(\.productCode) == ["2", "1"])
     }
 
     @Test("la promotion ne touche pas une recherche qui nomme sa marque")
