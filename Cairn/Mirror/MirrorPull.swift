@@ -240,6 +240,11 @@ extension MirrorEngine {
         let protein100: Double
         let carbs100: Double
         let fat100: Double
+        /// Facultatives : absentes des lignes écrites avant que la colonne
+        /// existe, et absentes des aliments qu'Open Food Facts ne renseigne
+        /// pas. Les deux cas se lisent pareil, et c'est juste — ni l'un ni
+        /// l'autre ne dit « zéro ».
+        let fiber100: Double?
         let grams: Double
         let sort_order: Int
         let updated_at: String
@@ -347,7 +352,8 @@ extension MirrorEngine {
                     dateKey: dateKey, mealSlot: slot, foodName: row.food_name,
                     kcal100: row.kcal100, protein100: row.protein100,
                     carbs100: row.carbs100, fat100: row.fat100, grams: row.grams,
-                    sortOrder: row.sort_order, productCode: row.product_code
+                    sortOrder: row.sort_order, productCode: row.product_code,
+                    fiber100: row.fiber100
                 )
                 entry.uuid = row.uuid
                 context.insert(entry)
@@ -361,6 +367,7 @@ extension MirrorEngine {
             entry.protein100 = row.protein100
             entry.carbs100 = row.carbs100
             entry.fat100 = row.fat100
+            entry.fiber100 = row.fiber100
             entry.grams = row.grams
             entry.sortOrder = row.sort_order
             outcome.applied += 1

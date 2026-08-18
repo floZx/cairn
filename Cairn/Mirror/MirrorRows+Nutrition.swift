@@ -68,6 +68,10 @@ extension FoodEntry: MirrorRow {
             "protein100": .double(protein100),
             "carbs100": .double(carbs100),
             "fat100": .double(fat100),
+            // `.from` et non `.double` : le miroir doit porter l'absence,
+            // pas un zéro. Un aliment muet remonterait sinon sur le téléphone
+            // comme un aliment sans fibres, et sa journée paraîtrait complète.
+            "fiber100": .from(fiber100),
             "grams": .double(grams),
             "sort_order": .from(sortOrder),
         ]

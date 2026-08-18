@@ -299,7 +299,7 @@ struct MirrorNutritionTargetTests {
         )
 
         try await engine.push(
-            nutritionTargets: .init(proteinG: 130, fatG: 66, weightGoalKg: 70)
+            nutritionTargets: .init(proteinG: 130, fatG: 66, fiberG: 30, weightGoalKg: 70)
         )
 
         let tables = await transport.tableOrder()
@@ -319,7 +319,7 @@ struct MirrorNutritionTargetTests {
         )
 
         try await engine.push(
-            nutritionTargets: .init(proteinG: 130, fatG: 66, weightGoalKg: 70)
+            nutritionTargets: .init(proteinG: 130, fatG: 66, fiberG: 30, weightGoalKg: 70)
         )
 
         // `configuredStore()` pose la session sur l'identifiant « u ».

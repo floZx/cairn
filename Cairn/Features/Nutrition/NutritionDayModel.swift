@@ -40,6 +40,8 @@ struct NutritionDayModel: Equatable {
     var dayTypeName: String?
     var daily: Macros?
     var consumed: Macros
+    /// Les fibres du jour, et le nombre d'aliments qui n'en annoncent pas.
+    var fiber: FiberTally
     var meals: [Meal]
 
     @MainActor
@@ -67,6 +69,14 @@ struct NutritionDayModel: Equatable {
         let mealConsumed = mealEntries.map { entries in
             entries.map { Macros(of: $0).rounded() }.reduce(.zero, +)
         }
+        // Sommées sur les valeurs exactes, puis arrondies une fois à
+        // l'affichage — au contraire des macros, arrondies par portion.
+        // La règle des macros existe pour qu'une colonne de chiffres
+        // s'additionne à son total ; les fibres n'ont pas de colonne, aucune
+        // ligne de repas ne les montre. Les arrondir par portion ne servirait
+        // donc personne et effacerait les contributions sous le demi-gramme,
+        // dont une journée compte beaucoup.
+        let fiber = entries.map { FiberTally(of: $0) }.reduce(.zero, +)
         let targets = NutritionMath.adaptiveMealTargets(
             daily: daily,
             meals: zip(orderedSlots, zip(mealEntries, mealConsumed)).map {
@@ -112,6 +122,7 @@ struct NutritionDayModel: Equatable {
             dayTypeName: dayType?.name,
             daily: daily,
             consumed: mealConsumed.reduce(.zero, +),
+            fiber: fiber,
             meals: meals
         )
     }

@@ -507,12 +507,12 @@ final class AppEnvironment {
         }
     }
 
-    /// Les trois objectifs nutritionnels, lus dans `defaults` — jamais dans
+    /// Les quatre objectifs nutritionnels, lus dans `defaults` — jamais dans
     /// `UserDefaults.standard` en dur : c'est l'instance que cet environnement
     /// a reçue, et un test qui en injecte une jetable doit rester jetable.
     ///
     /// `double(forKey:)` répond `0` pour une clé absente, ce qui n'est pas la
-    /// valeur par défaut voulue : les trois sont donc lues par `object(forKey:)`
+    /// valeur par défaut voulue : les quatre sont donc lues par `object(forKey:)`
     /// avant de retomber sur celles de `NutritionSettings`, la même précaution
     /// que `syncsOnLaunch` prend juste au-dessus.
     private var nutritionTargets: MirrorEngine.NutritionTargets {
@@ -526,6 +526,10 @@ final class AppEnvironment {
             ),
             fatG: lire(
                 NutritionSettings.fatTargetKey, NutritionSettings.defaultFatTargetG
+            ),
+            fiberG: lire(
+                NutritionSettings.fiberTargetKey,
+                NutritionSettings.defaultFiberTargetG
             ),
             weightGoalKg: lire(
                 NutritionSettings.weightGoalKey, NutritionSettings.defaultWeightGoalKg

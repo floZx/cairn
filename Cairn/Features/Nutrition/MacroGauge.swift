@@ -66,3 +66,66 @@ struct MacroGauge: View {
         "\(Int(value.rounded()))"
     }
 }
+
+/// Les fibres du jour : un chiffre qu'on cherche à atteindre, jamais à ne pas
+/// dépasser.
+///
+/// Sœur de `MacroGauge` plutôt que variante à drapeaux, parce que deux règles
+/// changent, et ce sont les deux qui font l'intérêt de l'affaire.
+///
+/// D'abord la couleur. Quarante grammes de fibres pour trente visés n'est pas
+/// un dépassement, c'est une bonne journée : la jauge verdit à la cible et
+/// s'arrête là, là où `MacroGauge` passerait à l'orange puis au rouge.
+///
+/// Ensuite, et surtout, elle avoue ce qu'elle ignore. Open Food Facts ne
+/// connaît les fibres que de cinq produits sur six ; un total sec afficherait
+/// « 22 / 30 g » sur une journée dont trois aliments n'ont rien annoncé, ce
+/// qui n'est ni vrai ni faux mais incomplet. La ligne du dessous le dit, et
+/// c'est ce qui sépare un indicateur d'un chiffre décoratif.
+struct FiberGauge: View {
+    let tally: FiberTally
+    let target: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Fibres").font(.caption).foregroundStyle(.secondary)
+            Text(figure).font(.title3.monospacedDigit())
+            if target > 0 {
+                ProgressView(value: min(tally.grams / target, 1))
+                    .tint(atteint ? .green : .accentColor)
+                Text(sousLigne)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(atteint
+                                     ? AnyShapeStyle(.green)
+                                     : AnyShapeStyle(.secondary))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Atteinte dès la cible, et pour toujours au-delà — la même clémence de
+    /// neuf dixièmes que `NutritionMath.isOnTarget`, sans sa borne haute.
+    private var atteint: Bool {
+        target > 0 && tally.grams.rounded() >= (target * 0.90).rounded()
+    }
+
+    private var figure: String {
+        "\(entier(tally.grams)) / \(entier(target)) g"
+    }
+
+    /// Ce qui reste, ou ce qu'on ignore — jamais les deux, et le manque
+    /// d'abord : un « reste 8 g » calculé sur une journée trouée dirait un
+    /// chiffre précis à propos d'une somme qui ne l'est pas.
+    private var sousLigne: String {
+        if tally.unknownCount > 0 {
+            let pluriel = tally.unknownCount > 1 ? "s" : ""
+            return "\(tally.unknownCount) aliment\(pluriel) sans donnée"
+        }
+        let reste = target.rounded() - tally.grams.rounded()
+        return reste > 0 ? "reste \(entier(reste)) g" : "objectif atteint"
+    }
+
+    private func entier(_ value: Double) -> String {
+        "\(Int(value.rounded()))"
+    }
+}

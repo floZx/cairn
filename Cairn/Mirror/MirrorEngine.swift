@@ -304,6 +304,7 @@ actor MirrorEngine {
     struct NutritionTargets: Sendable, Equatable {
         var proteinG: Double
         var fatG: Double
+        var fiberG: Double
         var weightGoalKg: Double
     }
 
@@ -423,6 +424,7 @@ actor MirrorEngine {
             "user_id": .string(userID),
             "protein_g": .double(targets.proteinG),
             "fat_g": .double(targets.fatG),
+            "fiber_g": .double(targets.fiberG),
             "weight_goal_kg": .double(targets.weightGoalKg),
         ]
     }

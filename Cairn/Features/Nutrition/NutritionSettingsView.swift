@@ -10,6 +10,8 @@ struct NutritionSettingsView: View {
     private var proteinTarget = NutritionSettings.defaultProteinTargetG
     @AppStorage(NutritionSettings.fatTargetKey)
     private var fatTarget = NutritionSettings.defaultFatTargetG
+    @AppStorage(NutritionSettings.fiberTargetKey)
+    private var fiberTarget = NutritionSettings.defaultFiberTargetG
     @AppStorage(NutritionSettings.weightGoalKey)
     private var weightGoal = NutritionSettings.defaultWeightGoalKg
     @Query(sort: \DayType.sortOrder) private var dayTypes: [DayType]
@@ -27,6 +29,11 @@ struct NutritionSettingsView: View {
             Section("Cibles") {
                 DecimalField(placeholder: "Protéines (g/j)", value: $proteinTarget)
                 DecimalField(placeholder: "Lipides (g/j)", value: $fatTarget)
+                // Trente grammes par défaut, le repère de l'ANSES pour un
+                // adulte ; l'EFSA en retient vingt-cinq. C'est un chiffre de
+                // population, pas une prescription : d'où un champ, et non une
+                // valeur figée.
+                DecimalField(placeholder: "Fibres (g/j)", value: $fiberTarget)
                 DecimalField(
                     placeholder: "Objectif de poids (kg)", value: $weightGoal
                 )

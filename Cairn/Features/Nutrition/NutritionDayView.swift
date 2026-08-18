@@ -38,6 +38,8 @@ struct NutritionDayView: View {
     private var proteinTarget = NutritionSettings.defaultProteinTargetG
     @AppStorage(NutritionSettings.fatTargetKey)
     private var fatTarget = NutritionSettings.defaultFatTargetG
+    @AppStorage(NutritionSettings.fiberTargetKey)
+    private var fiberTarget = NutritionSettings.defaultFiberTargetG
     @AppStorage(NutritionSettings.weightGoalKey)
     private var weightGoal = NutritionSettings.defaultWeightGoalKg
     @State private var importMessage: String?
@@ -513,6 +515,9 @@ struct NutritionDayView: View {
                 title: "Lipides", consumed: model.consumed.fat,
                 target: model.daily?.fat, unit: "g"
             )
+            // La cinquième, et la seule qui ne dépende pas du type de
+            // journée : les calories suivent l'entraînement, les fibres non.
+            FiberGauge(tally: model.fiber, target: fiberTarget)
         }
     }
 

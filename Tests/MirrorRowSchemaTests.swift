@@ -112,7 +112,8 @@ struct MirrorRowSchemaTests {
         )
         let emitted = Set(
             MirrorEngine.nutritionTargetRow(
-                .init(proteinG: 130, fatG: 66, weightGoalKg: 70), userID: "u"
+                .init(proteinG: 130, fatG: 66, fiberG: 30, weightGoalKg: 70),
+                userID: "u"
             ).keys
         )
 

@@ -318,6 +318,9 @@ create table food_entry (
   protein100     double precision not null default 0,
   carbs100       double precision not null default 0,
   fat100         double precision not null default 0,
+  -- Facultatives : Open Food Facts ne les connaît que d'un produit sur six.
+  -- `null` veut dire « l'aliment n'a rien annoncé », ce qui n'est pas zéro.
+  fiber100       double precision,
   grams          double precision not null default 0,
   sort_order     bigint not null default 0
 );
@@ -618,6 +621,9 @@ create table nutrition_target (
 
   protein_g      double precision not null default 0,
   fat_g          double precision not null default 0,
+  -- Trente grammes, le repère de l'ANSES pour un adulte : un défaut qui a un
+  -- sens, contrairement à zéro qui rendrait toute journée « atteinte ».
+  fiber_g        double precision not null default 30,
   weight_goal_kg double precision not null default 0
 );
 
