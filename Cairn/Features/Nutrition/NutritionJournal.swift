@@ -28,7 +28,8 @@ enum NutritionJournal {
         in context: ModelContext, dateKey: DateKey, slot: MealSlot,
         foodName: String, kcal100: Double, protein100: Double,
         carbs100: Double, fat100: Double, grams: Double,
-        productCode: String? = nil, after: FoodEntry? = nil
+        productCode: String? = nil, fiber100: Double? = nil,
+        after: FoodEntry? = nil
     ) throws -> FoodEntry {
         let last = try siblings(of: dateKey.raw, slot: slot, in: context)
             .map(\.sortOrder).max() ?? 0
@@ -36,7 +37,7 @@ enum NutritionJournal {
             dateKey: dateKey, mealSlot: slot, foodName: foodName,
             kcal100: kcal100, protein100: protein100, carbs100: carbs100,
             fat100: fat100, grams: grams, sortOrder: last + 1,
-            productCode: productCode
+            productCode: productCode, fiber100: fiber100
         )
         context.insert(entry)
         try context.save()
@@ -170,7 +171,7 @@ enum NutritionJournal {
                 foodName: entry.foodName, kcal100: entry.kcal100,
                 protein100: entry.protein100, carbs100: entry.carbs100,
                 fat100: entry.fat100, grams: entry.grams,
-                productCode: entry.productCode
+                productCode: entry.productCode, fiber100: entry.fiber100
             ))
             try context.save()
             return true
@@ -208,7 +209,7 @@ extension NutritionJournal {
                 kcal100: item.kcal100, protein100: item.protein100,
                 carbs100: item.carbs100, fat100: item.fat100,
                 grams: item.grams, sortOrder: next,
-                productCode: item.productCode
+                productCode: item.productCode, fiber100: item.fiber100
             ))
             next += 1
         }
@@ -234,7 +235,7 @@ extension NutritionJournal {
                 foodName: entry.foodName, kcal100: entry.kcal100,
                 protein100: entry.protein100, carbs100: entry.carbs100,
                 fat100: entry.fat100, grams: entry.grams,
-                productCode: entry.productCode
+                productCode: entry.productCode, fiber100: entry.fiber100
             )
             item.sortOrder = index
             item.recipe = recipe
@@ -254,13 +255,14 @@ extension NutritionJournal {
     static func addRecipeItem(
         to recipe: Recipe, foodName: String, kcal100: Double,
         protein100: Double, carbs100: Double, fat100: Double,
-        grams: Double, productCode: String?, in context: ModelContext
+        grams: Double, productCode: String?, fiber100: Double? = nil,
+        in context: ModelContext
     ) throws -> RecipeItem {
         let next = (recipe.orderedItems.map(\.sortOrder).max() ?? -1) + 1
         let item = RecipeItem(
             foodName: foodName, kcal100: kcal100, protein100: protein100,
             carbs100: carbs100, fat100: fat100, grams: grams,
-            productCode: productCode
+            productCode: productCode, fiber100: fiber100
         )
         item.sortOrder = next
         item.recipe = recipe

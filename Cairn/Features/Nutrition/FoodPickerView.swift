@@ -9,6 +9,8 @@ struct FoodPick: Equatable {
     var protein100: Double
     var carbs100: Double
     var fat100: Double
+    /// Nulles quand la source ne les connaît pas — voir `FoodEntry.fiber100`.
+    var fiber100: Double?
     var grams: Double
     var productCode: String?
 }
@@ -238,6 +240,7 @@ struct FoodPickerView: View {
                 name: favorite.foodName, brands: "",
                 kcal100: favorite.kcal100, protein100: favorite.protein100,
                 carbs100: favorite.carbs100, fat100: favorite.fat100,
+                fiber100: favorite.fiber100,
                 productCode: favorite.productCode,
                 favoriteGrams: favorite.grams
             )
@@ -251,6 +254,7 @@ struct FoodPickerView: View {
                         name: product.name, brands: product.brands,
                         kcal100: product.kcal100, protein100: product.protein100,
                         carbs100: product.carbs100, fat100: product.fat100,
+                        fiber100: product.fiber100,
                         productCode: product.code, favoriteGrams: nil
                     )
                 }
@@ -297,6 +301,7 @@ struct FoodPickerView: View {
                 name: entry.foodName, brands: "",
                 kcal100: entry.kcal100, protein100: entry.protein100,
                 carbs100: entry.carbs100, fat100: entry.fat100,
+                fiber100: entry.fiber100,
                 productCode: entry.productCode, favoriteGrams: nil
             ))
             if hits.count == 30 { break }
@@ -499,7 +504,7 @@ struct FoodPickerView: View {
     ) -> String {
         let macros = Macros(of: FoodPick(
             foodName: "", kcal100: kcal100, protein100: protein100,
-            carbs100: carbs100, fat100: fat100, grams: grams
+            carbs100: carbs100, fat100: fat100, fiber100: nil, grams: grams
         ))
         return "\(Int(macros.kcal.rounded())) kcal · "
             + "P \(Int(macros.protein.rounded())) · "
@@ -528,7 +533,8 @@ struct FoodPickerView: View {
             onPick(FoodPick(
                 foodName: selected.name, kcal100: selected.kcal100,
                 protein100: selected.protein100, carbs100: selected.carbs100,
-                fat100: selected.fat100, grams: grams,
+                fat100: selected.fat100, fiber100: selected.fiber100,
+                grams: grams,
                 productCode: selected.productCode
             ))
         case .favorites:
@@ -536,14 +542,19 @@ struct FoodPickerView: View {
             onPick(FoodPick(
                 foodName: favorite.foodName, kcal100: favorite.kcal100,
                 protein100: favorite.protein100, carbs100: favorite.carbs100,
-                fat100: favorite.fat100, grams: grams,
+                fat100: favorite.fat100, fiber100: favorite.fiber100,
+                grams: grams,
                 productCode: favorite.productCode
             ))
         case .manual:
             onPick(FoodPick(
                 foodName: manualName.trimmingCharacters(in: .whitespaces),
                 kcal100: manualKcal, protein100: manualProtein,
-                carbs100: manualCarbs, fat100: manualFat, grams: grams,
+                carbs100: manualCarbs, fat100: manualFat,
+                // Une saisie manuelle ne dit rien des fibres : le formulaire
+                // n'en demande pas, et inventer un zéro les compterait comme
+                // connues et nulles.
+                fiber100: nil, grams: grams,
                 productCode: nil
             ))
         }

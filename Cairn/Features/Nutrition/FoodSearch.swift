@@ -18,6 +18,7 @@ enum FoodSearch {
         var protein100: Double
         var carbs100: Double
         var fat100: Double
+        var fiber100: Double?
         var productCode: String?
         var favoriteGrams: Double?
 

@@ -8,7 +8,45 @@ private struct TestPortion: FoodPortion {
     var protein100: Double = 10
     var carbs100: Double = 20
     var fat100: Double = 5
+    var fiber100: Double?
     var grams: Double
+}
+
+@Suite("FiberTally")
+struct FiberTallyTests {
+    @Test("les fibres d'une portion suivent les grammes")
+    func fiberScalesByGrams() {
+        let tally = FiberTally(of: TestPortion(fiber100: 10, grams: 250))
+        #expect(tally == FiberTally(grams: 25, unknownCount: 0))
+    }
+
+    @Test("un aliment sans fibres connues ne compte pas pour zéro")
+    func unknownFiberIsCountedNotZeroed() {
+        let tally = FiberTally(of: TestPortion(fiber100: nil, grams: 250))
+        #expect(tally.grams == 0)
+        // Le fait qui compte : la journée sait qu'elle ignore quelque chose.
+        // Sans lui, « 0 g » serait indiscernable d'un aliment qui n'en a pas.
+        #expect(tally.unknownCount == 1)
+    }
+
+    @Test("une journée additionne ce qu'elle sait et compte ce qu'elle ignore")
+    func dayAddsKnownAndCountsUnknown() {
+        let journee = [
+            TestPortion(fiber100: 10, grams: 100),
+            TestPortion(fiber100: nil, grams: 200),
+            TestPortion(fiber100: 4, grams: 50),
+            TestPortion(fiber100: nil, grams: 30),
+        ]
+        let total = journee.map { FiberTally(of: $0) }.reduce(.zero, +)
+        #expect(total.grams == 12)
+        #expect(total.unknownCount == 2)
+    }
+
+    @Test("l'arrondi est celui du gramme, et laisse le compte des muets")
+    func roundingKeepsTheUnknownCount() {
+        let tally = FiberTally(grams: 12.6, unknownCount: 3).rounded()
+        #expect(tally == FiberTally(grams: 13, unknownCount: 3))
+    }
 }
 
 @Suite("NutritionMath")

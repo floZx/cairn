@@ -14,6 +14,8 @@ final class FoodCatalog {
         var protein100: Double
         var carbs100: Double
         var fat100: Double
+        /// Nulles quand le produit ne les annonce pas — un produit sur six.
+        var fiber100: Double?
         var servingSize: String?
     }
 
@@ -67,6 +69,13 @@ final class FoodCatalog {
                 // journal value — the entry stores what we know.
                 carbs100: row["carbs_100g"]?.doubleValue ?? 0,
                 fat100: row["fat_100g"]?.doubleValue ?? 0,
+                // Nulles, jamais zéro : le produit qui n'annonce rien n'en
+                // contient pas zéro. Et un catalogue construit avant que la
+                // colonne existe rend nil de la même façon — le `SELECT p.*`
+                // ci-dessus donne un dictionnaire, où une colonne absente est
+                // simplement absente. Rien à migrer : un vieux fichier
+                // s'ouvre, il ne connaît juste aucune fibre.
+                fiber100: row["fiber_100g"]?.doubleValue,
                 servingSize: row["serving_size"]?.stringValue
             )
         }

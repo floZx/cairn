@@ -8,6 +8,8 @@ protocol FoodPortion {
     var protein100: Double { get }
     var carbs100: Double { get }
     var fat100: Double { get }
+    /// Nulles quand la source ne les connaît pas — voir `FoodEntry.fiber100`.
+    var fiber100: Double? { get }
     var grams: Double { get }
 }
 
@@ -17,6 +19,53 @@ extension FavoriteFood: FoodPortion {}
 /// The picker's own value, so the sheet computes a portion with the same
 /// arithmetic as everything that stores one.
 extension FoodPick: FoodPortion {}
+
+/// Ce qu'une journée compte de fibres, et ce qu'elle ignore.
+///
+/// À part de `Macros`, délibérément. Les fibres n'ont pas de cible par repas,
+/// pas de part adaptative, rien à déduire des calories : les glisser dans
+/// `Macros` les traînerait dans tout le calcul des cibles, où elles n'ont
+/// rien à faire.
+///
+/// Et surtout, elles ont ce que les macros n'ont pas : des trous. Un total de
+/// fibres sans le nombre d'aliments muets est un chiffre qu'on ne peut pas
+/// lire — « 22 g » sur une journée dont trois aliments n'ont rien annoncé
+/// n'est ni vrai ni faux, il est incomplet, et c'est cela qu'il faut dire.
+struct FiberTally: Equatable, Sendable {
+    /// La somme sur les seuls aliments qui annoncent leurs fibres.
+    var grams: Double
+    /// Combien d'aliments de la journée n'en annoncent pas.
+    var unknownCount: Int
+
+    static let zero = FiberTally(grams: 0, unknownCount: 0)
+
+    init(grams: Double, unknownCount: Int) {
+        self.grams = grams
+        self.unknownCount = unknownCount
+    }
+
+    init(of portion: some FoodPortion) {
+        if let fiber100 = portion.fiber100 {
+            self.init(grams: fiber100 * portion.grams / 100, unknownCount: 0)
+        } else {
+            self.init(grams: 0, unknownCount: 1)
+        }
+    }
+
+    static func + (lhs: FiberTally, rhs: FiberTally) -> FiberTally {
+        FiberTally(
+            grams: lhs.grams + rhs.grams,
+            unknownCount: lhs.unknownCount + rhs.unknownCount
+        )
+    }
+
+    /// Arrondi au gramme, comme tout ce qui s'écrit dans le journal — et pour
+    /// la même raison que `Macros.rounded()` : une colonne doit s'additionner
+    /// à ce qui est écrit sous elle.
+    func rounded() -> FiberTally {
+        FiberTally(grams: grams.rounded(), unknownCount: unknownCount)
+    }
+}
 
 struct Macros: Equatable, Sendable {
     var kcal: Double

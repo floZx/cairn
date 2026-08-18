@@ -35,6 +35,8 @@ final class RecipeItem {
     var protein100: Double = 0
     var carbs100: Double = 0
     var fat100: Double = 0
+    /// Facultatives, comme sur `FoodEntry` et pour la même raison.
+    var fiber100: Double?
     var grams: Double = 0
     /// Display and apply order inside the recipe. suivinut ordered by row id;
     /// items imported before this field exists stay at 0 and fall back to
@@ -44,13 +46,14 @@ final class RecipeItem {
     init(
         foodName: String, kcal100: Double, protein100: Double,
         carbs100: Double, fat100: Double, grams: Double,
-        productCode: String? = nil
+        productCode: String? = nil, fiber100: Double? = nil
     ) {
         self.foodName = foodName
         self.kcal100 = kcal100
         self.protein100 = protein100
         self.carbs100 = carbs100
         self.fat100 = fat100
+        self.fiber100 = fiber100
         self.grams = grams
         self.productCode = productCode
     }

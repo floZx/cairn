@@ -17,6 +17,7 @@ enum CatalogCSV {
         var protein: Int
         var carbs: Int
         var fat: Int
+        var fiber: Int
 
         /// The highest column index this parser ever reads — bounds how far
         /// `row(from:columns:)` needs to split a line before it can stop.
@@ -27,7 +28,7 @@ enum CatalogCSV {
         init(
             code: Int, name: Int, brands: Int, quantity: Int,
             servingSize: Int, countriesTags: Int, completeness: Int,
-            kcal: Int, protein: Int, carbs: Int, fat: Int
+            kcal: Int, protein: Int, carbs: Int, fat: Int, fiber: Int
         ) {
             self.code = code
             self.name = name
@@ -40,9 +41,10 @@ enum CatalogCSV {
             self.protein = protein
             self.carbs = carbs
             self.fat = fat
+            self.fiber = fiber
             self.maxIndex = max(
                 code, name, brands, quantity, servingSize, countriesTags,
-                completeness, kcal, protein, carbs, fat
+                completeness, kcal, protein, carbs, fat, fiber
             )
         }
     }
@@ -56,6 +58,8 @@ enum CatalogCSV {
         var protein: Double
         var carbs: Double?
         var fat: Double?
+        /// Nulles quand le produit ne les annonce pas — un sur six.
+        var fiber: Double?
         var servingSize: String?
         var completeness: Double
     }
@@ -93,7 +97,8 @@ enum CatalogCSV {
             kcal: try index(of: "energy-kcal_100g"),
             protein: try index(of: "proteins_100g"),
             carbs: try index(of: "carbohydrates_100g"),
-            fat: try index(of: "fat_100g")
+            fat: try index(of: "fat_100g"),
+            fiber: try index(of: "fiber_100g")
         )
     }
 
@@ -133,11 +138,20 @@ enum CatalogCSV {
         let fat = field(columns.fat).flatMap(Double.init)
         if let carbs, !(0...100).contains(carbs) { return nil }
         if let fat, !(0...100).contains(fat) { return nil }
+        // Une fibre invraisemblable écarte la fibre, pas le produit — au
+        // contraire des glucides et des lipides juste au-dessus. Ceux-là
+        // portent le journal ; les fibres sont un supplément, et perdre un
+        // aliment entier parce que quelqu'un a tapé 250 dans une case
+        // facultative serait payer trop cher une donnée qui manque déjà une
+        // fois sur six.
+        var fiber = field(columns.fiber).flatMap(Double.init)
+        if let value = fiber, !(0...100).contains(value) { fiber = nil }
         return Row(
             code: code, name: name,
             brands: field(columns.brands),
             quantity: field(columns.quantity),
             kcal: kcal, protein: protein, carbs: carbs, fat: fat,
+            fiber: fiber,
             servingSize: field(columns.servingSize),
             completeness: completeness
         )

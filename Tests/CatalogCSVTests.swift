@@ -8,7 +8,7 @@ struct CatalogCSVTests {
     private static let header = [
         "code", "url", "product_name", "brands", "quantity", "serving_size",
         "countries_tags", "completeness", "energy-kcal_100g", "proteins_100g",
-        "carbohydrates_100g", "fat_100g",
+        "carbohydrates_100g", "fat_100g", "fiber_100g",
     ].joined(separator: "\t")
 
     /// A line in the fixture header's order, with sensible defaults.
@@ -16,11 +16,12 @@ struct CatalogCSVTests {
         code: String = "123", name: String = "Flocons d'avoine",
         brands: String = "Marque A", countries: String = "en:france,en:belgium",
         completeness: String = "0.9", kcal: String = "370",
-        protein: String = "13", carbs: String = "60", fat: String = "7"
+        protein: String = "13", carbs: String = "60", fat: String = "7",
+        fiber: String = "10"
     ) -> String {
         [
             code, "https://exemple", name, brands, "500 g", "40 g",
-            countries, completeness, kcal, protein, carbs, fat,
+            countries, completeness, kcal, protein, carbs, fat, fiber,
         ].joined(separator: "\t")
     }
 
@@ -36,6 +37,32 @@ struct CatalogCSVTests {
         #expect(columns.name == 2)
         #expect(columns.kcal == 8)
         #expect(columns.fat == 11)
+    }
+
+    @Test("les fibres se lisent, et manquent sans bruit quand la case est vide")
+    func fiberIsReadAndMayBeAbsent() throws {
+        let columns = try columns()
+        let avecFibres = try #require(
+            CatalogCSV.row(from: line(fiber: "8.5"), columns: columns)
+        )
+        #expect(avecFibres.fiber == 8.5)
+        let sansFibres = try #require(
+            CatalogCSV.row(from: line(fiber: ""), columns: columns)
+        )
+        #expect(sansFibres.fiber == nil)
+    }
+
+    @Test("une fibre invraisemblable écarte la fibre, pas le produit")
+    func implausibleFiberDropsOnlyTheFiber() throws {
+        let columns = try columns()
+        // Les glucides et les lipides écartent la ligne entière ; les fibres
+        // non, parce qu'elles sont un supplément et qu'un aliment perdu coûte
+        // plus cher qu'une case vide de plus.
+        let row = try #require(
+            CatalogCSV.row(from: line(fiber: "250"), columns: columns)
+        )
+        #expect(row.fiber == nil)
+        #expect(row.name == "Flocons d'avoine")
     }
 
     @Test("une colonne manquante échoue en la nommant")

@@ -21,6 +21,13 @@ final class FoodEntry {
     var protein100: Double = 0
     var carbs100: Double = 0
     var fat100: Double = 0
+    /// Les fibres pour cent grammes, **facultatives**.
+    ///
+    /// Nulles et non zéro : Open Food Facts ne les connaît que pour cinq
+    /// produits sur six, et un aliment qui n'a rien annoncé n'en contient pas
+    /// zéro — il n'a rien dit. Confondre les deux ferait d'un total partiel un
+    /// total faux, et c'est précisément ce que la jauge doit avouer.
+    var fiber100: Double?
     var grams: Double = 0
     var sortOrder: Int = 0
 
@@ -28,7 +35,7 @@ final class FoodEntry {
         dateKey: DateKey, mealSlot: MealSlot?, foodName: String,
         kcal100: Double, protein100: Double, carbs100: Double,
         fat100: Double, grams: Double, sortOrder: Int = 0,
-        productCode: String? = nil
+        productCode: String? = nil, fiber100: Double? = nil
     ) {
         self.dateKeyRaw = dateKey.raw
         self.mealSlot = mealSlot
@@ -37,6 +44,7 @@ final class FoodEntry {
         self.protein100 = protein100
         self.carbs100 = carbs100
         self.fat100 = fat100
+        self.fiber100 = fiber100
         self.grams = grams
         self.sortOrder = sortOrder
         self.productCode = productCode

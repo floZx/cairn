@@ -112,6 +112,7 @@ enum CatalogBuilder {
                 code TEXT PRIMARY KEY, name TEXT NOT NULL, brands TEXT,
                 quantity TEXT, kcal_100g REAL NOT NULL,
                 protein_100g REAL NOT NULL, carbs_100g REAL, fat_100g REAL,
+                fiber_100g REAL,
                 serving_size TEXT, completeness REAL);
             CREATE VIRTUAL TABLE products_fts USING fts5(
                 name, brands, code UNINDEXED,
@@ -125,8 +126,8 @@ enum CatalogBuilder {
             """
             INSERT OR REPLACE INTO products
                 (code, name, brands, quantity, kcal_100g, protein_100g,
-                 carbs_100g, fat_100g, serving_size, completeness)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
+                 carbs_100g, fat_100g, fiber_100g, serving_size, completeness)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
             """
         )
 
@@ -148,6 +149,7 @@ enum CatalogBuilder {
                 .real(row.kcal), .real(row.protein),
                 row.carbs.map(SQLiteDatabase.Value.real) ?? .null,
                 row.fat.map(SQLiteDatabase.Value.real) ?? .null,
+                row.fiber.map(SQLiteDatabase.Value.real) ?? .null,
                 row.servingSize.map(SQLiteDatabase.Value.text) ?? .null,
                 .real(row.completeness),
             ])

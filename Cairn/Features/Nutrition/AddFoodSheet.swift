@@ -45,7 +45,8 @@ struct AddFoodSheet: View {
                 foodName: pick.foodName, kcal100: pick.kcal100,
                 protein100: pick.protein100, carbs100: pick.carbs100,
                 fat100: pick.fat100, grams: pick.grams,
-                productCode: pick.productCode, after: after
+                productCode: pick.productCode, fiber100: pick.fiber100,
+                after: after
             )
             onAdded(entry)
             dismiss()

@@ -29,14 +29,14 @@ struct CatalogBuilderTests {
     private static let header = [
         "code", "product_name", "brands", "quantity", "serving_size",
         "countries_tags", "completeness", "energy-kcal_100g", "proteins_100g",
-        "carbohydrates_100g", "fat_100g",
+        "carbohydrates_100g", "fat_100g", "fiber_100g",
     ].joined(separator: "\t")
 
     private func product(
         code: String, name: String, countries: String = "en:france"
     ) -> String {
         [code, name, "Marque", "500 g", "40 g", countries, "0.9",
-         "370", "13", "60", "7"].joined(separator: "\t")
+         "370", "13", "60", "7", "10"].joined(separator: "\t")
     }
 
     @Test("le build filtre, indexe et bascule atomiquement")

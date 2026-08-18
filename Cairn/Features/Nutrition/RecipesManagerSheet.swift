@@ -174,7 +174,8 @@ struct RecipesManagerSheet: View {
                 to: recipe, foodName: pick.foodName, kcal100: pick.kcal100,
                 protein100: pick.protein100, carbs100: pick.carbs100,
                 fat100: pick.fat100, grams: pick.grams,
-                productCode: pick.productCode, in: modelContext
+                productCode: pick.productCode, fiber100: pick.fiber100,
+                in: modelContext
             )
             errorMessage = nil
             isAddingItem = false
