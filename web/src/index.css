@@ -2037,3 +2037,9 @@ body {
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
+
+/* La mention d'unité au-dessus des résultats : dite une fois plutôt que sur
+   chaque rang, où elle doublait la hauteur de toutes les lignes. */
+.unite-liste {
+  margin: 4px 2px 2px;
+}

@@ -315,6 +315,7 @@ export function AjoutAliment({
         <p className="attenue petit">Trois lettres au moins pour chercher au catalogue.</p>
       )}
 
+      {liste.length > 0 && <p className="attenue petit unite-liste">pour 100 g</p>}
       <ul className="choix">
         {liste.map((a) => (
           <li key={`${a.id}-${a.nom}`}>
@@ -328,14 +329,25 @@ export function AjoutAliment({
                 {a.grammesFavori !== null && a.marque === "" ? "★ " : ""}
                 {a.nom}
               </span>
-              {/* Les fibres à côté des calories, et un tiret quand le produit
-                  n'en annonce pas : c'est ce qui permet de choisir, entre deux
-                  yaourts équivalents, celui dont la fiche est complète. Une
+              {/* Les quatre macros et les fibres, dans la forme exacte du
+                  Mac : c'est la même question qu'on pose à la même liste, et
+                  n'afficher ici que les calories obligeait à choisir un
+                  aliment pour découvrir ce qu'il apportait vraiment.
+
+                  Le tiret des fibres est ce qui rend le choix possible : une
                   absence muette ne se distinguerait pas d'une colonne qu'on
-                  aurait oublié d'afficher. */}
+                  aurait oublié d'afficher, alors qu'elle est justement le
+                  critère — entre deux flocons équivalents, prendre celui dont
+                  la fiche est complète.
+
+                  « /100 g » est dit une fois au-dessus de la liste et non sur
+                  chaque rang : répété, il faisait passer toutes les lignes à
+                  deux sur un écran de téléphone, et coupait la liste de moitié
+                  pour une mention qui ne change jamais. */}
               <span className="attenue petit">
                 {a.marque && `${a.marque} · `}
-                {Math.round(a.kcal100)} kcal/100 g ·{" "}
+                {Math.round(a.kcal100)} kcal · P {Math.round(a.protein100)} · G{" "}
+                {Math.round(a.carbs100)} · L {Math.round(a.fat100)} ·{" "}
                 {a.fiber100 === null ? "F —" : `F ${Math.round(a.fiber100)}`}
               </span>
             </button>
