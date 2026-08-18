@@ -5,6 +5,8 @@ import { Markdown } from "./markdown"
 import { dateLongue } from "./format"
 import { NoteEditor, jourCourant, type NoteAEditer } from "./NoteEditor"
 import { Feuille } from "./Chrome"
+import { IconeSport } from "./IconeSport"
+import { nomDuSport } from "./sports"
 
 /// Une journée du journal, telle que le Mac la compose.
 ///
@@ -23,7 +25,10 @@ type Journee = {
   /// sorties d'abord, puis les repas dans l'ordre où on les mange, la pesée
   /// en dernier. L'ordre est celui de `elsewhereNotes`, et il compte : c'est
   /// ce qui fait qu'une journée se lit comme un récit.
-  ailleurs: { source: string; texte: string }[]
+  /// `sport` pour une sortie, `kg` pour une pesée : l'attribution se dessine
+  /// alors au lieu de se lire. Un mot gris de plus dans une colonne de gris se
+  /// perd ; une icône colorée et un poids se repèrent d'un coup d'œil.
+  ailleurs: { source: string; texte: string; sport?: string; kg?: number }[]
   /// Les sports du jour, pour la pastille — une journée sans un mot mais avec
   /// une sortie doit tout de même se voir.
   sports: string[]
@@ -129,7 +134,7 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
           .order("start_local_date"),
         supabase
           .from("weight_entry")
-          .select("date_key_raw, note")
+          .select("date_key_raw, note, weight_kg")
           .is("deleted_at", null)
           .gt("date_key_raw", debut)
           .lte("date_key_raw", fin),
@@ -161,8 +166,13 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
       }
       // Un texte blanc n'entre jamais : une note de repas ouverte puis
       // refermée sans un mot ne doit pas faire apparaître une journée.
-      const ajouter = (j: Journee, source: string, texte: string | null) => {
-        if (texte?.trim()) j.ailleurs.push({ source, texte })
+      const ajouter = (
+        j: Journee,
+        source: string,
+        texte: string | null,
+        extra?: { sport?: string; kg?: number },
+      ) => {
+        if (texte?.trim()) j.ailleurs.push({ source, texte, ...extra })
       }
 
       for (const n of notes.data as {
@@ -185,7 +195,7 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
       }[]) {
         const j = obtenir(a.start_local_date.slice(0, 10))
         if (!j.sports.includes(a.sport_type_raw)) j.sports.push(a.sport_type_raw)
-        ajouter(j, "Sortie", a.activity_description)
+        ajouter(j, "Sortie", a.activity_description, { sport: a.sport_type_raw })
       }
 
       const rang = new Map(creneaux.map((c) => [c.uuid, c.sort_order]))
@@ -204,10 +214,14 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
       }
 
       // La pesée en dernier : c'est le chiffre du matin qu'on commente le soir.
-      for (const p of poids.data as { date_key_raw: string; note: string | null }[]) {
+      for (const p of poids.data as {
+        date_key_raw: string
+        note: string | null
+        weight_kg: number
+      }[]) {
         const j = obtenir(p.date_key_raw)
         j.pesee = true
-        ajouter(j, "Pesée", p.note)
+        ajouter(j, "Pesée", p.note, { kg: p.weight_kg })
       }
 
       // Les jours sans la moindre marque n'existent pas — un jour n'est né
@@ -345,7 +359,21 @@ export function Journal() {
               d'un seul trait. */}
           {j.ailleurs.map((a, i) => (
             <blockquote className="ailleurs" key={i}>
-              <span className="source">{a.source}</span>
+              <span className="source">
+                {a.sport ? (
+                  <>
+                    <IconeSport sport={a.sport} taille={15} />
+                    {nomDuSport(a.sport)}
+                  </>
+                ) : (
+                  a.source
+                )}
+                {a.kg !== undefined && (
+                  <span className="poids-source">
+                    {a.kg.toLocaleString("fr-FR")} kg
+                  </span>
+                )}
+              </span>
               <Markdown texte={a.texte} imageURL={urlImage} />
             </blockquote>
           ))}

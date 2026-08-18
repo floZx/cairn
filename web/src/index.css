@@ -1898,3 +1898,17 @@ body {
 }
 
 
+
+/* L'attribution d'une citation : le sport s'y dessine en couleur, la pesée y
+   pose son chiffre. Un mot gris de plus dans une colonne de gris se perd. */
+.ailleurs .source {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.poids-source {
+  margin-left: auto;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
