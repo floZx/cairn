@@ -184,8 +184,17 @@ function LigneMacros({
   )
 }
 
-export function Nutrition() {
-  const [dateKey, setDateKey] = useState(jourCourant)
+export function Nutrition({
+  /// Le jour sur lequel s'ouvrir, quand on arrive d'ailleurs — une citation du
+  /// journal, par exemple. Aujourd'hui sinon.
+  ///
+  /// Lu une seule fois, à la construction : ensuite c'est la barre du jour qui
+  /// commande. L'appelant force un remontage s'il veut en changer.
+  jourInitial,
+}: {
+  jourInitial?: string
+} = {}) {
+  const [dateKey, setDateKey] = useState(() => jourInitial ?? jourCourant())
   const [ajoutDans, setAjoutDans] = useState<{ uuid: string; nom: string } | null>(null)
   const [enModification, setEnModification] = useState<AlimentAModifier | null>(null)
   const [noteDe, setNoteDe] = useState<{ uuid: string; nom: string } | null>(null)

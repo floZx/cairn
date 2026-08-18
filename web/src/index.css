@@ -1957,8 +1957,29 @@ body {
   gap: 5px;
 }
 
-.poids-source {
+/* Une citation qui mène quelque part le montre : le chevron d'iOS, et le
+   retrait au doigt. */
+.ailleurs.cliquable {
+  cursor: pointer;
+}
+
+.ailleurs.cliquable:active {
+  opacity: 0.55;
+}
+
+/* Le bout de la ligne : le poids s'il y en a un, puis le chevron. Poussé en
+   bloc plutôt que chacun de son côté — deux marges automatiques se partagent
+   l'espace, ce qui laisserait le poids au milieu de nulle part. */
+.fin-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-left: auto;
+  color: var(--texte-3);
+}
+
+.poids-source {
+  color: var(--texte-2);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }

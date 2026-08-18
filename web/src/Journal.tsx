@@ -28,7 +28,17 @@ type Journee = {
   /// `sport` pour une sortie, `kg` pour une pesée : l'attribution se dessine
   /// alors au lieu de se lire. Un mot gris de plus dans une colonne de gris se
   /// perd ; une icône colorée et un poids se repèrent d'un coup d'œil.
-  ailleurs: { source: string; texte: string; sport?: string; kg?: number }[]
+  ///
+  /// `activite` porte l'identité de la sortie citée, de quoi aller la voir.
+  /// Les repas et la pesée n'en ont pas besoin : la date de la journée suffit
+  /// à les retrouver, et c'est le même écran pour les deux.
+  ailleurs: {
+    source: string
+    texte: string
+    sport?: string
+    kg?: number
+    activite?: string
+  }[]
   /// Les sports du jour, pour la pastille — une journée sans un mot mais avec
   /// une sortie doit tout de même se voir.
   sports: string[]
@@ -127,7 +137,7 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
           .lte("date_key_raw", fin),
         supabase
           .from("activity")
-          .select("start_local_date, sport_type_raw, activity_description")
+          .select("uuid, start_local_date, sport_type_raw, activity_description")
           .is("deleted_at", null)
           .gte("start_local_date", debut)
           .lte("start_local_date", fin + "T23:59:59")
@@ -170,7 +180,7 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
         j: Journee,
         source: string,
         texte: string | null,
-        extra?: { sport?: string; kg?: number },
+        extra?: { sport?: string; kg?: number; activite?: string },
       ) => {
         if (texte?.trim()) j.ailleurs.push({ source, texte, ...extra })
       }
@@ -189,13 +199,17 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
 
       // Le jour d'une sortie est celui de son instant local, comme sur le Mac.
       for (const a of activites.data as {
+        uuid: string
         start_local_date: string
         sport_type_raw: string
         activity_description: string | null
       }[]) {
         const j = obtenir(a.start_local_date.slice(0, 10))
         if (!j.sports.includes(a.sport_type_raw)) j.sports.push(a.sport_type_raw)
-        ajouter(j, "Sortie", a.activity_description, { sport: a.sport_type_raw })
+        ajouter(j, "Sortie", a.activity_description, {
+          sport: a.sport_type_raw,
+          activite: a.uuid,
+        })
       }
 
       const rang = new Map(creneaux.map((c) => [c.uuid, c.sort_order]))
@@ -241,7 +255,16 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
   })
 }
 
-export function Journal() {
+export function Journal({
+  onActivite,
+  onRepas,
+}: {
+  /// Aller voir la sortie citée.
+  onActivite: (uuid: string) => void
+  /// Aller à la journée de repas — c'est là que se modifient une note de
+  /// créneau comme une pesée.
+  onRepas: (dateKey: string) => void
+}) {
   const [enEdition, setEnEdition] = useState<NoteAEditer | null>(null)
   const images = useImagesDuJournal()
   const creneaux = useCreneaux()
@@ -357,26 +380,49 @@ export function Journal() {
               sortie et une note de repas ne se lisent pas comme la note du
               jour, et les fondre toutes ensemble ferait croire qu'on a écrit
               d'un seul trait. */}
-          {j.ailleurs.map((a, i) => (
-            <blockquote className="ailleurs" key={i}>
-              <span className="source">
-                {a.sport ? (
-                  <>
-                    <IconeSport sport={a.sport} taille={15} />
-                    {nomDuSport(a.sport)}
-                  </>
-                ) : (
-                  a.source
-                )}
-                {a.kg !== undefined && (
-                  <span className="poids-source">
-                    {a.kg.toLocaleString("fr-FR")} kg
+          {j.ailleurs.map((a, i) => {
+            // Une citation renvoie à l'endroit d'où elle vient : la fiche de
+            // la sortie, ou la journée de repas. C'est la question que pose
+            // une phrase reprise ailleurs — « c'était laquelle, celle-là ? ».
+            const aller = a.activite
+              ? () => onActivite(a.activite as string)
+              : () => onRepas(j.dateKey)
+            return (
+              <blockquote
+                className="ailleurs cliquable"
+                key={i}
+                role="button"
+                tabIndex={0}
+                onClick={aller}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    aller()
+                  }
+                }}
+              >
+                <span className="source">
+                  {a.sport ? (
+                    <>
+                      <IconeSport sport={a.sport} taille={15} />
+                      {nomDuSport(a.sport)}
+                    </>
+                  ) : (
+                    a.source
+                  )}
+                  <span className="fin-source">
+                    {a.kg !== undefined && (
+                      <span className="poids-source">
+                        {a.kg.toLocaleString("fr-FR")} kg
+                      </span>
+                    )}
+                    <span aria-hidden>›</span>
                   </span>
-                )}
-              </span>
-              <Markdown texte={a.texte} imageURL={urlImage} />
-            </blockquote>
-          ))}
+                </span>
+                <Markdown texte={a.texte} imageURL={urlImage} />
+              </blockquote>
+            )
+          })}
         </article>
       ))}
 

@@ -46,6 +46,15 @@ export function App() {
 
   const [section, setSection] = useState<Section>("activites")
 
+  // Le jour d'arrivée dans les repas, quand on y va depuis une citation du
+  // journal. Effacé dès qu'on choisit un onglet à la main : sans quoi revenir
+  // sur « Repas » trois jours plus tard rouvrirait la journée d'alors.
+  const [jourRepas, setJourRepas] = useState<string | null>(null)
+  const changerDeSection = (s: Section) => {
+    setJourRepas(null)
+    setSection(s)
+  }
+
   // Le filtre et la vue carte vivent ici, et non dans la liste : ouvrir une
   // fiche démonte la liste, et son état partait avec elle. On filtrait, on
   // ouvrait un résultat, on revenait — et tout était à refaire.
@@ -65,7 +74,7 @@ export function App() {
   return (
     <Chrome
       section={section}
-      onSection={setSection}
+      onSection={changerDeSection}
       masquerOnglets={surUneFiche}
       retour={surUneFiche ? () => history.back() : undefined}
       action={<BoutonCompte />}
@@ -81,9 +90,18 @@ export function App() {
           onCarte={setSurLaCarte}
         />
       ) : section === "journal" ? (
-        <Journal />
+        <Journal
+          onActivite={ouvrir}
+          onRepas={(dateKey) => {
+            setJourRepas(dateKey)
+            setSection("nutrition")
+          }}
+        />
       ) : section === "nutrition" ? (
-        <Nutrition />
+        // La clef force un remontage : le jour d'arrivée est lu à la
+        // construction, et sans elle une seconde téléportation ne bougerait
+        // rien.
+        <Nutrition key={jourRepas ?? "aujourd'hui"} jourInitial={jourRepas ?? undefined} />
       ) : (
         <Stats />
       )}
