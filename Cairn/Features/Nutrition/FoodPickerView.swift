@@ -425,6 +425,30 @@ struct FoodPickerView: View {
             DecimalField(
                 placeholder: "g", value: $grams, width: 80, focus: $gramsFocused
             )
+                // ⌃J et ⌃K marchent ici comme dans la recherche, et c'est le
+                // champ où l'on en a le plus besoin : un Entrée donné trop
+                // vite amène la quantité sur un aliment qu'on n'avait pas
+                // choisi, et il fallait jusque-là remonter à la liste pour en
+                // changer.
+                //
+                // Sur le champ et non sur la rangée : c'est là que la
+                // recherche pose les siens, et un `onKeyPress` posé sur un
+                // ancêtre ne passe qu'après le système de texte d'AppKit, qui
+                // lit ⌃K comme « couper jusqu'au bout de la ligne ».
+                //
+                // Les flèches ne sont pas reprises : dans un champ de nombre,
+                // elles appartiennent au point d'insertion.
+                .onKeyPress(phases: [.down, .repeat]) { press in
+                    guard press.modifiers.contains(.control) else {
+                        return .ignored
+                    }
+                    switch press.key.character {
+                    case "j": moveCurrentSelection(by: 1)
+                    case "k": moveCurrentSelection(by: -1)
+                    default: return .ignored
+                    }
+                    return .handled
+                }
             Text("g")
             Spacer()
             Text(portionSummary(
@@ -434,6 +458,33 @@ struct FoodPickerView: View {
                 .font(.callout.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// Déplace la sélection de la liste qu'on regarde.
+    ///
+    /// La rangée de quantité est la même sous la recherche et sous les
+    /// favoris, mais les deux listes ont chacune la leur ; c'est le mode qui
+    /// dit laquelle bouge.
+    private func moveCurrentSelection(by offset: Int) {
+        switch mode {
+        case .search: moveSelection(by: offset)
+        case .favorites: moveFavoriteSelection(by: offset)
+        case .manual: break
+        }
+    }
+
+    /// Le même parcours que pour les résultats, sur la liste des favoris :
+    /// depuis rien, vers le bas on tombe sur le premier et vers le haut sur le
+    /// dernier, et les deux bouts retiennent au lieu de boucler.
+    private func moveFavoriteSelection(by offset: Int) {
+        guard let index = VimMotion.destination(
+            from: favorites.firstIndex { $0.persistentModelID
+                == selectedFavorite?.persistentModelID },
+            delta: offset, count: favorites.count
+        ) else { return }
+        let favorite = favorites[index]
+        selectedFavorite = favorite
+        grams = favorite.grams
     }
 
     /// What the quantity above amounts to, all four macros.
