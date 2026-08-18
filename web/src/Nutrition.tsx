@@ -7,7 +7,7 @@ import { AjoutAliment } from "./AjoutAliment"
 import { ModifAliment, type AlimentAModifier } from "./ModifAliment"
 import { Feuille } from "./Chrome"
 import { NoteRepas, Pesee, TypeDeJournee } from "./SaisieJour"
-import { JaugeMacro } from "./JaugeMacro"
+import { JaugeFibres, JaugeMacro } from "./JaugeMacro"
 import {
   arrondi,
   dansLeMille,
@@ -16,6 +16,8 @@ import {
   objectifsAdaptatifs,
   objectifsDuJour,
   somme,
+  fibresDe,
+  sommeFibres,
   type EtatRepas,
   type Macros,
 } from "./macros"
@@ -30,6 +32,8 @@ type Aliment = {
   protein100: number
   carbs100: number
   fat100: number
+  /// Nulles quand la source ne les connaît pas — voir `fibresDe`.
+  fiber100: number | null
   grams: number
   sort_order: number
 }
@@ -59,7 +63,7 @@ function useReglages() {
         // à chaque synchronisation, jamais d'ici.
         supabase
           .from("nutrition_target")
-          .select("protein_g, fat_g")
+          .select("protein_g, fat_g, fiber_g")
           .is("deleted_at", null)
           .maybeSingle(),
       ])
@@ -80,7 +84,11 @@ function useReglages() {
         typesOrdonnes: types.data as TypeDeJour[],
         cibles: cibles.error
           ? null
-          : (cibles.data as { protein_g: number; fat_g: number } | null),
+          : (cibles.data as {
+              protein_g: number
+              fat_g: number
+              fiber_g: number | null
+            } | null),
       }
     },
   })
@@ -100,7 +108,7 @@ function useJournee(dateKey: string) {
         supabase
           .from("food_entry")
           .select(
-            "uuid, meal_slot_uuid, food_name, kcal100, protein100, carbs100, fat100, grams, sort_order",
+            "uuid, meal_slot_uuid, food_name, kcal100, protein100, carbs100, fat100, fiber100, grams, sort_order",
           )
           .eq("date_key_raw", dateKey)
           .is("deleted_at", null)
@@ -270,6 +278,9 @@ export function Nutrition({
   const consommeDu = (uuid: string) =>
     somme(...parCreneau(uuid).map((a) => arrondi(macrosDe(a))))
   const totalJour = somme(...creneaux.map((c) => consommeDu(c.uuid)))
+  // Sur la journée entière et non par créneau : les fibres n'ont pas de cible
+  // par repas, et aucune ligne ne les montre.
+  const fibresDuJour = sommeFibres(...aliments.map(fibresDe))
 
   // Les glucides ne sont pas un réglage : ils se déduisent de ce que les
   // calories laissent une fois les protéines et lipides comptés. Sans la
@@ -345,9 +356,11 @@ export function Nutrition({
       {enTete}
 
       <div className="total-jour">
-        {/* Les quatre jauges du Mac, dans son ordre : les calories d'abord,
-            puis les trois macros. Chacune porte sa ligne « reste », qui est le
-            nombre contre lequel le prochain repas se planifie vraiment. */}
+        {/* Les cinq jauges du Mac, dans son ordre : les calories d'abord,
+            puis les trois macros, les fibres en dernier. Chacune porte sa
+            ligne « reste », qui est le nombre contre lequel le prochain repas
+            se planifie vraiment — sauf celle des fibres, qui dit d'abord ce
+            qu'elle ignore. */}
         <div className="jauges">
           <JaugeMacro
             titre="Calories"
@@ -373,6 +386,11 @@ export function Nutrition({
             objectif={cibles ? (journeeVisee?.lipides ?? null) : null}
             unite="g"
           />
+          {/* La cinquième, et la seule qui ne dépende pas du type de journée :
+              les calories suivent l'entraînement, les fibres non. Trente
+              grammes tant que le Mac n'a pas dit les siens — le repère de
+              l'ANSES, le même défaut que là-bas. */}
+          <JaugeFibres fibres={fibresDuJour} objectif={cibles?.fiber_g ?? 30} />
         </div>
       </div>
 

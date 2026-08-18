@@ -21,12 +21,14 @@ function useGardeManger() {
       const [favoris, recents, recettes] = await Promise.all([
         supabase
           .from("favorite_food")
-          .select("food_name, product_code, kcal100, protein100, carbs100, fat100, grams")
+          .select(
+            "food_name, product_code, kcal100, protein100, carbs100, fat100, fiber100, grams",
+          )
           .is("deleted_at", null),
         supabase
           .from("food_entry")
           .select(
-            "food_name, product_code, kcal100, protein100, carbs100, fat100, grams, date_key_raw",
+            "food_name, product_code, kcal100, protein100, carbs100, fat100, fiber100, grams, date_key_raw",
           )
           .is("deleted_at", null)
           .order("date_key_raw", { ascending: false })
@@ -48,6 +50,7 @@ function useGardeManger() {
         protein100: number
         carbs100: number
         fat100: number
+        fiber100: number | null
         grams: number
       }
       const enAliment = (l: Ligne, favori: boolean): Aliment => ({
@@ -58,6 +61,7 @@ function useGardeManger() {
         protein100: l.protein100,
         carbs100: l.carbs100,
         fat100: l.fat100,
+        fiber100: l.fiber100,
         productCode: l.product_code,
         grammesFavori: favori ? l.grams : null,
       })
@@ -153,6 +157,9 @@ export function AjoutAliment({
         protein100: choisi.protein100,
         carbs100: choisi.carbs100,
         fat100: choisi.fat100,
+        // Nulles quand la source n'a rien dit : le zéro ferait passer une
+        // journée trouée pour une journée complète.
+        fiber100: choisi.fiber100,
         grams: poids,
         sort_order: await prochainRang(dateKey, slotUUID),
         edited_at: maintenant,
@@ -170,7 +177,9 @@ export function AjoutAliment({
     mutationFn: async (recetteUUID: string) => {
       const { data, error } = await supabase
         .from("recipe_item")
-        .select("food_name, product_code, kcal100, protein100, carbs100, fat100, grams, sort_order")
+        .select(
+          "food_name, product_code, kcal100, protein100, carbs100, fat100, fiber100, grams, sort_order",
+        )
         .eq("recipe_uuid", recetteUUID)
         .is("deleted_at", null)
         .order("sort_order")
@@ -193,6 +202,7 @@ export function AjoutAliment({
         protein100: item.protein100,
         carbs100: item.carbs100,
         fat100: item.fat100,
+        fiber100: item.fiber100,
         grams: item.grams,
         sort_order: rang++,
         edited_at: maintenant,

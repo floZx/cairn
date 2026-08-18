@@ -1,4 +1,4 @@
-import { dansLeMille, depassement } from "./macros"
+import { dansLeMille, depassement, type Fibres } from "./macros"
 
 /// Un « consommé / visé » avec sa barre — l'unité du résumé de la journée,
 /// portée de `MacroGauge`.
@@ -67,6 +67,65 @@ export function JaugeMacro({
             />
           </div>
           <div className={"reste-jauge" + (etat ? " " + etat : "")}>{reste(objectif)}</div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/// Les fibres du jour : un chiffre qu'on cherche à atteindre, jamais à ne pas
+/// dépasser.
+///
+/// Sœur de `JaugeMacro` plutôt que variante à drapeaux — portée de `FiberGauge`
+/// côté Swift, où le même choix est fait et pour les deux mêmes raisons.
+///
+/// La couleur d'abord : quarante grammes pour trente visés n'est pas un
+/// dépassement, c'est une bonne journée. Elle verdit à la cible et s'arrête
+/// là, sans l'orange ni le rouge des autres.
+///
+/// Et surtout elle avoue ce qu'elle ignore. Open Food Facts ne connaît les
+/// fibres que de cinq produits sur six ; « 22 / 30 g » sur une journée dont
+/// trois aliments n'ont rien annoncé n'est ni vrai ni faux, il est incomplet.
+export function JaugeFibres({
+  fibres,
+  objectif,
+}: {
+  fibres: Fibres
+  objectif: number
+}) {
+  const entier = (v: number) => String(Math.round(v))
+  /// Atteinte dès neuf dixièmes, et pour toujours au-delà : la clémence de
+  /// `dansLeMille`, sans sa borne haute.
+  const atteint = objectif > 0 && Math.round(fibres.grammes) >= Math.round(objectif * 0.9)
+
+  /// Ce qui reste, ou ce qu'on ignore — jamais les deux, et le manque d'abord.
+  /// Un « reste 8 g » calculé sur une journée trouée dirait un chiffre précis
+  /// à propos d'une somme qui ne l'est pas.
+  const sousLigne = () => {
+    if (fibres.inconnus > 0) {
+      return `${fibres.inconnus} aliment${fibres.inconnus > 1 ? "s" : ""} sans donnée`
+    }
+    const reste = Math.round(objectif) - Math.round(fibres.grammes)
+    return reste > 0 ? `reste ${entier(reste)} g` : "objectif atteint"
+  }
+
+  return (
+    <div className="jauge">
+      <div className="titre-jauge">
+        Fibres <span className="unite-jauge">g</span>
+      </div>
+      <div className={"chiffre-jauge" + (atteint ? " atteint" : "")}>
+        {entier(fibres.grammes)} / {entier(objectif)}
+      </div>
+      {objectif > 0 && (
+        <>
+          <div className="barre-jauge">
+            <div
+              className={"remplissage" + (atteint ? " atteint" : "")}
+              style={{ width: `${Math.min(fibres.grammes / objectif, 1) * 100}%` }}
+            />
+          </div>
+          <div className={"reste-jauge" + (atteint ? " atteint" : "")}>{sousLigne()}</div>
         </>
       )}
     </div>

@@ -14,6 +14,12 @@ export type Aliment = {
   protein100: number
   carbs100: number
   fat100: number
+  /// Les fibres, **nulles quand la source ne les connaît pas**.
+  ///
+  /// Open Food Facts ne les renseigne que pour cinq produits sur six. Nul et
+  /// non zéro : un aliment muet n'en contient pas zéro, il n'a rien dit, et
+  /// confondre les deux ferait d'un total partiel un total faux.
+  fiber100: number | null
   productCode: string | null
   /// Non nul pour un favori : c'est ce qui lui vaut son étoile et pré-remplit
   /// la quantité.
@@ -47,6 +53,7 @@ export function alimentDepuisOFF(hit: HitOFF): Aliment | null {
     protein100: n["proteins_100g"] ?? 0,
     carbs100: n["carbohydrates_100g"] ?? 0,
     fat100: n["fat_100g"] ?? 0,
+    fiber100: n["fiber_100g"] ?? null,
     productCode: hit.code ?? null,
     grammesFavori: null,
   }
