@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { cadenceDuSport, nomDuSport } from "./sports"
 import { IconeSport, couleurDuSport } from "./IconeSport"
-import { dateEtHeure, denivele, distance, duree } from "./format"
+import { allureOuVitesse, dateEtHeure, denivele, distance, duree } from "./format"
 import { traceDepuisBytea } from "./track"
 // Chargée à la demande : MapLibre pèse à lui seul les quatre cinquièmes du
 // paquet, et le journal — l'écran qu'on ouvre le plus depuis un téléphone —
@@ -48,28 +48,6 @@ function Chiffre({ valeur, etiquette }: { valeur: string; etiquette: string }) {
       <div className="etiquette">{etiquette}</div>
     </div>
   )
-}
-
-/// L'allure a du sens à pied, la vitesse à vélo. Afficher les deux serait
-/// afficher une fois de trop, et afficher la mauvaise rend la fiche illisible
-/// pour le sport qu'on regarde.
-function allureOuVitesse(sport: string, metres: number, secondes: number) {
-  if (metres <= 0 || secondes <= 0) return null
-  const aPied = ["run", "trailRun", "walk", "hike"].includes(sport)
-  if (aPied) {
-    const secondesParKm = secondes / (metres / 1000)
-    const minutes = Math.floor(secondesParKm / 60)
-    const reste = Math.round(secondesParKm % 60)
-    return {
-      valeur: `${minutes}′${String(reste).padStart(2, "0")}″`,
-      etiquette: "Allure / km",
-    }
-  }
-  const kmh = metres / 1000 / (secondes / 3600)
-  return {
-    valeur: `${kmh.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} km/h`,
-    etiquette: "Vitesse",
-  }
 }
 
 export function ActivityDetail({ uuid }: { uuid: string }) {

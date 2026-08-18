@@ -81,3 +81,47 @@ export function dateEtHeure(iso: string): string {
   const d = new Date(iso)
   return `${jourEntier.format(d)} à ${heureExacte.format(d)}`
 }
+
+/// L'allure à pied, la vitesse à vélo.
+///
+/// Afficher les deux serait afficher une fois de trop, et afficher la mauvaise
+/// rend illisible ce qu'on regarde : personne ne lit une sortie de vélo en
+/// minutes par kilomètre.
+///
+/// La natation compte par cent mètres, comme Strava et comme tous les bassins :
+/// 2′23″ au cent parle, 23′56″ au kilomètre ne parle à personne.
+export function allureOuVitesse(
+  sport: string,
+  metres: number,
+  secondes: number,
+): { valeur: string; etiquette: string } | null {
+  if (metres <= 0 || secondes <= 0) return null
+  if (sport === "swim") {
+    const secondesParCent = secondes / (metres / 100)
+    return { valeur: minutesSecondes(secondesParCent), etiquette: "Allure / 100 m" }
+  }
+  const aPied = ["run", "trailRun", "walk", "hike"].includes(sport)
+  if (aPied) {
+    const secondesParKm = secondes / (metres / 1000)
+    return { valeur: minutesSecondes(secondesParKm), etiquette: "Allure / km" }
+  }
+  const kmh = metres / 1000 / (secondes / 3600)
+  return {
+    valeur: `${kmh.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} km/h`,
+    etiquette: "Vitesse",
+  }
+}
+
+/// `5′41″` — les primes de la fiche du Mac, pas un `5:41` de chronomètre.
+function minutesSecondes(secondes: number): string {
+  const minutes = Math.floor(secondes / 60)
+  const reste = Math.round(secondes % 60)
+  // Arrondir 59,6 secondes donne 60, qui s'écrirait `5′60″`.
+  if (reste === 60) return `${minutes + 1}′00″`
+  return `${minutes}′${String(reste).padStart(2, "0")}″`
+}
+
+/// L'heure seule, pour une ligne qui porte déjà sa date.
+export function heure(iso: string): string {
+  return heureExacte.format(new Date(iso))
+}

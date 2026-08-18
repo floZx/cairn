@@ -2043,3 +2043,242 @@ body {
 .unite-liste {
   margin: 4px 2px 2px;
 }
+
+/* ---- Le sélecteur de présentation ---------------------------------------
+   Le segmenté d'iOS : une piste creuse, et la vue en cours posée dessus comme
+   une pastille qui accroche la lumière. Il tient dans la largeur que le seul
+   bouton de carte prenait, et il dit ce que trois boutons côte à côte ne
+   disent pas — que les trois s'excluent. */
+
+.segments-vue {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--champ);
+}
+
+.segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--texte-2);
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.segment.actif {
+  background: var(--carte);
+  color: var(--texte);
+  /* L'ombre courte est ce qui fait la pastille : sans elle, le segment actif
+     n'est qu'un rectangle plus clair, et on hésite sur lequel des trois est
+     choisi. */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
+}
+
+/* ---- Le fil -------------------------------------------------------------
+   Une activité par fiche : sa trace, sa photo, ses chiffres lus sans ouvrir.
+   Voir `Fil.tsx` pour ce que cette présentation emprunte à Strava, et surtout
+   pour ce qu'elle ne lui emprunte pas. */
+
+.fil {
+  display: flex;
+  flex-direction: column;
+  /* Plus d'air qu'entre deux lignes de liste : ce sont des cartes distinctes,
+     et collées elles se relisent comme un seul bloc. */
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.fiche-fil {
+  position: relative;
+  padding: 14px 16px 12px;
+  border-radius: 16px;
+  background: var(--carte);
+  cursor: pointer;
+  /* Les médias débordent jusqu'aux bords : c'est ce qui les coupe aux coins
+     arrondis plutôt qu'aux angles droits. */
+  overflow: hidden;
+  transition: background-color 0.12s ease;
+}
+
+.fiche-fil:active {
+  background: color-mix(in srgb, var(--texte) 5%, var(--carte));
+}
+
+.tete-fil {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar-fil {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--champ);
+}
+
+.avatar-fil.vide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--texte-2);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* `min-width: 0` : sans lui, un nom d'appareil long refuse de se couper et
+   pousse la fiche hors de l'écran. */
+.qui-fil {
+  min-width: 0;
+}
+
+/* La date et l'appareil sur une seule ligne, coupés au besoin : « Garmin
+   Forerunner 970 » passait à la ligne et l'en-tête prenait la hauteur d'un
+   paragraphe, ce qui repoussait le titre — le sujet de la fiche — d'autant. */
+.qui-fil .minuscule {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sauf la ligne du sport, qui est faite d'éléments et non de texte : sa
+   troncature couperait une étiquette en deux. */
+.qui-fil .sport-fil {
+  white-space: normal;
+}
+
+.nom-athlete {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.sport-fil {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+  color: var(--texte-2);
+}
+
+.titre-fil {
+  margin: 12px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  /* Deux lignes au plus : un nom de sortie tient en une, et une note collée
+     dans le titre ne doit pas repousser les chiffres au bas de l'écran. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.chiffres-fil {
+  display: flex;
+  gap: 20px;
+  margin-top: 10px;
+}
+
+.chiffre-fil .etiquette {
+  color: var(--texte-2);
+  font-size: 13px;
+}
+
+/* À chasse fixe : les trois colonnes s'alignent d'une fiche à l'autre, ce qui
+   permet de comparer deux sorties en défilant sans les lire. */
+.chiffre-fil .valeur {
+  font-size: 19px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Le média part d'un bord à l'autre — les marges de la fiche annulées — comme
+   la photo d'une publication. Une hauteur fixe, et c'est voulu : la photo
+   arrive après la ligne (le temps de signer son URL), et une bande qui se
+   dimensionne sur son contenu ferait sauter tout ce qui est en dessous au
+   moment où elle se remplit. */
+.media-fil {
+  position: relative;
+  height: 200px;
+  margin: 14px -16px 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Le sport teinte le fond de la bande, très légèrement : une trace posée sur
+     du blanc flotte, et la teinte lui donne le sol que la carte lui donnerait.
+     Mélangée au fond de l'écran et non à celui de la carte : la bande se lit
+     alors comme une ouverture dans la fiche, là où un gris translucide posé
+     par-dessus donnait une bande boueuse en thème sombre. */
+  background: color-mix(in srgb, var(--teinte-sport) 10%, var(--fond));
+}
+
+.photo-fil {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.miniature-trace {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* La trace par-dessus la photo, dans le coin : la photo dit où l'on était, la
+   trace par où l'on est passé. Sur la même matière que les barres, pour qu'on
+   la lise comme posée dessus et non incrustée dedans. */
+.vignette-trace {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: 86px;
+  height: 58px;
+  padding: 5px;
+  border-radius: 12px;
+}
+
+.pied-fil {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--trait);
+}
+
+/* Sans pied — ni kudos ni performance — le média est le dernier de la fiche et
+   descend jusqu'à son bord : les 12 px de fond qui restaient sous une photo
+   pleine largeur se lisaient comme une bande blanche oubliée. */
+.media-fil:last-child {
+  margin-bottom: -12px;
+}
+
+/* Le média touche le pied quand il y en a un : le bord bas de l'image sépare
+   déjà, et un filet de plus à deux pixels dessous fait double barre. */
+.media-fil + .pied-fil {
+  margin-top: 0;
+  padding-top: 12px;
+  border-top: 0;
+}
+
+.compte-fil {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}

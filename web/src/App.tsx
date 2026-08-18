@@ -9,6 +9,7 @@ import { Nutrition } from "./Nutrition"
 import { Stats } from "./Stats"
 import { Chrome, type Section } from "./Chrome"
 import { AUCUN, type Filtre } from "./criteres"
+import { presentationRetenue, type Vue } from "./vues"
 import { BoutonCompte } from "./Compte"
 
 export function App() {
@@ -55,11 +56,13 @@ export function App() {
     setSection(s)
   }
 
-  // Le filtre et la vue carte vivent ici, et non dans la liste : ouvrir une
+  // Le filtre et la vue choisie vivent ici, et non dans la liste : ouvrir une
   // fiche démonte la liste, et son état partait avec elle. On filtrait, on
   // ouvrait un résultat, on revenait — et tout était à refaire.
   const [filtre, setFiltre] = useState<Filtre>(AUCUN)
-  const [surLaCarte, setSurLaCarte] = useState(false)
+  // Amorcée sur la présentation retenue de la dernière fois — jamais sur la
+  // carte, qui est un endroit où l'on va et non une préférence.
+  const [vue, setVue] = useState<Vue>(presentationRetenue)
 
   function ouvrir(uuid: string) {
     history.pushState(null, "", `?activite=${uuid}`)
@@ -86,8 +89,8 @@ export function App() {
           onOuvrir={ouvrir}
           filtre={filtre}
           onFiltre={setFiltre}
-          surLaCarte={surLaCarte}
-          onCarte={setSurLaCarte}
+          vue={vue}
+          onVue={setVue}
         />
       ) : section === "journal" ? (
         <Journal

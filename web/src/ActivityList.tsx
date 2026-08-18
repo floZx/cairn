@@ -6,6 +6,8 @@ import { IconeSport } from "./IconeSport"
 import { dateCourte, denivele, distance, duree } from "./format"
 import { Feuille } from "./Chrome"
 import { Filtres } from "./Filtres"
+import { Fil, COLONNES_FIL, type ActiviteDuFil } from "./Fil"
+import { presentationRetenue, retenirPresentation, type Vue } from "./vues"
 import {
   bornes,
   estActif,
@@ -27,6 +29,13 @@ const CarteGlobale = lazy(() =>
 /// activités en une seule requête feraient attendre plusieurs secondes pour
 /// montrer les six premières.
 const PAR_PAGE = 50
+
+/// Le fil en demande moins à la fois, et pour une raison de poids : chaque
+/// fiche emporte sa trace simplifiée, soit deux kilo-octets par sortie — une
+/// page de cinquante ferait deux cents kilo-octets sur un réseau mobile pour
+/// six fiches visibles. Vingt en remplissent déjà plusieurs écrans, et la
+/// sentinelle charge la suite avant qu'on n'y arrive.
+const PAR_PAGE_FIL = 20
 
 /// Les colonnes du second filtre voyagent avec les autres : les étiquettes se
 /// déduisent de quatre d'entre elles, et les redemander ligne par ligne ferait
@@ -82,11 +91,14 @@ function restreindre<T>(requete: T, f: Filtre, maintenant = new Date()): T {
   return q as T
 }
 
-async function chargerPage(depuis: number, filtre: Filtre) {
+async function chargerPage(depuis: number, filtre: Filtre, dansLeFil: boolean) {
+  const parPage = dansLeFil ? PAR_PAGE_FIL : PAR_PAGE
   const { data, error } = await restreindre(
     supabase
       .from("activity")
-      .select(COLONNES)
+      // Les colonnes du fil ne sont demandées que quand il est à l'écran :
+      // voir `COLONNES_FIL`.
+      .select(dansLeFil ? `${COLONNES}, ${COLONNES_FIL}` : COLONNES)
       // Les lignes effacées en douceur portent une date ici ; elles n'ont pas
       // disparu de la table, c'est au lecteur de les écarter.
       .is("deleted_at", null),
@@ -95,30 +107,84 @@ async function chargerPage(depuis: number, filtre: Filtre) {
     // `start_local_date`, pas `start_date` : l'heure du lieu où la sortie a eu
     // lieu, qui est celle sous laquelle on s'en souvient.
     .order("start_local_date", { ascending: false })
-    .range(depuis, depuis + PAR_PAGE - 1)
+    .range(depuis, depuis + parPage - 1)
   if (error) throw error
   return data as unknown as Activite[]
+}
+
+/// Les trois vues dans l'ordre du sélecteur : les deux listes d'abord, la
+/// carte au bout — on quitte une liste pour la carte, on ne traverse pas la
+/// carte pour passer d'une liste à l'autre.
+const VUES: { id: Vue; nom: string }[] = [
+  { id: "liste", nom: "Liste" },
+  { id: "fiches", nom: "Fiches" },
+  { id: "carte", nom: "Carte" },
+]
+
+/// Les trois symboles du sélecteur, à la ligne comme ceux de la barre
+/// d'onglets : des lignes empilées, deux fiches l'une sur l'autre, une carte
+/// pliée.
+function IconeVue({ nom }: { nom: Vue }) {
+  const commun = {
+    width: 19,
+    height: 19,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  }
+  switch (nom) {
+    case "liste":
+      return (
+        <svg {...commun}>
+          <path d="M4 7h16M4 12h16M4 17h16" />
+        </svg>
+      )
+    case "fiches":
+      // Le `rectangle.grid.1x2` du Mac, qui désigne là-bas la même chose.
+      return (
+        <svg {...commun}>
+          <rect x="3.5" y="4" width="17" height="7" rx="2" />
+          <rect x="3.5" y="13" width="17" height="7" rx="2" />
+        </svg>
+      )
+    default:
+      return (
+        <svg {...commun}>
+          <path d="M9 4L3 6.5v13L9 17l6 3 6-2.5v-13L15 7z M9 4v13 M15 7v13" />
+        </svg>
+      )
+  }
 }
 
 export function ActivityList({
   onOuvrir,
   filtre,
   onFiltre,
-  surLaCarte,
-  onCarte,
+  vue,
+  onVue,
 }: {
   onOuvrir: (uuid: string) => void
   /// Détenus par `App` : ouvrir une fiche démonte cette liste, et un état
   /// gardé ici repartirait à zéro au retour.
   filtre: Filtre
   onFiltre: (f: Filtre) => void
-  surLaCarte: boolean
-  onCarte: (v: boolean) => void
+  vue: Vue
+  onVue: (v: Vue) => void
 }) {
   const setFiltre = (maj: Filtre | ((f: Filtre) => Filtre)) =>
     onFiltre(typeof maj === "function" ? maj(filtre) : maj)
-  const setSurLaCarte = (maj: boolean | ((v: boolean) => boolean)) =>
-    onCarte(typeof maj === "function" ? maj(surLaCarte) : maj)
+  const dansLeFil = vue === "fiches"
+
+  const changerDeVue = (v: Vue) => {
+    // Retenue tout de suite, et seulement quand ce n'est pas la carte : voir
+    // `vues.ts` pour ce qui se garde d'une ouverture à l'autre.
+    if (v !== "carte") retenirPresentation(v)
+    onVue(v)
+  }
 
   const [feuilleOuverte, setFeuilleOuverte] = useState(false)
   // Le texte tapé et le filtre appliqué sont deux choses : sans ce délai,
@@ -138,11 +204,18 @@ export function ActivityList({
       // Le filtre entre dans la clé : deux filtres différents sont deux listes
       // différentes, et TanStack garde la précédente pendant que la suivante
       // arrive plutôt que de vider l'écran.
-      queryKey: ["activites", filtre],
-      queryFn: ({ pageParam }) => chargerPage(pageParam, filtre),
+      //
+      // La présentation aussi, et pas par coquetterie : le fil demande des
+      // colonnes de plus et des pages plus courtes, donc ses pages ne sont pas
+      // celles de la liste. Deux clés, deux caches — revenir à la liste
+      // retrouve la sienne intacte plutôt que de tout recharger.
+      queryKey: ["activites", dansLeFil ? "fiches" : "liste", filtre],
+      queryFn: ({ pageParam }) => chargerPage(pageParam, filtre, dansLeFil),
       initialPageParam: 0,
-      getNextPageParam: (derniere, toutes) =>
-        derniere.length < PAR_PAGE ? undefined : toutes.length * PAR_PAGE,
+      getNextPageParam: (derniere, toutes) => {
+        const parPage = dansLeFil ? PAR_PAGE_FIL : PAR_PAGE
+        return derniere.length < parPage ? undefined : toutes.length * parPage
+      },
     })
 
   /// Combien d'activités le filtre laisse passer — le compte que la feuille
@@ -194,37 +267,34 @@ export function ActivityList({
         </Feuille>
       )}
       <div className="barre-recherche">
+        {/* « Rechercher une sortie… » ne tenait plus depuis que le sélecteur de
+            vue partage la ligne : la moitié du texte se faisait couper, ce qui
+            est pire qu'un mot de moins. */}
         <input
           type="search"
           className="recherche"
           value={saisie}
           onChange={(e) => setSaisie(e.target.value)}
-          placeholder="Rechercher une sortie…"
+          placeholder="Rechercher…"
         />
-        {/* La carte porte le même filtre que la liste : ce sont deux façons
-            de regarder la même sélection, pas deux écrans. */}
-        <button
-          className={surLaCarte ? "bouton-filtre actif" : "bouton-filtre"}
-          onClick={() => setSurLaCarte((v) => !v)}
-          aria-label={surLaCarte ? "Voir la liste" : "Voir la carte"}
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            {surLaCarte ? (
-              <path d="M4 6h16M4 12h16M4 18h16" />
-            ) : (
-              <path d="M9 4L3 6.5v13L9 17l6 3 6-2.5v-13L15 7z M9 4v13 M15 7v13" />
-            )}
-          </svg>
-        </button>
+        {/* Les trois présentations portent le même filtre : ce sont trois
+            façons de regarder la même sélection, pas trois écrans. Un
+            sélecteur segmenté plutôt que trois boutons — il dit qu'elles
+            s'excluent, et il tient dans la largeur que deux boutons prenaient
+            déjà. */}
+        <div className="segments-vue" role="group" aria-label="Présentation">
+          {VUES.map((v) => (
+            <button
+              key={v.id}
+              className={vue === v.id ? "segment actif" : "segment"}
+              onClick={() => changerDeVue(v.id)}
+              aria-label={v.nom}
+              aria-pressed={vue === v.id}
+            >
+              <IconeVue nom={v.id} />
+            </button>
+          ))}
+        </div>
         <button
           className={estActif(filtre) ? "bouton-filtre actif" : "bouton-filtre"}
           onClick={() => setFeuilleOuverte(true)}
@@ -254,7 +324,7 @@ export function ActivityList({
     </>
   )
 
-  if (surLaCarte) {
+  if (vue === "carte") {
     return (
       <>
         {entete}
@@ -270,7 +340,7 @@ export function ActivityList({
               //
               // La retirer ne referme pas : on la retire pour continuer à
               // regarder la carte, pas pour la quitter.
-              if (zone) setSurLaCarte(false)
+              if (zone) changerDeVue(presentationRetenue())
             }}
             onOuvrir={onOuvrir}
           />
@@ -309,6 +379,20 @@ export function ActivityList({
             ? "Aucune activité ne correspond."
             : "Aucune activité — le Mac n'a peut-être rien encore poussé."}
         </p>
+      </>
+    )
+  }
+
+  if (dansLeFil) {
+    return (
+      <>
+        {entete}
+        {/* Les colonnes du fil ne sont dans la ligne que sous cette
+            présentation — c'est la requête qui les a demandées, et le type
+            d'une ligne ne peut pas dépendre d'une valeur d'exécution. */}
+        <Fil activites={activites as ActiviteDuFil[]} onOuvrir={onOuvrir} />
+        <div ref={sentinelle} />
+        {isFetchingNextPage && <p className="attenue">Chargement…</p>}
       </>
     )
   }
