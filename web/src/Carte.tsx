@@ -55,6 +55,14 @@ function styleAvec(trace: Coordonnee[], fond: Fond) {
 }
 
 
+/// Le rectangle qui contient toute la trace.
+function cadrage(trace: Coordonnee[]) {
+  return trace.reduce(
+    (b, point) => b.extend(point),
+    new maplibregl.LngLatBounds(trace[0], trace[0]),
+  )
+}
+
 /// `trace` doit être **stable d'un rendu à l'autre** : cet effet en dépend par
 /// référence, et un tableau fabriqué dans le JSX de l'appelant en serait un
 /// nouveau à chaque fois. La carte se détruirait alors avant d'avoir fini de
@@ -64,6 +72,7 @@ export function Carte({ trace }: { trace: Coordonnee[] }) {
   const carte = useRef<maplibregl.Map | null>(null)
   const [fond, setFond] = useState<Fond>(fondRetenu)
   const [relief, setRelief] = useState(reliefRetenu)
+  const [plein, setPlein] = useState(false)
   // Le constructeur a déjà posé le fond de départ, et `style.load` le relief ;
   // les deux effets ci-dessous ne servent qu'aux changements, et rejouer le
   // premier passage réécrirait un style à peine né.
@@ -73,18 +82,13 @@ export function Carte({ trace }: { trace: Coordonnee[] }) {
   useEffect(() => {
     if (!conteneur.current || trace.length === 0) return
 
-    const limites = trace.reduce(
-      (b, point) => b.extend(point),
-      new maplibregl.LngLatBounds(trace[0], trace[0]),
-    )
-
     const instance = new maplibregl.Map({
       container: conteneur.current,
       style: styleAvec(trace, fond),
       // Cadré dès la construction plutôt qu'après coup : `fitBounds` calcule
       // son zoom contre la taille du canevas, et celui-ci peut naître avant
       // que le conteneur ait la sienne.
-      bounds: limites,
+      bounds: cadrage(trace),
       fitBoundsOptions: { padding: 24, animate: false },
       // Le relief demande un point de vue oblique : vu d'aplomb, un terrain
       // en trois dimensions ressemble exactement à un terrain plat.
@@ -156,13 +160,79 @@ export function Carte({ trace }: { trace: Coordonnee[] }) {
     }
   }, [relief])
 
+  // Le plein écran change la taille de la toile sans que MapLibre le sache :
+  // sans `resize`, il continue de dessiner dans l'ancien cadre et la carte
+  // s'étire. Le geste s'ouvre en même temps — une carte qui prend l'écran
+  // n'aurait aucun sens sans pouvoir s'y déplacer.
+  useEffect(() => {
+    const instance = carte.current
+    if (!instance) return
+    instance.resize()
+    // Recadré : la trace tenait dans un aperçu de 260 pixels, et la garder au
+    // même zoom sur tout l'écran laisserait la moitié de la place inutilisée —
+    // c'est justement pour cette place qu'on agrandit.
+    instance.fitBounds(cadrage(trace), {
+      padding: plein ? 48 : 24,
+      animate: false,
+      // Le point de vue est conservé : sans lui, le recadrage remet la caméra
+      // d'aplomb et le relief disparaît à l'instant même où on agrandit.
+      pitch: instance.getPitch(),
+      bearing: instance.getBearing(),
+    })
+    for (const geste of [
+      instance.dragPan,
+      instance.scrollZoom,
+      instance.touchZoomRotate,
+      instance.doubleClickZoom,
+      instance.keyboard,
+    ]) {
+      if (plein) geste.enable()
+      else geste.disable()
+    }
+    // Hors relief, la carte redevient un aperçu dans une fiche qui défile.
+    if (!plein && relief) {
+      instance.dragRotate.enable()
+      instance.touchZoomRotate.enable()
+    }
+  }, [plein, relief, trace])
+
+  // Échap referme, comme partout ailleurs.
+  useEffect(() => {
+    if (!plein) return
+    const touche = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPlein(false)
+    }
+    addEventListener("keydown", touche)
+    // Ce qui défile derrière est figé le temps du plein écran. Trouvé en
+    // remontant depuis la carte, et non par un sélecteur : le conteneur qui
+    // défile appartient au châssis, pas à ce fichier, et le nommer ici ferait
+    // dépendre la carte d'un détail d'ailleurs.
+    let parent = conteneur.current?.parentElement ?? null
+    while (parent && !/auto|scroll/.test(getComputedStyle(parent).overflowY)) {
+      parent = parent.parentElement
+    }
+    const avant = parent?.style.overflow
+    if (parent) parent.style.overflow = "hidden"
+    return () => {
+      removeEventListener("keydown", touche)
+      if (parent) parent.style.overflow = avant ?? ""
+    }
+  }, [plein])
+
   if (trace.length === 0) {
     return <p className="attenue petit">Pas de trace pour cette activité.</p>
   }
   return (
-    <div className="carte-trace">
+    <div className={plein ? "carte-trace plein" : "carte-trace"}>
       <div className="toile-trace" ref={conteneur} />
-      <ChoixFond fond={fond} onFond={setFond} relief={relief} onRelief={setRelief} />
+      <ChoixFond
+        fond={fond}
+        onFond={setFond}
+        relief={relief}
+        onRelief={setRelief}
+        plein={plein}
+        onPlein={setPlein}
+      />
     </div>
   )
 }

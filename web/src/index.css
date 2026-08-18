@@ -1753,6 +1753,25 @@ body {
   height: 100%;
 }
 
+/* La carte prend l'écran sans changer de parent : déplacer le nœud dans un
+   portail détruirait la toile de MapLibre et le cadrage avec elle. Le bouton
+   de fond descend sous l'encoche, où il n'était pas obligé d'aller tant que la
+   carte vivait dans la fiche. */
+.carte-trace.plein {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  width: 100%;
+  height: 100dvh;
+  margin: 0;
+  border-radius: 0;
+}
+
+.carte-trace.plein .choix-fond {
+  top: calc(env(safe-area-inset-top) + 12px);
+  right: calc(env(safe-area-inset-right) + 12px);
+}
+
 .toile-carte {
   position: relative;
 }

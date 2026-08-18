@@ -11,11 +11,17 @@ export function ChoixFond({
   onFond,
   relief,
   onRelief,
+  plein,
+  onPlein,
 }: {
   fond: Fond
   onFond: (f: Fond) => void
   relief: boolean
   onRelief: (v: boolean) => void
+  /// Absents sur la carte d'ensemble, qui occupe déjà toute la place qu'elle
+  /// peut : le bouton n'apparaît que là où il a quelque chose à agrandir.
+  plein?: boolean
+  onPlein?: (v: boolean) => void
 }) {
   const [ouvert, setOuvert] = useState(false)
   const boite = useRef<HTMLDivElement>(null)
@@ -80,6 +86,37 @@ export function ChoixFond({
             />
           </label>
         </div>
+      )}
+
+      {onPlein && (
+        <button
+          className="bouton-fond matiere"
+          onClick={() => onPlein(!plein)}
+          aria-label={plein ? "Réduire la carte" : "Carte en plein écran"}
+        >
+          <svg
+            width="19"
+            height="19"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            {plein ? (
+              // Quatre flèches qui rentrent : le geste inverse, dessiné.
+              <>
+                <path d="M10 4v6H4M14 4v6h6M10 20v-6H4M14 20v-6h6" />
+              </>
+            ) : (
+              <>
+                <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+              </>
+            )}
+          </svg>
+        </button>
       )}
     </div>
   )
