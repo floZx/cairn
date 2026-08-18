@@ -52,7 +52,10 @@
    du fond, et surtout le fait qu'elle **flotte** au-dessus du contenu au lieu
    d'être posée contre le bord. */
 .matiere {
-  background: color-mix(in srgb, var(--carte) 36%, transparent);
+  /* Assez de matière pour que le liseré tienne, assez peu pour qu'on voie
+     passer ce qu'il y a dessous — c'est ce passage qui fait le verre ; une
+     plaque opaque n'est qu'un rectangle flou de plus. */
+  background: color-mix(in srgb, var(--carte) 22%, transparent);
   -webkit-backdrop-filter: blur(26px) saturate(190%);
   backdrop-filter: blur(26px) saturate(190%);
   border: 0.5px solid color-mix(in srgb, var(--lueur) 28%, transparent);
@@ -260,15 +263,6 @@ input, button { font: inherit; }
 
 .chiffre .valeur { font-size: 1.35rem; font-weight: 600; }
 .chiffre .etiquette { color: var(--attenue); font-size: 0.8rem; }
-
-.retour {
-  background: none;
-  border: none;
-  color: var(--accent);
-  padding: 0;
-  font-size: 1rem;
-  cursor: pointer;
-}
 
 .entete-fiche { margin: 12px 0 4px; }
 .entete-fiche h2 { margin: 0; font-size: 1.3rem; font-weight: 600; }
@@ -732,7 +726,7 @@ input, button { font: inherit; }
   gap: 12px;
   min-height: 44px;
   padding: calc(env(safe-area-inset-top) + 6px) 16px 8px;
-  background: color-mix(in srgb, var(--fond) 55%, transparent);
+  background: color-mix(in srgb, var(--fond) 40%, transparent);
   -webkit-backdrop-filter: blur(26px) saturate(190%);
   backdrop-filter: blur(26px) saturate(190%);
   /* Le filet n'apparaît qu'une fois le grand titre replié, comme sur iOS.
@@ -1058,16 +1052,6 @@ input, button { font: inherit; }
   font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.02em;
-}
-
-/* Le bouton de retour d'iOS : un chevron collé à son libellé, en bleu. */
-.retour {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin: 4px 0 10px;
-  padding: 4px 0;
-  font-size: 17px;
 }
 
 .description {
@@ -1715,10 +1699,32 @@ body {
   );
 }
 
+/* Le retour d'iOS 26 : un chevron dans une pastille de verre, en haut à gauche
+   du volet et à la hauteur du bouton de compte, qui lui répond de l'autre bord.
+   Le libellé est parti avec lui — « ‹ Activités » en bleu tranchait sur le halo
+   du sport, et un chevron seul n'a jamais eu besoin qu'on lui dise d'où il
+   revient. */
 .entete-fiche .retour {
-  position: relative;
-  display: block;
-  margin: 0 0 8px;
+  cursor: pointer;
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 5px);
+  left: 16px;
+  /* Au-dessus de la barre du haut, et non dessous : sous son flou, un chevron
+     de dix-sept pixels se dissolvait au point de disparaître. */
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--texte);
+}
+
+.entete-fiche .retour:active {
+  opacity: 0.55;
 }
 
 .entete-fiche h2 {

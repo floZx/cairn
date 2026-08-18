@@ -125,8 +125,20 @@ export function ActivityDetail({ uuid, onRetour }: { uuid: string; onRetour: () 
         {/* Le retour est dans le halo, non au-dessus : posé dehors, le
             dégradé commençait par une arête horizontale juste sous lui, là où
             sur le Mac il part du haut du volet. */}
-        <button className="retour" onClick={onRetour}>
-          ‹ Activités
+        <button className="retour matiere" onClick={onRetour} aria-label="Retour">
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M15 4.5L7.5 12l7.5 7.5" />
+          </svg>
         </button>
         <h2>{data.name}</h2>
         <div className="attenue petit">{dateEtHeure(data.start_local_date)}</div>
