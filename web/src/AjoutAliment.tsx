@@ -268,12 +268,17 @@ export function AjoutAliment({
         <span className="jour">{slotNom}</span>
         <span />
       </div>
+      {/* Le curseur y est d'emblée, et le clavier avec lui : on n'ouvre cette
+          feuille que pour chercher quelque chose, et l'ouvrir sur un champ
+          vide qu'il faut encore aller toucher fait un geste de plus pour rien.
+          C'est déjà ce que font la quantité et la pesée. */}
       <input
         className="recherche"
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Chercher un aliment…"
+        autoFocus
       />
       {recette.error && <p className="erreur">{(recette.error as Error).message}</p>}
 
