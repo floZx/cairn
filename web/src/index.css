@@ -55,7 +55,7 @@
   /* Assez de matière pour que le liseré tienne, assez peu pour qu'on voie
      passer ce qu'il y a dessous — c'est ce passage qui fait le verre ; une
      plaque opaque n'est qu'un rectangle flou de plus. */
-  background: color-mix(in srgb, var(--carte) 22%, transparent);
+  background: color-mix(in srgb, var(--carte) 12%, transparent);
   -webkit-backdrop-filter: blur(26px) saturate(190%);
   backdrop-filter: blur(26px) saturate(190%);
   border: 0.5px solid color-mix(in srgb, var(--lueur) 28%, transparent);
@@ -726,7 +726,7 @@ input, button { font: inherit; }
   gap: 12px;
   min-height: 44px;
   padding: calc(env(safe-area-inset-top) + 6px) 16px 8px;
-  background: color-mix(in srgb, var(--fond) 40%, transparent);
+  background: color-mix(in srgb, var(--fond) 26%, transparent);
   -webkit-backdrop-filter: blur(26px) saturate(190%);
   backdrop-filter: blur(26px) saturate(190%);
   /* Le filet n'apparaît qu'une fois le grand titre replié, comme sur iOS.
