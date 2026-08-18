@@ -4,12 +4,14 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import type { Coordonnee } from "./track"
 import { ChoixFond } from "./ChoixFond"
 import {
+  COUCHE_DU_DESSOUS,
   FONDS,
   fondRetenu,
   reliefRetenu,
   retenirFond,
   retenirRelief,
   sourcesDuFond,
+  styleMonte,
   type Fond,
 } from "./fonds"
 
@@ -33,6 +35,7 @@ function styleAvec(trace: Coordonnee[], fond: Fond) {
       },
     },
     layers: [
+      COUCHE_DU_DESSOUS,
       { id: "fond", type: "raster" as const, source: "fond" },
       {
         id: "trace",
@@ -46,16 +49,6 @@ function styleAvec(trace: Coordonnee[], fond: Fond) {
 }
 
 
-/// Exécute une action sur la carte une fois son style prêt.
-///
-/// `setStyle` et `setTerrain` lèvent « Style is not done loading » si on les
-/// appelle avant, et les effets de React partent bien avant que MapLibre ait
-/// fini de charger le sien.
-function quandPret(instance: maplibregl.Map, action: () => void) {
-  if (instance.isStyleLoaded()) action()
-  else instance.once("load", action)
-}
-
 /// `trace` doit être **stable d'un rendu à l'autre** : cet effet en dépend par
 /// référence, et un tableau fabriqué dans le JSX de l'appelant en serait un
 /// nouveau à chaque fois. La carte se détruirait alors avant d'avoir fini de
@@ -65,9 +58,9 @@ export function Carte({ trace }: { trace: Coordonnee[] }) {
   const carte = useRef<maplibregl.Map | null>(null)
   const [fond, setFond] = useState<Fond>(fondRetenu)
   const [relief, setRelief] = useState(reliefRetenu)
-  // Le constructeur a déjà posé le fond et le relief de départ ; les deux
-  // effets ci-dessous ne servent qu'aux changements, et rejouer le premier
-  // passage réécrirait un style à peine né.
+  // Le constructeur a déjà posé le fond de départ, et `style.load` le relief ;
+  // les deux effets ci-dessous ne servent qu'aux changements, et rejouer le
+  // premier passage réécrirait un style à peine né.
   const premierFond = useRef(true)
   const premierRelief = useRef(true)
 
@@ -96,11 +89,19 @@ export function Carte({ trace }: { trace: Coordonnee[] }) {
       interactive: relief,
     })
     carte.current = instance
-    if (relief) {
-      instance.on("load", () => {
-        instance.setTerrain({ source: "relief", exaggeration: 1.3 })
-      })
-    }
+    // Les drapeaux se remettent à neuf avec la carte : ils disent « premier
+    // passage sur cette carte-ci », et non « premier passage du composant ».
+    // En développement, React monte deux fois ; des drapeaux survivants
+    // laissaient les effets d'en dessous attaquer un style à peine né.
+    premierFond.current = true
+    premierRelief.current = true
+    // Reposé à chaque style — le premier comme celui d'après un changement de
+    // fond : `setTerrain` n'a de sens qu'une fois la source d'altitude là.
+    // L'attente se fait sur `style.load` et non sur `load`, qui ne se produit
+    // qu'une fois dans la vie d'une carte.
+    instance.on("style.load", () => {
+      if (reliefRetenu()) instance.setTerrain({ source: "relief", exaggeration: 1.3 })
+    })
 
     return () => {
       carte.current = null
@@ -121,16 +122,9 @@ export function Carte({ trace }: { trace: Coordonnee[] }) {
       premierFond.current = false
       return
     }
-    quandPret(instance, () => {
-      instance.setStyle(styleAvec(trace, fond))
-      if (relief) {
-        instance.once("styledata", () =>
-          instance.setTerrain({ source: "relief", exaggeration: 1.3 }),
-        )
-      }
-    })
+    instance.setStyle(styleAvec(trace, fond))
     retenirFond(fond)
-  }, [fond, trace, relief])
+  }, [fond, trace])
 
   useEffect(() => {
     const instance = carte.current
@@ -139,17 +133,21 @@ export function Carte({ trace }: { trace: Coordonnee[] }) {
       premierRelief.current = false
       return
     }
-    quandPret(instance, () => {
-      instance.setTerrain(relief ? { source: "relief", exaggeration: 1.3 } : null)
-      instance.easeTo({ pitch: relief ? 55 : 0, duration: 400 })
-      // Le doigt sert à tourner autour d'un relief ; sur une carte plate il ne
-      // servirait qu'à empêcher la fiche de défiler.
-      if (relief) {
-        instance.dragRotate.enable()
-        instance.touchZoomRotate.enable()
-      }
-    })
+    // Retenu d'abord : c'est la préférence que relit le `style.load` ci-dessus
+    // pour reposer le relief sur un style neuf.
     retenirRelief(relief)
+    // Sans style monté, rien à poser : le `style.load` qui vient s'en
+    // chargera, et `setTerrain` lèverait « Style is not done loading ».
+    if (styleMonte(instance)) {
+      instance.setTerrain(relief ? { source: "relief", exaggeration: 1.3 } : null)
+    }
+    instance.easeTo({ pitch: relief ? 55 : 0, duration: 400 })
+    // Le doigt sert à tourner autour d'un relief ; sur une carte plate il ne
+    // servirait qu'à empêcher la fiche de défiler.
+    if (relief) {
+      instance.dragRotate.enable()
+      instance.touchZoomRotate.enable()
+    }
   }, [relief])
 
   if (trace.length === 0) {

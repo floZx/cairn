@@ -91,6 +91,18 @@ export function retenirRelief(actif: boolean) {
 /// La source d'altitude est déclarée même quand le relief est éteint : une
 /// source ajoutée après coup demande de reconstruire le style, et l'allumer
 /// doit rester instantané.
+/// La couche du dessous, sous les tuiles.
+///
+/// Blanche, et non transparente : les PNG de l'IGN laissent voir au travers là
+/// où la carte est vide, et sans rien dessous c'est le noir de la page qui
+/// apparaissait — un plan blanc à traits fins se lisait alors comme une photo
+/// de nuit. La photo aérienne, elle, est opaque et ne la voit jamais.
+export const COUCHE_DU_DESSOUS = {
+  id: "papier",
+  type: "background" as const,
+  paint: { "background-color": "#ffffff" },
+}
+
 export function sourcesDuFond(fond: Fond) {
   return {
     fond: {
@@ -110,4 +122,16 @@ export function sourcesDuFond(fond: Fond) {
       encoding: "terrarium" as const,
     },
   }
+}
+
+/// Le style de la carte est-il monté ?
+///
+/// La présence d'une source le dit : elles naissent avec le style, et MapLibre
+/// lève « Style is not done loading » sur tout ce qu'on tente avant lui.
+///
+/// `isStyleLoaded()` ne répond pas à cette question-là : il attend aussi les
+/// tuiles, et celles du relief n'arrêtent jamais d'arriver — il reste faux
+/// aussi longtemps qu'on regarde la carte.
+export function styleMonte(instance: { getSource(id: string): unknown }): boolean {
+  return instance.getSource("fond") !== undefined
 }
