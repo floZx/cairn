@@ -107,8 +107,36 @@ export function assemble(
   // Seuls les favoris **affichés** masquent leur équivalent du catalogue : un
   // favori absent de l'écran ne cache rien.
   const masques = new Set(correspondants.flatMap((a) => (a.productCode ? [a.productCode] : [])))
-  return [
-    ...correspondants,
-    ...catalogue.filter((a) => !a.productCode || !masques.has(a.productCode)),
-  ]
+  const visibles = catalogue.filter((a) => !a.productCode || !masques.has(a.productCode))
+  // Trié par rang, l'ordre du moteur départageant les égalités — `sort` est
+  // stable en JavaScript depuis ES2019, l'indice n'est donc pas nécessaire ici
+  // comme il l'est côté Swift.
+  const classes = [...visibles].sort((a, b) => rang(a, aiguille) - rang(b, aiguille))
+  return [...correspondants, ...classes]
+}
+
+/// À quel point ce produit *est* ce qu'on a demandé — zéro étant le mieux.
+///
+/// Porté de `FoodSearch.rank`. Trois rangs, et deux défauts distincts à
+/// réparer.
+///
+/// Le premier : « une banane est une banane, c'est pas un code-barre ». Tout
+/// ce qui vient d'un primeur est sans marque — une courgette, une tomate — et
+/// les vingt références de marque qui les précédaient ne proposaient qu'un
+/// choix arbitraire entre des fiches inégalement remplies.
+///
+/// Le second : chercher « banane » et recevoir « Barre énergie banane coco »
+/// avant « Bananes » est un mauvais classement, marque ou pas. C'est ce que
+/// rend le moteur d'Open Food Facts, mesuré le 18 août 2026 — et c'est le
+/// défaut que ce rang répare vraiment sur le web, leur moteur ne remontant
+/// aucune banane sans marque, même sur cinquante résultats.
+///
+/// L'égalité de nom se juge au pluriel près et sur la recherche entière :
+/// « skyr danone » ne promeut rien, tout reste au rang 2 dans l'ordre du
+/// moteur.
+export function rang(aliment: Aliment, aiguille: string): number {
+  const nom = normalise(aliment.nom).trim()
+  const entier = nom === aiguille || nom === aiguille + "s" || aiguille === nom + "s"
+  if (!entier) return 2
+  return aliment.marque.trim() === "" ? 0 : 1
 }

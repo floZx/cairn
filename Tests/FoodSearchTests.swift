@@ -23,6 +23,73 @@ struct FoodSearchTests {
         )
     }
 
+    private func marque(
+        _ name: String, _ brand: String, code: String
+    ) -> FoodSearch.Hit {
+        FoodSearch.Hit(
+            id: "hit:\(code)", name: name, brands: brand, kcal100: 100,
+            protein100: 5, carbs100: 10, fat100: 3, productCode: code,
+            favoriteGrams: nil
+        )
+    }
+
+    @Test("le générique sans marque passe devant les produits de marque")
+    func genericComesFirst() {
+        // Une banane est une banane : celle du primeur n'a pas de code-barre,
+        // et c'est elle qu'on cherche en tapant « banane ».
+        let merged = FoodSearch.assemble(
+            query: "banane", favorites: [], recents: [],
+            catalog: [
+                marque("Banane", "Chiquita", code: "1"),
+                marque("Banane bio", "Carrefour", code: "2"),
+                plain("Bananes", code: "3"),
+            ]
+        )
+        #expect(merged.map(\.id) == ["hit:Bananes", "hit:1", "hit:2"])
+    }
+
+    @Test("la promotion ne touche pas une recherche qui nomme sa marque")
+    func brandedQueryIsLeftAlone() {
+        // Sans quoi un « Skyr » générique passerait devant le « Skyr Danone »
+        // qu'on vient précisément de nommer.
+        let merged = FoodSearch.assemble(
+            query: "skyr danone", favorites: [], recents: [],
+            catalog: [
+                marque("Skyr", "Danone", code: "1"),
+                plain("Skyr", code: "2"),
+            ]
+        )
+        #expect(merged.map(\.productCode) == ["1", "2"])
+    }
+
+    @Test("un nom qui vaut la recherche passe devant un nom qui la contient")
+    func wholeNameBeatsPartial() {
+        // Chercher « banane » et recevoir la barre chocolatée en premier est un
+        // mauvais classement, marque ou pas : c'est ce que rend le moteur d'OFF
+        // sur le web, mesuré le 18 août 2026.
+        let merged = FoodSearch.assemble(
+            query: "banane", favorites: [], recents: [],
+            catalog: [
+                plain("Barre chocolatée à la banane", code: "1"),
+                marque("Banane", "Chiquita", code: "2"),
+            ]
+        )
+        #expect(merged.map(\.productCode) == ["2", "1"])
+    }
+
+    @Test("à rang égal, l'ordre du moteur est conservé")
+    func equalRanksKeepEngineOrder() {
+        let merged = FoodSearch.assemble(
+            query: "pain", favorites: [], recents: [],
+            catalog: [
+                plain("Pain de mie complet", code: "1"),
+                plain("Pain aux céréales", code: "2"),
+                plain("Pain brioché", code: "3"),
+            ]
+        )
+        #expect(merged.map(\.productCode) == ["1", "2", "3"])
+    }
+
     @Test("champ vide : favoris d'abord, puis les récents non redondants")
     func emptyQueryListsFavoritesThenRecents() {
         let skyr = favorite("Skyr", code: "123")
