@@ -18,10 +18,24 @@ import { NOMS, etiquettesDe, type SourceEtiquettes } from "./etiquettes"
 ///
 /// La ressemblance avec le fil de Strava est voulue : c'est la disposition sous
 /// laquelle on a l'habitude de relire ses sorties. Ce qu'elle n'emprunte pas,
-/// ce sont les boutons — un pouce et une bulle de commentaire qui ne mèneraient
-/// nulle part. Le miroir est en lecture, et cette application ne parle pas à
-/// Strava (c'est le Mac qui s'en charge) : un bouton qui ne fait rien ment plus
-/// qu'un bouton absent.
+/// c'est tout ce qui n'a de sens qu'à plusieurs.
+///
+/// **L'en-tête d'athlète.** Chez Strava, un fil mélange les sorties de
+/// plusieurs personnes, et il faut donc dire de qui est celle-ci. Ce miroir
+/// n'en contient qu'une, la sienne : sa photo et son nom répétés vingt fois
+/// n'apprennent rien et prennent la place de ce qu'on est venu lire. La fiche
+/// s'annonce donc par la sortie — son nom là où était celui de l'athlète, et le
+/// sport dans la pastille où était le portrait.
+///
+/// **Les boutons.** Un pouce et une bulle de commentaire ne mèneraient nulle
+/// part : le miroir est en lecture, et cette application ne parle pas à Strava
+/// — c'est le Mac qui s'en charge. Un bouton qui ne fait rien ment plus qu'un
+/// bouton absent.
+///
+/// **Les kudos et les performances.** Les colonnes existent — le Mac les
+/// recopie de Strava — mais un compte de pouces reçus ne dit rien de la sortie,
+/// et il n'y a personne ici pour en envoyer. C'est le décompte d'une audience
+/// qu'un journal personnel n'a pas.
 
 /// Ce qu'une fiche du fil demande en plus des colonnes de la liste.
 export type ActiviteDuFil = SourceEtiquettes & {
@@ -33,10 +47,7 @@ export type ActiviteDuFil = SourceEtiquettes & {
   moving_time: number
   total_elevation_gain: number
   simplified_track: string | null
-  device_name: string | null
   photo_count: number | null
-  kudos_count: number
-  achievement_count: number
 }
 
 /// Les colonnes que la fiche ajoute à celles de la liste compacte.
@@ -44,36 +55,7 @@ export type ActiviteDuFil = SourceEtiquettes & {
 /// Demandées seulement quand le fil est à l'écran : la trace simplifiée pèse
 /// deux kilo-octets par sortie, et la liste compacte, qui n'en dessine aucune,
 /// n'a pas à les télécharger pour rien.
-export const COLONNES_FIL =
-  "simplified_track, device_name, photo_count, kudos_count, achievement_count"
-
-/// Qui a fait ces sorties : une ligne, la même pour toutes les fiches.
-///
-/// Une seule personne dans ce miroir, donc une requête sans filtre et gardée
-/// longtemps. L'en-tête n'apprend rien à celui qui regarde son propre fil —
-/// c'est pourtant ce qui fait qu'une fiche se lit comme une carte postée
-/// plutôt que comme une ligne de tableau, et le nom d'appareil qu'il porte,
-/// lui, ne se lit nulle part ailleurs sur le téléphone.
-function useAthlete() {
-  return useQuery({
-    queryKey: ["athlete"],
-    staleTime: 12 * 3600 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("athlete")
-        .select("first_name, last_name, profile_image_url")
-        .is("deleted_at", null)
-        .limit(1)
-        .maybeSingle()
-      if (error) throw error
-      return data as {
-        first_name: string
-        last_name: string
-        profile_image_url: string | null
-      } | null
-    },
-  })
-}
+export const COLONNES_FIL = "simplified_track, photo_count"
 
 /// La première photo de chaque sortie qui en a une, en une fois.
 ///
@@ -152,29 +134,6 @@ function usePhotosDuFil(activites: ActiviteDuFil[]) {
   return connues.current
 }
 
-function Avatar({
-  url,
-  initiales,
-}: {
-  url: string | null | undefined
-  initiales: string
-}) {
-  // L'image de profil vient du serveur de Strava, qui n'est pas le nôtre : elle
-  // peut disparaître, et l'athlète a pu n'en jamais poser. Les initiales sont
-  // alors le repli, jamais un carré vide.
-  const [cassee, setCassee] = useState(false)
-  if (!url || cassee) return <div className="avatar-fil vide">{initiales}</div>
-  return (
-    <img
-      className="avatar-fil"
-      src={url}
-      alt=""
-      loading="lazy"
-      onError={() => setCassee(true)}
-    />
-  )
-}
-
 function Chiffre({ valeur, etiquette }: { valeur: string; etiquette: string }) {
   return (
     <div className="chiffre-fil">
@@ -206,12 +165,10 @@ function chiffresDe(a: ActiviteDuFil) {
 
 function Fiche({
   activite: a,
-  athlete,
   photo,
   onOuvrir,
 }: {
   activite: ActiviteDuFil
-  athlete: { nom: string; initiales: string; image: string | null } | null
   photo: string | undefined
   onOuvrir: (uuid: string) => void
 }) {
@@ -234,16 +191,19 @@ function Fiche({
       style={{ "--teinte-sport": couleur } as React.CSSProperties}
     >
       <header className="tete-fil">
-        <Avatar url={athlete?.image} initiales={athlete?.initiales ?? "?"} />
-        <div className="qui-fil">
-          <div className="nom-athlete">{athlete?.nom ?? "Moi"}</div>
-          <div className="attenue minuscule">
-            {dateCourte(a.start_local_date)} à {heure(a.start_local_date)}
-            {a.device_name ? ` · ${a.device_name}` : ""}
-          </div>
-          <div className="sport-fil minuscule">
-            <IconeSport sport={a.sport_type_raw} taille={15} />
-            <span>{nomDuSport(a.sport_type_raw)}</span>
+        {/* La pastille du sport occupe la place du portrait, et rend le service
+            qu'il ne rendait pas : elle dit d'un coup d'œil, en couleur, de
+            quelle sorte de sortie il s'agit. */}
+        <span className="rond-sport">
+          <IconeSport sport={a.sport_type_raw} taille={22} />
+        </span>
+        <div className="quoi-fil">
+          <h3 className="titre-fil">{a.name}</h3>
+          <div className="repere-fil minuscule attenue">
+            <span>
+              {dateCourte(a.start_local_date)} à {heure(a.start_local_date)} ·{" "}
+              {nomDuSport(a.sport_type_raw)}
+            </span>
             {etiquettes.map((m) => (
               <span className="etiquette-tag minuscule" key={m}>
                 {NOMS[m]}
@@ -252,8 +212,6 @@ function Fiche({
           </div>
         </div>
       </header>
-
-      <h3 className="titre-fil">{a.name}</h3>
 
       <div className="chiffres-fil">
         {chiffresDe(a).map((c) => (
@@ -287,54 +245,6 @@ function Fiche({
             ))}
         </div>
       )}
-
-      {(a.kudos_count > 0 || a.achievement_count > 0) && (
-        <footer className="pied-fil minuscule attenue">
-          {a.kudos_count > 0 && (
-            <span className="compte-fil">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M7 21V10l4.5-7a2 2 0 013 2.3L13.5 9H19a2 2 0 012 2.4l-1.6 7A2.5 2.5 0 0117 20.5H7z" />
-                <path d="M7 10H4.5A1.5 1.5 0 003 11.5v8A1.5 1.5 0 004.5 21H7" />
-              </svg>
-              {a.kudos_count}
-              {/* Le mot au singulier comme au pluriel : « kudos » est déjà un
-                  pluriel, et Strava l'écrit ainsi en français. */}
-              <span> kudos</span>
-            </span>
-          )}
-          {a.achievement_count > 0 && (
-            <span className="compte-fil">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                {/* Une coupe : les anses, la vasque, le pied. */}
-                <path d="M7 4h10v4a5 5 0 01-10 0z" />
-                <path d="M7 5.5H4.5V7a3 3 0 003 3M17 5.5h2.5V7a3 3 0 01-3 3" />
-                <path d="M12 13v4M9 20h6M10 17h4l.5 3h-5z" />
-              </svg>
-              {a.achievement_count}
-              <span> {a.achievement_count > 1 ? "performances" : "performance"}</span>
-            </span>
-          )}
-        </footer>
-      )}
     </article>
   )
 }
@@ -346,22 +256,7 @@ export function Fil({
   activites: ActiviteDuFil[]
   onOuvrir: (uuid: string) => void
 }) {
-  const athlete = useAthlete()
   const photos = usePhotosDuFil(activites)
-
-
-  const qui = athlete.data
-    ? {
-        // Un athlète sans nom reste possible — une ligne poussée avant que
-        // le profil ne soit récupéré — et « Moi » vaut mieux qu'un en-tête
-        // vide au-dessus de sa propre sortie.
-        nom: `${athlete.data.first_name} ${athlete.data.last_name}`.trim() || "Moi",
-        initiales:
-          `${athlete.data.first_name[0] ?? ""}${athlete.data.last_name[0] ?? ""}`.toUpperCase() ||
-          "?",
-        image: athlete.data.profile_image_url,
-      }
-    : null
 
   return (
     <div className="fil">
@@ -369,7 +264,6 @@ export function Fil({
         <Fiche
           key={a.uuid}
           activite={a}
-          athlete={qui}
           // La chaîne vide — « demandé, rien à montrer » — vaut absence.
           photo={photos.get(a.uuid) || undefined}
           onOuvrir={onOuvrir}

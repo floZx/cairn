@@ -2113,69 +2113,52 @@ body {
   background: color-mix(in srgb, var(--texte) 5%, var(--carte));
 }
 
+/* Alignée en haut et non centrée : la ligne de repère passe à deux lignes dès
+   qu'une sortie porte une étiquette, et une pastille centrée sur le bloc
+   descendait alors sous le titre qu'elle est censée accompagner. */
 .tete-fil {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-.avatar-fil {
+/* La pastille du sport, à la place où un fil social met le portrait de qui a
+   posté. Teintée du sport et non remplie : à pleine couleur elle pèserait plus
+   que le titre, qui est le sujet de la fiche. */
+.rond-sport {
   flex: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: var(--champ);
-}
-
-.avatar-fil.vide {
+  /* Deux pixels : la pastille se cale alors sur la hauteur d'œil du titre
+     plutôt que sur le haut de son interligne, qui n'est pas de l'encre. */
+  margin-top: 2px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--texte-2);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--teinte-sport) 15%, transparent);
 }
 
-/* `min-width: 0` : sans lui, un nom d'appareil long refuse de se couper et
+/* `min-width: 0` : sans lui, un nom de sortie long refuse de se couper et
    pousse la fiche hors de l'écran. */
-.qui-fil {
+.quoi-fil {
   min-width: 0;
 }
 
-/* La date et l'appareil sur une seule ligne, coupés au besoin : « Garmin
-   Forerunner 970 » passait à la ligne et l'en-tête prenait la hauteur d'un
-   paragraphe, ce qui repoussait le titre — le sujet de la fiche — d'autant. */
-.qui-fil .minuscule {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Sauf la ligne du sport, qui est faite d'éléments et non de texte : sa
-   troncature couperait une étiquette en deux. */
-.qui-fil .sport-fil {
-  white-space: normal;
-}
-
-.nom-athlete {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.sport-fil {
+/* La date, le sport et les étiquettes sur une ligne. Elle peut passer à deux
+   quand une sortie porte plusieurs marqueurs — c'est une suite d'éléments, pas
+   du texte, et la couper à l'ellipse trancherait une étiquette en deux. */
+.repere-fil {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  margin-top: 3px;
-  color: var(--texte-2);
+  margin-top: 2px;
 }
 
 .titre-fil {
-  margin: 12px 0 0;
-  font-size: 20px;
+  margin: 0;
+  font-size: 19px;
   font-weight: 700;
   letter-spacing: -0.02em;
   /* Deux lignes au plus : un nom de sortie tient en une, et une note collée
@@ -2207,14 +2190,16 @@ body {
 }
 
 /* Le média part d'un bord à l'autre — les marges de la fiche annulées — comme
-   la photo d'une publication. Une hauteur fixe, et c'est voulu : la photo
-   arrive après la ligne (le temps de signer son URL), et une bande qui se
-   dimensionne sur son contenu ferait sauter tout ce qui est en dessous au
-   moment où elle se remplit. */
+   la photo d'une publication, et il la termine : les 12 px de fond qui
+   restaient dessous se lisaient comme une bande blanche oubliée, d'où la marge
+   basse négative. Une hauteur fixe, et c'est voulu : la photo arrive après la
+   ligne (le temps de signer son URL), et une bande qui se dimensionne sur son
+   contenu ferait sauter tout ce qui est en dessous au moment où elle se
+   remplit. */
 .media-fil {
   position: relative;
   height: 200px;
-  margin: 14px -16px 0;
+  margin: 14px -16px -12px;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -2253,32 +2238,3 @@ body {
   border-radius: 12px;
 }
 
-.pied-fil {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 0.5px solid var(--trait);
-}
-
-/* Sans pied — ni kudos ni performance — le média est le dernier de la fiche et
-   descend jusqu'à son bord : les 12 px de fond qui restaient sous une photo
-   pleine largeur se lisaient comme une bande blanche oubliée. */
-.media-fil:last-child {
-  margin-bottom: -12px;
-}
-
-/* Le média touche le pied quand il y en a un : le bord bas de l'image sépare
-   déjà, et un filet de plus à deux pixels dessous fait double barre. */
-.media-fil + .pied-fil {
-  margin-top: 0;
-  padding-top: 12px;
-  border-top: 0;
-}
-
-.compte-fil {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
