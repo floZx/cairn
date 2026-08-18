@@ -52,18 +52,57 @@
    du fond, et surtout le fait qu'elle **flotte** au-dessus du contenu au lieu
    d'être posée contre le bord. */
 .matiere {
-  /* Assez de matière pour que le liseré tienne, assez peu pour qu'on voie
-     passer ce qu'il y a dessous — c'est ce passage qui fait le verre ; une
-     plaque opaque n'est qu'un rectangle flou de plus. */
-  background: color-mix(in srgb, var(--carte) 12%, transparent);
-  -webkit-backdrop-filter: blur(26px) saturate(190%);
-  backdrop-filter: blur(26px) saturate(190%);
-  border: 0.5px solid color-mix(in srgb, var(--lueur) 28%, transparent);
+  background:
+    /* Le reflet du haut : une lumière qui frappe l'arête et s'éteint au tiers.
+       C'est ce que le verre d'Apple a de plus reconnaissable après la
+       réfraction — un bord qui accroche le jour, pas une teinte uniforme. */
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--lueur) 13%, transparent) 0%,
+      color-mix(in srgb, var(--lueur) 3%, transparent) 34%,
+      transparent 62%
+    ),
+    /* Presque rien : c'est ce qui passe au travers qui fait le verre. */
+    color-mix(in srgb, var(--carte) 5%, transparent);
+  /* Un flou court, et c'est délibéré. Un flou long réduit ce qui passe dessous
+     à une bouillie de couleur : on voit qu'il y a quelque chose, on ne voit
+     plus quoi. Chez Strava comme chez Apple, on lit encore le texte à travers
+     la barre — c'est ce qui la fait lire comme une vitre plutôt que comme un
+     bandeau dépoli.
+     La saturation et la clarté sont ce qui reste du reste : un verre teinte à
+     peine et éclaircit ce qu'il traverse. */
+  -webkit-backdrop-filter: blur(12px) saturate(210%) brightness(1.14);
+  backdrop-filter: blur(12px) saturate(210%) brightness(1.14);
+  border: 0.5px solid color-mix(in srgb, var(--lueur) 22%, transparent);
   box-shadow:
-    0 6px 24px rgba(0, 0, 0, 0.16),
-    /* Le liseré supérieur : c'est lui qui donne l'épaisseur, sans quoi la
-       barre n'est qu'un rectangle flou. */
-    inset 0 0.5px 0 color-mix(in srgb, var(--lueur) 55%, transparent);
+    0 8px 30px rgba(0, 0, 0, 0.24),
+    /* Les deux arêtes : vive en haut où la lumière tombe, à peine marquée en
+       bas où elle revient. Sans elles, la matière n'a pas d'épaisseur. */
+    inset 0 0.6px 0 color-mix(in srgb, var(--lueur) 72%, transparent),
+    inset 0 -0.5px 0 color-mix(in srgb, var(--lueur) 14%, transparent);
+}
+
+/* En clair, le verre assombrit au lieu d'éclaircir — l'inverse remonté sur du
+   blanc écrête tout, et la barre disparaîtrait sur une liste claire. Il lui
+   faut aussi un peu plus de matière : le blanc sur blanc n'a pas de contraste
+   à emprunter au fond. */
+@media (prefers-color-scheme: light) {
+  .matiere {
+    background:
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--lueur) 40%, transparent) 0%,
+        color-mix(in srgb, var(--lueur) 12%, transparent) 34%,
+        transparent 62%
+      ),
+      color-mix(in srgb, var(--carte) 26%, transparent);
+    -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.02);
+    backdrop-filter: blur(12px) saturate(190%) brightness(1.02);
+    border: 0.5px solid color-mix(in srgb, #00000014, transparent);
+    box-shadow:
+      0 8px 30px rgba(0, 0, 0, 0.1),
+      inset 0 0.6px 0 color-mix(in srgb, var(--lueur) 90%, transparent);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -726,9 +765,9 @@ input, button { font: inherit; }
   gap: 12px;
   min-height: 44px;
   padding: calc(env(safe-area-inset-top) + 6px) 16px 8px;
-  background: color-mix(in srgb, var(--fond) 26%, transparent);
-  -webkit-backdrop-filter: blur(26px) saturate(190%);
-  backdrop-filter: blur(26px) saturate(190%);
+  background: color-mix(in srgb, var(--fond) 18%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(210%) brightness(1.1);
+  backdrop-filter: blur(12px) saturate(210%) brightness(1.1);
   /* Le filet n'apparaît qu'une fois le grand titre replié, comme sur iOS.
      Elle ne flotte pas, elle : un titre s'ancre au bord, seule la barre
      d'onglets se détache. */
