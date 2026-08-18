@@ -44,12 +44,17 @@ export function fibresDe(portion: { fiber100: number | null; grams: number }): F
   return { grammes: (portion.fiber100 * portion.grams) / 100, inconnus: 0 }
 }
 
-/// Sommées sur les valeurs exactes, arrondies une seule fois à l'affichage —
-/// au contraire des macros, arrondies par portion. Cette règle-là existe pour
-/// qu'une colonne de chiffres fasse son total ; les fibres n'ont pas de
-/// colonne, aucune ligne de repas ne les montre. Les arrondir par portion
-/// effacerait les contributions sous le demi-gramme, dont une journée compte
-/// beaucoup.
+/// Arrondi au gramme, en gardant le compte des muets.
+///
+/// Appliqué par portion avant de sommer, comme `arrondi` pour les macros et
+/// pour sa raison exacte : le tableau du Mac a désormais une colonne « F », et
+/// une colonne de chiffres doit faire le total imprimé dessous. Les deux
+/// écrans doivent en outre s'accorder — un total de fibres différent entre le
+/// Mac et le téléphone serait le même défaut que celui des macros du 17 août.
+export function arrondiFibres(f: Fibres): Fibres {
+  return { grammes: Math.round(f.grammes), inconnus: f.inconnus }
+}
+
 export function sommeFibres(...f: Fibres[]): Fibres {
   return f.reduce(
     (a, b) => ({ grammes: a.grammes + b.grammes, inconnus: a.inconnus + b.inconnus }),

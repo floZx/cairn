@@ -16,6 +16,7 @@ import {
   objectifsAdaptatifs,
   objectifsDuJour,
   somme,
+  arrondiFibres,
   fibresDe,
   sommeFibres,
   type EtatRepas,
@@ -280,7 +281,7 @@ export function Nutrition({
   const totalJour = somme(...creneaux.map((c) => consommeDu(c.uuid)))
   // Sur la journée entière et non par créneau : les fibres n'ont pas de cible
   // par repas, et aucune ligne ne les montre.
-  const fibresDuJour = sommeFibres(...aliments.map(fibresDe))
+  const fibresDuJour = sommeFibres(...aliments.map((a) => arrondiFibres(fibresDe(a))))
 
   // Les glucides ne sont pas un réglage : ils se déduisent de ce que les
   // calories laissent une fois les protéines et lipides comptés. Sans la

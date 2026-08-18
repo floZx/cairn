@@ -354,7 +354,7 @@ struct MealTargetKindTests {
         context.insert(slot)
         var meal = NutritionDayModel.Meal(
             slotID: slot.persistentModelID, slotName: "Déjeuner", rows: [],
-            consumed: .zero,
+            consumed: .zero, fiber: .zero,
             target: Macros(kcal: 792, protein: 49, carbs: 100, fat: 22),
             note: nil, targetKind: NutritionDayModel.TargetKind.planShare, pct: 33
         )

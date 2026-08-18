@@ -10,6 +10,9 @@ struct NutritionDayModel: Equatable {
         var name: String
         var grams: Double
         var macros: Macros
+        /// Les fibres de cette ligne — un tiret plutôt qu'un chiffre quand
+        /// l'aliment n'en annonce pas.
+        var fiber: FiberTally
         var isFavorite: Bool
     }
 
@@ -18,6 +21,7 @@ struct NutritionDayModel: Equatable {
         var slotName: String
         var rows: [Row]
         var consumed: Macros
+        var fiber: FiberTally
         var target: Macros?
         var note: String?
         /// What the target above *means*, which is not the same for every
@@ -69,14 +73,18 @@ struct NutritionDayModel: Equatable {
         let mealConsumed = mealEntries.map { entries in
             entries.map { Macros(of: $0).rounded() }.reduce(.zero, +)
         }
-        // Sommées sur les valeurs exactes, puis arrondies une fois à
-        // l'affichage — au contraire des macros, arrondies par portion.
-        // La règle des macros existe pour qu'une colonne de chiffres
-        // s'additionne à son total ; les fibres n'ont pas de colonne, aucune
-        // ligne de repas ne les montre. Les arrondir par portion ne servirait
-        // donc personne et effacerait les contributions sous le demi-gramme,
-        // dont une journée compte beaucoup.
-        let fiber = entries.map { FiberTally(of: $0) }.reduce(.zero, +)
+        // Arrondies par portion, puis sommées — la règle des macros, et pour
+        // sa raison exacte : depuis que le tableau a sa colonne « F », une
+        // colonne de chiffres doit faire le total imprimé dessous.
+        //
+        // Elle avait d'abord été écrite dans l'autre sens, justement parce
+        // qu'aucune ligne ne les montrait ; la colonne a retourné l'argument.
+        // Le prix est connu et accepté : une contribution sous le demi-gramme
+        // disparaît, comme elle disparaît déjà pour les lipides.
+        let mealFiber = mealEntries.map { entries in
+            entries.map { FiberTally(of: $0).rounded() }.reduce(.zero, +)
+        }
+        let fiber = mealFiber.reduce(.zero, +)
         let targets = NutritionMath.adaptiveMealTargets(
             daily: daily,
             meals: zip(orderedSlots, zip(mealEntries, mealConsumed)).map {
@@ -102,6 +110,7 @@ struct NutritionDayModel: Equatable {
                     Row(
                         entryID: $0.persistentModelID, name: $0.foodName,
                         grams: $0.grams, macros: Macros(of: $0).rounded(),
+                        fiber: FiberTally(of: $0).rounded(),
                         isFavorite: favoriteKeys.contains(
                             FavoriteKey(
                                 foodName: $0.foodName, productCode: $0.productCode
@@ -110,6 +119,7 @@ struct NutritionDayModel: Equatable {
                     )
                 },
                 consumed: mealConsumed[index],
+                fiber: mealFiber[index],
                 target: targets[index],
                 note: notes.first {
                     $0.mealSlot?.persistentModelID == slot.persistentModelID
