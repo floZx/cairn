@@ -1067,6 +1067,29 @@ input, button { font: inherit; }
   margin-top: 4px;
 }
 
+/* Le retour d'iOS 26 : un chevron dans une pastille de verre, au bord gauche de
+   la barre du haut, où il fait pendant au bouton de compte. Même taille que
+   lui, pour que les deux s'alignent sur le même bas.
+
+   Le libellé est parti avec l'ancien lien — « ‹ Activités » en bleu tranchait
+   sur le halo du sport, et un chevron seul n'a jamais eu besoin qu'on lui dise
+   d'où il revient. */
+.barre-nav .retour {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--texte);
+  cursor: pointer;
+}
+
+.barre-nav .retour:active {
+  opacity: 0.55;
+}
+
 /* ---- Compte -------------------------------------------------------------- */
 
 /* Discret : la couleur d'accent le rend touchable sans le faire crier, et il
@@ -1697,34 +1720,6 @@ body {
     color-mix(in srgb, var(--teinte-sport) 22%, transparent) 0%,
     transparent 45%
   );
-}
-
-/* Le retour d'iOS 26 : un chevron dans une pastille de verre, en haut à gauche
-   du volet et à la hauteur du bouton de compte, qui lui répond de l'autre bord.
-   Le libellé est parti avec lui — « ‹ Activités » en bleu tranchait sur le halo
-   du sport, et un chevron seul n'a jamais eu besoin qu'on lui dise d'où il
-   revient. */
-.entete-fiche .retour {
-  cursor: pointer;
-  position: absolute;
-  top: calc(env(safe-area-inset-top) + 5px);
-  left: 16px;
-  /* Au-dessus de la barre du haut, et non dessous : sous son flou, un chevron
-     de dix-sept pixels se dissolvait au point de disparaître. */
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  margin: 0;
-  padding: 0;
-  border-radius: 50%;
-  color: var(--texte);
-}
-
-.entete-fiche .retour:active {
-  opacity: 0.55;
 }
 
 .entete-fiche h2 {

@@ -88,8 +88,9 @@ export function Chrome({
   action,
   /// Vrai quand une fiche occupe l'écran : les onglets s'effacent, comme une
   /// vue poussée sur une pile de navigation masque la barre d'onglets, et le
-  /// grand titre avec eux — la fiche porte son propre en-tête et son retour.
+  /// grand titre avec eux — la fiche porte son propre en-tête.
   masquerOnglets = false,
+  retour,
 }: {
   section: Section
   onSection: (s: Section) => void
@@ -97,6 +98,12 @@ export function Chrome({
   /// Le bouton de droite de la barre, s'il y en a un.
   action?: ReactNode
   masquerOnglets?: boolean
+  /// De quoi revenir, quand il y a d'où revenir.
+  ///
+  /// Dans la barre et non dans la fiche : la barre est fixe, la fiche défile,
+  /// et un retour qui disparaît dès qu'on descend d'un écran n'est plus un
+  /// retour. Il fait pendant au bouton de compte, à l'autre bord.
+  retour?: () => void
 }) {
   const [replie, setReplie] = useState(false)
   const zone = useRef<HTMLDivElement>(null)
@@ -146,6 +153,23 @@ export function Chrome({
       <header
         className={replie && !masquerOnglets ? "barre-nav repliee" : "barre-nav"}
       >
+        {retour && (
+          <button className="retour matiere" onClick={retour} aria-label="Retour">
+            <svg
+              width="17"
+              height="17"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M15 4.5L7.5 12l7.5 7.5" />
+            </svg>
+          </button>
+        )}
         <div className="titre-compact">{TITRES[section]}</div>
         <div className="action-barre">{action}</div>
       </header>

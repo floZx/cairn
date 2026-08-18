@@ -67,10 +67,11 @@ export function App() {
       section={section}
       onSection={setSection}
       masquerOnglets={surUneFiche}
+      retour={surUneFiche ? () => history.back() : undefined}
       action={<BoutonCompte />}
     >
       {surUneFiche ? (
-        <ActivityDetail uuid={ouverte} onRetour={() => history.back()} />
+        <ActivityDetail uuid={ouverte} />
       ) : section === "activites" ? (
         <ActivityList
           onOuvrir={ouvrir}
