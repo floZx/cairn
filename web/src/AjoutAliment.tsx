@@ -328,9 +328,15 @@ export function AjoutAliment({
                 {a.grammesFavori !== null && a.marque === "" ? "★ " : ""}
                 {a.nom}
               </span>
+              {/* Les fibres à côté des calories, et un tiret quand le produit
+                  n'en annonce pas : c'est ce qui permet de choisir, entre deux
+                  yaourts équivalents, celui dont la fiche est complète. Une
+                  absence muette ne se distinguerait pas d'une colonne qu'on
+                  aurait oublié d'afficher. */}
               <span className="attenue petit">
                 {a.marque && `${a.marque} · `}
-                {Math.round(a.kcal100)} kcal/100 g
+                {Math.round(a.kcal100)} kcal/100 g ·{" "}
+                {a.fiber100 === null ? "F —" : `F ${Math.round(a.fiber100)}`}
               </span>
             </button>
           </li>

@@ -310,10 +310,17 @@ struct FoodPickerView: View {
     }
 
     private func subtitle(of hit: FoodSearch.Hit) -> String {
+        // Les fibres après les trois macros, et un tiret quand le produit n'en
+        // annonce pas — dit plutôt que tu : c'est ce qui permet de choisir,
+        // entre deux yaourts équivalents, celui dont la fiche est complète.
+        // Une absence muette ne se distinguerait pas d'une colonne qu'on
+        // aurait oublié d'afficher.
+        let fibres = hit.fiber100.map { "F \(Int($0.rounded()))" } ?? "F —"
         let macros = "\(Int(hit.kcal100.rounded())) kcal · "
             + "P \(Int(hit.protein100.rounded())) · "
             + "G \(Int(hit.carbs100.rounded())) · "
-            + "L \(Int(hit.fat100.rounded())) /100 g"
+            + "L \(Int(hit.fat100.rounded())) · "
+            + "\(fibres) /100 g"
         return hit.brands.isEmpty ? macros : "\(hit.brands) — \(macros)"
     }
 
