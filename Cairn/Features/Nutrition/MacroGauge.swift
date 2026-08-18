@@ -109,8 +109,17 @@ struct FiberGauge: View {
         target > 0 && tally.grams.rounded() >= (target * 0.90).rounded()
     }
 
+    /// Un tiret quand rien n'est connu, et non « 0 ».
+    ///
+    /// Le chiffre affiché est une borne inférieure : « 22 » sous « 3 aliments
+    /// sans donnée » se lit bien « au moins 22 ». Mais quand aucun aliment de
+    /// la journée n'annonce ses fibres, « 0 » ne se lit pas comme une borne,
+    /// il se lit « tu n'en as pas mangé » — ce qui est faux, et exactement le
+    /// demi-mensonge que cette jauge existe pour éviter.
     private var figure: String {
-        "\(entier(tally.grams)) / \(entier(target)) g"
+        let mesure = tally.grams == 0 && tally.unknownCount > 0
+            ? "—" : entier(tally.grams)
+        return "\(mesure) / \(entier(target)) g"
     }
 
     /// Ce qui reste, ou ce qu'on ignore — jamais les deux, et le manque

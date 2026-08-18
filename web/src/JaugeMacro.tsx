@@ -114,8 +114,14 @@ export function JaugeFibres({
       <div className="titre-jauge">
         Fibres <span className="unite-jauge">g</span>
       </div>
+      {/* Un tiret quand rien n'est connu, et non « 0 ». Le chiffre est une
+          borne inférieure : « 22 » sous « 3 aliments sans donnée » se lit bien
+          « au moins 22 ». Mais si aucun aliment de la journée n'annonce ses
+          fibres, « 0 » ne se lit pas comme une borne — il se lit « tu n'en as
+          pas mangé », ce qui est faux. */}
       <div className={"chiffre-jauge" + (atteint ? " atteint" : "")}>
-        {entier(fibres.grammes)} / {entier(objectif)}
+        {fibres.grammes === 0 && fibres.inconnus > 0 ? "—" : entier(fibres.grammes)} /{" "}
+        {entier(objectif)}
       </div>
       {objectif > 0 && (
         <>
