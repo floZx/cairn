@@ -304,7 +304,20 @@ struct ActivityDetailView: View {
                 // August 2026. Selecting the note is what the editor is for,
                 // and it is one click away. The journal's pane made the same
                 // trade for the same reason.
+                // La même surface que l'invitation à écrire, juste au-dessus.
+                //
+                // Elle ne l'avait pas, et le rapport était à l'envers : la
+                // carte allait à la proposition d'écrire, la note écrite
+                // restait nue entre la carte du parcours et la grille des
+                // chiffres — deux blocs autrement plus présents qu'elle. Elle
+                // est pourtant la seule prose de l'écran, et la seule chose
+                // qu'on ait mise là soi-même.
+                //
+                // Une surface plutôt qu'un cadre ou une couleur : c'est déjà
+                // le vocabulaire de cet écran, et le plus discret des trois.
+                .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
                 .contentShape(.rect)
                 .onTapGesture { beginEditingNote() }
             }
