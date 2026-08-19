@@ -124,7 +124,16 @@ export function BoutonCompte() {
               d'accueil garde son service worker, et rien ne disait laquelle des
               builds était servie — au point de mesurer des captures d'écran
               pour le deviner. */}
-          <p className="attenue minuscule empreinte">Version {__EMPREINTE__}</p>
+          {/* Le domaine d'où l'application tourne vraiment.
+              Strava n'accepte de renvoyer que vers le domaine déclaré dans les
+              réglages de l'application, et une PWA ajoutée à l'écran d'accueil
+              garde pour toujours l'adresse depuis laquelle on l'a ajoutée —
+              qui peut être une URL de déploiement à empreinte. Impossible de
+              le savoir de l'extérieur : sans barre d'adresse, rien ne le dit.
+              Une ligne ici répond en une seconde. */}
+          <p className="attenue minuscule empreinte">
+            Version {__EMPREINTE__} · {location.host}
+          </p>
         </Feuille>
       )}
     </>
