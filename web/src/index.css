@@ -2840,3 +2840,70 @@ body {
   font-size: 15px;
   cursor: pointer;
 }
+
+/* Une personne citée dans une note.
+   La couleur seule, ni fond ni gras : dans une note qui cite trois personnes,
+   trois pastilles feraient une décoration là où trois mots colorés se lisent
+   encore comme une phrase. */
+.citation {
+  color: var(--accent);
+}
+
+/* ---- People --------------------------------------------------------------- */
+
+.liste-gens {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Une ligne par personne : le pseudo, un point quand une note existe, et le
+   nombre de notes qui la citent. */
+.ligne-personne {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 13px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--trait);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ligne-personne .pseudo {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ligne-personne .marque-note {
+  color: var(--texte-3);
+}
+
+.ligne-personne .compte {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.titre-section {
+  margin: 18px 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Une note qui cite la personne, avec sa date et sa provenance. */
+.citation-carte {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--carte);
+}
+
+.citation-carte.ouvrable {
+  cursor: pointer;
+}

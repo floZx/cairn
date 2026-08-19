@@ -5,6 +5,8 @@ import { SignIn } from "./SignIn"
 import { ActivityList } from "./ActivityList"
 import { ActivityDetail } from "./ActivityDetail"
 import { Journal } from "./Journal"
+import { People } from "./People"
+import { SelecteurJournal, type VueJournal } from "./SelecteurJournal"
 import { Entrainement } from "./Entrainement"
 import { Nutrition } from "./Nutrition"
 import { Stats } from "./Stats"
@@ -109,6 +111,11 @@ export function App() {
   }, [])
 
   const [section, setSection] = useState<Section>("activites")
+  /// L'onglet Journal montre deux choses : les journées, et les gens qui y
+  /// sont cités. Un sixième onglet ne tenait pas dans la capsule — c'est déjà
+  /// pour ça qu'« Entraînement » s'y appelle « Plan » — et People est de toute
+  /// façon une façon de lire le journal, pas un ailleurs.
+  const [vueJournal, setVueJournal] = useState<VueJournal>("journees")
 
   // Le jour d'arrivée dans les repas, quand on y va depuis une citation du
   // journal. Effacé dès qu'on choisit un onglet à la main : sans quoi revenir
@@ -151,8 +158,10 @@ export function App() {
       // Seulement sur les activités : c'est la seule section qui se regarde de
       // trois façons.
       entete={
-        section === "activites" && !surUneFiche ? (
+        surUneFiche ? undefined : section === "activites" ? (
           <SelecteurVue vue={vue} onVue={setVue} />
+        ) : section === "journal" ? (
+          <SelecteurJournal vue={vueJournal} onVue={setVueJournal} />
         ) : undefined
       }
       action={<BoutonCompte />}
@@ -175,6 +184,9 @@ export function App() {
       ) : section === "plan" ? (
         <Entrainement onOuvrir={ouvrir} />
       ) : section === "journal" ? (
+        vueJournal === "gens" ? (
+          <People onOuvrir={ouvrir} />
+        ) : (
         <Journal
           onActivite={ouvrir}
           onRepas={(dateKey) => {
@@ -182,6 +194,7 @@ export function App() {
             setSection("nutrition")
           }}
         />
+        )
       ) : section === "nutrition" ? (
         // La clef force un remontage : le jour d'arrivée est lu à la
         // construction, et sans elle une seconde téléportation ne bougerait

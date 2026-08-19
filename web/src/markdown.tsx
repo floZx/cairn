@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { CARACTERES_ETIQUETTE, nomDEtiquette } from "./tags"
+import { personne } from "./citations"
 
 /// Un rendu Markdown minimal, écrit à la main plutôt qu'emprunté.
 ///
@@ -93,7 +94,11 @@ export function enLigne(texte: string): ReactNode[] {
   const morceaux: ReactNode[] = []
   const motif = new RegExp(
     "(\\*\\*[^*]+\\*\\*)|(\\*[^*]+\\*)|(\\[[^\\]]+\\]\\([^)]+\\))" +
-      `|((?<=^|\\s)#[${CARACTERES_ETIQUETTE}]+)`,
+      `|((?<=^|\\s)#[${CARACTERES_ETIQUETTE}]+)` +
+      // Une citation de personne. Le `@` doit ouvrir le mot — après une espace
+      // ou une ouvrante — et c'est cette seule règle qui écarte les adresses
+      // de courriel, où il suit une lettre.
+      `|((?<=^|[\\s([{«"'*>–—-])@[\\p{L}\\p{N}_-]+)`,
     "gu",
   )
   let dernierIndex = 0
@@ -107,6 +112,21 @@ export function enLigne(texte: string): ReactNode[] {
       morceaux.push(<strong key={cle++}>{brut.slice(2, -2)}</strong>)
     } else if (brut.startsWith("*")) {
       morceaux.push(<em key={cle++}>{brut.slice(1, -1)}</em>)
+    } else if (brut.startsWith("@")) {
+      // Le `@` reste, à la différence du croisillon des étiquettes : « @sam »
+      // se lit comme un nom là où « #trail » se lit comme un mot, et retirer
+      // l'arobase donnerait « sam » au milieu d'une phrase, indistinguable du
+      // reste.
+      const qui = personne(brut.slice(1))
+      morceaux.push(
+        qui ? (
+          <span className="citation" key={cle++}>
+            @{qui.nom}
+          </span>
+        ) : (
+          brut
+        ),
+      )
     } else if (brut.startsWith("#")) {
       // Une suite qui n'est pas une étiquette valide reste telle quelle,
       // croisillon compris : c'est du texte ordinaire.
