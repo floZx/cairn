@@ -70,7 +70,10 @@ struct JournalDetailView: View {
     /// an image on the clipboard and nothing more.
     let onPastePhoto: (Data) -> Void
 
-    @FocusState private var editorFocused: Bool
+    /// Vrai quand l'éditeur doit avoir le clavier. Un état ordinaire et non
+    /// un `@FocusState` : c'est `NoteTextView` qui tient le premier
+    /// répondant, et les deux mécaniques ne se parlent pas.
+    @State private var editorFocused = false
     /// Reading or writing, and on which note. The rules are `JournalEditing`'s,
     /// and tested there: what is left here is the focus plumbing.
     @State private var editing = JournalEditing()
@@ -310,42 +313,31 @@ struct JournalDetailView: View {
         // One way only. The getter reads the draft this view holds, never the
         // store, so nothing the store does to `notes` while a key is being
         // pressed can replace the text under the caret — see `draft`.
-        TextEditor(text: Binding(
-                get: { draft },
-                set: { newValue in
-                    guard newValue != draft else { return }
-                    draft = newValue
-                    onEdit(newValue)
-                }
-            ))
-            // The same size as the reader, and that is the whole point: the
-            // two modes swap under the pointer, and text that grew or shrank
-            // on the click would make the swap the thing you notice.
-            .font(.system(size: Self.noteSize))
-            .scrollContentBackground(.hidden)
-            .focused($editorFocused)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            // Escape leaves the field rather than clearing it: the note comes
-            // back rendered, the list gets the keyboard back and `j`/`k` work
-            // again straight away.
-            .onKeyPress(.escape) {
-                editorFocused = false
-                editing.ended()
-                onLeaveEditor()
-                return .handled
-            }
-            // Après l'échappement de l'éditeur, et l'ordre compte : le
-            // modificateur pose le sien, qui se déclare « non traité » quand
-            // la barre est fermée — c'est ce qui laisse celui du dessus
-            // reprendre la main pour quitter le champ.
-            .citations(Binding(
+        CompletingNoteEditor(
+            texte: Binding(
                 get: { draft },
                 set: { nouveau in
                     guard nouveau != draft else { return }
                     draft = nouveau
                     onEdit(nouveau)
                 }
-            ))
+            ),
+            // La même taille que la lecture, et c'est tout l'intérêt : les
+            // deux modes s'échangent sous le pointeur, et un texte qui
+            // grandirait ou rétrécirait au clic ferait de l'échange la chose
+            // qu'on remarque.
+            taille: Self.noteSize,
+            focus: $editorFocused,
+            onEchappement: {
+                editorFocused = false
+                editing.ended()
+                onLeaveEditor()
+            },
+            onImageCollee: { data in
+                onPastePhoto(data)
+                return true
+            }
+        )
+        .padding(.horizontal, 4)
     }
 }
