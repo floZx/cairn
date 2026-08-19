@@ -47,6 +47,26 @@ export function App() {
     return () => removeEventListener("popstate", onPop)
   }, [])
 
+  /// Ce que le retour de Strava a donné, quand il a quelque chose à dire.
+  ///
+  /// Une connexion qui échoue en silence renvoie sur la liste d'activités, et
+  /// rien ne distingue ce cas-là d'une connexion réussie : c'est exactement
+  /// l'ambiguïté rencontrée au premier essai.
+  const [motStrava, setMotStrava] = useState<string | null>(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const issue = params.get("strava")
+    if (!issue) return
+    const cause = params.get("cause")
+    history.replaceState(null, "", location.pathname)
+    setMotStrava(
+      issue === "refus"
+        ? `Autorisation refusée chez Strava${cause ? ` (${cause})` : ""}.`
+        : `Strava a refusé l'échange${cause ? ` : ${cause}` : ""}.`,
+    )
+  }, [])
+
   // Le retour de Strava dépose son jeton dans le fragment de l'URL — la seule
   // partie qui ne part jamais au serveur ni dans les journaux. La page le
   // range sous son identité, puis l'efface de la barre d'adresse.
@@ -62,7 +82,17 @@ export function App() {
     if (!jeton.access_token) return
     supabase.auth.getSession().then(({ data }) => {
       const session = data.session?.access_token
-      if (!session) return
+      if (!session) {
+        // Le cas qui guette sur iPhone : l'autorisation s'est faite dans
+        // Safari, où l'application n'a pas de session, et le jeton arrive dans
+        // une fenêtre qui ne peut rien en faire. Mieux vaut le dire que de le
+        // perdre sans bruit.
+        setMotStrava(
+          "Jeton reçu, mais cette fenêtre n'est pas connectée à Cairn. "
+            + "Refais « Connecter Strava » depuis l'application.",
+        )
+        return
+      }
       fetch("/strava/retour", {
         method: "POST",
         headers: {
@@ -71,6 +101,10 @@ export function App() {
         },
         body: JSON.stringify(jeton),
       })
+        .then((r) => {
+          setMotStrava(r.ok ? "Strava connecté." : "Le jeton n'a pas pu être rangé.")
+        })
+        .catch(() => setMotStrava("Le jeton n'a pas pu être rangé."))
     })
   }, [])
 
@@ -123,6 +157,11 @@ export function App() {
       }
       action={<BoutonCompte />}
     >
+      {motStrava && (
+        <p className="mot-strava" onClick={() => setMotStrava(null)}>
+          {motStrava}
+        </p>
+      )}
       {surUneFiche ? (
         <ActivityDetail uuid={ouverte} onOuvrir={ouvrir} />
       ) : section === "activites" ? (

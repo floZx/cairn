@@ -2828,3 +2828,15 @@ body {
   text-align: left;
   text-decoration: none;
 }
+
+/* Ce que le retour de Strava a donné. Posé en haut du contenu, cliquable pour
+   s'en débarrasser : c'est un mot de passage, pas un état de l'application. */
+.mot-strava {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--champ);
+  color: var(--texte);
+  font-size: 15px;
+  cursor: pointer;
+}

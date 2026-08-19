@@ -15,7 +15,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const url = new URL(request.url)
   const code = url.searchParams.get("code")
   if (!code) {
-    return Response.redirect(`${url.origin}/?strava=refus`, 302)
+    // Strava dit pourquoi quand on refuse : « access_denied », le plus
+    // souvent. Le transmettre plutôt que de le perdre — un retour muet est ce
+    // qui a coûté le plus de temps sur ce projet.
+    const cause = url.searchParams.get("error") ?? "sans code"
+    return Response.redirect(
+      `${url.origin}/?strava=refus&cause=${encodeURIComponent(cause)}`, 302
+    )
   }
 
   const echange = await fetch("https://www.strava.com/oauth/token", {
@@ -29,7 +35,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     }),
   })
   if (!echange.ok) {
-    return Response.redirect(`${url.origin}/?strava=echec`, 302)
+    // Le corps de la réponse porte la vraie cause : identifiant client faux,
+    // domaine de retour non déclaré, code déjà consommé. Tronqué, parce qu'il
+    // voyage dans une URL.
+    const dit = (await echange.text()).slice(0, 300)
+    return Response.redirect(
+      `${url.origin}/?strava=echec&cause=${encodeURIComponent(dit)}`, 302
+    )
   }
   const jeton = (await echange.json()) as {
     access_token: string
