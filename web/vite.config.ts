@@ -55,7 +55,17 @@ export default defineConfig({
         // vieux. Le Mac est la copie qui fonctionne hors ligne ; le
         // navigateur demande le réseau, et le dit quand il ne l'a pas.
         globPatterns: ["**/*.{js,css,html,png,svg,woff2}"],
-        navigateFallbackDenylist: [/^\/api/],
+        // Ce qui ne doit **jamais** être servi par la coquille en cache.
+        //
+        // Une navigation vers `/strava/connexion` est une navigation comme une
+        // autre pour Workbox : il répondait `index.html`, l'application
+        // redémarrait, et on se retrouvait sur la liste d'activités sans que
+        // rien n'ait quitté le téléphone. Aucune erreur, aucun bandeau — la
+        // fonction Cloudflare n'avait tout simplement jamais été appelée.
+        // Mesuré le 19 août 2026 : la même adresse marchait en curl et ne
+        // faisait rien dans la PWA, ce qui est la signature d'un service
+        // worker.
+        navigateFallbackDenylist: [/^\/api/, /^\/strava\//],
       },
       devOptions: { enabled: false },
     }),
