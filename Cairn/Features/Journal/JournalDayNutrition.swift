@@ -13,6 +13,12 @@ import SwiftData
 /// of instants.
 struct JournalDayNutrition: View {
     let date: DateKey
+    /// Aller à la journée des repas, là où ces notes se modifient.
+    ///
+    /// Le récap des sorties menait à la sortie depuis toujours ; celui-ci ne
+    /// menait nulle part, et deux blocs voisins qui ne se comportent pas
+    /// pareil se lisent comme un des deux cassé. Signalé.
+    let onSelectDay: (DateKey) -> Void
 
     /// Read against `JournalDetailView.noteSize` — the note this pane is for,
     /// at 15. The same pair as the activities' recap, so the two blocks under
@@ -23,8 +29,9 @@ struct JournalDayNutrition: View {
     @Query private var mealNotes: [MealNote]
     @Query private var weights: [WeightEntry]
 
-    init(date: DateKey) {
+    init(date: DateKey, onSelectDay: @escaping (DateKey) -> Void) {
         self.date = date
+        self.onSelectDay = onSelectDay
         let raw = date.raw
         _mealNotes = Query(filter: #Predicate<MealNote> { $0.dateKeyRaw == raw })
         _weights = Query(filter: #Predicate<WeightEntry> { $0.dateKeyRaw == raw })
@@ -98,8 +105,7 @@ struct JournalDayNutrition: View {
                     block(Self.label(for: note), Self.note(of: note))
                 }
                 if let spokenWeight {
-                    let heading = Self.weightLine(spokenWeight)
-                    block(heading, Self.note(of: spokenWeight))
+                    block(Self.weightLine(spokenWeight), Self.note(of: spokenWeight))
                 }
             }
         }
@@ -107,15 +113,28 @@ struct JournalDayNutrition: View {
 
     /// One card: what it is, then what was written about it.
     ///
-    /// The heading is a `Text` and the note is rendered — the meal's name and
+    /// The heading is a button and the note is rendered — the meal's name and
     /// the weight are labels, the note is prose somebody wrote, and it is read
     /// here exactly as it is read in its own pane: Markdown, without the `#`
     /// of a tag.
+    ///
+    /// Le titre porte le clic, la note reste sélectionnable : c'est le partage
+    /// exact du récap des sorties, et pour la même raison — un texte
+    /// sélectionnable prend le clic pour lui, si bien qu'une carte entièrement
+    /// cliquable ne le serait qu'entre les mots.
     private func block(_ heading: String, _ note: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(heading)
-                .font(.system(size: Self.headingSize))
-                .foregroundStyle(.secondary)
+            Button {
+                onSelectDay(date)
+            } label: {
+                Text(heading)
+                    .font(.system(size: Self.headingSize))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .help("Ouvrir la journée dans Alimentation")
             MarkdownText(
                 markdown: note, baseSize: Self.noteSize, hidesTagHashes: true
             )

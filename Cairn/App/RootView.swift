@@ -1177,6 +1177,10 @@ struct RootView: View {
                     onSelectTag: { journalTags.insert($0) },
                     onSelectActivity: { openActivity($0) },
                     onLeaveEditor: { journalListFocus += 1 },
+                    onSelectDay: { jour in
+                        nutritionDateKey = jour
+                        sidebarSelection = .nutrition
+                    },
                     attachmentsBase: app.journal.attachmentsBase,
                     onAddPhotos: { addJournalPhotos($0, to: date) },
                     onPastePhoto: { pasteJournalPhoto($0, to: date) }
