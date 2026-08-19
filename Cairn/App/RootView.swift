@@ -6,6 +6,10 @@ struct RootView: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(\.modelContext) private var modelContext
     @State private var sidebarSelection: SidebarItem? = .all
+    /// Le jour choisi dans le plan d'entraînement. Tenu ici comme les autres
+    /// jours d'écran, pour que la grille et son mois survivent à un aller-retour
+    /// vers la liste.
+    @State private var trainingDateKey = DateKey(Date())
     @State private var filter = ActivityFilter.none
     // See the comment on `ActivityListView.selection`: `Activity.ID` can't be
     // named from this file, so `PersistentIdentifier` is used directly.
@@ -391,6 +395,7 @@ struct RootView: View {
     /// buttons, it does not withdraw the commands.
     private var showsActivityActions: Bool {
         !showsJournal && !showsNutrition && !showsWeight && !showsStatistics
+            && !showsTraining
     }
 
     private var showsJournal: Bool { sidebarSelection == .journal }
@@ -514,6 +519,8 @@ struct RootView: View {
         journalSelection = date
     }
 
+    private var showsTraining: Bool { sidebarSelection == .training }
+
     private var showsNutrition: Bool { sidebarSelection == .nutrition }
 
     private var showsWeight: Bool { sidebarSelection == .weight }
@@ -572,6 +579,14 @@ struct RootView: View {
                     // one of the two is ever on screen, and a second one would
                     // be a second thing for `/` to aim at.
                     .searchFocused($searchFieldFocused)
+                } else if showsTraining {
+                    // Le plan prend toute la colonne : une grille de mois n'a
+                    // rien à gagner à cohabiter avec une liste.
+                    TrainingView(
+                        day: $trainingDateKey,
+                        onSelectActivity: { openActivity($0) }
+                    )
+                    .vimKeys(performOutsideTheList)
                 } else if showsNutrition {
                     // The vim modifier lives inside the view here — it must go
                     // dead while the add/edit sheets are up, and only the view
@@ -1097,7 +1112,7 @@ struct RootView: View {
             } else {
                 collapsedDetailColumn
             }
-        } else if showsWeight {
+        } else if showsWeight || showsTraining {
             collapsedDetailColumn
         } else if let selected {
             ActivityDetailView(
