@@ -5,6 +5,7 @@ import { supabase } from "./supabase"
 import { Markdown } from "./markdown"
 import { dateLongue } from "./format"
 import { index, lignes, type Citation, type Personne } from "./citations"
+import { useImagesDuJournal } from "./Journal"
 
 /// Les gens cités dans les notes.
 ///
@@ -122,6 +123,9 @@ export function People({ onOuvrir }: { onOuvrir: (uuid: string) => void }) {
   const [ouverte, setOuverte] = useState<string | null>(null)
   const textes = useTextes()
   const fiches = useFiches()
+  // Les mêmes URL signées que le journal : une citation venue d'une note
+  // illustrée affichait sinon le chemin du fichier en toutes lettres.
+  const images = useImagesDuJournal()
 
   const table = useMemo(() => index(textes.data ?? []), [textes.data])
   const liste = useMemo(
@@ -143,6 +147,7 @@ export function People({ onOuvrir }: { onOuvrir: (uuid: string) => void }) {
         fiche={(fiches.data ?? []).find((f) => f.key === ouverte) ?? null}
         onFermer={() => setOuverte(null)}
         onOuvrir={onOuvrir}
+        urlImage={(chemin) => images.data?.get(chemin.replace(/^.*\//, ""))}
       />
     )
   }
@@ -181,12 +186,14 @@ function FichePersonne({
   fiche,
   onFermer,
   onOuvrir,
+  urlImage,
 }: {
   personne: Personne
   citations: Citation[]
   fiche: Fiche | null
   onFermer: () => void
   onOuvrir: (uuid: string) => void
+  urlImage: (chemin: string) => string | undefined
 }) {
   const [note, setNote] = useState(fiche?.note ?? "")
   const aire = useRef<HTMLTextAreaElement>(null)
@@ -263,7 +270,7 @@ function FichePersonne({
               <span className="attenue petit">
                 {dateLongue(citation.dateKey)} · {citation.source.libelle}
               </span>
-              <Markdown texte={citation.texte} />
+              <Markdown texte={citation.texte} imageURL={urlImage} />
             </div>
           ))}
         </>

@@ -1189,7 +1189,8 @@ struct RootView: View {
                 PersonDetailView(
                     handle: handle,
                     citations: peopleCitations[handle] ?? [],
-                    onSelectActivity: { openActivityByUUID($0) }
+                    onSelectActivity: { openActivityByUUID($0) },
+                    attachmentsBase: app.journal.attachmentsBase
                 )
                 .frame(minWidth: Self.detailMinWidth)
             } else {

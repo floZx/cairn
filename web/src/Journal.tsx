@@ -77,7 +77,7 @@ function useCreneaux() {
 /// relatif qui avait un sens dans un dossier et n'en a plus ici. Le seau est
 /// privé, il faut donc une URL signée — toutes d'un coup, et pour
 /// vingt-quatre heures.
-function useImagesDuJournal() {
+export function useImagesDuJournal() {
   return useQuery({
     queryKey: ["pieces-jointes"],
     staleTime: 12 * 3600 * 1000,

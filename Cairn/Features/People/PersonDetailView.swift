@@ -11,6 +11,12 @@ struct PersonDetailView: View {
     let handle: PersonHandle
     let citations: [PeopleIndex.Citation]
     let onSelectActivity: (String) -> Void
+    /// Le dossier où les pièces jointes du journal se résolvent.
+    ///
+    /// Sans lui, une citation venue d'une note illustrée affichait le chemin
+    /// du fichier en toutes lettres — « pieces-jointes/2026-08-12-1.png » —
+    /// au lieu de la photo. Signalé.
+    let attachmentsBase: URL?
 
     @Environment(\.modelContext) private var context
     @Query private var people: [Person]
@@ -92,7 +98,10 @@ struct PersonDetailView: View {
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
-            MarkdownText(markdown: citation.texte, baseSize: 14, hidesTagHashes: true)
+            MarkdownText(
+                markdown: citation.texte, baseSize: 14, hidesTagHashes: true,
+                attachmentsBase: attachmentsBase
+            )
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(12)

@@ -94,11 +94,11 @@ struct PeopleView: View {
                                 .help("Une note existe sur cette personne")
                         }
                         Spacer(minLength: 8)
-                        if let derniere = ligne.derniere {
-                            Text(Format.shortDate(derniere.date()))
-                                .foregroundStyle(.secondary)
-                                .font(.callout)
-                        }
+                        // Pas de date : celle de la dernière citation ne dit
+                        // rien qu'on vienne chercher ici, et elle arrivait
+                        // avec une heure — minuit — qu'aucune note n'a jamais
+                        // eue. Le compte suffit à ranger la liste, et l'ordre
+                        // porte déjà la fraîcheur.
                         Text("\(ligne.compte)")
                             .foregroundStyle(.secondary)
                             .font(.callout)
