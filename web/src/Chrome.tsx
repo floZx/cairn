@@ -187,14 +187,21 @@ export function Chrome({
   /// Toucher l'onglet où l'on est déjà remonte en haut.
   ///
   /// La convention d'iOS, et le geste qu'on fait sans y penser après avoir
-  /// déroulé cinquante sorties. En douceur : un saut sec fait douter d'avoir
-  /// changé d'écran, alors que la glissade montre qu'on remonte celui-ci.
+  /// déroulé cinquante sorties.
+  ///
+  /// D'un coup et non en douceur, à regret : `behavior: "smooth"` marchait
+  /// dans la liste et ne faisait **rien** dans le fil — mesuré, la position
+  /// restait à 2200 px. Le fil charge ses cartes et ses photos au fil du
+  /// défilement, chaque image qui arrive déplace la mise en page, et le
+  /// navigateur annule une glissade en cours dès que la position bouge
+  /// autrement. Un saut qui remonte vaut mieux qu'une glissade qui abandonne
+  /// à mi-chemin.
   ///
   /// Sauf par-dessus une fiche : là, l'onglet de la section qu'elle recouvre
   /// sert à la refermer, et c'est `App` qui s'en charge.
   const remonterOuAller = (s: Section) => {
     if (s === section && !masquerOnglets) {
-      zone.current?.scrollTo({ top: 0, behavior: "smooth" })
+      zone.current?.scrollTo({ top: 0 })
       return
     }
     onSection(s)
