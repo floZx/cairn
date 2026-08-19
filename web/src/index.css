@@ -797,11 +797,15 @@ input, button { font: inherit; }
   top: 0;
   left: 0;
   right: 0;
-  /* `100dvh` et non `100%`. Depuis que `html` porte un `min-height` agrandi,
-     un pourcentage s'y résout et compte les soixante-deux points une seconde
-     fois : le châssis passait à neuf cent trente-six et la capsule sortait par
-     le bas. `dvh` désigne la fenêtre, elle, qui vaut bien huit cent douze. */
-  height: calc(100dvh + env(safe-area-inset-top));
+  /* `100dvh` seul, sans rien y ajouter.
+
+     Le `min-height` de `html` sert à ce que le document couvre l'écran ; le
+     châssis, lui, n'a besoin que de la hauteur de l'écran, et c'est
+     exactement ce que `dvh` donne une fois la vue passée sous les deux barres.
+     Y ajouter la zone sûre du haut comptait ces points une seconde fois, et la
+     capsule des onglets sortait par le bas — deux fois de suite, une fois avec
+     `100%`, une fois avec `dvh`. */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
 }
