@@ -4,7 +4,6 @@ import { supabase } from "./supabase"
 import { IconeSport, couleurDuSport } from "./IconeSport"
 import { allureOuVitesse, dateCourte, denivele, distance, duree, heure } from "./format"
 import { traceDepuisBytea } from "./track"
-import { Miniature } from "./Miniature"
 import { CarteStatique } from "./CarteStatique"
 import { NOMS, etiquettesDe, type SourceEtiquettes } from "./etiquettes"
 
@@ -243,10 +242,20 @@ function Fiche({
             (image ? (
               // Les deux ensemble : la photo dit où l'on était, la trace dit
               // par où l'on est passé, et l'une n'est pas l'autre. Posée dans
-              // un coin sur la même matière que les barres, comme le fil de
-              // Strava pose sa carte sous sa photo.
+              // un coin, comme le fil de Strava pose sa carte sous sa photo.
+              //
+              // Une carte ici aussi, et pas seulement une trace nue : sur
+              // quatre-vingt-dix pixels de large, un trait rouge sans sol ne
+              // dit ni où ni dans quoi. Trois ou quatre tuiles suffisent à
+              // couvrir la vignette, ce qui ne coûte rien de plus que
+              // l'aplat qu'elles remplacent.
               <div className="vignette-trace matiere">
-                <Miniature trace={trace} couleur={couleur} epaisseur={2} />
+                <CarteStatique
+                  trace={trace}
+                  couleur={couleur}
+                  marge={7}
+                  epaisseur={2}
+                />
               </div>
             ) : (
               // Sans photo, la bande est à la carte : c'est la même que la
