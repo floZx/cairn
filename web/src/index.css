@@ -2076,24 +2076,41 @@ body {
   display: flex;
   flex: none;
   gap: 2px;
-  padding: 2px;
-  border-radius: 10px;
+  padding: 3px;
+  border-radius: 12px;
   background: var(--champ);
 }
 
+/* Quarante-quatre pixels au doigt, la mesure d'Apple, et vingt et un ne
+   suffisaient pas — le sélecteur était dessiné pour la ligne de recherche, où
+   il devait tenir dans la hauteur d'un champ.
+
+   La cible dépasse le dessin : le segment se voit sur quarante-deux par
+   trente, et le `::after` étend ce qu'on peut toucher à quarante-quatre de
+   haut, débordant sur la marge du titre — de l'air, où il n'y a rien d'autre à
+   atteindre. Grossir le dessin d'autant aurait fait une pastille aussi haute
+   que le champ de recherche, pour trois icônes de dix-neuf pixels. */
 .segment {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
+  width: 42px;
+  height: 30px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   background: transparent;
   color: var(--texte-2);
   cursor: pointer;
   transition:
     background-color 0.16s ease,
     color 0.16s ease;
+}
+
+.segment::after {
+  content: "";
+  position: absolute;
+  inset: -7px 0;
 }
 
 .segment.actif {
