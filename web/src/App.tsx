@@ -10,6 +10,7 @@ import { Stats } from "./Stats"
 import { Chrome, type Section } from "./Chrome"
 import { AUCUN, type Filtre } from "./criteres"
 import { presentationRetenue, type Vue } from "./vues"
+import { SelecteurVue } from "./SelecteurVue"
 import { BoutonCompte } from "./Compte"
 
 export function App() {
@@ -80,6 +81,13 @@ export function App() {
       onSection={changerDeSection}
       masquerOnglets={surUneFiche}
       retour={surUneFiche ? () => history.back() : undefined}
+      // Seulement sur les activités : c'est la seule section qui se regarde de
+      // trois façons.
+      entete={
+        section === "activites" && !surUneFiche ? (
+          <SelecteurVue vue={vue} onVue={setVue} />
+        ) : undefined
+      }
       action={<BoutonCompte />}
     >
       {surUneFiche ? (

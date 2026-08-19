@@ -91,6 +91,7 @@ export function Chrome({
   /// grand titre avec eux — la fiche porte son propre en-tête.
   masquerOnglets = false,
   retour,
+  entete,
 }: {
   section: Section
   onSection: (s: Section) => void
@@ -104,6 +105,11 @@ export function Chrome({
   /// et un retour qui disparaît dès qu'on descend d'un écran n'est plus un
   /// retour. Il fait pendant au bouton de compte, à l'autre bord.
   retour?: () => void
+  /// Ce qui se pose à droite du grand titre.
+  ///
+  /// Le titre occupe une ligne entière pour un seul mot ; c'est là qu'un
+  /// réglage de l'écran a sa place, au même rang que son nom.
+  entete?: ReactNode
 }) {
   const [replie, setReplie] = useState(false)
   const zone = useRef<HTMLDivElement>(null)
@@ -183,7 +189,12 @@ export function Chrome({
       </header>
 
       <div className="defilement" ref={zone}>
-        {!masquerOnglets && <h1 className="grand-titre">{TITRES[section]}</h1>}
+        {!masquerOnglets && (
+          <div className="ligne-titre">
+            <h1 className="grand-titre">{TITRES[section]}</h1>
+            {entete}
+          </div>
+        )}
         <main className="contenu">{children}</main>
       </div>
 

@@ -811,6 +811,17 @@ input, button { font: inherit; }
 }
 
 /* 34 pt chez Apple ; le poids compte autant que la taille. */
+/* Le titre et ce qui l'accompagne sur une ligne : le titre prend ce qu'il lui
+   faut, le réglage se range à droite. Alignés par le bas, comme iOS aligne un
+   bouton de barre sur la ligne de base d'un grand titre. */
+.ligne-titre {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 16px;
+}
+
 .grand-titre {
   margin: 4px 0 10px;
   padding: 0 16px;
