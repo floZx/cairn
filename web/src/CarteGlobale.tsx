@@ -86,6 +86,21 @@ function styleAvec(fond: Fond) {
       source: "zone",
       paint: { "line-color": "#007aff", "line-width": 1.6, "line-dasharray": [3, 2] },
     },
+    // Sous les traces et invisible : de quoi toucher une trace avec un doigt.
+    //
+    // Les traits font 1,6 px de large — c'est ce qui rend une carte de mille
+    // sorties lisible — et viser 1,6 px sur un téléphone est un jeu d'adresse.
+    // MapLibre teste le clic sur la géométrie **rendue**, donc élargir la
+    // cible demande une couche large ; transparente, elle ne change rien à ce
+    // qu'on voit. Vingt pixels : le doigt d'Apple fait 44 points, mais une
+    // cible aussi large attraperait la voisine sur un massif dense.
+    {
+      id: "traces-touche",
+      type: "line" as const,
+      source: "traces",
+      layout: { "line-cap": "round" as const, "line-join": "round" as const },
+      paint: { "line-color": "#000", "line-width": 20, "line-opacity": 0 },
+    },
     {
       id: "traces",
       type: "line" as const,
@@ -108,6 +123,23 @@ function styleAvec(fond: Fond) {
 }
 
 type Trait = GeoJSON.Feature<GeoJSON.LineString, { uuid: string; couleur: string }>
+
+/// Où la carte était quand on l'a quittée.
+///
+/// Hors de React, et hors du composant : ouvrir une sortie démonte la carte —
+/// la fiche prend tout l'écran — et le retour en reconstruit une neuve, qui
+/// repartait de la France entière. On dézoomait, on cherchait sa trace, on la
+/// touchait, on revenait, et tout était à refaire.
+///
+/// Une variable de module plutôt que `sessionStorage` : ce cadrage vaut pour
+/// la session en cours, pas pour la prochaine ouverture de l'application, où
+/// repartir de la vue d'ensemble est ce qu'on veut.
+let cadrageRetenu: {
+  centre: [number, number]
+  zoom: number
+  pitch: number
+  bearing: number
+} | null = null
 
 /// Ce qu'une sortie apporte à la carte : son identité et sa trace.
 type Ligne = { uuid: string; simplified_track: string | null }
@@ -231,6 +263,13 @@ export function CarteGlobale({
   const [relief, setRelief] = useState(reliefRetenu)
   const premierFond = useRef(true)
   const premierRelief = useRef(true)
+  /// Vrai quand cette carte-ci a rouvert là où on l'avait laissée — et qu'il
+  /// ne faut donc pas la recadrer sous le doigt.
+  ///
+  /// Retombe à faux quand le filtre change, et à ce moment-là seulement :
+  /// filtrer sur le trail doit recadrer sur ce qu'il reste, comme avant.
+  const cadreRestaure = useRef(cadrageRetenu !== null)
+  const filtrePrecedent = useRef(filtre)
   // La zone du filtre, lisible depuis le rhabillage sans le redéfinir.
   const zoneCourante = useRef(filtre.zone)
   zoneCourante.current = filtre.zone
@@ -261,15 +300,17 @@ export function CarteGlobale({
     const instance = new maplibregl.Map({
       container: conteneur.current,
       style: styleAvec(fondRetenu()),
-      // La France entière : le premier cadrage, avant que la moindre trace ne
-      // dise où regarder. Il sera resserré dès la première page.
-      center: [2.5, 46.6],
-      zoom: 4.6,
+      // Là où on avait laissé la carte, sinon la France entière : le premier
+      // cadrage, avant que la moindre trace ne dise où regarder. Il sera
+      // resserré dès la première page.
+      center: cadrageRetenu?.centre ?? [2.5, 46.6],
+      zoom: cadrageRetenu?.zoom ?? 4.6,
+      bearing: cadrageRetenu?.bearing ?? 0,
       // Le relief demande un point de vue oblique : vu d'aplomb, un terrain en
       // trois dimensions ressemble exactement à un terrain plat. Posé dès la
       // construction, sans quoi revenir sur la carte la rendait plate alors
       // que « Relief » restait coché.
-      pitch: reliefRetenu() ? 55 : 0,
+      pitch: cadrageRetenu?.pitch ?? (reliefRetenu() ? 55 : 0),
     })
     carte.current = instance
     // Les drapeaux se remettent à neuf avec la carte : ils disent « premier
@@ -280,16 +321,30 @@ export function CarteGlobale({
     premierRelief.current = true
     instance.on("style.load", rehabiller)
 
+    // Retenu à chaque mouvement fini, y compris le cadrage automatique de la
+    // première page : ce que l'écran montre est ce qu'on doit retrouver.
+    const retenirLeCadrage = () => {
+      const centre = instance.getCenter()
+      cadrageRetenu = {
+        centre: [centre.lng, centre.lat],
+        zoom: instance.getZoom(),
+        pitch: instance.getPitch(),
+        bearing: instance.getBearing(),
+      }
+    }
+    instance.on("moveend", retenirLeCadrage)
+    instance.on("zoomend", retenirLeCadrage)
+
     // Toucher une trace ouvre sa sortie — c'est la question qu'on pose à une
     // carte d'ensemble : « c'était laquelle, celle-là ? »
-    instance.on("click", "traces", (e) => {
+    instance.on("click", "traces-touche", (e) => {
       const uuid = e.features?.[0]?.properties?.uuid
       if (typeof uuid === "string") onOuvrir(uuid)
     })
-    instance.on("mouseenter", "traces", () => {
+    instance.on("mouseenter", "traces-touche", () => {
       instance.getCanvas().style.cursor = "pointer"
     })
-    instance.on("mouseleave", "traces", () => {
+    instance.on("mouseleave", "traces-touche", () => {
       instance.getCanvas().style.cursor = ""
     })
 
@@ -348,6 +403,13 @@ export function CarteGlobale({
   // Le chargement, relancé à chaque changement de filtre.
   useEffect(() => {
     let annule = false
+    // Comparé plutôt que consommé : en développement React monte deux fois,
+    // et un drapeau lu-puis-effacé laissait le second passage recadrer — le
+    // cadrage retrouvé tenait une fraction de seconde. Mesuré.
+    if (filtrePrecedent.current !== filtre) {
+      filtrePrecedent.current = filtre
+      cadreRestaure.current = false
+    }
     const teintes = teintesDesTraces()
     traits.current = []
     setChargees(0)
@@ -407,7 +469,10 @@ export function CarteGlobale({
           // Au premier passage seulement : une fois la carte cadrée, elle
           // appartient au doigt, et la recadrer sous lui serait la lui
           // reprendre.
-          if (depuis === 0 && traits.current.length > 0 && carte.current) {
+          //
+          // Et jamais quand on revient d'une fiche : le cadrage retrouvé est
+          // précisément celui qu'on ne veut pas voir remplacé.
+          if (depuis === 0 && traits.current.length > 0 && carte.current && !cadreRestaure.current) {
             // Sur la zone quand il y en a une : c'est elle qu'on revient voir,
             // et cadrer sur les traces qu'elle a retenues donnerait un cadre
             // plus serré qu'elle, dont le bord sortirait de l'écran.
