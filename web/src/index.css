@@ -812,18 +812,29 @@ input, button { font: inherit; }
 
 /* 34 pt chez Apple ; le poids compte autant que la taille. */
 /* Le titre et ce qui l'accompagne sur une ligne : le titre prend ce qu'il lui
-   faut, le réglage se range à droite. Alignés par le bas, comme iOS aligne un
-   bouton de barre sur la ligne de base d'un grand titre. */
+   faut, le réglage se range à droite.
+
+   Centrés l'un sur l'autre, et non alignés par le bas. Le bas de la ligne, ce
+   n'est pas le bas du titre : le `h1` porte dix pixels de marge sous lui, et
+   `flex-end` posait donc le sélecteur dans cette marge — dix pixels sous la
+   boîte du titre, et pile contre le champ de recherche, zéro pixel entre les
+   deux. Mesuré. */
 .ligne-titre {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding-right: 16px;
+  /* Les marges verticales du titre remontées ici, et c'est ce qui aligne
+     vraiment. `align-items: center` centre la **boîte de marge** de chaque
+     élément : les dix pixels sous le titre tiraient donc le sélecteur de trois
+     pixels vers le bas, sous l'encre d'« Activités ». Portées par la ligne,
+     elles ne penchent plus rien. */
+  margin: 4px 0 10px;
 }
 
 .grand-titre {
-  margin: 4px 0 10px;
+  margin: 0;
   padding: 0 16px;
   font-size: 34px;
   font-weight: 700;
