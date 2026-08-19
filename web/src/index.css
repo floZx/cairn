@@ -936,8 +936,13 @@ input, button { font: inherit; }
      ne bouge pas.
      Bornée en plus par le voile, qui suit la fenêtre visuelle : clavier levé,
      quatre-vingt-douze pour cent de l'écran entier dépasseraient par le haut,
-     et c'est la barre « Annuler / Enregistrer » qui sortait du cadre. */
-  max-height: min(92svh, 100%);
+     et c'est la barre « Annuler / Enregistrer » qui sortait du cadre.
+
+     Et l'encoche retirée du compte depuis que l'application passe sous la
+     barre d'état : le voile couvre alors l'écran entier, horloge comprise, et
+     une feuille qui le remplissait posait son « Annuler » sous l'heure. Elle
+     s'arrête maintenant dessous. */
+  max-height: min(92svh, calc(100% - env(safe-area-inset-top)));
   display: flex;
   flex-direction: column;
   overflow-y: auto;
