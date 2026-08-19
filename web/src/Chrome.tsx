@@ -106,6 +106,62 @@ function titreEcran(section: Section): string {
   return TITRES_ECRAN[section] ?? TITRES[section]
 }
 
+/// Remonter en haut, animé à la main.
+///
+/// `scrollTo({ behavior: "smooth" })` ne convient pas ici : il marchait dans
+/// la liste et ne faisait **rien** dans le fil — mesuré, la position restait
+/// à 2200 px. Le fil charge ses cartes et ses photos en descendant, chaque
+/// image qui arrive déplace la mise en page, et le navigateur abandonne une
+/// glissade native dès que la position bouge autrement que par elle.
+///
+/// Écrire la position à chaque image reprend la main sur ce jeu-là : rien ne
+/// peut plus l'annuler, et l'arrivée est zéro quoi qu'il se passe au-dessus.
+///
+/// La durée croît avec la distance mais se plafonne : sans plancher, une
+/// remontée de trois cents pixels paraîtrait sèche ; sans plafond, six mille
+/// pixels prendraient le temps de s'ennuyer.
+function remonter(zone: HTMLElement, image: { current: number | null }) {
+  if (image.current !== null) cancelAnimationFrame(image.current)
+  const depart = zone.scrollTop
+  if (depart <= 0) return
+
+  // Le réglage d'accessibilité l'emporte : quelqu'un qui a demandé moins de
+  // mouvement ne veut pas non plus celui-ci.
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    zone.scrollTop = 0
+    return
+  }
+
+  const duree = Math.min(520, 200 + depart * 0.05)
+  const debut = performance.now()
+
+  // Le doigt reprend la main à tout moment : une animation qu'on ne peut pas
+  // interrompre en cours donne l'impression que l'écran ne répond plus.
+  const abandonner = () => {
+    if (image.current !== null) cancelAnimationFrame(image.current)
+    image.current = null
+    zone.removeEventListener("wheel", abandonner)
+    zone.removeEventListener("touchstart", abandonner)
+  }
+  zone.addEventListener("wheel", abandonner, { passive: true, once: true })
+  zone.addEventListener("touchstart", abandonner, { passive: true, once: true })
+
+  const pas = (maintenant: number) => {
+    const avance = Math.min(1, (maintenant - debut) / duree)
+    // Départ franc, arrivée posée : la courbe d'un objet qu'on lance et qui
+    // s'arrête, pas celle d'un ascenseur.
+    const adouci = 1 - Math.pow(1 - avance, 3)
+    zone.scrollTop = depart * (1 - adouci)
+    if (avance < 1) {
+      image.current = requestAnimationFrame(pas)
+    } else {
+      zone.scrollTop = 0
+      abandonner()
+    }
+  }
+  image.current = requestAnimationFrame(pas)
+}
+
 export function Chrome({
   section,
   onSection,
@@ -143,6 +199,8 @@ export function Chrome({
 }) {
   const [replie, setReplie] = useState(false)
   const zone = useRef<HTMLDivElement>(null)
+  /// L'image en cours de la remontée, de quoi l'interrompre.
+  const remontee = useRef<number | null>(null)
 
   // Chaque vue garde sa position de défilement : les quatre onglets, et la
   // fiche par-dessus. Revenir d'une activité remettait la liste en haut, ce
@@ -189,19 +247,11 @@ export function Chrome({
   /// La convention d'iOS, et le geste qu'on fait sans y penser après avoir
   /// déroulé cinquante sorties.
   ///
-  /// D'un coup et non en douceur, à regret : `behavior: "smooth"` marchait
-  /// dans la liste et ne faisait **rien** dans le fil — mesuré, la position
-  /// restait à 2200 px. Le fil charge ses cartes et ses photos au fil du
-  /// défilement, chaque image qui arrive déplace la mise en page, et le
-  /// navigateur annule une glissade en cours dès que la position bouge
-  /// autrement. Un saut qui remonte vaut mieux qu'une glissade qui abandonne
-  /// à mi-chemin.
-  ///
   /// Sauf par-dessus une fiche : là, l'onglet de la section qu'elle recouvre
   /// sert à la refermer, et c'est `App` qui s'en charge.
   const remonterOuAller = (s: Section) => {
     if (s === section && !masquerOnglets) {
-      zone.current?.scrollTo({ top: 0 })
+      if (zone.current) remonter(zone.current, remontee)
       return
     }
     onSection(s)
