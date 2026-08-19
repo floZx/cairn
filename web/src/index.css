@@ -224,7 +224,7 @@ input, button { font: inherit; }
      s'arrêtait à cent sept points du bord de l'écran — c'est la « bordure
      noire » signalée le 19 août 2026, et ce n'était ni la capsule ni le
      châssis, c'était cette réserve. */
-  padding: 0 12px calc(66px + max(calc(env(safe-area-inset-bottom) - 20px), 6px));
+  padding: 0 12px 72px;
 }
 
 /* La marge de la dernière carte s'ajoute à la réserve et rouvre le vide de
@@ -886,12 +886,19 @@ input, button { font: inherit; }
   position: absolute;
   left: 12px;
   right: 12px;
-  /* Posée sur la zone sûre, moins ce que la barre d'accueil n'occupe pas
-     vraiment : elle mesure cinq points là où la zone en fait trente-quatre.
-     Vingt de retirés et non dix — mesuré contre Strava, il restait chez nous
-     vingt-quatre points de noir sous la capsule, et la barre d'accueil n'en
-     demande qu'une poignée. */
-  bottom: max(calc(env(safe-area-inset-bottom) - 20px), 6px);
+  /* Six points du bord, et non « la zone sûre moins quelque chose ».
+
+     La zone sûre du bas fait trente-quatre points quand la barre d'accueil
+     n'en occupe que cinq : s'en servir comme base laissait la capsule à
+     quatorze points du bord, très au-dessus de ce que font les applications du
+     système et Strava. Florian l'a montré le 19 août 2026 en décalant les deux
+     fenêtres côte à côte dans le sélecteur d'applications — leur barre descend
+     bien plus bas que la nôtre, et j'avais soutenu le contraire en lisant une
+     capture au lieu de la mesurer.
+
+     Six points : la capsule frôle le bord, la barre d'accueil se dessine sur
+     son liseré comme elle se dessine sur celui de Strava. */
+  bottom: 6px;
   z-index: 3;
   display: flex;
   border-radius: 26px;
