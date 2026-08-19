@@ -105,9 +105,9 @@ struct TrainingView: View {
             Button {
                 feuille = .importer
             } label: {
-                Label("Reprendre un calendrier", systemImage: "calendar.badge.plus")
+                Label("Importer un calendrier", systemImage: "calendar.badge.plus")
             }
-            .help("Recopier un plan depuis un calendrier macOS, une fois")
+            .help("Importer un plan depuis un calendrier macOS, une fois")
             Button {
                 feuille = .nouvelle(day)
             } label: {

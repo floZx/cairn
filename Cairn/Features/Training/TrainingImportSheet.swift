@@ -26,10 +26,10 @@ struct TrainingImportSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Reprendre un plan depuis un calendrier")
+            Text("Importer un plan depuis un calendrier")
                 .font(.headline)
             Text("""
-                Les séances sont recopiées dans Cairn, une fois. \
+                Les séances sont importées dans Cairn, une fois. \
                 Le calendrier n'est jamais modifié, et il ne sera plus relu ensuite.
                 """)
                 .font(.callout)
@@ -67,13 +67,13 @@ struct TrainingImportSheet: View {
                 if let importees {
                     Label(
                         importees == 0
-                            ? "Rien à reprendre : ces séances sont déjà dans Cairn."
-                            : "\(importees) séance\(importees > 1 ? "s" : "") reprise\(importees > 1 ? "s" : "").",
+                            ? "Rien à importer : ces séances sont déjà dans Cairn."
+                            : "\(importees) séance\(importees > 1 ? "s" : "") importée\(importees > 1 ? "s" : "").",
                         systemImage: "checkmark.circle"
                     )
                     .foregroundStyle(.green)
                 } else if !apercu.isEmpty {
-                    Text("\(apercu.count) séance\(apercu.count > 1 ? "s" : "") à reprendre")
+                    Text("\(apercu.count) séance\(apercu.count > 1 ? "s" : "") à importer")
                         .font(.callout.weight(.medium))
                     List(apercu.prefix(60), id: \.self.debut) { evenement in
                         let lu = TrainingImport.lire(evenement.titre)
@@ -95,7 +95,7 @@ struct TrainingImportSheet: View {
                 Button("Fermer", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 if acces == .accorde, importees == nil {
-                    Button(apercu.isEmpty ? "Aperçu" : "Reprendre") {
+                    Button(apercu.isEmpty ? "Aperçu" : "Importer") {
                         apercu.isEmpty ? preparer() : ecrire()
                     }
                     .keyboardShortcut(.defaultAction)
