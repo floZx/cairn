@@ -4,5 +4,21 @@
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
+	<!-- Pour la reprise du plan d'entraînement depuis un calendrier macOS.
+
+	     Sans bac à sable mais avec le runtime durci, ce qui suffit à l'exiger :
+	     tccd refuse d'afficher la demande d'autorisation en son absence, et
+	     `requestFullAccessToEvents()` rend `false` sans rien afficher — un
+	     refus qui ressemble à une panne. Mesuré, le 19 août 2026 :
+
+	         Prompting policy for hardened runtime; service: kTCCServiceCalendar
+	         requires entitlement com.apple.security.personal-information.calendars
+	         but it is missing
+	         Policy disallows prompt ; access to kTCCServiceCalendar denied
+
+	     La description d'usage du Info.plist ne suffit pas : elle dit ce qu'on
+	     affichera dans la boîte, cette clé-ci dit qu'on a le droit de l'ouvrir. -->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
 </dict>
 </plist>
