@@ -55,6 +55,11 @@ export function App() {
   const [jourRepas, setJourRepas] = useState<string | null>(null)
   const changerDeSection = (s: Section) => {
     setJourRepas(null)
+    // Une fiche est une page poussée : partir vers un onglet la referme, comme
+    // le chevron le ferait. Sans ça, la barre étant désormais visible depuis
+    // une fiche, on changeait d'onglet sans rien voir changer — la fiche
+    // restant devant.
+    if (ouverte !== null) history.back()
     setSection(s)
   }
 

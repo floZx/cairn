@@ -176,6 +176,15 @@ function styleAvec(fond: Fond) {
   }
 }
 
+/// Le filtre réduit à une chaîne, pour savoir s'il a vraiment changé.
+///
+/// `JSON.stringify` suffit ici : les champs sont des scalaires, un tableau de
+/// sports et une zone rectangulaire, et l'objet se reconstruit toujours par
+/// diffusion du précédent — l'ordre des clés ne bouge donc pas.
+function empreinteDuFiltre(f: Filtre): string {
+  return JSON.stringify(f)
+}
+
 /// La longueur d'une trace, en mètres.
 ///
 /// Calculée sur la géométrie déjà chargée plutôt que demandée à la base :
@@ -345,7 +354,7 @@ export function CarteGlobale({
   /// Retombe à faux quand le filtre change, et à ce moment-là seulement :
   /// filtrer sur le trail doit recadrer sur ce qu'il reste, comme avant.
   const cadreRestaure = useRef(cadrageRetenu !== null)
-  const filtrePrecedent = useRef(filtre)
+  const filtrePrecedent = useRef(empreinteDuFiltre(filtre))
   // La zone du filtre, lisible depuis le rhabillage sans le redéfinir.
   const zoneCourante = useRef(filtre.zone)
   zoneCourante.current = filtre.zone
@@ -579,8 +588,17 @@ export function CarteGlobale({
     // Comparé plutôt que consommé : en développement React monte deux fois,
     // et un drapeau lu-puis-effacé laissait le second passage recadrer — le
     // cadrage retrouvé tenait une fraction de seconde. Mesuré.
-    if (filtrePrecedent.current !== filtre) {
-      filtrePrecedent.current = filtre
+    //
+    // Et comparé **par valeur**, pas par identité. La liste republie un filtre
+    // au même contenu trois cents millisecondes après son montage — le délai
+    // de la saisie de recherche, qui repart sur `{ ...f, recherche }` — donc
+    // au retour d'une fiche l'objet était neuf sans que rien n'ait changé, et
+    // la carte se recadrait. C'est ce que le journal a montré :
+    // « restaure=false filtreNeuf=true » sur le chemin du retour, là où un
+    // changement d'onglet donnait « filtreNeuf=false ».
+    const empreinte = empreinteDuFiltre(filtre)
+    if (filtrePrecedent.current !== empreinte) {
+      filtrePrecedent.current = empreinte
       cadreRestaure.current = false
     }
     const teintes = teintesDesTraces()

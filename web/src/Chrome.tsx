@@ -111,9 +111,14 @@ export function Chrome({
   onSection,
   children,
   action,
-  /// Vrai quand une fiche occupe l'écran : les onglets s'effacent, comme une
-  /// vue poussée sur une pile de navigation masque la barre d'onglets, et le
-  /// grand titre avec eux — la fiche porte son propre en-tête.
+  /// Vrai quand une fiche occupe l'écran : le grand titre s'efface, la fiche
+  /// portant son propre en-tête.
+  ///
+  /// Les onglets, eux, restent. Ils s'effaçaient aussi — sur le modèle d'une
+  /// vue poussée sur une pile de navigation — mais le fondu du bas restait, et
+  /// une bande floue au-dessus de rien ne se justifie pas. Des deux, garder la
+  /// barre vaut mieux : depuis une fiche on veut souvent aller ailleurs, et
+  /// remonter d'abord coûte un geste.
   masquerOnglets = false,
   retour,
   entete,
@@ -228,8 +233,7 @@ export function Chrome({
           autant besoin de se dissoudre au bas de l'écran. */}
       <div className="fondu-bas" aria-hidden />
 
-      {!masquerOnglets && (
-        <nav className="onglets-bas matiere" aria-label="Sections">
+      <nav className="onglets-bas matiere" aria-label="Sections">
           {(Object.keys(TITRES) as Section[]).map((s) => (
             <button
               key={s}
@@ -247,8 +251,7 @@ export function Chrome({
               </span>
             </button>
           ))}
-        </nav>
-      )}
+      </nav>
     </div>
   )
 }
