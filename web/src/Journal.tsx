@@ -334,9 +334,20 @@ export function Journal({
             <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
             <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
           </svg>
+          {/* Le champ porte déjà la date du jour, et ce n'est pas cosmétique.
+              Vide, il valait « rien », et iOS commet aussitôt la date du jour
+              en ouvrant son sélecteur : un `change` partait avant tout choix,
+              et le premier appui sur le calendrier ouvrait la note
+              d'aujourd'hui — le bouton d'à côté, exactement.
+
+              Rempli d'avance, cette validation d'ouverture ne change rien,
+              donc n'émet rien. Choisir aujourd'hui depuis le calendrier
+              n'ouvre alors plus rien non plus, et c'est voulu : « Écrire
+              aujourd'hui » est le bouton d'à côté. */}
           <input
             type="date"
             max={jourCourant()}
+            defaultValue={jourCourant()}
             onChange={(e) => {
               if (!e.target.value) return
               const j = journees.find((x) => x.dateKey === e.target.value)
