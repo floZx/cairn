@@ -198,6 +198,11 @@ export function Chrome({
         <main className="contenu">{children}</main>
       </div>
 
+      {/* Posé avant la barre : le fondu appartient au fond, la barre lui passe
+          dessus. Il reste même quand les onglets s'effacent, une fiche ayant
+          autant besoin de se dissoudre au bas de l'écran. */}
+      <div className="fondu-bas" aria-hidden />
+
       {!masquerOnglets && (
         <nav className="onglets-bas matiere" aria-label="Sections">
           {(Object.keys(TITRES) as Section[]).map((s) => (

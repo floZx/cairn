@@ -909,6 +909,28 @@ input, button { font: inherit; }
 /* Détachée du bord, en capsule : c'est le trait le plus reconnaissable de
    l'iOS 26, et celui qui change le plus l'allure. Le contenu passe dessous et
    se devine à travers, au lieu de s'arrêter contre elle. */
+/* Le fondu du bas, derrière la capsule.
+
+   Ce que fait Strava et qui manquait : le contenu ne s'arrête pas net sous la
+   barre, il s'y dissout. Un voile flouté sur la hauteur de la capsule, masqué
+   en dégradé pour que le flou naisse progressivement au lieu de commencer par
+   une arête horizontale. */
+.fondu-bas {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 96px;
+  /* Sous la capsule, au-dessus du défilement. */
+  z-index: 2;
+  /* Il ne reçoit rien : ce qui est dessous reste touchable. */
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  -webkit-mask-image: linear-gradient(to top, #000 42%, transparent);
+  mask-image: linear-gradient(to top, #000 42%, transparent);
+}
+
 .onglets-bas {
   position: absolute;
   left: 12px;
@@ -925,7 +947,7 @@ input, button { font: inherit; }
 
      Six points : la capsule frôle le bord, la barre d'accueil se dessine sur
      son liseré comme elle se dessine sur celui de Strava. */
-  bottom: calc(env(safe-area-inset-bottom) + 6px);
+  bottom: 6px;
   z-index: 3;
   display: flex;
   border-radius: 26px;
