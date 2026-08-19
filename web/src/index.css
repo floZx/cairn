@@ -107,6 +107,22 @@
 
 * { box-sizing: border-box; }
 
+/* Le document est plus haut que la fenêtre, de l'exacte hauteur qui lui manque.
+
+   Mesuré dans le simulateur, application ajoutée à l'écran d'accueil : écran
+   402 × 874, fenêtre 402 × 812, zones sûres 62 et 34. iOS donne donc à une
+   application autonome une fenêtre de mise en page plus courte que l'écran, et
+   `position: fixed` y est enfermé — aucune valeur de `bottom` n'atteint les
+   soixante-deux points manquants. C'est ce qui a fait échouer quatre
+   corrections d'affilée.
+
+   La recette vient de l'article de Karmasakshi que Florian a fini par me
+   mettre sous les yeux : agrandir le document plutôt que déplacer la barre. */
+html {
+  min-height: calc(100% + env(safe-area-inset-top));
+  background: var(--fond);
+}
+
 body {
   margin: 0;
   background: var(--fond);
@@ -224,7 +240,7 @@ input, button { font: inherit; }
      s'arrêtait à cent sept points du bord de l'écran — c'est la « bordure
      noire » signalée le 19 août 2026, et ce n'était ni la capsule ni le
      châssis, c'était cette réserve. */
-  padding: 0 12px 72px;
+  padding: 0 12px calc(72px + env(safe-area-inset-bottom));
 }
 
 /* La marge de la dernière carte s'ajoute à la réserve et rouvre le vide de
@@ -778,7 +794,12 @@ input, button { font: inherit; }
    défilement : `fixed` établit un bloc conteneur comme `relative` le faisait. */
 .chassis {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* La hauteur du document, non celle de la fenêtre — voir la note sur `html`
+     plus haut. C'est elle qui atteint le bas de l'écran. */
+  height: calc(100% + env(safe-area-inset-top));
   display: flex;
   flex-direction: column;
 }
@@ -898,7 +919,7 @@ input, button { font: inherit; }
 
      Six points : la capsule frôle le bord, la barre d'accueil se dessine sur
      son liseré comme elle se dessine sur celui de Strava. */
-  bottom: 6px;
+  bottom: calc(env(safe-area-inset-bottom) + 6px);
   z-index: 3;
   display: flex;
   border-radius: 26px;
