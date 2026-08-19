@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { CARACTERES_ETIQUETTE, nomDEtiquette } from "./tags"
 
 /// Un rendu Markdown minimal, écrit à la main plutôt qu'emprunté.
 ///
@@ -75,11 +76,26 @@ export function enBlocs(markdown: string): Bloc[] {
   return blocs
 }
 
-/// Gras, italique et liens dans une ligne. Volontairement naïf : ces textes
-/// sont écrits à la main dans un journal, pas produits par une machine.
+/// Gras, italique, liens et étiquettes dans une ligne. Volontairement naïf :
+/// ces textes sont écrits à la main dans un journal, pas produits par une
+/// machine.
+///
+/// L'étiquette perd son croisillon : `#Christèle` s'affiche « Christèle ».
+/// C'est une marque de saisie, comme les astérisques du gras — on ne les
+/// montre pas non plus. Le texte enregistré la garde, elle : c'est elle qui
+/// fait l'étiquette, et la note se relit sur le Mac comme dans Obsidian.
+///
+/// Le croisillon doit ouvrir la suite — début de ligne ou après une espace —
+/// et ce qui suit doit être une étiquette valide au sens de `tags.ts`. Sans
+/// quoi `code#4` perdrait son dièse, et `#2026` — une année, pas une
+/// étiquette — passerait pour l'une d'elles.
 export function enLigne(texte: string): ReactNode[] {
   const morceaux: ReactNode[] = []
-  const motif = /(\*\*[^*]+\*\*)|(\*[^*]+\*)|(\[[^\]]+\]\([^)]+\))/g
+  const motif = new RegExp(
+    "(\\*\\*[^*]+\\*\\*)|(\\*[^*]+\\*)|(\\[[^\\]]+\\]\\([^)]+\\))" +
+      `|((?<=^|\\s)#[${CARACTERES_ETIQUETTE}]+)`,
+    "gu",
+  )
   let dernierIndex = 0
   let m: RegExpExecArray | null
   let cle = 0
@@ -91,6 +107,11 @@ export function enLigne(texte: string): ReactNode[] {
       morceaux.push(<strong key={cle++}>{brut.slice(2, -2)}</strong>)
     } else if (brut.startsWith("*")) {
       morceaux.push(<em key={cle++}>{brut.slice(1, -1)}</em>)
+    } else if (brut.startsWith("#")) {
+      // Une suite qui n'est pas une étiquette valide reste telle quelle,
+      // croisillon compris : c'est du texte ordinaire.
+      const nom = nomDEtiquette(brut.slice(1))
+      morceaux.push(nom ?? brut)
     } else {
       const lien = brut.match(/^\[([^\]]+)\]\(([^)]+)\)$/)!
       morceaux.push(

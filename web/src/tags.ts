@@ -16,6 +16,13 @@
 /// s'arrêterait à `caf`.
 const autorise = /[\p{L}\p{N}\p{M}_\-/]/u
 
+/// Les mêmes caractères, en classe réutilisable.
+///
+/// Exportée pour le rendu Markdown, qui doit reconnaître exactement les mêmes
+/// étiquettes que le scanner — une seconde règle écrite là-bas finirait par
+/// afficher comme étiquette ce qui n'en est pas une, ou l'inverse.
+export const CARACTERES_ETIQUETTE = "\\p{L}\\p{N}\\p{M}_\\-/"
+
 function nettoie(nom: string): string | null {
   // Une barre finale est une étiquette qu'on est en train de taper, pas un
   // niveau : `#projet/` veut dire `#projet`.
@@ -27,6 +34,15 @@ function nettoie(nom: string): string | null {
   // ne soit pas un chiffre, pour que `#2026` reste une année.
   if (!points.some((c) => !/\p{N}/u.test(c) && c !== "/")) return null
   return net
+}
+
+/// Le nom d'une étiquette, ou nul si ce n'en est pas une.
+///
+/// La porte d'entrée de `nettoie` pour le reste de l'application : le rendu
+/// Markdown s'en sert pour savoir si un `#quelquechose` est bien une étiquette
+/// avant d'en retirer le croisillon.
+export function nomDEtiquette(brut: string): string | null {
+  return nettoie(brut)
 }
 
 /// `projet/cairn/journal` appartient aussi à `projet/cairn` et à `projet`.
