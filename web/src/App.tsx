@@ -47,6 +47,33 @@ export function App() {
     return () => removeEventListener("popstate", onPop)
   }, [])
 
+  // Le retour de Strava dépose son jeton dans le fragment de l'URL — la seule
+  // partie qui ne part jamais au serveur ni dans les journaux. La page le
+  // range sous son identité, puis l'efface de la barre d'adresse.
+  useEffect(() => {
+    if (!location.hash.includes("strava_access")) return
+    const recu = new URLSearchParams(location.hash.slice(1))
+    const jeton = {
+      access_token: recu.get("strava_access") ?? "",
+      refresh_token: recu.get("strava_refresh") ?? "",
+      expires_at: Number(recu.get("strava_expire") ?? 0),
+    }
+    history.replaceState(null, "", location.pathname)
+    if (!jeton.access_token) return
+    supabase.auth.getSession().then(({ data }) => {
+      const session = data.session?.access_token
+      if (!session) return
+      fetch("/strava/retour", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(jeton),
+      })
+    })
+  }, [])
+
   const [section, setSection] = useState<Section>("activites")
 
   // Le jour d'arrivée dans les repas, quand on y va depuis une citation du

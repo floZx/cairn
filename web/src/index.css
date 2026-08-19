@@ -2815,3 +2815,16 @@ body {
   line-height: 1;
   cursor: pointer;
 }
+
+/* Un lien qui a l'air d'une action : la connexion à Strava est une navigation
+   — elle quitte l'application pour y revenir — mais elle se range parmi les
+   boutons, où on la cherche. */
+.action-lien {
+  display: block;
+  width: 100%;
+  padding: 13px 16px;
+  color: var(--accent);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}

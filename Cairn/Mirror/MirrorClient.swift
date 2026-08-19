@@ -374,6 +374,54 @@ actor MirrorClient {
         return data
     }
 
+    /// Les `uuid` que le miroir donne déjà à des identifiants Strava.
+    ///
+    /// Rendu sous la forme `strava_id → uuid`. Sert au rapprochement d'avant
+    /// l'envoi : quand le téléphone a importé une sortie que le Mac vient de
+    /// télécharger de son côté, les deux la désignent par le même identifiant
+    /// Strava mais par deux `uuid` différents, et sans cette question il y
+    /// aurait deux lignes pour une sortie.
+    ///
+    /// Les lignes supprimées en douceur sont comprises, et c'est voulu :
+    /// reprendre l'`uuid` d'une sortie effacée vaut mieux que d'en créer une
+    /// seconde à côté d'elle.
+    func uuidsParStravaID(_ stravaIDs: [Int64]) async throws -> [Int64: String] {
+        guard !stravaIDs.isEmpty else { return [:] }
+        let credentials = try validCredentials()
+        let token = try await validAccessToken(credentials: credentials)
+
+        var components = URLComponents(
+            url: credentials.projectURL.appendingPathComponent("rest/v1/activity"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "uuid,strava_id"),
+            URLQueryItem(
+                name: "strava_id",
+                value: "in.(\(stravaIDs.map(String.init).joined(separator: ",")))"
+            ),
+        ]
+
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue(credentials.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await send(request)
+        try Self.checkStatus(response, data: data)
+
+        struct Ligne: Decodable {
+            let uuid: String
+            let strava_id: Int64
+        }
+        let lignes: [Ligne]
+        do { lignes = try JSONDecoder().decode([Ligne].self, from: data) }
+        catch { throw MirrorError.decodingFailed(String(describing: error)) }
+        // La dernière l'emporte s'il y a des doublons : il n'y en a pas
+        // censément, et une clé en double n'est pas une raison de tout arrêter.
+        return Dictionary(lignes.map { ($0.strava_id, $0.uuid) }, uniquingKeysWith: { _, dernier in dernier })
+    }
+
     // MARK: - Storage
 
     func upload(bucket: String, path: String, data: Data, contentType: String) async throws {

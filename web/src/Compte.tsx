@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Feuille } from "./Chrome"
 
@@ -12,11 +13,55 @@ import { Feuille } from "./Chrome"
 export function BoutonCompte() {
   const [ouvert, setOuvert] = useState(false)
   const [courriel, setCourriel] = useState<string | null>(null)
+  const [connecte, setConnecte] = useState<boolean | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [enCours, setEnCours] = useState(false)
+  const client = useQueryClient()
 
   useEffect(() => {
     if (!ouvert) return
     supabase.auth.getUser().then(({ data }) => setCourriel(data.user?.email ?? null))
+    supabase
+      .from("strava_token")
+      .select("user_id")
+      .maybeSingle()
+      // L'erreur est avalée : tant que la migration 009 n'est pas passée, la
+      // table n'existe pas, et ce n'est pas une raison pour que la feuille du
+      // compte disparaisse derrière un message.
+      .then(({ data }) => setConnecte(data !== null))
   }, [ouvert])
+
+  /// Va chercher chez Strava ce que le miroir n'a pas encore.
+  ///
+  /// Le Mac reste la source de vérité : ce que ce bouton pose est une ligne
+  /// sommaire, que le Mac complétera sans la dédoubler. Voir
+  /// `functions/strava/import.ts`.
+  const chercher = async () => {
+    setEnCours(true)
+    setMessage(null)
+    try {
+      const { data } = await supabase.auth.getSession()
+      const jeton = data.session?.access_token
+      if (!jeton) throw new Error("Session expirée, reconnecte-toi.")
+      const reponse = await fetch("/strava/import", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${jeton}` },
+      })
+      const corps = (await reponse.json()) as { importees?: number; erreur?: string }
+      if (corps.erreur) throw new Error(corps.erreur)
+      setMessage(
+        corps.importees
+          ? `${corps.importees} sortie${corps.importees > 1 ? "s" : ""} importée${corps.importees > 1 ? "s" : ""}.`
+          : "Rien de neuf chez Strava.",
+      )
+      client.invalidateQueries({ queryKey: ["activites"] })
+      client.invalidateQueries({ queryKey: ["journal-journees"] })
+    } catch (e) {
+      setMessage((e as Error).message)
+    } finally {
+      setEnCours(false)
+    }
+  }
 
   return (
     <>
@@ -45,6 +90,27 @@ export function BoutonCompte() {
         <Feuille titre="Compte" onFerme={() => setOuvert(false)}>
           <h2 className="titre-feuille">Compte</h2>
           {courriel && <p className="attenue petit courriel">{courriel}</p>}
+          <ul className="liste-actions">
+            <li>
+              {connecte ? (
+                <button onClick={chercher} disabled={enCours}>
+                  {enCours ? "Recherche…" : "Chercher les sorties récentes"}
+                </button>
+              ) : (
+                <a className="action-lien" href="/strava/connexion">
+                  Connecter Strava
+                </a>
+              )}
+            </li>
+          </ul>
+          {message && <p className="attenue petit">{message}</p>}
+          {/* Ce que ce bouton fait, et surtout ce qu'il ne fait pas : le Mac
+              reste seul à tout télécharger. */}
+          <p className="attenue minuscule">
+            Le téléphone ne pose que le résumé d'une sortie — nom, chiffres,
+            tracé. Le Mac la complétera à sa prochaine synchronisation, sans la
+            dédoubler.
+          </p>
           <ul className="liste-actions">
             <li>
               {/* Rouge, et seul de sa carte : une action qui met dehors ne se

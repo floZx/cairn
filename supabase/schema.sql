@@ -108,6 +108,9 @@ create trigger activity_touch before insert or update on activity
 -- complet à chaque passage.
 create index activity_sync on activity (user_id, updated_at);
 create index activity_start on activity (user_id, start_date);
+-- La clé que Strava et Cairn partagent : c'est par elle que le Mac et le
+-- téléphone se demandent, avant d'écrire, si l'autre a déjà cette sortie.
+create index activity_strava on activity (user_id, strava_id);
 
 -- `ActivityStreams` : un flux détaillé par activité, en relation un-à-un
 -- portée par l'enfant (`activity_uuid`), comme toute relation de ce schéma.
@@ -251,6 +254,7 @@ create table discarded_activity (
 create trigger discarded_activity_touch before insert or update on discarded_activity
   for each row execute function touch_updated_at();
 create index discarded_activity_sync on discarded_activity (user_id, updated_at);
+create index discarded_activity_strava on discarded_activity (user_id, strava_id);
 
 -- =============================================================================
 -- Alimentation

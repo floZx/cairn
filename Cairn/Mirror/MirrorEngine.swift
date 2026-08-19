@@ -326,6 +326,10 @@ actor MirrorEngine {
             // "eventually will" once some later `bootstrap()` catches up.
             try await uploadPendingBlobs()
             try await sendNeverBootstrappedTables(userID: userID)
+            // Avant de lire l'outbox, et c'est essentiel : le rapprochement
+            // change des `uuid`, donc il fait naître des entrées. Les lire
+            // après lui, c'est les emporter dans le même envoi.
+            try await adopterLesUUIDsDeStrava()
 
             let outboxContext = ModelContext(container)
             let entries = try outboxContext.fetch(FetchDescriptor<MirrorOutbox>())
@@ -462,6 +466,84 @@ actor MirrorEngine {
             index = end
         }
         return pages
+    }
+
+    /// Reprend l'`uuid` que le miroir donne déjà à une sortie Strava.
+    ///
+    /// Le téléphone peut importer une sortie que le Mac n'a pas encore
+    /// téléchargée. Quand le Mac la télécharge à son tour, il lui donne un
+    /// `uuid` neuf, et les deux mondes désignent la même sortie par deux
+    /// identités : deux lignes dans le miroir, l'une avec la note écrite dans
+    /// le train, l'autre avec les chiffres et la trace. La seule clé qu'ils
+    /// partagent est l'identifiant Strava, et c'est par elle qu'on les
+    /// recolle.
+    ///
+    /// **Ici et pas à l'import.** Interroger Supabase au moment où le Mac
+    /// télécharge depuis Strava ferait dépendre le geste le plus fondamental
+    /// de l'application d'un service tiers joignable. Ici, l'échec n'a jamais
+    /// d'autre conséquence qu'un indicateur dans les réglages, et le miroir
+    /// reste ce qu'il doit être : effaçable.
+    ///
+    /// L'entrée d'outbox est déplacée à la main, et pas laissée à
+    /// l'enregistreur.
+    ///
+    /// Il l'aurait faite : changer l'`uuid` marque la sortie comme modifiée,
+    /// et `MirrorRecorder` en tire une entrée. Mais s'appuyer là-dessus rendait
+    /// le rapprochement muet dès que l'enregistreur n'est pas branché —
+    /// mesuré, la sortie adoptait bien l'identité du miroir et ne repartait
+    /// jamais sous elle. Une dépendance qu'on ne voit pas est une dépendance
+    /// qui tombe.
+    private func adopterLesUUIDsDeStrava() async throws {
+        let context = ModelContext(container)
+        let attente = try context.fetch(
+            FetchDescriptor<MirrorOutbox>(
+                predicate: #Predicate { $0.table == "activity" && !$0.isDeletion }
+            )
+        )
+        guard !attente.isEmpty else { return }
+
+        let uuids = Set(attente.map(\.rowUUID))
+        let sorties = try context.fetch(
+            FetchDescriptor<Activity>(
+                predicate: #Predicate { uuids.contains($0.uuid) }
+            )
+        )
+        // Les sorties saisies à la main portent 0 : elles n'ont pas de
+        // jumelle possible chez Strava, et les demander reviendrait à
+        // demander « qui d'autre n'a pas d'identifiant ».
+        let candidates = sorties.filter { $0.stravaID > 0 }
+        guard !candidates.isEmpty else { return }
+
+        let connus = try await client.uuidsParStravaID(candidates.map(\.stravaID))
+        guard !connus.isEmpty else { return }
+
+        // Les `uuid` déjà pris localement : reprendre celui du miroir ne doit
+        // pas en écraser un autre. Le cas ne devrait pas se produire — deux
+        // sorties locales pour un même identifiant Strava seraient elles-mêmes
+        // un défaut, que `StoreMaintenance` répare — mais l'écrasement serait
+        // silencieux, donc on s'en garde.
+        let pris = Set(try context.fetch(FetchDescriptor<Activity>()).map(\.uuid))
+
+        var adoptes = 0
+        for sortie in candidates {
+            guard let voulu = connus[sortie.stravaID], voulu != sortie.uuid,
+                  !pris.contains(voulu)
+            else { continue }
+            let ancien = sortie.uuid
+            sortie.uuid = voulu
+
+            // L'ancienne entrée ne désigne plus rien : la laisser ferait une
+            // page qui cherche un modèle absent, n'envoie rien et se purge.
+            // Sans conséquence, mais autant ne pas la faire.
+            for entree in attente where entree.rowUUID == ancien {
+                context.delete(entree)
+            }
+            context.insert(
+                MirrorOutbox(table: "activity", rowUUID: voulu, isDeletion: false)
+            )
+            adoptes += 1
+        }
+        if adoptes > 0 { try context.save() }
     }
 
     /// Dispatches to the concretely-typed push for one table — the same
