@@ -207,8 +207,15 @@ input, button { font: inherit; }
 /* De quoi laisser passer la dernière ligne sous la barre flottante : 49 points
    de barre, sa marge basse, et l'air qu'il faut pour qu'on voie bien qu'elle
    continue dessous plutôt que de s'arrêter net. */
+/* Douze et non seize. Le texte commençait à trente-deux pixels du bord —
+   seize de gouttière plus seize de marge de carte — soit soixante-quatre pris
+   sur trois cent soixante-quinze, dix-sept pour cent de la largeur. Strava
+   n'a qu'un de ces deux niveaux ; on garde les deux, en les resserrant.
+
+   La réserve du bas suit la capsule des onglets, au pixel : deux formules qui
+   divergeraient laisseraient un vide ou une ligne coupée. */
 .contenu {
-  padding: 0 16px calc(84px + max(calc(env(safe-area-inset-bottom) - 10px), 8px));
+  padding: 0 12px calc(84px + max(calc(env(safe-area-inset-bottom) - 20px), 6px));
 }
 
 .attenue { color: var(--texte-2); }
@@ -311,7 +318,7 @@ input, button { font: inherit; }
 
 .note {
   margin-bottom: 16px;
-  padding: 14px 16px;
+  padding: 14px 14px;
   background: var(--carte);
   border-radius: 16px;
 }
@@ -473,7 +480,7 @@ input, button { font: inherit; }
 
 .total-jour {
   margin-bottom: 16px;
-  padding: 16px;
+  padding: 14px;
   background: var(--carte);
   border-radius: 16px;
 }
@@ -764,7 +771,7 @@ input, button { font: inherit; }
   justify-content: space-between;
   gap: 12px;
   min-height: 44px;
-  padding: calc(env(safe-area-inset-top) + 6px) 16px 8px;
+  padding: calc(env(safe-area-inset-top) + 6px) 12px 8px;
   background: color-mix(in srgb, var(--fond) 18%, transparent);
   -webkit-backdrop-filter: blur(12px) saturate(210%) brightness(1.1);
   backdrop-filter: blur(12px) saturate(210%) brightness(1.1);
@@ -824,7 +831,7 @@ input, button { font: inherit; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-right: 16px;
+  padding-right: 12px;
   /* Les marges verticales du titre remontées ici, et c'est ce qui aligne
      vraiment. `align-items: center` centre la **boîte de marge** de chaque
      élément : les dix pixels sous le titre tiraient donc le sélecteur de trois
@@ -835,7 +842,7 @@ input, button { font: inherit; }
 
 .grand-titre {
   margin: 0;
-  padding: 0 16px;
+  padding: 0 12px;
   font-size: 34px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -851,8 +858,11 @@ input, button { font: inherit; }
   left: 12px;
   right: 12px;
   /* Posée sur la zone sûre, moins ce que la barre d'accueil n'occupe pas
-     vraiment : elle mesure cinq points là où la zone en fait trente-quatre. */
-  bottom: max(calc(env(safe-area-inset-bottom) - 10px), 8px);
+     vraiment : elle mesure cinq points là où la zone en fait trente-quatre.
+     Vingt de retirés et non dix — mesuré contre Strava, il restait chez nous
+     vingt-quatre points de noir sous la capsule, et la barre d'accueil n'en
+     demande qu'une poignée. */
+  bottom: max(calc(env(safe-area-inset-bottom) - 20px), 6px);
   z-index: 3;
   display: flex;
   border-radius: 26px;
@@ -1088,7 +1098,7 @@ input, button { font: inherit; }
    même le fond flottent, et c'est ce qui distinguait le plus cet écran des
    autres. */
 .carte-groupe {
-  padding: 16px;
+  padding: 14px;
   background: var(--carte);
   border-radius: 16px;
 }
@@ -1792,8 +1802,8 @@ body {
   position: relative;
   /* Remonté sous la barre du haut et étiré aux bords : le halo doit naître au
      sommet du volet, pas au milieu d'un écran déjà commencé. */
-  margin: calc(-1 * (env(safe-area-inset-top) + 50px)) -16px 4px;
-  padding: calc(env(safe-area-inset-top) + 54px) 16px 16px;
+  margin: calc(-1 * (env(safe-area-inset-top) + 50px)) -12px 4px;
+  padding: calc(env(safe-area-inset-top) + 54px) 12px 16px;
   overflow: hidden;
   border-radius: 0 0 20px 20px;
   background: linear-gradient(
@@ -2143,7 +2153,7 @@ body {
 
 .fiche-fil {
   position: relative;
-  padding: 14px 16px 12px;
+  padding: 14px 14px 12px;
   border-radius: 16px;
   background: var(--carte);
   cursor: pointer;
@@ -2243,7 +2253,7 @@ body {
 .media-fil {
   position: relative;
   height: 200px;
-  margin: 14px -16px -12px;
+  margin: 14px -14px -12px;
   overflow: hidden;
   display: flex;
   align-items: center;
