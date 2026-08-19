@@ -19,6 +19,27 @@
          moitié du temps. -->
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <!-- La barre d'état appartient à l'application.
+
+         Sans cette balise, iOS réserve une bande opaque au-dessus de la vue :
+         l'heure et la batterie flottent sur un aplat qui n'est pas la page, et
+         l'application s'arrête dessous — c'est ce qui la trahit d'un coup
+         d'œil face à une application native.
+
+         `black-translucent` fait passer la vue **sous** la barre d'état. La
+         page occupe alors l'écran entier, horloge comprise, et c'est à elle de
+         garder l'encoche libre : `viewport-fit=cover` ci-dessus rend les
+         `env(safe-area-inset-*)` réels, et quatre règles de `index.css` les
+         attendaient déjà — la barre du haut, la réserve du défilement,
+         l'en-tête d'une fiche et les boutons d'une carte en plein écran.
+
+         Le `theme-color` reste : il ne sert plus à peindre une bande sur iOS,
+         mais Android le lit toujours. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Ce que `display: standalone` du manifeste dit depuis iOS 16.4, redit
+         pour les versions d'avant : lancée depuis l'écran d'accueil, sans
+         barre d'adresse. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <link rel="apple-touch-icon" href="/icone-180.png" />
   </head>
   <body>
