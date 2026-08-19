@@ -380,7 +380,7 @@ struct MirrorPullNutritionTests {
         )
     }
 
-    /// Sept tables sont relues, et `journal_note` reste la première.
+    /// Huit tables sont relues, et `journal_note` reste la première.
     ///
     /// Dérivée d'aucune autre liste, celle-ci : elle dit exactement ce que le
     /// navigateur sait écrire, et le jour où il apprend à écrire autre chose
@@ -395,6 +395,8 @@ struct MirrorPullNutritionTests {
                 // Deux colonnes sur cinquante — voir
                 // `applyActivityDescriptions`.
                 "activity",
+                // Le plan d'entraînement, que le téléphone modifie aussi.
+                "planned_session",
             ]
         )
     }

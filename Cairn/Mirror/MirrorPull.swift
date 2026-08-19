@@ -35,6 +35,9 @@ extension MirrorEngine {
         // `activity`, mais **deux colonnes seulement** — voir
         // `applyActivityDescriptions`. Le reste appartient à Strava.
         "activity",
+        // Le plan d'entraînement, que le téléphone écrit autant qu'il le lit :
+        // une séance déplacée dans le train doit revenir sur le Mac.
+        "planned_session",
     ]
 
     /// Rows per page. Smaller than `batchSize`'s 200 for no deep reason
@@ -192,6 +195,7 @@ extension MirrorEngine {
         case "weight_entry": return try applyWeightEntries(body)
         case "journal_attachment": return try await applyJournalAttachments(body)
         case "activity": return try applyActivityDescriptions(body)
+        case "planned_session": return try applyPlannedSessions(body)
         default:
             // `pullOrder` is a closed, hand-written list and this `switch`
             // is meant to cover every entry in it. Thrown, never asserted,
@@ -256,6 +260,21 @@ extension MirrorEngine {
         let date_key_raw: String
         let weight_kg: Double
         let note: String?
+        let updated_at: String
+        let deleted_at: String?
+    }
+
+    private struct PlannedSessionRow: Decodable {
+        let uuid: String
+        let date_key_raw: String
+        let sport_type_raw: String
+        let title: String
+        let planned_distance: Double?
+        let planned_duration: Double?
+        let planned_elevation: Double?
+        let notes: String
+        let day_type_uuid: String?
+        let sort_order: Int
         let updated_at: String
         let deleted_at: String?
     }
@@ -577,6 +596,60 @@ extension MirrorEngine {
                 context.insert(note)
                 existing[row.uuid] = note
             }
+            outcome.applied += 1
+        }
+        try save(context, outcome)
+        return outcome
+    }
+
+    private func applyPlannedSessions(_ body: Data) throws -> PullOutcome {
+        let rows = try decode([PlannedSessionRow].self, from: body)
+        var outcome = PullOutcome(rowCount: rows.count)
+        let context = ModelContext(container)
+        let pending = try pendingUUIDs(table: "planned_session", in: context)
+        var existing: [String: PlannedSession] = [:]
+        for seance in try context.fetch(FetchDescriptor<PlannedSession>()) {
+            existing[seance.uuid] = seance
+        }
+        var types: [String: DayType] = [:]
+        for type in try context.fetch(FetchDescriptor<DayType>()) { types[type.uuid] = type }
+
+        for row in rows {
+            noteNewest(row.updated_at, in: &outcome)
+            guard !pending.contains(row.uuid) else { continue }
+
+            if row.deleted_at != nil {
+                guard let local = existing[row.uuid] else { continue }
+                context.delete(local)
+                existing[row.uuid] = nil
+                outcome.applied += 1
+                continue
+            }
+            // Comme pour `NutritionDay` : un type de jour encore absent du
+            // magasin ne fait pas sauter la séance, il la laisse sans type.
+            let type = row.day_type_uuid.flatMap { types[$0] }
+            let cible: PlannedSession
+            if let local = existing[row.uuid] {
+                cible = local
+            } else {
+                guard let dateKey = DateKey(raw: row.date_key_raw) else { continue }
+                let seance = PlannedSession(
+                    dateKey: dateKey, sportTypeRaw: row.sport_type_raw, title: row.title
+                )
+                seance.uuid = row.uuid
+                context.insert(seance)
+                existing[row.uuid] = seance
+                cible = seance
+            }
+            cible.dateKeyRaw = row.date_key_raw
+            cible.sportTypeRaw = row.sport_type_raw
+            cible.title = row.title
+            cible.plannedDistance = row.planned_distance
+            cible.plannedDuration = row.planned_duration
+            cible.plannedElevation = row.planned_elevation
+            cible.notes = row.notes
+            cible.dayType = type
+            cible.sortOrder = row.sort_order
             outcome.applied += 1
         }
         try save(context, outcome)

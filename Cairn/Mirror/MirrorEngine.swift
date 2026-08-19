@@ -169,6 +169,9 @@ actor MirrorEngine {
         "nutrition_day", "food_entry", "meal_note",
         "recipe", "recipe_item", "favorite_food", "weight_entry",
         "journal_note", "journal_attachment",
+        // Le plan d'entraînement, en dernier : rien ne dépend de son ordre,
+        // et il ne pèse que quelques centaines de lignes.
+        "planned_session",
     ]
 
     /// `cursor` takes the already-wrapped `MirrorBootstrapCursor` rather than
@@ -507,6 +510,8 @@ actor MirrorEngine {
             return try await pushRows(JournalNote.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "journal_attachment":
             return try await pushRows(JournalAttachment.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
+        case "planned_session":
+            return try await pushRows(PlannedSession.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         default:
             // Every entry's `table` was written by `MirrorRecorder` from
             // `MirrorRow.mirrorTable`, and that protocol is conformed by
@@ -1072,6 +1077,8 @@ actor MirrorEngine {
             try await sendBatches(JournalNote.self, table: table, userID: userID)
         case "journal_attachment":
             try await sendBatches(JournalAttachment.self, table: table, userID: userID)
+        case "planned_session":
+            try await sendBatches(PlannedSession.self, table: table, userID: userID)
         default:
             // `bootstrapOrder` is a closed, hand-written list and this
             // `switch` is meant to cover every entry in it. Thrown rather

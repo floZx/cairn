@@ -84,6 +84,7 @@ enum StoreMaintenance {
         repair(WeightEntry.self, \.uuid),
         repair(JournalNote.self, \.uuid),
         repair(JournalAttachment.self, \.uuid),
+        repair(PlannedSession.self, \.uuid),
     ]
 
     /// Runs the journal's one-time recovery, then every repair in
