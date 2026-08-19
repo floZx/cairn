@@ -151,7 +151,54 @@ struct MarkdownText: View {
             // Markdown could not parse would be guessing twice.
             return Text(text)
         }
-        return Text(hidingTagHashes ? withoutTagHashes(attributed) : attributed)
+        let sansDièses = hidingTagHashes ? withoutTagHashes(attributed) : attributed
+        return Text(withHighlightedMentions(sansDièses))
+    }
+
+    /// Colore les `@pseudo` sans les toucher autrement.
+    ///
+    /// Le `@` reste, à la différence du `#` des tags : « @sam » se lit comme un
+    /// nom là où « #trail » se lit comme un mot, et retirer l'arobase donnerait
+    /// « sam » au milieu d'une phrase, indistinguable du reste.
+    ///
+    /// La couleur seule, ni fond ni gras : dans une note qui cite trois
+    /// personnes, trois pastilles feraient une décoration là où trois mots
+    /// colorés se lisent encore comme une phrase.
+    ///
+    /// Les règles de reconnaissance sont celles de `PersonScanner`, atteintes
+    /// par `PersonHandle` plutôt que recopiées — une seconde copie dériverait
+    /// de la liste que l'écran People affiche vraiment.
+    static func withHighlightedMentions(_ attributed: AttributedString) -> AttributedString {
+        var resultat = attributed
+        var trouves: [Range<AttributedString.Index>] = []
+        let caracteres = resultat.characters
+        var precedent: Character?
+        var index = caracteres.startIndex
+
+        while index < caracteres.endIndex {
+            let caractere = caracteres[index]
+            defer {
+                precedent = caractere
+                index = caracteres.index(after: index)
+            }
+            guard caractere == "@" else { continue }
+            guard precedent == nil || precedent!.isWhitespace
+                || "([{«\"'-–—*>".contains(precedent!)
+            else { continue }
+
+            let debut = caracteres.index(after: index)
+            var fin = debut
+            while fin < caracteres.endIndex, PersonHandle.isAllowed(caracteres[fin]) {
+                fin = caracteres.index(after: fin)
+            }
+            guard PersonHandle(name: String(caracteres[debut..<fin])) != nil else { continue }
+            trouves.append(index..<fin)
+        }
+
+        for citation in trouves {
+            resultat[citation].foregroundColor = .accentColor
+        }
+        return resultat
     }
 
     /// Drops the `#` from every tag.

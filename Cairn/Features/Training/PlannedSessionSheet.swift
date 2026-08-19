@@ -57,6 +57,7 @@ struct PlannedSessionSheet: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Notes").font(.caption).foregroundStyle(.secondary)
+                    MentionBar(texte: $notes)
                     TextEditor(text: $notes)
                         .font(.body)
                         .frame(minHeight: 90)

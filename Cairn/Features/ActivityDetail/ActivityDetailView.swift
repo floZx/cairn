@@ -331,18 +331,21 @@ struct ActivityDetailView: View {
     }
 
     private var noteEditor: some View {
-        TextEditor(text: $noteDraft)
-            .font(.system(size: Self.noteSize))
-            .scrollContentBackground(.hidden)
-            .padding(6)
-            .frame(minHeight: 120)
-            .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
-            .focused($noteFocused)
-            .onChange(of: noteDraft) { _, _ in scheduleNoteSave() }
-            .onKeyPress(.escape) {
-                endEditingNote()
-                return .handled
-            }
+        VStack(alignment: .leading, spacing: 4) {
+            MentionBar(texte: $noteDraft)
+            TextEditor(text: $noteDraft)
+                .font(.system(size: Self.noteSize))
+                .scrollContentBackground(.hidden)
+                .padding(6)
+                .frame(minHeight: 120)
+                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+                .focused($noteFocused)
+                .onChange(of: noteDraft) { _, _ in scheduleNoteSave() }
+                .onKeyPress(.escape) {
+                    endEditingNote()
+                    return .handled
+                }
+        }
     }
 
     private func beginEditingNote() {

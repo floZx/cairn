@@ -26,6 +26,7 @@ struct MealNoteSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Note — \(slot.name)")
                 .font(.headline)
+            MentionBar(texte: $text)
             TextEditor(text: $text)
                 .font(.body)
                 .frame(minHeight: 120)

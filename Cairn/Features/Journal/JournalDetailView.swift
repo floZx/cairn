@@ -310,14 +310,24 @@ struct JournalDetailView: View {
         // One way only. The getter reads the draft this view holds, never the
         // store, so nothing the store does to `notes` while a key is being
         // pressed can replace the text under the caret — see `draft`.
-        TextEditor(text: Binding(
-            get: { draft },
-            set: { newValue in
-                guard newValue != draft else { return }
-                draft = newValue
-                onEdit(newValue)
-            }
-        ))
+        VStack(alignment: .leading, spacing: 4) {
+            MentionBar(texte: Binding(
+                get: { draft },
+                set: { nouveau in
+                    guard nouveau != draft else { return }
+                    draft = nouveau
+                    onEdit(nouveau)
+                }
+            ))
+            .padding(.horizontal, 12)
+            TextEditor(text: Binding(
+                get: { draft },
+                set: { newValue in
+                    guard newValue != draft else { return }
+                    draft = newValue
+                    onEdit(newValue)
+                }
+            ))
             // The same size as the reader, and that is the whole point: the
             // two modes swap under the pointer, and text that grew or shrank
             // on the click would make the swap the thing you notice.
@@ -335,5 +345,6 @@ struct JournalDetailView: View {
                 onLeaveEditor()
                 return .handled
             }
+        }
     }
 }

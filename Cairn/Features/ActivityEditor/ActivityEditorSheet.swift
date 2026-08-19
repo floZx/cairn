@@ -130,6 +130,7 @@ struct ActivityEditorSheet: View {
                         // First `TextEditor` in the project, so no house style to
                         // follow — and it arrives borderless, which reads as
                         // nothing at all beside the bordered fields above it.
+                        MentionBar(texte: $draft.notes)
                         TextEditor(text: $draft.notes)
                             .font(.body)
                             .focused($notesFocused)
