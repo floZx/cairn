@@ -215,7 +215,23 @@ input, button { font: inherit; }
    La réserve du bas suit la capsule des onglets, au pixel : deux formules qui
    divergeraient laisseraient un vide ou une ligne coupée. */
 .contenu {
-  padding: 0 12px calc(84px + max(calc(env(safe-area-inset-bottom) - 20px), 6px));
+  /* La réserve du bas vaut la capsule et rien de plus : soixante-et-un points
+     de haut, cinq d'air, plus le vide qu'elle laisse sous elle.
+
+     Elle valait quatre-vingt-quatre et le vide : vingt-trois points que le
+     contenu ne pouvait jamais atteindre, sous lesquels le fond de la page
+     restait visible. Une fois le défilement au bout, la dernière carte
+     s'arrêtait à cent sept points du bord de l'écran — c'est la « bordure
+     noire » signalée le 19 août 2026, et ce n'était ni la capsule ni le
+     châssis, c'était cette réserve. */
+  padding: 0 12px calc(66px + max(calc(env(safe-area-inset-bottom) - 20px), 6px));
+}
+
+/* La marge de la dernière carte s'ajoute à la réserve et rouvre le vide de
+   seize points qu'on vient de fermer. Elle ne sépare plus rien : il n'y a rien
+   dessous. */
+.contenu > :last-child {
+  margin-bottom: 0;
 }
 
 .attenue { color: var(--texte-2); }
