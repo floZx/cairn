@@ -27,6 +27,11 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.healthcare-fitness
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        # Pour la reprise du plan d'entraînement depuis un calendrier macOS.
+        # En lecture seule : rien ici n'écrit jamais dans l'agenda.
+        INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: >-
+          Cairn lit votre calendrier d'entraînement pour reprendre les séances
+          déjà planifiées. Il n'y écrit jamais.
         CODE_SIGN_ENTITLEMENTS: Cairn/Cairn.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         SWIFT_EMIT_LOC_STRINGS: YES

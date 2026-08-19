@@ -21,6 +21,7 @@ struct TrainingView: View {
     @State private var shownMonth: DateKey
     @State private var editing: PlannedSession?
     @State private var creatingOn: DateKey?
+    @State private var importing = false
 
     init(day: Binding<DateKey>, onSelectActivity: @escaping (PersistentIdentifier) -> Void) {
         _day = day
@@ -62,6 +63,7 @@ struct TrainingView: View {
         .sheet(item: $creatingOn) { jour in
             PlannedSessionSheet(session: nil, dateKey: jour)
         }
+        .sheet(isPresented: $importing) { TrainingImportSheet() }
     }
 
     private var entete: some View {
@@ -75,6 +77,12 @@ struct TrainingView: View {
                 .keyboardShortcut(.rightArrow, modifiers: [])
             Button("Aujourd'hui") { shownMonth = DateKey(Date()) }
             Spacer()
+            Button {
+                importing = true
+            } label: {
+                Label("Reprendre un calendrier", systemImage: "calendar.badge.plus")
+            }
+            .help("Recopier un plan depuis un calendrier macOS, une fois")
             Button {
                 creatingOn = day
             } label: {
