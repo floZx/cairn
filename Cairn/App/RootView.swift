@@ -577,11 +577,9 @@ struct RootView: View {
             nutritionDateKey = citation.dateKey
             sidebarSelection = .nutrition
         case .pesee:
-            // L'écran des pesées n'a pas de jour à viser — c'est une courbe.
-            // On va donc à la journée qui la porte, là où le commentaire se
-            // modifie.
-            nutritionDateKey = citation.dateKey
-            sidebarSelection = .nutrition
+            // L'écran des pesées, et non la journée où le commentaire se
+            // modifie : une citation qui annonce un poids doit mener au poids.
+            sidebarSelection = .weight
         case .seance:
             trainingDateKey = citation.dateKey
             sidebarSelection = .training
@@ -1181,6 +1179,7 @@ struct RootView: View {
                         nutritionDateKey = jour
                         sidebarSelection = .nutrition
                     },
+                    onSelectWeight: { sidebarSelection = .weight },
                     attachmentsBase: app.journal.attachmentsBase,
                     onAddPhotos: { addJournalPhotos($0, to: date) },
                     onPastePhoto: { pasteJournalPhoto($0, to: date) }

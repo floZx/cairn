@@ -13,12 +13,18 @@ import SwiftData
 /// of instants.
 struct JournalDayNutrition: View {
     let date: DateKey
-    /// Aller à la journée des repas, là où ces notes se modifient.
+    /// Aller à la journée des repas.
     ///
     /// Le récap des sorties menait à la sortie depuis toujours ; celui-ci ne
     /// menait nulle part, et deux blocs voisins qui ne se comportent pas
     /// pareil se lisent comme un des deux cassé. Signalé.
     let onSelectDay: (DateKey) -> Void
+    /// Aller au poids.
+    ///
+    /// Une destination à part, et pas la journée des repas où le commentaire
+    /// se modifie pourtant : une carte qui affiche « 71,2 kg » annonce le
+    /// poids, et c'est là qu'on s'attend à arriver. Signalé aussi.
+    let onSelectWeight: () -> Void
 
     /// Read against `JournalDetailView.noteSize` — the note this pane is for,
     /// at 15. The same pair as the activities' recap, so the two blocks under
@@ -29,9 +35,14 @@ struct JournalDayNutrition: View {
     @Query private var mealNotes: [MealNote]
     @Query private var weights: [WeightEntry]
 
-    init(date: DateKey, onSelectDay: @escaping (DateKey) -> Void) {
+    init(
+        date: DateKey,
+        onSelectDay: @escaping (DateKey) -> Void,
+        onSelectWeight: @escaping () -> Void
+    ) {
         self.date = date
         self.onSelectDay = onSelectDay
+        self.onSelectWeight = onSelectWeight
         let raw = date.raw
         _mealNotes = Query(filter: #Predicate<MealNote> { $0.dateKeyRaw == raw })
         _weights = Query(filter: #Predicate<WeightEntry> { $0.dateKeyRaw == raw })
@@ -102,10 +113,15 @@ struct JournalDayNutrition: View {
                     .font(.system(size: Self.headingSize, weight: .semibold))
                     .foregroundStyle(.secondary)
                 ForEach(spokenMeals) { note in
-                    block(Self.label(for: note), Self.note(of: note))
+                    block(Self.label(for: note), Self.note(of: note), aide: "Alimentation") {
+                        onSelectDay(date)
+                    }
                 }
                 if let spokenWeight {
-                    block(Self.weightLine(spokenWeight), Self.note(of: spokenWeight))
+                    block(
+                        Self.weightLine(spokenWeight), Self.note(of: spokenWeight),
+                        aide: "Poids", onOuvrir: onSelectWeight
+                    )
                 }
             }
         }
@@ -122,11 +138,11 @@ struct JournalDayNutrition: View {
     /// exact du récap des sorties, et pour la même raison — un texte
     /// sélectionnable prend le clic pour lui, si bien qu'une carte entièrement
     /// cliquable ne le serait qu'entre les mots.
-    private func block(_ heading: String, _ note: String) -> some View {
+    private func block(
+        _ heading: String, _ note: String, aide: String, onOuvrir: @escaping () -> Void
+    ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Button {
-                onSelectDay(date)
-            } label: {
+            Button(action: onOuvrir) {
                 Text(heading)
                     .font(.system(size: Self.headingSize))
                     .foregroundStyle(.secondary)
@@ -134,7 +150,7 @@ struct JournalDayNutrition: View {
                     .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .help("Ouvrir la journée dans Alimentation")
+            .help("Ouvrir dans \(aide)")
             MarkdownText(
                 markdown: note, baseSize: Self.noteSize, hidesTagHashes: true
             )

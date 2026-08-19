@@ -59,6 +59,8 @@ struct JournalDetailView: View {
     let onLeaveEditor: () -> Void
     /// Aller à la journée des repas depuis son récap.
     let onSelectDay: (DateKey) -> Void
+    /// Aller au poids depuis le récap d'une pesée.
+    let onSelectWeight: () -> Void
     /// Where a note's pictures resolve to: the attachment cache, which always
     /// exists. It used to be the vault, and nil until a folder was chosen —
     /// hence the disabled button and the refused drops this view no longer
@@ -177,7 +179,9 @@ struct JournalDetailView: View {
             // journal belong with the date they happened on, not with the
             // text somebody wrote about it.
             JournalDayActivities(date: day.date, onSelect: onSelectActivity)
-            JournalDayNutrition(date: day.date, onSelectDay: onSelectDay)
+            JournalDayNutrition(
+                date: day.date, onSelectDay: onSelectDay, onSelectWeight: onSelectWeight
+            )
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
