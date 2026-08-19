@@ -2382,3 +2382,10 @@ body {
   height: 100%;
   display: block;
 }
+
+/* Discrète : elle ne sert qu'à répondre « quelle version ? » quand un doute
+   s'installe. */
+.empreinte {
+  margin: 14px 2px 0;
+  text-align: center;
+}

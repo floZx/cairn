@@ -54,6 +54,11 @@ export function BoutonCompte() {
               </button>
             </li>
           </ul>
+          {/* Quelle version tourne vraiment. Une application posée sur l'écran
+              d'accueil garde son service worker, et rien ne disait laquelle des
+              builds était servie — au point de mesurer des captures d'écran
+              pour le deviner. */}
+          <p className="attenue minuscule empreinte">Version {__EMPREINTE__}</p>
         </Feuille>
       )}
     </>
