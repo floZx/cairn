@@ -19,6 +19,8 @@ struct TrainingImportSheet: View {
     @State private var fin = Calendar.current.date(byAdding: .month, value: 6, to: Date()) ?? Date()
     @State private var apercu: [TrainingCalendarImport.Evenement] = []
     @State private var importees: Int?
+    /// Ce que le système a répondu, mot pour mot.
+    @State private var diagnostic = ""
 
     private enum Acces { case aDemander, accorde, refuse }
 
@@ -37,12 +39,18 @@ struct TrainingImportSheet: View {
             case .aDemander:
                 ProgressView().frame(maxWidth: .infinity)
             case .refuse:
-                Label(
-                    "Cairn n'a pas accès aux calendriers. Réglages système → "
-                        + "Confidentialité et sécurité → Calendriers.",
-                    systemImage: "exclamationmark.triangle"
-                )
-                .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(
+                        "Cairn n'a pas accès aux calendriers. Réglages système → "
+                            + "Confidentialité et sécurité → Calendriers.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .foregroundStyle(.orange)
+                    Text(diagnostic)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
             case .accorde:
                 Form {
                     Picker("Calendrier", selection: $choisi) {
@@ -106,7 +114,9 @@ struct TrainingImportSheet: View {
     }
 
     private func demander() async {
-        guard await TrainingCalendarImport.demanderAcces(store) else {
+        let reponse = await TrainingCalendarImport.demanderAcces(store)
+        diagnostic = reponse.pourquoi
+        guard reponse.accorde else {
             acces = .refuse
             return
         }

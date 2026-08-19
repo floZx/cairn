@@ -19,9 +19,12 @@ struct TrainingView: View {
     /// Le mois affiché, indépendant du jour choisi : on feuillette le plan
     /// sans déplacer la sélection tant qu'on n'a pas cliqué une case.
     @State private var shownMonth: DateKey
-    @State private var editing: PlannedSession?
-    @State private var creatingOn: DateKey?
-    @State private var importing = false
+    /// Une seule feuille à la fois, et un seul `.sheet` pour les trois.
+    ///
+    /// Trois modificateurs `.sheet` sur la même vue ne se cumulent pas :
+    /// SwiftUI n'en honore qu'un, et les deux autres ne s'ouvrent jamais.
+    /// Mesuré ici — le bouton d'import ne faisait rien du tout.
+    @State private var feuille: FeuilleDuPlan?
 
     init(day: Binding<DateKey>, onSelectActivity: @escaping (PersistentIdentifier) -> Void) {
         _day = day
@@ -57,13 +60,16 @@ struct TrainingView: View {
             grille
         }
         .background(.clear)
-        .sheet(item: $editing) { seance in
-            PlannedSessionSheet(session: seance, dateKey: seance.dateKey ?? day)
+        .sheet(item: $feuille) { ouverte in
+            switch ouverte {
+            case .seance(let seance):
+                PlannedSessionSheet(session: seance, dateKey: seance.dateKey ?? day)
+            case .nouvelle(let jour):
+                PlannedSessionSheet(session: nil, dateKey: jour)
+            case .importer:
+                TrainingImportSheet()
+            }
         }
-        .sheet(item: $creatingOn) { jour in
-            PlannedSessionSheet(session: nil, dateKey: jour)
-        }
-        .sheet(isPresented: $importing) { TrainingImportSheet() }
     }
 
     private var entete: some View {
@@ -78,13 +84,13 @@ struct TrainingView: View {
             Button("Aujourd'hui") { shownMonth = DateKey(Date()) }
             Spacer()
             Button {
-                importing = true
+                feuille = .importer
             } label: {
                 Label("Reprendre un calendrier", systemImage: "calendar.badge.plus")
             }
             .help("Recopier un plan depuis un calendrier macOS, une fois")
             Button {
-                creatingOn = day
+                feuille = .nouvelle(day)
             } label: {
                 Label("Nouvelle séance", systemImage: "plus")
             }
@@ -143,8 +149,8 @@ struct TrainingView: View {
                     sportSeance: \.sport, sportSortie: \.sportType
                 ),
                 onChoisir: { day = jour },
-                onOuvrir: { editing = $0 },
-                onCreer: { creatingOn = jour },
+                onOuvrir: { feuille = .seance($0) },
+                onCreer: { feuille = .nouvelle(jour) },
                 onSupprimer: supprimer,
                 onOuvrirSortie: onSelectActivity
             )
@@ -160,6 +166,21 @@ struct TrainingView: View {
 
     private func reculer() { shownMonth = shownMonth.monthStart.advanced(by: -1).monthStart }
     private func avancer() { shownMonth = shownMonth.monthEnd().advanced(by: 1) }
+}
+
+/// Ce qui peut s'ouvrir par-dessus la grille.
+private enum FeuilleDuPlan: Identifiable {
+    case seance(PlannedSession)
+    case nouvelle(DateKey)
+    case importer
+
+    var id: String {
+        switch self {
+        case .seance(let seance): "seance-\(seance.uuid)"
+        case .nouvelle(let jour): "nouvelle-\(jour.raw)"
+        case .importer: "import"
+        }
+    }
 }
 
 /// Une case du mois.
@@ -276,7 +297,3 @@ extension PlannedSession {
     }
 }
 
-/// Pour que `sheet(item:)` puisse porter un jour.
-extension DateKey: Identifiable {
-    var id: String { raw }
-}

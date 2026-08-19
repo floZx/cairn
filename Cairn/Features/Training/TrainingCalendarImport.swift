@@ -81,8 +81,30 @@ enum TrainingCalendarImport {
     /// la vue qui le détient vit sur l'acteur principal. Le marquer ici est
     /// plus honnête que de le faire traverser.
     @MainActor
-    static func demanderAcces(_ store: EKEventStore) async -> Bool {
-        (try? await store.requestFullAccessToEvents()) ?? false
+    static func demanderAcces(_ store: EKEventStore) async -> (accorde: Bool, pourquoi: String) {
+        let avant = EKEventStore.authorizationStatus(for: .event)
+        do {
+            let accorde = try await store.requestFullAccessToEvents()
+            return (accorde, "état avant : \(nomDeLEtat(avant)) — réponse : \(accorde)")
+        } catch {
+            return (false, "état avant : \(nomDeLEtat(avant)) — erreur : \(error.localizedDescription)")
+        }
+    }
+
+    /// Le statut TCC en toutes lettres, pour l'afficher.
+    ///
+    /// Sans lui, un refus déjà enregistré et une demande qui n'aboutit pas se
+    /// ressemblent : dans les deux cas rien ne s'affiche à l'écran, et on
+    /// corrige au hasard. Le système sait laquelle des deux c'est.
+    static func nomDeLEtat(_ etat: EKAuthorizationStatus) -> String {
+        switch etat {
+        case .notDetermined: "jamais demandé"
+        case .restricted: "restreint"
+        case .denied: "refusé"
+        case .fullAccess: "accès complet"
+        case .writeOnly: "écriture seule"
+        @unknown default: "inconnu (\(etat.rawValue))"
+        }
     }
 
     static func calendriers(_ store: EKEventStore) -> [EKCalendar] {
