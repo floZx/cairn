@@ -46,6 +46,9 @@ struct TrainingView: View {
     /// centaines de lignes parcourues à chaque rendu, ce qui ne se voit pas.
     @Query(sort: \Activity.startLocalDate) private var activities: [Activity]
 
+    /// Les types de journée, pour les poser d'un clic droit sur une case.
+    @Query(sort: \DayType.sortOrder) private var dayTypes: [DayType]
+
     private static let monthFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "fr_FR")
@@ -179,6 +182,8 @@ struct TrainingView: View {
                     sportSeance: \.sport, sportSortie: \.sportType
                 ),
                 onChoisir: { day = jour },
+                typesDeJour: dayTypes,
+                onTypeDeJour: { poser($0, sur: jour) },
                 onOuvrir: { feuille = .seance($0) },
                 onCreer: { feuille = .nouvelle(jour) },
                 onSupprimer: supprimer,
@@ -187,6 +192,22 @@ struct TrainingView: View {
         } else {
             Color.clear
         }
+    }
+
+    /// Pose un type de journée sur toutes les séances d'un jour, et sur la
+    /// journée nutrition avec.
+    ///
+    /// Par jour et non par séance : le budget calorique est celui de la
+    /// journée, pas d'une sortie. Et depuis le clic droit plutôt que depuis la
+    /// feuille, parce que le plan arrive du calendrier sans aucun type — les
+    /// titres n'en portent pas — et qu'ouvrir trois cents feuilles pour les
+    /// poser un par un n'était pas une réponse.
+    private func poser(_ type: DayType?, sur jour: DateKey) {
+        for seance in sessions where seance.dateKeyRaw == jour.raw {
+            seance.dayType = type
+            try? TrainingNutrition.appliquer(seance, dans: context)
+        }
+        try? context.save()
     }
 
     private func supprimer(_ seance: PlannedSession) {
@@ -224,6 +245,8 @@ private struct TrainingDayCell: View {
     let aujourdhui: Bool
     let resultat: TrainingMatch.Resultat<PlannedSession, Activity>
     let onChoisir: () -> Void
+    let typesDeJour: [DayType]
+    let onTypeDeJour: (DayType?) -> Void
     let onOuvrir: (PlannedSession) -> Void
     let onCreer: () -> Void
     let onSupprimer: (PlannedSession) -> Void
@@ -277,6 +300,18 @@ private struct TrainingDayCell: View {
         .onTapGesture { onChoisir() }
         .contextMenu {
             Button("Ajouter une séance", systemImage: "plus") { onCreer() }
+            if !resultat.paires.isEmpty, !typesDeJour.isEmpty {
+                Divider()
+                Menu("Type de journée") {
+                    ForEach(typesDeJour) { type in
+                        Button("\(type.name) · \(type.kcalTarget) kcal") {
+                            onTypeDeJour(type)
+                        }
+                    }
+                    Divider()
+                    Button("Aucun") { onTypeDeJour(nil) }
+                }
+            }
         }
     }
 

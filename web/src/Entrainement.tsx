@@ -89,6 +89,26 @@ function usePlan(annee: number, mois: number) {
   })
 }
 
+/// Les types de journée, pour le sélecteur de la feuille.
+///
+/// Les mêmes que ceux des repas, et une poignée de lignes qui ne bougent
+/// jamais : demandés une fois pour la session.
+function useTypesDeJour() {
+  return useQuery({
+    queryKey: ["types-de-jour"],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("day_type")
+        .select("uuid, name, kcal_target, sort_order")
+        .is("deleted_at", null)
+        .order("sort_order")
+      if (error) throw error
+      return data as { uuid: string; name: string; kcal_target: number }[]
+    },
+  })
+}
+
 function useSorties(annee: number, mois: number) {
   const { debut, fin } = bornes(annee, mois)
   return useQuery({
@@ -306,6 +326,39 @@ export function Entrainement({ onOuvrir }: { onOuvrir: (uuid: string) => void })
   )
 }
 
+/// Pose le type de journée de la séance sur la journée nutrition — le portage
+/// de `TrainingNutrition.appliquer`, avec sa règle et sa raison.
+///
+/// **N'écrase jamais un type déjà choisi.** Une journée réglée à la main l'a
+/// été pour une raison que le plan ne connaît pas — un repas de famille, un
+/// repos décidé le matin. Le plan propose tant que rien n'a été dit, et se
+/// tait dès que quelque chose l'a été.
+async function poserLeBudget(dateKey: string, typeUUID: string) {
+  const { data, error } = await supabase
+    .from("nutrition_day")
+    .select("uuid, day_type_uuid")
+    .eq("date_key_raw", dateKey)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (error) throw error
+  // Déjà réglée : on n'y touche pas.
+  if (data?.day_type_uuid) return
+
+  const maintenant = new Date().toISOString()
+  const { error: echec } = await supabase.from("nutrition_day").upsert({
+    // La ligne existante est reprise quand il y en a une : deux lignes pour le
+    // même jour donneraient deux objectifs, et le Mac en afficherait un au
+    // hasard.
+    uuid: data?.uuid ?? crypto.randomUUID(),
+    user_id: await identifiant(),
+    date_key_raw: dateKey,
+    day_type_uuid: typeUUID,
+    edited_at: maintenant,
+    deleted_at: null,
+  })
+  if (echec) throw echec
+}
+
 /// Écrire ou modifier une séance, comme la feuille du Mac.
 function SaisieSeance({
   dateKey,
@@ -338,6 +391,8 @@ function SaisieSeance({
     seance?.planned_elevation != null ? String(seance.planned_elevation) : "",
   )
   const [notes, setNotes] = useState(seance?.notes ?? "")
+  const [typeDeJour, setTypeDeJour] = useState(seance?.day_type_uuid ?? "")
+  const types = useTypesDeJour()
   const client = useQueryClient()
 
   const nombre = (texte: string): number | null => {
@@ -365,7 +420,7 @@ function SaisieSeance({
         planned_duration: minutes.trim() === "" ? null : (nombre(minutes) ?? 0) * 60,
         planned_elevation: nombre(denivele),
         notes,
-        day_type_uuid: seance?.day_type_uuid ?? null,
+        day_type_uuid: typeDeJour === "" ? null : typeDeJour,
         // Déplacée, elle se range à la fin de sa nouvelle journée : y garder
         // le rang de l'ancienne la ferait passer devant des séances écrites
         // avant elle.
@@ -375,6 +430,7 @@ function SaisieSeance({
         deleted_at: null,
       })
       if (error) throw error
+      if (typeDeJour !== "") await poserLeBudget(jour, typeDeJour)
     },
     onSuccess: rafraichir,
   })
@@ -418,6 +474,18 @@ function SaisieSeance({
       <label className="ligne-champ">
         <span>Jour</span>
         <input type="date" value={jour} onChange={(e) => setJour(e.target.value || dateKey)} />
+      </label>
+
+      <label className="ligne-champ">
+        <span>Journée</span>
+        <select value={typeDeJour} onChange={(e) => setTypeDeJour(e.target.value)}>
+          <option value="">Aucune</option>
+          {(types.data ?? []).map((t) => (
+            <option key={t.uuid} value={t.uuid}>
+              {t.name} · {t.kcal_target} kcal
+            </option>
+          ))}
+        </select>
       </label>
 
       <label className="ligne-champ">
