@@ -134,7 +134,11 @@ struct MentionField: ViewModifier {
 
     private func choisir(_ handle: PersonHandle) {
         guard let enCours else { return }
-        texte = MentionCompletion.complete(texte, remplacant: enCours.plage, par: handle)
+        // La barre à position fixe n'a pas la main sur le curseur d'un
+        // `TextEditor` : elle ne peut que remplacer le texte, et le curseur
+        // atterrit où SwiftUI le pose. C'est l'une des raisons pour lesquelles
+        // le journal est passé à `NoteTextView`.
+        texte = MentionCompletion.complete(texte, remplacant: enCours.plage, par: handle).texte
         self.enCours = nil
         retenue = 0
     }

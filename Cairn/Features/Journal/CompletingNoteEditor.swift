@@ -22,6 +22,8 @@ struct CompletingNoteEditor: View {
     @State private var enCours: MentionCompletion.EnCours?
     @State private var retenue = 0
     @State private var curseur = CGRect.zero
+    /// Où poser le curseur après une insertion, une fois.
+    @State private var curseurDemande: Int?
 
     private var annuaire: [PersonHandle] {
         guard enCours != nil else { return [] }
@@ -48,6 +50,7 @@ struct CompletingNoteEditor: View {
             texte: $texte,
             taille: taille,
             focus: $focus,
+            curseurDemande: $curseurDemande,
             onCommande: commande,
             onCurseur: { curseur = $0 },
             onImageCollee: onImageCollee
@@ -123,7 +126,13 @@ struct CompletingNoteEditor: View {
 
     private func choisir(_ handle: PersonHandle) {
         guard let enCours else { return }
-        texte = MentionCompletion.complete(texte, remplacant: enCours.plage, par: handle)
+        let complete = MentionCompletion.complete(
+            texte, remplacant: enCours.plage, par: handle
+        )
+        // La position d'abord : le texte qui change déclenche la mise à jour de
+        // l'éditeur, et elle doit y trouver la consigne déjà posée.
+        curseurDemande = complete.curseur
+        texte = complete.texte
         self.enCours = nil
         retenue = 0
     }

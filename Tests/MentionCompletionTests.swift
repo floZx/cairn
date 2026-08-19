@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import Cairn
 
 @Suite("L'autocomplétion après @")
@@ -81,6 +82,30 @@ struct MentionCompletionTests {
         let complete = MentionCompletion.complete(
             texte, remplacant: enCours.plage, par: PersonHandle(name: "samuel")!
         )
-        #expect(complete == "sorti avec @samuel ")
+        #expect(complete.texte == "sorti avec @samuel ")
+        // Derrière l'espace : on vient de nommer quelqu'un, la phrase continue.
+        #expect(complete.curseur == "sorti avec @samuel ".utf16.count)
+    }
+
+    /// Le curseur se compte en UTF-16, celles d'AppKit — un emoji y vaut deux
+    /// unités là où Swift n'y voit qu'un caractère. Sans ça il retombait au
+    /// milieu du nom qu'on venait de choisir.
+    @Test func leCurseurSeCompteCommeAppKitCompte() {
+        let texte = "hier 😀 avec @sa demain"
+        let complete = MentionCompletion.complete(
+            texte, remplacant: texte.range(of: "@sa")!, par: PersonHandle(name: "sam")!
+        )
+        #expect(complete.texte == "hier 😀 avec @sam demain")
+        // Le « d » de « demain » : le curseur est passé l'espace.
+        #expect(complete.curseur == (complete.texte as NSString).range(of: "demain").location)
+    }
+
+    /// Compléter au milieu d'une phrase ne double pas l'espace.
+    @Test func lEspaceNEstPasDoublee() {
+        let texte = "avec @sa demain"
+        let complete = MentionCompletion.complete(
+            texte, remplacant: texte.range(of: "@sa")!, par: PersonHandle(name: "sam")!
+        )
+        #expect(complete.texte == "avec @sam demain")
     }
 }

@@ -80,10 +80,29 @@ enum MentionCompletion {
             .map { $0 }
     }
 
-    /// Le texte, la citation choisie mise à la place du fragment.
+    /// Le texte, la citation choisie mise à la place du fragment — **et où le
+    /// curseur doit se retrouver**.
+    ///
+    /// La position est rendue en unités UTF-16, celles d'AppKit : sans elle,
+    /// l'éditeur rétablissait la sélection qu'il avait avant l'insertion,
+    /// c'est-à-dire au milieu du nom qu'on venait de choisir. Signalé.
+    ///
+    /// Après l'espace, pas avant : on vient de nommer quelqu'un, la phrase
+    /// continue.
     static func complete(
         _ texte: String, remplacant plage: Range<String.Index>, par handle: PersonHandle
-    ) -> String {
-        texte.replacingCharacters(in: plage, with: "@\(handle.name) ")
+    ) -> (texte: String, curseur: Int) {
+        // L'espace n'est ajoutée que s'il n'y en a pas déjà une : compléter au
+        // milieu d'une phrase — « avec @sa demain » — en aurait sinon mis deux.
+        let suit = plage.upperBound < texte.endIndex ? texte[plage.upperBound] : nil
+        let colle = suit?.isWhitespace == true
+        let insere = colle ? "@\(handle.name)" : "@\(handle.name) "
+        let avant = texte[texte.startIndex..<plage.lowerBound].utf16.count
+        return (
+            texte.replacingCharacters(in: plage, with: insere),
+            // Derrière l'espace dans les deux cas : on vient de nommer
+            // quelqu'un, la phrase continue.
+            avant + insere.utf16.count + (colle ? 1 : 0)
+        )
     }
 }

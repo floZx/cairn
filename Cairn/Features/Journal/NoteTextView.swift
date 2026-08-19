@@ -19,6 +19,9 @@ struct NoteTextView: NSViewRepresentable {
     var taille: CGFloat
     /// Vrai quand l'éditeur doit avoir le clavier.
     @Binding var focus: Bool
+    /// Où poser le curseur, en unités UTF-16, quand quelqu'un le demande —
+    /// après l'insertion d'une citation. Remis à `nil` une fois posé.
+    @Binding var curseurDemande: Int?
 
     /// Les touches que la complétion peut vouloir intercepter. Rendre `true`
     /// les consomme ; `false` les laisse à l'éditeur, où elles gardent leur
@@ -88,6 +91,15 @@ struct NoteTextView: NSViewRepresentable {
             champ.string = texte
             let borne = min(selection.location, (texte as NSString).length)
             champ.setSelectedRange(NSRange(location: borne, length: 0))
+        }
+
+        if let position = curseurDemande {
+            let borne = min(position, (champ.string as NSString).length)
+            champ.setSelectedRange(NSRange(location: borne, length: 0))
+            champ.scrollRangeToVisible(champ.selectedRange())
+            // Après la mise à jour : remettre l'état à zéro pendant qu'on la
+            // calcule est ce que SwiftUI refuse.
+            DispatchQueue.main.async { curseurDemande = nil }
         }
 
         if focus, champ.window?.firstResponder !== champ {
