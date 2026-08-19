@@ -584,7 +584,10 @@ struct RootView: View {
                     // rien à gagner à cohabiter avec une liste.
                     TrainingView(
                         day: $trainingDateKey,
-                        onSelectActivity: { openActivity($0) }
+                        // Sélectionnée, pas ouverte : `openActivity` bascule
+                        // sur l'onglet des activités, ce qui ferait quitter le
+                        // plan à chaque sortie qu'on veut relire.
+                        onSelectActivity: { selectedActivities = [$0] }
                     )
                     .vimKeys(performOutsideTheList)
                 } else if showsNutrition {
@@ -1112,7 +1115,23 @@ struct RootView: View {
             } else {
                 collapsedDetailColumn
             }
-        } else if showsWeight || showsTraining {
+        } else if showsTraining {
+            // La sortie qui a accompli la séance, dans le volet — sans quitter
+            // le plan. Cliquer une séance faite emmenait sur l'onglet des
+            // activités, et il fallait revenir pour lire la ligne suivante du
+            // plan ; ici les deux se lisent côte à côte.
+            if let selected {
+                ActivityDetailView(
+                    activity: selected,
+                    onExpandMap: { expandedMap = .activity(selected.id) },
+                    onEdit: { openEditor(selected, focusingNotes: true) },
+                    onSelectActivity: { selectedActivities = [$0] }
+                )
+                .frame(minWidth: Self.detailMinWidth)
+            } else {
+                collapsedDetailColumn
+            }
+        } else if showsWeight {
             collapsedDetailColumn
         } else if let selected {
             ActivityDetailView(

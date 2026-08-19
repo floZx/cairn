@@ -74,15 +74,34 @@ struct TrainingView: View {
 
     private var entete: some View {
         HStack(spacing: 12) {
-            Button { reculer() } label: { Image(systemName: "chevron.left") }
-                .keyboardShortcut(.leftArrow, modifiers: [])
-            Text(Self.monthFormatter.string(from: shownMonth.date()).capitalized)
-                .font(.title2.weight(.semibold))
-                .frame(minWidth: 190, alignment: .leading)
-            Button { avancer() } label: { Image(systemName: "chevron.right") }
-                .keyboardShortcut(.rightArrow, modifiers: [])
-            Button("Aujourd'hui") { shownMonth = DateKey(Date()) }
+            // Les deux chevrons encadrent le mois, et le mois est centré entre
+            // eux : c'est la forme d'un sélecteur de mois partout ailleurs, et
+            // aligné à gauche sur une largeur fixe il flottait à côté du
+            // chevron droit selon la longueur du nom.
+            HStack(spacing: 4) {
+                Button { reculer() } label: { Image(systemName: "chevron.left") }
+                    .keyboardShortcut(.leftArrow, modifiers: [])
+                    .help("Mois précédent")
+                Text(Self.monthFormatter.string(from: shownMonth.date()).capitalized)
+                    .font(.title3.weight(.semibold))
+                    // Assez large pour « Septembre 2026 », le plus long des
+                    // douze : une largeur qui s'ajuste ferait sauter les
+                    // chevrons d'un mois à l'autre.
+                    .frame(width: 168)
+                    .multilineTextAlignment(.center)
+                Button { avancer() } label: { Image(systemName: "chevron.right") }
+                    .keyboardShortcut(.rightArrow, modifiers: [])
+                    .help("Mois suivant")
+            }
+            .buttonStyle(.borderless)
+
+            // Jamais désactivé, même déjà sur aujourd'hui : un bouton grisé
+            // se lit « cassé » avant de se lire « rien à faire », et c'est
+            // exactement le malentendu qu'on vient de corriger.
+            Button("Aujourd'hui") { revenirAAujourdhui() }
+
             Spacer()
+
             Button {
                 feuille = .importer
             } label: {
@@ -95,9 +114,20 @@ struct TrainingView: View {
                 Label("Nouvelle séance", systemImage: "plus")
             }
         }
-        .buttonStyle(.borderless)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    /// Le jour **et** le mois affiché.
+    ///
+    /// Le mois seul ne suffisait pas : un mois déjà à l'écran ne bougeait pas,
+    /// et le bouton paraissait cassé alors qu'il faisait ce qu'on lui avait
+    /// demandé. « Aujourd'hui » veut dire aujourd'hui, pas « le mois où il
+    /// tombe ».
+    private func revenirAAujourdhui() {
+        let aujourdhui = DateKey(Date())
+        day = aujourdhui
+        shownMonth = aujourdhui
     }
 
     private var grille: some View {
@@ -254,10 +284,11 @@ private struct TrainingDayCell: View {
         Calendar.current.component(.day, from: jour.date())
     }
 
+    @ViewBuilder
     private func seanceLigne(_ paire: TrainingMatch.Paire<PlannedSession, Activity>) -> some View {
         let seance = paire.seance
         let faite = paire.sortie != nil
-        return Button { onOuvrir(seance) } label: {
+        Button { onOuvrir(seance) } label: {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Image(systemName: faite ? "checkmark.circle.fill" : seance.sport.symbolName)
                     .foregroundStyle(faite ? Color.green : seance.sport.color)
@@ -282,6 +313,23 @@ private struct TrainingDayCell: View {
         .contextMenu {
             Button("Modifier", systemImage: "pencil") { onOuvrir(seance) }
             Button("Supprimer", systemImage: "trash", role: .destructive) { onSupprimer(seance) }
+        }
+
+        // La sortie qui l'a accomplie, en dessous et en retrait : c'est elle
+        // qui mène au volet de droite, la ligne du dessus menant à la séance.
+        if let sortie = paire.sortie {
+            Button { onOuvrirSortie(sortie.id) } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.turn.down.right")
+                    Text(sortie.name).lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 4)
+            }
+            .buttonStyle(.plain)
+            .help("Voir « \(sortie.name) »")
         }
     }
 }

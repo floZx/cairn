@@ -84,14 +84,26 @@ function Icone({ nom, actif }: { nom: Section; actif: boolean }) {
   }
 }
 
+/// Le mot de l'onglet — court, parce que cinq onglets se partagent la capsule
+/// et qu'un mot long y force deux lignes.
 const TITRES: Record<Section, string> = {
   activites: "Activités",
-  // « Plan » et non « Entraînement » : cinq onglets se partagent la capsule,
-  // et le mot long y forçait deux lignes.
   plan: "Plan",
   journal: "Journal",
   nutrition: "Repas",
   stats: "Stats",
+}
+
+/// Le titre de l'écran, quand il diffère de l'onglet.
+///
+/// La capsule n'a de place que pour « Plan » ; le haut de l'écran, lui, en a
+/// pour dire de quel plan il s'agit.
+const TITRES_ECRAN: Partial<Record<Section, string>> = {
+  plan: "Plan d'entraînement",
+}
+
+function titreEcran(section: Section): string {
+  return TITRES_ECRAN[section] ?? TITRES[section]
 }
 
 export function Chrome({
@@ -197,14 +209,14 @@ export function Chrome({
             </svg>
           </button>
         )}
-        <div className="titre-compact">{TITRES[section]}</div>
+        <div className="titre-compact">{titreEcran(section)}</div>
         <div className="action-barre">{action}</div>
       </header>
 
       <div className="defilement" ref={zone}>
         {!masquerOnglets && (
           <div className="ligne-titre">
-            <h1 className="grand-titre">{TITRES[section]}</h1>
+            <h1 className="grand-titre">{titreEcran(section)}</h1>
             {entete}
           </div>
         )}

@@ -2554,7 +2554,50 @@ body {
 .seance.hors-plan {
   background: transparent;
   border: 1px dashed var(--trait);
-  cursor: default;
+}
+
+/* La séance elle-même : tout le bloc mène à sa modification, sauf la ligne de
+   la sortie, qui a sa propre destination. */
+.ouvrir-seance {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lien-sortie {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 0 0;
+  border: 0;
+  border-top: 1px solid var(--trait);
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lien-sortie .accompli {
+  flex: 1;
+  min-width: 0;
+}
+
+.chevron-sortie {
+  flex: none;
+  color: var(--texte-3);
+  font-size: 20px;
+  line-height: 1;
 }
 
 .tete-seance {

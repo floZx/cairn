@@ -102,7 +102,7 @@ export function App() {
           onVue={setVue}
         />
       ) : section === "plan" ? (
-        <Entrainement />
+        <Entrainement onOuvrir={ouvrir} />
       ) : section === "journal" ? (
         <Journal
           onActivite={ouvrir}

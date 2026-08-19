@@ -110,7 +110,7 @@ function useSorties(annee: number, mois: number) {
   })
 }
 
-export function Entrainement() {
+export function Entrainement({ onOuvrir }: { onOuvrir: (uuid: string) => void }) {
   const aujourdhui = cleDuJour(new Date())
   const [jour, setJour] = useState(aujourdhui)
   const [annee, mois] = useMemo(() => {
@@ -225,50 +225,58 @@ export function Entrainement() {
       ) : (
         <>
           {duJour.paires.map(({ seance, sortie }) => (
-            <button
-              key={seance.uuid}
-              className="seance"
-              onClick={() => setAEditer(seance)}
-            >
-              <span className="tete-seance">
-                <IconeSport sport={seance.sport_type_raw} taille={22} />
-                <span className="intitule">
-                  {seance.title || nomDuSport(seance.sport_type_raw)}
+            <div className="seance" key={seance.uuid}>
+              <button className="ouvrir-seance" onClick={() => setAEditer(seance)}>
+                <span className="tete-seance">
+                  <IconeSport sport={seance.sport_type_raw} taille={22} />
+                  <span className="intitule">
+                    {seance.title || nomDuSport(seance.sport_type_raw)}
+                  </span>
+                  {sortie && <span className="fait">✓</span>}
                 </span>
-                {sortie && <span className="fait">✓</span>}
-              </span>
-              {objectifResume(
-                seance.planned_distance,
-                seance.planned_duration,
-                seance.planned_elevation,
-              ) && (
-                <span className="attenue petit">
-                  {objectifResume(
-                    seance.planned_distance,
-                    seance.planned_duration,
-                    seance.planned_elevation,
-                  )}
-                </span>
-              )}
-              {seance.notes && <span className="notes-seance">{seance.notes}</span>}
+                {objectifResume(
+                  seance.planned_distance,
+                  seance.planned_duration,
+                  seance.planned_elevation,
+                ) && (
+                  <span className="attenue petit">
+                    {objectifResume(
+                      seance.planned_distance,
+                      seance.planned_duration,
+                      seance.planned_elevation,
+                    )}
+                  </span>
+                )}
+                {seance.notes && <span className="notes-seance">{seance.notes}</span>}
+              </button>
+              {/* La sortie qui l'a accomplie mène à sa fiche : le geste attendu
+                  sur une ligne qui nomme une sortie est de l'ouvrir. */}
               {sortie && (
-                <span className="attenue petit accompli">
-                  {sortie.name}
-                  {sortie.distance ? ` · ${formatDistance(sortie.distance)}` : ""}
-                  {sortie.moving_time ? ` · ${formatDuree(sortie.moving_time)}` : ""}
-                </span>
+                <button className="lien-sortie" onClick={() => onOuvrir(sortie.uuid)}>
+                  <span className="accompli">
+                    {sortie.name}
+                    {sortie.distance ? ` · ${formatDistance(sortie.distance)}` : ""}
+                    {sortie.moving_time ? ` · ${formatDuree(sortie.moving_time)}` : ""}
+                  </span>
+                  <span className="chevron-sortie">›</span>
+                </button>
               )}
-            </button>
+            </div>
           ))}
 
           {duJour.enPlus.map((sortie) => (
-            <div className="seance hors-plan" key={sortie.uuid}>
+            <button
+              className="seance hors-plan"
+              key={sortie.uuid}
+              onClick={() => onOuvrir(sortie.uuid)}
+            >
               <span className="tete-seance">
                 <IconeSport sport={sortie.sport_type_raw} taille={22} />
                 <span className="intitule">{sortie.name}</span>
+                <span className="chevron-sortie">›</span>
               </span>
               <span className="attenue petit">Hors du plan</span>
-            </div>
+            </button>
           ))}
 
           {duJour.paires.length === 0 && duJour.enPlus.length === 0 && (
