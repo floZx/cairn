@@ -744,14 +744,27 @@ input, button { font: inherit; }
 
 /* ---- Châssis ------------------------------------------------------------- */
 
+/* Épinglé aux quatre bords plutôt que dimensionné en `dvh`.
+
+   `100dvh` visait la barre d'adresse de Safari, qui n'existe pas dans une
+   application ajoutée à l'écran d'accueil. Là, l'unité ne rend pas la hauteur
+   de l'écran mais celle qui reste au-dessus de la barre d'accueil : le châssis
+   s'arrêtait une trentaine de points trop haut, le défilement coupait sa
+   dernière ligne, et sous lui restait une bande noire hors de portée du
+   contenu. Signalé le 19 août 2026, capture à l'appui.
+
+   `inset: 0` prend la fenêtre de mise en page, celle-là même que
+   `viewport-fit=cover` étend jusqu'aux bords — la barre d'état la surplombe
+   déjà, la barre d'accueil aussi, et le contenu passe dessous comme chez les
+   applications natives.
+
+   Le châssis reste le repère des onglets, qui flottent en absolu par-dessus le
+   défilement : `fixed` établit un bloc conteneur comme `relative` le faisait. */
 .chassis {
-  /* `dvh` et non `vh` : sur iOS, `vh` compte la barre d'adresse même une fois
-     rétractée, et le bas de l'application passait sous l'écran. */
-  height: 100dvh;
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  /* Le repère des onglets, qui flottent en absolu par-dessus le défilement. */
-  position: relative;
 }
 
 /* La barre compacte, toujours là, translucide comme celles du système : le
