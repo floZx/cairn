@@ -797,9 +797,11 @@ input, button { font: inherit; }
   top: 0;
   left: 0;
   right: 0;
-  /* La hauteur du document, non celle de la fenêtre — voir la note sur `html`
-     plus haut. C'est elle qui atteint le bas de l'écran. */
-  height: calc(100% + env(safe-area-inset-top));
+  /* `100dvh` et non `100%`. Depuis que `html` porte un `min-height` agrandi,
+     un pourcentage s'y résout et compte les soixante-deux points une seconde
+     fois : le châssis passait à neuf cent trente-six et la capsule sortait par
+     le bas. `dvh` désigne la fenêtre, elle, qui vaut bien huit cent douze. */
+  height: calc(100dvh + env(safe-area-inset-top));
   display: flex;
   flex-direction: column;
 }
