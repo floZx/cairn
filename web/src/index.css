@@ -947,12 +947,12 @@ input, button { font: inherit; }
 
      Six points : la capsule frôle le bord, la barre d'accueil se dessine sur
      son liseré comme elle se dessine sur celui de Strava. */
-  /* Douze points, trouvés par encadrement plutôt que par calcul : à
+  /* Seize points, trouvés par encadrement plutôt que par calcul : à
      `env(safe-area-inset-bottom) + 6` elle flottait trop haut, à six elle
-     touchait le bord. C'est le milieu des deux, et c'est ce que l'œil demandait
-     — le reste de la soirée a montré qu'aucun modèle ne valait ici la
-     comparaison directe avec Strava. */
-  bottom: 12px;
+     touchait le bord, à douze elle restait un peu basse. Aucun modèle de zones
+     sûres n'a valu ici la comparaison directe avec Strava sur le même
+     appareil. */
+  bottom: 16px;
   z-index: 3;
   display: flex;
   border-radius: 26px;
