@@ -11,10 +11,11 @@ const FILTRE_PAYS = 'countries_tags:"en:france"'
 /// rien à l'écran ne dit laquelle des versions tourne. On a passé une soirée à
 /// mesurer des captures pour deviner si un correctif était arrivé ou non ;
 /// cette ligne répond à la question en une seconde.
+/// En heure locale, pas en UTC : lue à 3 h 45 du matin, une empreinte disant
+/// « 01:42 » se prend pour une vieille build alors qu'elle a trois minutes.
 const EMPREINTE = new Date()
-  .toISOString()
+  .toLocaleString("sv-SE", { timeZone: "Europe/Paris" })
   .slice(0, 16)
-  .replace("T", " ")
 
 export default defineConfig({
   define: {
