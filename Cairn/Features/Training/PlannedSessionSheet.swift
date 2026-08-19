@@ -139,6 +139,10 @@ struct PlannedSessionSheet: View {
         cible.plannedElevation = denivele
         cible.notes = notes
         cible.dayType = dayType
+        // Le budget calorique suit le plan, sans second geste — mais jamais
+        // par-dessus un type déjà choisi pour ce jour-là. Voir
+        // `TrainingNutrition.appliquer`.
+        try? TrainingNutrition.appliquer(cible, dans: context)
         try? context.save()
         dismiss()
     }
