@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, useRef} from "react"
+import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Markdown } from "./markdown"
@@ -188,6 +189,7 @@ function FichePersonne({
   onOuvrir: (uuid: string) => void
 }) {
   const [note, setNote] = useState(fiche?.note ?? "")
+  const aire = useRef<HTMLTextAreaElement>(null)
   const client = useQueryClient()
 
   const enregistrement = useMutation({
@@ -235,7 +237,10 @@ function FichePersonne({
         <p className="erreur">{(enregistrement.error as Error).message}</p>
       )}
 
+      <BarreCitations aire={aire} texte={note} onTexte={setNote} />
+
       <textarea
+        ref={aire}
         className="saisie-note courte"
         value={note}
         onChange={(e) => setNote(e.target.value)}

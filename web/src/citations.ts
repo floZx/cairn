@@ -130,3 +130,53 @@ export function lignes(
     return a.personne.nom.localeCompare(b.personne.nom, "fr")
   })
 }
+
+/// Ce qui est en train d'être tapé après un `@`, au curseur.
+///
+/// À la différence du Mac, la position est **connue** : un `<textarea>` la
+/// donne, là où `TextEditor` la garde pour lui. Le portage n'a donc pas besoin
+/// de la déduire de ce qui vient d'être inséré, et la complétion marche aussi
+/// au milieu d'une phrase déjà écrite.
+export function enCoursDe(
+  texte: string,
+  curseur: number,
+): { fragment: string; debut: number } | null {
+  let i = curseur
+  let fragment = ""
+  while (i > 0) {
+    const c = texte[i - 1]
+    if (c === "@") {
+      const avant = i > 1 ? texte[i - 2] : " "
+      if (!ouvrante(avant)) return null
+      return { fragment, debut: i - 1 }
+    }
+    if (!permis(c)) return null
+    fragment = c + fragment
+    i--
+    // Un pseudo ne fait pas trente caractères : au-delà, c'est qu'on remonte
+    // dans du texte ordinaire.
+    if (fragment.length > 30) return null
+  }
+  return null
+}
+
+/// Les personnes proposées pour un fragment, les plus courtes d'abord.
+///
+/// Par le début du pseudo et non « contient » : on tape le début d'un prénom,
+/// et une liste qui remonte « Marie » pour « ari » ferait douter de ce qu'elle
+/// cherche.
+export function propositions(
+  fragment: string,
+  connus: Personne[],
+  limite = 6,
+): Personne[] {
+  const cherche = replie(fragment)
+  return connus
+    .filter((p) => cherche === "" || p.cle.startsWith(cherche))
+    .sort((a, b) =>
+      a.nom.length !== b.nom.length
+        ? a.nom.length - b.nom.length
+        : a.nom.localeCompare(b.nom, "fr"),
+    )
+    .slice(0, limite)
+}

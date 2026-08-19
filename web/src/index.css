@@ -482,6 +482,11 @@ input, button { font: inherit; }
 
 .saisie-note {
   flex: 1;
+  /* La largeur explicite en plus du `flex` : le champ sert aussi hors d'une
+     colonne flexible — sur la fiche d'une personne — où `flex: 1` ne dit rien
+     et où un `textarea` retombe alors sur sa largeur par défaut, une vingtaine
+     de caractères. */
+  width: 100%;
   min-height: 40svh;
   padding: 14px;
   border: 0;
@@ -2905,5 +2910,29 @@ body {
 }
 
 .citation-carte.ouvrable {
+  cursor: pointer;
+}
+
+/* Les propositions de citation, au-dessus du champ.
+   Au-dessus et non en dessous : sur un téléphone, le bas du champ est là où le
+   clavier arrive, et une barre posée dessous se retrouverait derrière lui. */
+.barre-citations {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.proposition {
+  flex: none;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--champ);
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
 }

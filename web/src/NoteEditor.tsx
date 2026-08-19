@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { etiquettesDe } from "./tags"
@@ -132,6 +133,7 @@ export function NoteEditor({
         <p className="erreur">{(enregistrement.error as Error).message}</p>
       )}
       {erreurPhoto && <p className="erreur">{erreurPhoto}</p>}
+      <BarreCitations aire={zone} texte={texte} onTexte={setTexte} />
       <textarea
         ref={zone}
         className="saisie-note"

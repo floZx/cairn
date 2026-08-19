@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useState, useRef} from "react"
+import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 
@@ -20,6 +21,7 @@ export function NoteActivite({
   onFerme: () => void
 }) {
   const [valeur, setValeur] = useState(texte)
+  const aire = useRef<HTMLTextAreaElement>(null)
   const client = useQueryClient()
 
   const enregistrement = useMutation({
@@ -67,7 +69,9 @@ export function NoteActivite({
       {enregistrement.error && (
         <p className="erreur">{(enregistrement.error as Error).message}</p>
       )}
+      <BarreCitations aire={aire} texte={valeur} onTexte={setValeur} />
       <textarea
+        ref={aire}
         className="saisie-note"
         value={valeur}
         onChange={(e) => setValeur(e.target.value)}
