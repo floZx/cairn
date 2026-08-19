@@ -71,6 +71,8 @@ struct TrainingView: View {
                 PlannedSessionSheet(session: nil, dateKey: jour)
             case .importer:
                 TrainingImportSheet()
+            case .deduire:
+                TrainingDeduceSheet()
             }
         }
     }
@@ -111,6 +113,12 @@ struct TrainingView: View {
                 Label("Importer un calendrier", systemImage: "calendar.badge.plus")
             }
             .help("Importer un plan depuis un calendrier macOS, une fois")
+            Button {
+                feuille = .deduire
+            } label: {
+                Label("Déduire les types", systemImage: "wand.and.stars")
+            }
+            .help("Poser les types de journée manquants d'après le plan")
             Button {
                 feuille = .nouvelle(day)
             } label: {
@@ -224,12 +232,14 @@ private enum FeuilleDuPlan: Identifiable {
     case seance(PlannedSession)
     case nouvelle(DateKey)
     case importer
+    case deduire
 
     var id: String {
         switch self {
         case .seance(let seance): "seance-\(seance.uuid)"
         case .nouvelle(let jour): "nouvelle-\(jour.raw)"
         case .importer: "import"
+        case .deduire: "deduire"
         }
     }
 }

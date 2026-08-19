@@ -96,3 +96,110 @@ struct TrainingNutritionTests {
         #expect(posees.first?.dayType?.name == "Sortie longue")
     }
 }
+
+@Suite("Déduire les types manquants sur tout le plan")
+struct TrainingDeductionTests {
+    private func magasin() throws -> ModelContext {
+        ModelContext(try AppModelContainer.inMemory())
+    }
+
+    private func jour(_ raw: String) -> DateKey { DateKey(raw: raw)! }
+
+    /// Les six types, comme dans les réglages.
+    @discardableResult
+    private func poserLesTypes(_ context: ModelContext) -> [String: DayType] {
+        let noms = [
+            ("Repos", 1750), ("Renfo/léger", 1950), ("Footing ou natation", 2200),
+            ("Qualité", 2400), ("Footing + natation", 2750), ("Sortie longue", 2950),
+        ]
+        var table: [String: DayType] = [:]
+        for (rang, (nom, kcal)) in noms.enumerated() {
+            let type = DayType(name: nom, kcalTarget: kcal, sortOrder: rang)
+            context.insert(type)
+            table[nom] = type
+        }
+        return table
+    }
+
+    private func seance(
+        _ raw: String, _ titre: String, sport: SportType = .run,
+        duree: Double? = nil, dans context: ModelContext
+    ) {
+        context.insert(PlannedSession(
+            dateKey: jour(raw), sportTypeRaw: sport.rawValue, title: titre,
+            plannedDuration: duree
+        ))
+    }
+
+    @Test func unPlanVideNeProposeRien() throws {
+        let context = try magasin()
+        poserLesTypes(context)
+        #expect(try TrainingNutrition.propositions(dans: context).isEmpty)
+    }
+
+    /// Le point qui compte : hors du plan, « aucune séance » ne veut pas dire
+    /// « repos », mais « on ne sait pas ».
+    @Test func laDeductionSArreteAuxBornesDuPlan() throws {
+        let context = try magasin()
+        poserLesTypes(context)
+        seance("2026-08-10", "Footing", dans: context)
+        seance("2026-08-12", "SL 20 km", dans: context)
+
+        let jours = try TrainingNutrition.propositions(dans: context).map(\.dateKey.raw)
+        #expect(jours == ["2026-08-10", "2026-08-11", "2026-08-12"])
+    }
+
+    @Test func leJourCreuxDuPlanDevientDuRepos() throws {
+        let context = try magasin()
+        poserLesTypes(context)
+        seance("2026-08-10", "Footing", dans: context)
+        seance("2026-08-12", "Footing", dans: context)
+
+        let propositions = try TrainingNutrition.propositions(dans: context)
+        let creux = try #require(propositions.first { $0.dateKey.raw == "2026-08-11" })
+        #expect(creux.type.name == "Repos")
+        #expect(creux.resume == "Aucune séance")
+    }
+
+    @Test func uneJourneeDejaRegleeNApparaitPasDansLApercu() throws {
+        let context = try magasin()
+        let types = poserLesTypes(context)
+        seance("2026-08-10", "Footing", dans: context)
+        context.insert(NutritionDay(dateKey: jour("2026-08-10"), dayType: types["Qualité"]))
+
+        #expect(try TrainingNutrition.propositions(dans: context).isEmpty)
+    }
+
+    /// Un vélo seul ne se déduit pas — la journée est simplement sautée, et
+    /// celles qui l'entourent restent proposées.
+    @Test func ceQuOnNeSaitPasDeduireEstSaute() throws {
+        let context = try magasin()
+        poserLesTypes(context)
+        seance("2026-08-10", "Footing", dans: context)
+        seance("2026-08-11", "Home-trainer", sport: .ride, dans: context)
+        seance("2026-08-12", "Footing", dans: context)
+
+        let jours = try TrainingNutrition.propositions(dans: context).map(\.dateKey.raw)
+        #expect(jours == ["2026-08-10", "2026-08-12"])
+    }
+
+    @Test func lEcritureCreeEtCompleteSansEcraser() throws {
+        let context = try magasin()
+        let types = poserLesTypes(context)
+        seance("2026-08-10", "Footing", dans: context)
+        seance("2026-08-11", "SL 22 km", dans: context)
+        // Une journée qui existe sans type : elle doit être complétée, pas
+        // doublée.
+        context.insert(NutritionDay(dateKey: jour("2026-08-11")))
+
+        let propositions = try TrainingNutrition.propositions(dans: context)
+        #expect(try TrainingNutrition.ecrire(propositions, dans: context) == 2)
+
+        let journees = try context.fetch(
+            FetchDescriptor<NutritionDay>(sortBy: [SortDescriptor(\.dateKeyRaw)])
+        )
+        #expect(journees.count == 2)
+        #expect(journees.map(\.dayType?.name) == ["Footing ou natation", "Sortie longue"])
+        #expect(types["Repos"] != nil)
+    }
+}
