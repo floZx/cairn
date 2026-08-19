@@ -20,7 +20,11 @@ struct ActivityEditorSheet: View {
     @State private var draft: ActivityDraft
     /// Whether the note field is showing its rendering rather than its source.
     @State private var showsNotePreview = false
-    @FocusState private var notesFocused: Bool
+    /// Vrai quand l'éditeur doit avoir le clavier.
+    ///
+    /// Un état ordinaire et non un `@FocusState` : c'est `NoteTextView` qui
+    /// tient le premier répondant, et les deux mécaniques ne se parlent pas.
+    @State private var notesFocused = false
     @Environment(\.dismiss) private var dismiss
 
     init(
@@ -130,10 +134,11 @@ struct ActivityEditorSheet: View {
                         // First `TextEditor` in the project, so no house style to
                         // follow — and it arrives borderless, which reads as
                         // nothing at all beside the bordered fields above it.
-                        TextEditor(text: $draft.notes)
-                            .citations($draft.notes)
-                            .font(.body)
-                            .focused($notesFocused)
+                        CompletingNoteEditor(
+                            texte: $draft.notes,
+                            taille: NSFont.systemFontSize,
+                            focus: $notesFocused
+                        )
                             .frame(minHeight: 150)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 4)

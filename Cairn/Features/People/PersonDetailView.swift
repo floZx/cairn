@@ -17,6 +17,7 @@ struct PersonDetailView: View {
 
     @State private var note = ""
     @State private var charge = false
+    @State private var noteFocus = false
 
     private var fiche: Person? { people.first { $0.key == handle.key } }
 
@@ -28,11 +29,13 @@ struct PersonDetailView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Note").font(.headline)
-                    TextEditor(text: $note)
-                        .citations($note)
-                        .font(.system(size: 14))
+                    CompletingNoteEditor(
+                        texte: $note,
+                        taille: 14,
+                        focus: $noteFocus
+                    )
                         .frame(minHeight: 110)
-                        .padding(6)
+                        .padding(2)
                         .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
                         .overlay(alignment: .topLeading) {
                             if note.isEmpty {

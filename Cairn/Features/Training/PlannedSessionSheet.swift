@@ -25,6 +25,8 @@ struct PlannedSessionSheet: View {
     @State private var denivele: Double?
     @State private var notes = ""
     @State private var dayType: DayType?
+    /// Le clavier n'est pas demandé ici : la feuille s'ouvre sur le sport.
+    @State private var notesFocus = false
 
     @Query(sort: \DayType.sortOrder) private var dayTypes: [DayType]
 
@@ -57,9 +59,11 @@ struct PlannedSessionSheet: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Notes").font(.caption).foregroundStyle(.secondary)
-                    TextEditor(text: $notes)
-                        .citations($notes)
-                        .font(.body)
+                    CompletingNoteEditor(
+                        texte: $notes,
+                        taille: NSFont.systemFontSize,
+                        focus: $notesFocus
+                    )
                         .frame(minHeight: 90)
                         .overlay(
                             RoundedRectangle(cornerRadius: 6)

@@ -44,7 +44,11 @@ struct ActivityDetailView: View {
     /// and a re-read, and `TextEditor` loses its selection to a value replaced
     /// from outside.
     @State private var noteDraft = ""
-    @FocusState private var noteFocused: Bool
+    /// Vrai quand l'éditeur doit avoir le clavier.
+    ///
+    /// Un état ordinaire et non un `@FocusState` : c'est `NoteTextView` qui
+    /// tient le premier répondant, et les deux mécaniques ne se parlent pas.
+    @State private var noteFocused = false
     /// The pending write, so the note reaches the store a moment after the
     /// typing stops rather than at every letter.
     @State private var noteSaveTask: Task<Void, Never>?
@@ -332,19 +336,16 @@ struct ActivityDetailView: View {
 
     private var noteEditor: some View {
         VStack(alignment: .leading, spacing: 4) {
-            TextEditor(text: $noteDraft)
-                .citations($noteDraft)
-                .font(.system(size: Self.noteSize))
-                .scrollContentBackground(.hidden)
-                .padding(6)
+            CompletingNoteEditor(
+                texte: $noteDraft,
+                taille: Self.noteSize,
+                focus: $noteFocused,
+                onEchappement: { endEditingNote() }
+            )
+                .padding(2)
                 .frame(minHeight: 120)
                 .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
-                .focused($noteFocused)
                 .onChange(of: noteDraft) { _, _ in scheduleNoteSave() }
-                .onKeyPress(.escape) {
-                    endEditingNote()
-                    return .handled
-                }
         }
     }
 

@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// L'éditeur du journal, adossé à un `NSTextView`.
+/// Un champ de note adossé à un `NSTextView`.
 ///
 /// `TextEditor` en est déjà un sous le capot : on ne gagne donc aucune
 /// capacité en descendant d'un étage — l'annulation, le correcteur, les emoji
@@ -130,6 +130,19 @@ struct NoteTextView: NSViewRepresentable {
             signalerLeCurseur()
         }
 
+        // Le focus se raconte dans les deux sens.
+        //
+        // Sans ça, une vue qui se met à jour pour une autre raison reprendrait
+        // le clavier à qui l'a pris entre-temps : `focus` serait resté vrai
+        // alors que le champ ne l'a plus.
+        func textDidBeginEditing(_ notification: Notification) {
+            if !parent.focus { parent.focus = true }
+        }
+
+        func textDidEndEditing(_ notification: Notification) {
+            if parent.focus { parent.focus = false }
+        }
+
         func textView(
             _ textView: NSTextView, doCommandBy commandeSélecteur: Selector
         ) -> Bool {
@@ -141,7 +154,13 @@ struct NoteTextView: NSViewRepresentable {
             case #selector(NSResponder.moveUp(_:)):
                 return parent.onCommande(.haut)
             case #selector(NSResponder.cancelOperation(_:)):
-                return parent.onCommande(.echappement)
+                if parent.onCommande(.echappement) { return true }
+                // Personne n'en veut : le champ rend le clavier plutôt que de
+                // laisser AppKit faire son geste par défaut, qui est d'ouvrir
+                // **sa** complétion de texte — la dernière chose à montrer
+                // à quelqu'un qui vient d'en refuser une.
+                textView.window?.makeFirstResponder(nil)
+                return true
             default:
                 return false
             }

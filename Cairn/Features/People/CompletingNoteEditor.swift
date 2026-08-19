@@ -1,19 +1,28 @@
 import SwiftUI
 import SwiftData
 
-/// L'éditeur du journal, avec la complétion des citations sous le curseur.
+/// Un éditeur de note, avec la complétion des citations sous le curseur.
 ///
-/// La liste suivait jusqu'ici le bord du champ, faute de savoir où était le
-/// curseur : dans un volet qui fait toute la hauteur de la fenêtre, elle se
-/// retrouvait à l'autre bout de l'écran. `NoteTextView` rend ce rectangle,
-/// et la liste vient enfin se poser où l'on regarde.
+/// La liste suivait le bord du champ, faute de savoir où était le curseur :
+/// dans un volet qui fait toute la hauteur de la fenêtre, elle se retrouvait à
+/// l'autre bout de l'écran. `NoteTextView` rend ce rectangle, et la liste vient
+/// se poser où l'on regarde.
+///
+/// Éprouvé d'abord sur le seul journal, puis posé partout : c'est le même
+/// geste dans les six champs, et deux mécaniques de complétion auraient
+/// divergé au premier correctif.
 struct CompletingNoteEditor: View {
     @Binding var texte: String
     var taille: CGFloat
     @Binding var focus: Bool
     /// Ce que l'échappement fait quand aucune complétion n'est ouverte.
-    var onEchappement: () -> Void
-    var onImageCollee: (Data) -> Bool
+    ///
+    /// Facultatif : sans lui, l'éditeur se contente de rendre le clavier, et
+    /// l'échappement suivant va où il irait normalement — fermer la feuille,
+    /// par exemple.
+    var onEchappement: (() -> Void)?
+    /// Ce qu'une image collée devient. Seul le journal en accepte.
+    var onImageCollee: ((Data) -> Bool)?
 
     @Query private var fiches: [Person]
     @Query private var journalNotes: [JournalNote]
@@ -53,7 +62,7 @@ struct CompletingNoteEditor: View {
             curseurDemande: $curseurDemande,
             onCommande: commande,
             onCurseur: { curseur = $0 },
-            onImageCollee: onImageCollee
+            onImageCollee: { onImageCollee?($0) ?? false }
         )
         .overlay(alignment: .topLeading) {
             if ouverte {
@@ -113,9 +122,10 @@ struct CompletingNoteEditor: View {
             retenue = (retenue + pas + propositions.count) % propositions.count
             return true
         case .echappement:
-            // Non traité quand rien n'est ouvert : c'est ce qui laisse
-            // l'échappement du journal quitter le champ, comme avant.
             guard ouverte else {
+                // Rien à refermer : l'écran décide, et sans consigne l'éditeur
+                // rendra simplement le clavier.
+                guard let onEchappement else { return false }
                 onEchappement()
                 return true
             }

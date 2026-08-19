@@ -13,7 +13,11 @@ struct MealNoteSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var text: String
     @State private var errorMessage: String?
-    @FocusState private var noteFocused: Bool
+    /// Vrai quand l'éditeur doit avoir le clavier.
+    ///
+    /// Un état ordinaire et non un `@FocusState` : c'est `NoteTextView` qui
+    /// tient le premier répondant, et les deux mécaniques ne se parlent pas.
+    @State private var noteFocused = false
 
     init(slot: MealSlot, dateKey: DateKey, existingNote: String?) {
         self.slot = slot
@@ -26,11 +30,16 @@ struct MealNoteSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Note — \(slot.name)")
                 .font(.headline)
-            TextEditor(text: $text)
-                .citations($text)
-                .font(.body)
+            CompletingNoteEditor(
+                texte: $text,
+                taille: NSFont.systemFontSize,
+                focus: $noteFocused
+            )
                 .frame(minHeight: 120)
-                .focused($noteFocused)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(Color(nsColor: .separatorColor))
+                )
             if let errorMessage {
                 Text(errorMessage)
                     .font(.callout)
