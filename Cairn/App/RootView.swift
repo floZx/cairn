@@ -10,6 +10,10 @@ struct RootView: View {
     /// jours d'écran, pour que la grille et son mois survivent à un aller-retour
     /// vers la liste.
     @State private var trainingDateKey = DateKey(Date())
+    /// La personne ouverte, par sa clé repliée — jamais par son orthographe :
+    /// la sélection doit survivre à une note qui écrit « @Sam » au lieu de
+    /// « @sam ».
+    @State private var selectedPerson: String?
     @State private var filter = ActivityFilter.none
     // See the comment on `ActivityListView.selection`: `Activity.ID` can't be
     // named from this file, so `PersistentIdentifier` is used directly.
@@ -395,7 +399,7 @@ struct RootView: View {
     /// buttons, it does not withdraw the commands.
     private var showsActivityActions: Bool {
         !showsJournal && !showsNutrition && !showsWeight && !showsStatistics
-            && !showsTraining
+            && !showsTraining && !showsPeople
     }
 
     private var showsJournal: Bool { sidebarSelection == .journal }
@@ -511,6 +515,50 @@ struct RootView: View {
         sidebarSelection = .all
     }
 
+    /// Les citations de tout le monde, pour la page d'une personne.
+    ///
+    /// Calculées ici plutôt que dans la page : c'est `RootView` qui tient déjà
+    /// les modèles, et les recalculer à chaque frappe dans la note d'une fiche
+    /// relirait la bibliothèque entière pour une lettre.
+    /// Seuls les deux modèles que cette vue n'interrogeait pas déjà : les
+    /// notes du journal, les séances du plan et les fiches. Le reste —
+    /// sorties, notes de repas, pesées, créneaux — est là depuis longtemps, et
+    /// une seconde requête sur les mêmes lignes serait un doublon silencieux.
+    @Query private var peopleJournalNotes: [JournalNote]
+    @Query private var peopleSessions: [PlannedSession]
+
+    private var peopleCitations: [PersonHandle: [PeopleIndex.Citation]] {
+        PeopleIndex.citations(
+            dans: PeopleView.textes(
+                journalNotes: peopleJournalNotes, activities: allActivities,
+                mealNotes: mealNotes, weights: weightEntries,
+                sessions: peopleSessions, slots: mealSlots
+            )
+        )
+    }
+
+    /// La personne ouverte, retrouvée depuis sa clé.
+    ///
+    /// Par les citations d'abord, par les fiches ensuite : quelqu'un dont la
+    /// note existe mais que plus aucune note ne cite doit rester ouvrable.
+    private var selectedPersonHandle: PersonHandle? {
+        guard let selectedPerson else { return nil }
+        if let cite = peopleCitations.keys.first(where: { $0.key == selectedPerson }) {
+            return cite
+        }
+        return peopleFiches.first { $0.key == selectedPerson }
+            .flatMap { PersonHandle(name: $0.name) }
+    }
+
+    @Query private var peopleFiches: [Person]
+
+    /// Ouvre une sortie depuis sa citation, sans quitter People.
+    private func openActivityByUUID(_ uuid: String) {
+        guard let sortie = allActivities.first(where: { $0.uuid == uuid }) else { return }
+        selectedActivities = [sortie.persistentModelID]
+        sidebarSelection = .all
+    }
+
     private func selectJournalNote(_ date: DateKey?) {
         // The flush first: a debounce that has not fired yet is unwritten
         // work, and the note being left must not lose its last sentence to the
@@ -520,6 +568,8 @@ struct RootView: View {
     }
 
     private var showsTraining: Bool { sidebarSelection == .training }
+
+    private var showsPeople: Bool { sidebarSelection == .people }
 
     private var showsNutrition: Bool { sidebarSelection == .nutrition }
 
@@ -579,6 +629,9 @@ struct RootView: View {
                     // one of the two is ever on screen, and a second one would
                     // be a second thing for `/` to aim at.
                     .searchFocused($searchFieldFocused)
+                } else if showsPeople {
+                    PeopleView(selection: $selectedPerson)
+                        .vimKeys(performOutsideTheList)
                 } else if showsTraining {
                     // Le plan prend toute la colonne : une grille de mois n'a
                     // rien à gagner à cohabiter avec une liste.
@@ -1126,6 +1179,17 @@ struct RootView: View {
                     onExpandMap: { expandedMap = .activity(selected.id) },
                     onEdit: { openEditor(selected, focusingNotes: true) },
                     onSelectActivity: { selectedActivities = [$0] }
+                )
+                .frame(minWidth: Self.detailMinWidth)
+            } else {
+                collapsedDetailColumn
+            }
+        } else if showsPeople {
+            if let handle = selectedPersonHandle {
+                PersonDetailView(
+                    handle: handle,
+                    citations: peopleCitations[handle] ?? [],
+                    onSelectActivity: { openActivityByUUID($0) }
                 )
                 .frame(minWidth: Self.detailMinWidth)
             } else {

@@ -7,6 +7,7 @@ enum SidebarItem: Hashable {
     case statistics
     case training
     case journal
+    case people
     case nutrition
     case weight
 }
@@ -96,6 +97,8 @@ struct SidebarView: View {
                 Label("Journal", systemImage: "text.book.closed")
                     .badge(journalDays.count)
                     .tag(SidebarItem.journal)
+                Label("People", systemImage: "at")
+                    .tag(SidebarItem.people)
                 Label("Alimentation", systemImage: "fork.knife")
                     .tag(SidebarItem.nutrition)
                 Label("Poids", systemImage: "scalemass")
