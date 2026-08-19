@@ -2748,3 +2748,70 @@ body {
 
 .effort .delta.mieux { color: var(--vert); }
 .effort .delta.moins { color: var(--erreur); }
+
+/* ---- La trace touchée sur la carte globale -------------------------------- */
+
+/* Posée au-dessus du pied de carte, pas dedans : le pied appartient au
+   chargement et à la zone, elle à la trace du moment. */
+.fiche-touchee {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+.corps-fiche {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tete-touchee {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nom-touchee {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Le nombre de passages est ce qu'on vient chercher ici : il se lit dans la
+   couleur d'accent, pas dans le gris des détails. */
+.passages {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.fermer-fiche {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--champ);
+  color: var(--texte-2);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}

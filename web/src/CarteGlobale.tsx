@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import * as maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
+import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
-import { traceDepuisBytea } from "./track"
+import { IconeSport } from "./IconeSport"
+import { dateCourte, distance as formatDistance, duree as formatDuree } from "./format"
+import { traceDepuisBytea, type Coordonnee } from "./track"
+import { distanceEntre, memeParcours, signature } from "./parcours"
 import { bornes, type Filtre, type Zone } from "./criteres"
 import { ChoixFond } from "./ChoixFond"
 import {
@@ -64,6 +68,22 @@ function styleAvec(fond: Fond) {
       type: "geojson" as const,
       data: { type: "FeatureCollection" as const, features: [] },
     },
+    // Les passages du parcours touché, et la trace touchée elle-même.
+    //
+    // Deux sources à part plutôt que deux filtres sur la source commune : un
+    // filtre `["in", …]` posé sur les six cent soixante-treize traces empêchait
+    // la carte entière de se peindre — écran noir, aucune erreur, les tuiles
+    // pourtant reçues. Mesuré par bissection le 19 août 2026. Recopier une
+    // poignée de lignes coûte moins cher que de filtrer les autres, de toute
+    // façon.
+    jumelles: {
+      type: "geojson" as const,
+      data: { type: "FeatureCollection" as const, features: [] },
+    },
+    touchee: {
+      type: "geojson" as const,
+      data: { type: "FeatureCollection" as const, features: [] },
+    },
   },
   layers: [
     coucheDuDessous(fond),
@@ -118,8 +138,53 @@ function styleAvec(fond: Fond) {
         "line-opacity": 0.55,
       },
     },
+    // Les passages sur le parcours touché, par-dessus tout le reste.
+    //
+    // Une couche à part plutôt qu'une couleur changée sur la couche des
+    // traces : celle-ci en porte des centaines, et une expression qui teste
+    // l'appartenance à une liste se réévalue pour chacune à chaque image. Ici
+    // le filtre écarte tout sauf une poignée, et le reste ne coûte rien.
+    //
+    // Toutes de la même teinte, celle de la trace touchée : c'est ce qui les
+    // donne à lire comme un seul itinéraire refait, là où la palette de la
+    // carte sert justement à séparer les voisines.
+    {
+      id: "traces-jumelles",
+      type: "line" as const,
+      source: "jumelles",
+      layout: { "line-cap": "round" as const, "line-join": "round" as const },
+      paint: {
+        "line-color": "#ffffff",
+        "line-width": 2.6,
+        "line-opacity": 0.9,
+      },
+    },
+    // Celle qu'on a touchée, plus épaisse encore : dans un faisceau de
+    // quarante passages, savoir laquelle on tient est la première chose.
+    {
+      id: "trace-touchee",
+      type: "line" as const,
+      source: "touchee",
+      layout: { "line-cap": "round" as const, "line-join": "round" as const },
+      paint: {
+        "line-color": "#ffffff",
+        "line-width": 4,
+        "line-opacity": 1,
+      },
+    },
   ],
   }
+}
+
+/// La longueur d'une trace, en mètres.
+///
+/// Calculée sur la géométrie déjà chargée plutôt que demandée à la base :
+/// la carte tient les mille traces en mémoire, et `memeParcours` n'a besoin
+/// que d'un ordre de grandeur pour sa porte des 10 %.
+function longueurDe(points: Coordonnee[]): number {
+  let total = 0
+  for (let i = 0; i < points.length - 1; i++) total += distanceEntre(points[i], points[i + 1])
+  return total
 }
 
 type Trait = GeoJSON.Feature<GeoJSON.LineString, { uuid: string; couleur: string }>
@@ -259,6 +324,17 @@ export function CarteGlobale({
   const [chargees, setChargees] = useState(0)
   const [total, setTotal] = useState<number | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
+  /// La trace touchée et tous ses autres passages.
+  const [choisi, setChoisi] = useState<{ uuid: string; passages: string[] } | null>(null)
+  /// Lisible depuis les rappels de la carte, montés une fois pour toutes.
+  const choisiRef = useRef(choisi)
+  choisiRef.current = choisi
+  /// Les signatures déjà calculées, une par sortie.
+  ///
+  /// Reconnaître un parcours parmi mille demande de rééchantillonner chaque
+  /// trace ; le refaire à chaque doigt posé se sentirait. Elles ne bougent
+  /// jamais — une trace enregistrée ne change plus.
+  const signatures = useRef(new Map<string, { forme: Coordonnee[]; longueur: number }>())
   const [fond, setFond] = useState<Fond>(fondRetenu)
   const [relief, setRelief] = useState(reliefRetenu)
   const premierFond = useRef(true)
@@ -273,6 +349,70 @@ export function CarteGlobale({
   // La zone du filtre, lisible depuis le rhabillage sans le redéfinir.
   const zoneCourante = useRef(filtre.zone)
   zoneCourante.current = filtre.zone
+
+  /// Les autres passages sur le parcours d'une trace, elle comprise.
+  ///
+  /// Cherché parmi les traces déjà chargées, sans un aller-retour de plus : la
+  /// carte les tient toutes, et c'est précisément ce qu'il faut pour comparer
+  /// des formes — ce que Postgres, lui, ne sait pas faire.
+  const jumellesDe = useCallback((uuid: string): string[] => {
+    const formeDe = (trait: Trait) => {
+      const connue = signatures.current.get(trait.properties.uuid)
+      if (connue) return connue
+      const points = trait.geometry.coordinates as Coordonnee[]
+      const calculee = {
+        forme: signature(points) ?? [],
+        longueur: longueurDe(points),
+      }
+      signatures.current.set(trait.properties.uuid, calculee)
+      return calculee
+    }
+
+    const source = traits.current.find((t) => t.properties.uuid === uuid)
+    if (!source) return [uuid]
+    const reference = formeDe(source)
+    if (reference.forme.length === 0) return [uuid]
+
+    const trouves = [uuid]
+    for (const trait of traits.current) {
+      if (trait.properties.uuid === uuid) continue
+      const candidate = formeDe(trait)
+      if (candidate.forme.length === 0) continue
+      if (memeParcours(reference.forme, candidate.forme, reference.longueur, candidate.longueur)) {
+        trouves.push(trait.properties.uuid)
+      }
+    }
+    return trouves
+  }, [])
+
+  /// Applique la mise en avant : les jumelles allumées, le reste en retrait.
+  ///
+  /// Séparée du `setState` pour servir aussi au rhabillage — un changement de
+  /// fond réécrit le style, filtres compris.
+  const eclairer = useCallback(
+    (selection: { uuid: string; passages: string[] } | null) => {
+      const instance = carte.current
+      const jumelles = instance?.getSource("jumelles") as maplibregl.GeoJSONSource | undefined
+      const touchee = instance?.getSource("touchee") as maplibregl.GeoJSONSource | undefined
+      if (!instance || !jumelles || !touchee) return
+
+      const retenus = new Set(selection?.passages ?? [])
+      jumelles.setData({
+        type: "FeatureCollection",
+        features: traits.current.filter((t) => retenus.has(t.properties.uuid)),
+      })
+      touchee.setData({
+        type: "FeatureCollection",
+        features: selection
+          ? traits.current.filter((t) => t.properties.uuid === selection.uuid)
+          : [],
+      })
+      // Le reste s'efface sans disparaître : ce qui compte est de voir où le
+      // parcours choisi passe **par rapport** aux autres.
+      instance.setPaintProperty("traces", "line-opacity", selection ? 0.16 : 0.55)
+    },
+    [],
+  )
 
   /// Repose sur un style neuf tout ce qu'il n'apporte pas lui-même : le
   /// relief, les traces déjà chargées, le cadre de la zone.
@@ -293,7 +433,8 @@ export function CarteGlobale({
       type: "FeatureCollection",
       features: zoneCourante.current ? [rectangle(zoneCourante.current)] : [],
     })
-  }, [])
+    eclairer(choisiRef.current)
+  }, [eclairer])
 
   useEffect(() => {
     if (!conteneur.current) return
@@ -319,6 +460,13 @@ export function CarteGlobale({
     // laissaient les effets d'en dessous attaquer un style à peine né.
     premierFond.current = true
     premierRelief.current = true
+    // Une carte qui échoue en silence est le pire des cas : l'écran reste
+    // noir, la console vide, et on cherche du côté du réseau. MapLibre sait
+    // ce qui ne va pas — un style refusé, une source introuvable — encore
+    // faut-il le lui demander.
+    instance.on("error", (e) => {
+      setErreur(e.error?.message ?? "La carte n'a pas pu se construire.")
+    })
     instance.on("style.load", rehabiller)
 
     // Retenu à chaque mouvement fini, y compris le cadrage automatique de la
@@ -337,9 +485,34 @@ export function CarteGlobale({
 
     // Toucher une trace ouvre sa sortie — c'est la question qu'on pose à une
     // carte d'ensemble : « c'était laquelle, celle-là ? »
+    // Toucher choisit, retoucher ouvre.
+    //
+    // Ouvrir du premier coup coûtait cher pour rien : sur un massif parcouru
+    // cent fois on tombe rarement sur la bonne trace du premier essai, et la
+    // fiche s'ouvrait pour être aussitôt refermée. Le premier doigt allume le
+    // parcours et ses autres passages — ce qu'on venait voir la plupart du
+    // temps — et le second, ou la carte du bas, ouvre la sortie.
     instance.on("click", "traces-touche", (e) => {
       const uuid = e.features?.[0]?.properties?.uuid
-      if (typeof uuid === "string") onOuvrir(uuid)
+      if (typeof uuid !== "string") return
+      if (choisiRef.current?.uuid === uuid) {
+        onOuvrir(uuid)
+        return
+      }
+      const selection = { uuid, passages: jumellesDe(uuid) }
+      choisiRef.current = selection
+      setChoisi(selection)
+      eclairer(selection)
+    })
+
+    // Toucher ailleurs éteint : sans quoi la mise en avant survivrait à
+    // l'intérêt qu'on lui porte, et la carte resterait à moitié effacée.
+    instance.on("click", (e) => {
+      const dessus = instance.queryRenderedFeatures(e.point, { layers: ["traces-touche"] })
+      if (dessus.length > 0) return
+      choisiRef.current = null
+      setChoisi(null)
+      eclairer(null)
     })
     instance.on("mouseenter", "traces-touche", () => {
       instance.getCanvas().style.cursor = "pointer"
@@ -354,7 +527,7 @@ export function CarteGlobale({
     }
     // Monté une fois : le filtre change ce qu'on charge, jamais la carte
     // elle-même, et la reconstruire perdrait le cadrage à chaque frappe.
-  }, [onOuvrir, rehabiller])
+  }, [onOuvrir, rehabiller, jumellesDe, eclairer])
 
   // La zone, dessinée dès qu'elle change — et au montage, ce qui est le cas
   // qui manquait : revenir sur la carte après avoir filtré ne la montrait pas.
@@ -511,6 +684,18 @@ export function CarteGlobale({
     <div className="carte-globale">
       <div className="toile-carte" ref={conteneur}>
         <ChoixFond fond={fond} onFond={setFond} relief={relief} onRelief={setRelief} />
+        {choisi && (
+          <FicheTouchee
+            uuid={choisi.uuid}
+            passages={choisi.passages.length}
+            onOuvrir={() => onOuvrir(choisi.uuid)}
+            onFermer={() => {
+              choisiRef.current = null
+              setChoisi(null)
+              eclairer(null)
+            }}
+          />
+        )}
       </div>
       <div className="pied-carte">
         <span className="attenue petit">
@@ -532,6 +717,68 @@ export function CarteGlobale({
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+/// La carte de la trace touchée, posée au bas de la carte.
+///
+/// Elle dit trois choses et pas une de plus : de quelle sortie il s'agit,
+/// combien de fois ce parcours a été fait, et comment l'ouvrir. Le reste est
+/// dans la fiche, à un doigt de là.
+function FicheTouchee({
+  uuid,
+  passages,
+  onOuvrir,
+  onFermer,
+}: {
+  uuid: string
+  passages: number
+  onOuvrir: () => void
+  onFermer: () => void
+}) {
+  const { data } = useQuery({
+    queryKey: ["activite-touchee", uuid],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("activity")
+        .select("name, sport_type_raw, start_local_date, distance, moving_time")
+        .eq("uuid", uuid)
+        .single()
+      if (error) throw error
+      return data as {
+        name: string
+        sport_type_raw: string
+        start_local_date: string
+        distance: number
+        moving_time: number
+      }
+    },
+  })
+
+  return (
+    <div className="fiche-touchee matiere">
+      <button className="fermer-fiche" onClick={onFermer} aria-label="Ne plus montrer">
+        ×
+      </button>
+      <button className="corps-fiche" onClick={onOuvrir}>
+        <span className="tete-touchee">
+          {data && <IconeSport sport={data.sport_type_raw} taille={20} />}
+          <span className="nom-touchee">{data?.name ?? "…"}</span>
+        </span>
+        {data && (
+          <span className="attenue petit">
+            {dateCourte(data.start_local_date)} · {formatDistance(data.distance)} ·{" "}
+            {formatDuree(data.moving_time)}
+          </span>
+        )}
+        <span className="petit passages">
+          {passages > 1
+            ? `${passages} passages sur ce tracé`
+            : "Seul passage sur ce tracé"}
+        </span>
+      </button>
     </div>
   )
 }
