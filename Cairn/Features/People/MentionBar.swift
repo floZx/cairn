@@ -6,13 +6,6 @@ import SwiftData
 /// Une vue plutôt qu'un modificateur, parce qu'elle a besoin de ses propres
 /// requêtes : les personnes déjà connues se déduisent des textes, et chaque
 /// endroit qui l'emploierait devrait sinon les lui passer.
-///
-/// L'annuaire est calculé **une fois à l'apparition**, pas à chaque frappe :
-/// relire les notes de la bibliothèque à chaque lettre pour proposer six noms
-/// serait payer très cher un service très simple. Quelqu'un cité pour la
-/// première fois dans la note qu'on est en train d'écrire n'y figure donc pas
-/// encore, ce qui est sans conséquence — on est justement en train de taper
-/// son nom en entier.
 struct MentionBar: View {
     @Binding var texte: String
 
@@ -20,9 +13,26 @@ struct MentionBar: View {
     @Query private var journalNotes: [JournalNote]
     @Query private var activities: [Activity]
 
-    @State private var annuaire: [PersonHandle] = []
-    @State private var precedent = ""
     @State private var enCours: MentionCompletion.EnCours?
+
+    /// L'annuaire n'est parcouru **que** pendant qu'une citation s'écrit.
+    ///
+    /// Calculé à la demande plutôt que rangé à l'apparition : la version
+    /// précédente le construisait dans un `onAppear` posé sur une vue qui ne
+    /// rendait rien tant qu'il n'y avait rien à proposer — et une vue vide ne
+    /// reçoit pas ses événements de cycle de vie. L'annuaire restait donc
+    /// désespérément vide, et la barre muette. Signalé, et c'est la cause.
+    ///
+    /// Le coût est celui d'une lecture des notes par lettre tapée **après un
+    /// `@`**, c'est-à-dire quelques-unes par citation. Le reste du temps, ce
+    /// `guard` rend la propriété gratuite.
+    private var annuaire: [PersonHandle] {
+        guard enCours != nil else { return [] }
+        var trouves = Set(fiches.compactMap { PersonHandle(name: $0.name) })
+        trouves.formUnion(PersonScanner.mentions(inAny: journalNotes.map(\.text)))
+        trouves.formUnion(PersonScanner.mentions(inAny: activities.map(\.activityDescription)))
+        return trouves.sorted()
+    }
 
     private var propositions: [PersonHandle] {
         guard let enCours else { return [] }
@@ -30,7 +40,10 @@ struct MentionBar: View {
     }
 
     var body: some View {
-        Group {
+        // Un conteneur qui existe toujours, même sans rien à montrer : c'est
+        // lui qui porte le `onChange`, et une branche `if` qui disparaît
+        // emporterait l'observation avec elle.
+        VStack(spacing: 0) {
             if !propositions.isEmpty {
                 ScrollView(.horizontal) {
                     HStack(spacing: 6) {
@@ -48,12 +61,7 @@ struct MentionBar: View {
                 .frame(height: 28)
             }
         }
-        .onAppear {
-            precedent = texte
-            construireLAnnuaire()
-        }
         .onChange(of: texte) { ancien, nouveau in
-            defer { precedent = nouveau }
             guard let curseur = MentionCompletion.pointDInsertion(de: ancien, vers: nouveau)
             else {
                 enCours = nil
@@ -66,14 +74,6 @@ struct MentionBar: View {
     private func choisir(_ handle: PersonHandle) {
         guard let enCours else { return }
         texte = MentionCompletion.complete(texte, remplacant: enCours.plage, par: handle)
-        precedent = texte
         self.enCours = nil
-    }
-
-    private func construireLAnnuaire() {
-        var trouves = Set(fiches.compactMap { PersonHandle(name: $0.name) })
-        trouves.formUnion(PersonScanner.mentions(inAny: journalNotes.map(\.text)))
-        trouves.formUnion(PersonScanner.mentions(inAny: activities.map(\.activityDescription)))
-        annuaire = trouves.sorted()
     }
 }
