@@ -2687,6 +2687,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Le même écart que les courbes et la note : `.carte-groupe` ne porte aucune
+     marge, chaque carte pose la sienne, et sans celle-ci la section se collait
+     à celle du dessus. */
+  margin-top: 16px;
 }
 
 /* La courbe de progression : la vitesse moyenne dans le temps, le haut étant

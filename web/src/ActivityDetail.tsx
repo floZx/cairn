@@ -173,8 +173,6 @@ export function ActivityDetail({
         )}
       </div>
 
-      <Courbes activiteUUID={uuid} />
-
       <ParcoursSimilaires
         uuid={uuid}
         sport={data.sport_type_raw}
@@ -185,6 +183,8 @@ export function ActivityDetail({
         trace={trace}
         onOuvrir={onOuvrir}
       />
+
+      <Courbes activiteUUID={uuid} />
 
       {enEdition && (
         <Feuille titre="Note de sortie" onFerme={() => setEnEdition(false)}>
