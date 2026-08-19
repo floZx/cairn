@@ -7,6 +7,7 @@ import { ActivityDetail } from "./ActivityDetail"
 import { Journal } from "./Journal"
 import { People } from "./People"
 import { SelecteurJournal, type VueJournal } from "./SelecteurJournal"
+import type { Citation } from "./citations"
 import { Entrainement } from "./Entrainement"
 import { Nutrition } from "./Nutrition"
 import { Stats } from "./Stats"
@@ -121,8 +122,14 @@ export function App() {
   // journal. Effacé dès qu'on choisit un onglet à la main : sans quoi revenir
   // sur « Repas » trois jours plus tard rouvrirait la journée d'alors.
   const [jourRepas, setJourRepas] = useState<string | null>(null)
+  /// Le jour d'arrivée dans le plan, et la note du journal à ouvrir — mêmes
+  /// raisons que `jourRepas`, mêmes effacements à main levée.
+  const [jourPlan, setJourPlan] = useState<string | null>(null)
+  const [noteAOuvrir, setNoteAOuvrir] = useState<string | null>(null)
   const changerDeSection = (s: Section) => {
     setJourRepas(null)
+    setJourPlan(null)
+    setNoteAOuvrir(null)
     // Une fiche est une page poussée : partir vers un onglet la referme, comme
     // le chevron le ferait. Sans ça, la barre étant désormais visible depuis
     // une fiche, on changeait d'onglet sans rien voir changer — la fiche
@@ -142,6 +149,34 @@ export function App() {
   function ouvrir(uuid: string) {
     history.pushState(null, "", `?activite=${uuid}`)
     setOuverte(uuid)
+  }
+
+  /// Va là d'où vient une citation de People.
+  ///
+  /// Les cinq sources, et pas seulement les sorties : une carte qui ne mène
+  /// quelque part qu'une fois sur deux se lit comme une carte cassée.
+  function allerALaSource(citation: Citation) {
+    switch (citation.source.sorte) {
+      case "sortie":
+        if (citation.source.activite) ouvrir(citation.source.activite)
+        return
+      case "repas":
+      case "pesee":
+        // La journée des repas porte les deux : c'est là que se modifient une
+        // note de créneau comme le commentaire d'une pesée.
+        setJourRepas(citation.dateKey)
+        setSection("nutrition")
+        return
+      case "seance":
+        setJourPlan(citation.dateKey)
+        setSection("plan")
+        return
+      case "journal":
+        setVueJournal("journees")
+        setNoteAOuvrir(citation.dateKey)
+        setSection("journal")
+        return
+    }
   }
 
   if (!ready) return null
@@ -182,12 +217,14 @@ export function App() {
           onVue={setVue}
         />
       ) : section === "plan" ? (
-        <Entrainement onOuvrir={ouvrir} />
+        <Entrainement key={jourPlan ?? "aujourd'hui"} jourInitial={jourPlan ?? undefined} onOuvrir={ouvrir} />
       ) : section === "journal" ? (
         vueJournal === "gens" ? (
-          <People onOuvrir={ouvrir} />
+          <People onSource={allerALaSource} />
         ) : (
         <Journal
+          noteAOuvrir={noteAOuvrir}
+          onNoteOuverte={() => setNoteAOuvrir(null)}
           onActivite={ouvrir}
           onRepas={(dateKey) => {
             setJourRepas(dateKey)

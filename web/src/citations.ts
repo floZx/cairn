@@ -54,7 +54,17 @@ export function citations(texte: string): Personne[] {
   return [...trouves.values()]
 }
 
-export type Source = { libelle: string; activite?: string }
+/// D'où vient une citation.
+///
+/// La nature en plus du libellé, et pas par goût du détail : c'est elle qui
+/// décide où l'on va en cliquant. Sans elle, la carte d'une note de repas
+/// n'avait aucun moyen de mener au repas — seule celle d'une sortie savait où
+/// aller, et la même carte se comportait de deux façons.
+export type Source = {
+  sorte: "journal" | "sortie" | "repas" | "pesee" | "seance"
+  libelle: string
+  activite?: string
+}
 
 export type Citation = {
   dateKey: string

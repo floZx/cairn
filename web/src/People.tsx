@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Markdown } from "./markdown"
 import { dateLongue } from "./format"
-import { index, lignes, type Citation, type Personne } from "./citations"
+import { index, lignes, type Citation, type Personne, type Source } from "./citations"
 import { useImagesDuJournal } from "./Journal"
 
 /// Les gens cités dans les notes.
@@ -57,10 +57,10 @@ function useTextes() {
           c.name,
         ]),
       )
-      const textes: { dateKey: string; source: { libelle: string; activite?: string }; contenu: string }[] = []
+      const textes: { dateKey: string; source: Source; contenu: string }[] = []
 
       for (const n of (notes.data ?? []) as { date_key_raw: string; text: string }[]) {
-        textes.push({ dateKey: n.date_key_raw, source: { libelle: "Journal" }, contenu: n.text })
+        textes.push({ dateKey: n.date_key_raw, source: { sorte: "journal", libelle: "Journal" }, contenu: n.text })
       }
       for (const a of (sorties.data ?? []) as {
         uuid: string
@@ -70,7 +70,7 @@ function useTextes() {
       }[]) {
         textes.push({
           dateKey: a.start_local_date.slice(0, 10),
-          source: { libelle: a.name, activite: a.uuid },
+          source: { sorte: "sortie", libelle: a.name, activite: a.uuid },
           contenu: a.activity_description,
         })
       }
@@ -81,12 +81,15 @@ function useTextes() {
       }[]) {
         textes.push({
           dateKey: m.date_key_raw,
-          source: { libelle: (m.meal_slot_uuid && nomDuCreneau.get(m.meal_slot_uuid)) || "Repas" },
+          source: {
+            sorte: "repas",
+            libelle: (m.meal_slot_uuid && nomDuCreneau.get(m.meal_slot_uuid)) || "Repas",
+          },
           contenu: m.note,
         })
       }
       for (const p of (pesees.data ?? []) as { date_key_raw: string; note: string }[]) {
-        textes.push({ dateKey: p.date_key_raw, source: { libelle: "Pesée" }, contenu: p.note })
+        textes.push({ dateKey: p.date_key_raw, source: { sorte: "pesee", libelle: "Pesée" }, contenu: p.note })
       }
       for (const s of (seances.data ?? []) as {
         date_key_raw: string
@@ -96,7 +99,7 @@ function useTextes() {
         if (!s.notes) continue
         textes.push({
           dateKey: s.date_key_raw,
-          source: { libelle: s.title || "Séance" },
+          source: { sorte: "seance", libelle: s.title || "Séance" },
           contenu: s.notes,
         })
       }
@@ -119,7 +122,7 @@ function useFiches() {
   })
 }
 
-export function People({ onOuvrir }: { onOuvrir: (uuid: string) => void }) {
+export function People({ onSource }: { onSource: (citation: Citation) => void }) {
   const [ouverte, setOuverte] = useState<string | null>(null)
   const textes = useTextes()
   const fiches = useFiches()
@@ -146,7 +149,7 @@ export function People({ onOuvrir }: { onOuvrir: (uuid: string) => void }) {
         citations={entree?.citations ?? []}
         fiche={(fiches.data ?? []).find((f) => f.key === ouverte) ?? null}
         onFermer={() => setOuverte(null)}
-        onOuvrir={onOuvrir}
+        onSource={onSource}
         urlImage={(chemin) => images.data?.get(chemin.replace(/^.*\//, ""))}
       />
     )
@@ -185,14 +188,14 @@ function FichePersonne({
   citations,
   fiche,
   onFermer,
-  onOuvrir,
+  onSource,
   urlImage,
 }: {
   personne: Personne
   citations: Citation[]
   fiche: Fiche | null
   onFermer: () => void
-  onOuvrir: (uuid: string) => void
+  onSource: (citation: Citation) => void
   urlImage: (chemin: string) => string | undefined
 }) {
   const [note, setNote] = useState(fiche?.note ?? "")
@@ -260,12 +263,14 @@ function FichePersonne({
         <>
           <h3 className="titre-section">Citée {citations.length} fois</h3>
           {citations.map((citation, rang) => (
+            // Toutes ouvrables : les cinq sources ont leur destination, et
+            // une carte qui ne mène quelque part qu'une fois sur deux se lit
+            // comme une carte cassée.
             <div
-              className={citation.source.activite ? "citation-carte ouvrable" : "citation-carte"}
+              className="citation-carte ouvrable"
               key={rang}
-              onClick={() =>
-                citation.source.activite && onOuvrir(citation.source.activite)
-              }
+              onClick={() => onSource(citation)}
+              title={`Aller à « ${citation.source.libelle} »`}
             >
               <span className="attenue petit">
                 {dateLongue(citation.dateKey)} · {citation.source.libelle}

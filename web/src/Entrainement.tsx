@@ -131,9 +131,19 @@ function useSorties(annee: number, mois: number) {
   })
 }
 
-export function Entrainement({ onOuvrir }: { onOuvrir: (uuid: string) => void }) {
+export function Entrainement({
+  jourInitial,
+  onOuvrir,
+}: {
+  /// Le jour d'arrivée, quand on vient d'ailleurs — la citation d'une séance
+  /// dans People. Lu à la construction, comme celui des repas : la clef posée
+  /// par `App` force le remontage, et sans elle une seconde téléportation ne
+  /// bougerait rien.
+  jourInitial?: string
+  onOuvrir: (uuid: string) => void
+}) {
   const aujourdhui = cleDuJour(new Date())
-  const [jour, setJour] = useState(aujourdhui)
+  const [jour, setJour] = useState(jourInitial ?? aujourdhui)
   const [annee, mois] = useMemo(() => {
     const [a, m] = jour.split("-").map(Number)
     return [a, m - 1]

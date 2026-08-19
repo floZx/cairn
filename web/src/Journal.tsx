@@ -256,9 +256,18 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
 }
 
 export function Journal({
+  noteAOuvrir,
+  onNoteOuverte,
   onActivite,
   onRepas,
 }: {
+  /// Le jour dont la note doit s'ouvrir en arrivant — la citation d'une note
+  /// dans People. Le journal se déroule par pages, et la journée visée peut
+  /// être hors de celles qui sont chargées : elle est donc demandée
+  /// directement plutôt que cherchée dans la liste.
+  noteAOuvrir?: string | null
+  /// Prévenir qu'elle est ouverte, pour que le signal ne se rejoue pas.
+  onNoteOuverte?: () => void
   /// Aller voir la sortie citée.
   onActivite: (uuid: string) => void
   /// Aller à la journée de repas — c'est là que se modifient une note de
@@ -270,6 +279,32 @@ export function Journal({
   const creneaux = useCreneaux()
   const { data, error, isPending, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useJournees(creneaux.data ?? [])
+
+  // La note visée, cherchée en base : la journée peut être hors des pages
+  // déroulées, et la trouver dans la liste demanderait de la dérouler jusque-là.
+  useEffect(() => {
+    if (!noteAOuvrir) return
+    let annule = false
+    ;(async () => {
+      const { data } = await supabase
+        .from("journal_note")
+        .select("uuid, text")
+        .eq("date_key_raw", noteAOuvrir)
+        .is("deleted_at", null)
+        .maybeSingle()
+      if (annule) return
+      const ligne = data as { uuid: string; text: string } | null
+      setEnEdition({
+        uuid: ligne?.uuid ?? null,
+        dateKey: noteAOuvrir,
+        texte: ligne?.text ?? "",
+      })
+      onNoteOuverte?.()
+    })()
+    return () => {
+      annule = true
+    }
+  }, [noteAOuvrir, onNoteOuverte])
 
   const sentinelle = useRef<HTMLDivElement>(null)
   useEffect(() => {

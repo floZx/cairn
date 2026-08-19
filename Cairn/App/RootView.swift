@@ -552,11 +552,40 @@ struct RootView: View {
 
     @Query private var peopleFiches: [Person]
 
-    /// Ouvre une sortie depuis sa citation, sans quitter People.
-    private func openActivityByUUID(_ uuid: String) {
-        guard let sortie = allActivities.first(where: { $0.uuid == uuid }) else { return }
-        selectedActivities = [sortie.persistentModelID]
-        sidebarSelection = .all
+    /// Va là d'où vient une citation.
+    ///
+    /// Cliquer une note de sortie menait à la sortie, et cliquer une note de
+    /// repas ne menait nulle part : la même carte se comportait de deux façons
+    /// selon ce qu'elle citait. Les cinq sources ont maintenant leur chemin.
+    private func ouvrirLaSource(_ citation: PeopleIndex.Citation) {
+        switch citation.source {
+        case .sortie:
+            guard let uuid = citation.activityUUID,
+                  let sortie = allActivities.first(where: { $0.uuid == uuid })
+            else { return }
+            selectedActivities = [sortie.persistentModelID]
+            sidebarSelection = .all
+        case .journal:
+            // `open` plutôt qu'une simple sélection, comme partout ailleurs :
+            // un jour dont la note n'existe pas encore n'a pas de ligne, et
+            // c'est justement le geste par lequel on l'écrit.
+            app.journal.open(citation.dateKey)
+            selectJournalNote(citation.dateKey)
+            sidebarSelection = .journal
+            journalListFocus += 1
+        case .repas:
+            nutritionDateKey = citation.dateKey
+            sidebarSelection = .nutrition
+        case .pesee:
+            // L'écran des pesées n'a pas de jour à viser — c'est une courbe.
+            // On va donc à la journée qui la porte, là où le commentaire se
+            // modifie.
+            nutritionDateKey = citation.dateKey
+            sidebarSelection = .nutrition
+        case .seance:
+            trainingDateKey = citation.dateKey
+            sidebarSelection = .training
+        }
     }
 
     private func selectJournalNote(_ date: DateKey?) {
@@ -1189,7 +1218,7 @@ struct RootView: View {
                 PersonDetailView(
                     handle: handle,
                     citations: peopleCitations[handle] ?? [],
-                    onSelectActivity: { openActivityByUUID($0) },
+                    onOuvrirLaSource: { ouvrirLaSource($0) },
                     attachmentsBase: app.journal.attachmentsBase
                 )
                 .frame(minWidth: Self.detailMinWidth)

@@ -10,7 +10,12 @@ import SwiftData
 struct PersonDetailView: View {
     let handle: PersonHandle
     let citations: [PeopleIndex.Citation]
-    let onSelectActivity: (String) -> Void
+    /// Aller là d'où vient une citation — la sortie, la journée du journal,
+    /// celle des repas, la pesée, la séance.
+    ///
+    /// Une seule fermeture pour les cinq : c'est l'écran qui sait comment on
+    /// s'y rend, et la page n'a qu'à dire de quelle citation il s'agit.
+    let onOuvrirLaSource: (PeopleIndex.Citation) -> Void
     /// Le dossier où les pièces jointes du journal se résolvent.
     ///
     /// Sans lui, une citation venue d'une note illustrée affichait le chemin
@@ -108,9 +113,8 @@ struct PersonDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 10))
         .contentShape(.rect)
-        .onTapGesture {
-            if let uuid = citation.activityUUID { onSelectActivity(uuid) }
-        }
+        .onTapGesture { onOuvrirLaSource(citation) }
+        .help("Aller à « \(citation.source.libelle) »")
     }
 
     /// Crée la fiche au premier caractère, la supprime au dernier effacé.
