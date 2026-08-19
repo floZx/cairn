@@ -397,6 +397,8 @@ struct MirrorPullNutritionTests {
                 "activity",
                 // Le plan d'entraînement, que le téléphone modifie aussi.
                 "planned_session",
+                // Les fiches des personnes.
+                "person",
             ]
         )
     }

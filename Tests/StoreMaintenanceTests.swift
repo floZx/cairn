@@ -154,7 +154,7 @@ struct StoreMaintenanceTests {
     /// La forme reproduite est celle qu'une migration légère laisse : deux
     /// lignes d'une même table portant la même valeur. Le compte attendu est
     /// exactement un réémis par paire — le premier revendiquant garde le sien.
-    @Test("chacun des dix-neuf modèles ressort avec des uuid distincts")
+    @Test("chacun des vingt modèles ressort avec des uuid distincts")
     func splitsDuplicatedUUIDsForEveryMirroredModel() throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
@@ -267,6 +267,12 @@ struct StoreMaintenanceTests {
                 \JournalAttachment.uuid,
                 JournalAttachment(fileName: "un.jpg", data: Data([0x01])),
                 JournalAttachment(fileName: "deux.jpg", data: Data([0x02])),
+                sharing: shared, into: context
+            ),
+            seedPair(
+                \Person.uuid,
+                Person(handle: PersonHandle(name: "sam")!),
+                Person(handle: PersonHandle(name: "landry")!),
                 sharing: shared, into: context
             ),
             seedPair(

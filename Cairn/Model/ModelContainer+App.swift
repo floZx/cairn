@@ -23,6 +23,9 @@ enum AppModelContainer {
         // Le plan d'entraînement — un modèle de plus, donc une migration
         // légère de plus, et rien à toucher aux données existantes.
         PlannedSession.self,
+        // Les fiches des personnes citées — voir `Person`, qui explique
+        // pourquoi la liste des gens, elle, n'est pas stockée.
+        Person.self,
     ])
 
     /// True inside a test run, and the one place that question is asked.

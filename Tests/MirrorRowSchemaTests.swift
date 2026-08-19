@@ -100,6 +100,7 @@ struct MirrorRowSchemaTests {
                 dateKey: DateKey(raw: "2026-08-16")!, sportTypeRaw: SportType.run.rawValue,
                 title: "Sortie longue"
             ),
+            Person(handle: PersonHandle(name: "sam")!),
         ]
     }
 

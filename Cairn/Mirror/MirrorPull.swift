@@ -38,6 +38,9 @@ extension MirrorEngine {
         // Le plan d'entraînement, que le téléphone écrit autant qu'il le lit :
         // une séance déplacée dans le train doit revenir sur le Mac.
         "planned_session",
+        // Les fiches des personnes : la note s'écrit d'un côté comme de
+        // l'autre.
+        "person",
     ]
 
     /// Rows per page. Smaller than `batchSize`'s 200 for no deep reason
@@ -196,6 +199,7 @@ extension MirrorEngine {
         case "journal_attachment": return try await applyJournalAttachments(body)
         case "activity": return try applyActivityDescriptions(body)
         case "planned_session": return try applyPlannedSessions(body)
+        case "person": return try applyPeople(body)
         default:
             // `pullOrder` is a closed, hand-written list and this `switch`
             // is meant to cover every entry in it. Thrown, never asserted,
@@ -275,6 +279,15 @@ extension MirrorEngine {
         let notes: String
         let day_type_uuid: String?
         let sort_order: Int
+        let updated_at: String
+        let deleted_at: String?
+    }
+
+    private struct PersonRow: Decodable {
+        let uuid: String
+        let key: String
+        let name: String
+        let note: String
         let updated_at: String
         let deleted_at: String?
     }
@@ -650,6 +663,52 @@ extension MirrorEngine {
             cible.notes = row.notes
             cible.dayType = type
             cible.sortOrder = row.sort_order
+            outcome.applied += 1
+        }
+        try save(context, outcome)
+        return outcome
+    }
+
+    private func applyPeople(_ body: Data) throws -> PullOutcome {
+        let rows = try decode([PersonRow].self, from: body)
+        var outcome = PullOutcome(rowCount: rows.count)
+        let context = ModelContext(container)
+        let pending = try pendingUUIDs(table: "person", in: context)
+        var existantes: [String: Person] = [:]
+        for fiche in try context.fetch(FetchDescriptor<Person>()) {
+            existantes[fiche.uuid] = fiche
+        }
+        // Par clé aussi : les deux écrans peuvent créer la fiche de la même
+        // personne chacun de leur côté, et deux lignes pour « @sam » feraient
+        // deux fiches dont une seule serait lue.
+        var parCle: [String: Person] = [:]
+        for fiche in existantes.values { parCle[fiche.key] = fiche }
+
+        for row in rows {
+            noteNewest(row.updated_at, in: &outcome)
+            guard !pending.contains(row.uuid) else { continue }
+
+            if row.deleted_at != nil {
+                guard let locale = existantes[row.uuid] else { continue }
+                context.delete(locale)
+                existantes[row.uuid] = nil
+                outcome.applied += 1
+                continue
+            }
+            if let locale = existantes[row.uuid] ?? parCle[row.key] {
+                locale.uuid = row.uuid
+                locale.key = row.key
+                locale.name = row.name
+                locale.note = row.note
+            } else {
+                guard let handle = PersonHandle(name: row.name) else { continue }
+                let fiche = Person(handle: handle, note: row.note)
+                fiche.uuid = row.uuid
+                fiche.key = row.key
+                context.insert(fiche)
+                existantes[row.uuid] = fiche
+                parCle[row.key] = fiche
+            }
             outcome.applied += 1
         }
         try save(context, outcome)
