@@ -36,8 +36,22 @@ struct MentionField: ViewModifier {
     private var annuaire: [PersonHandle] {
         guard enCours != nil else { return [] }
         var trouves = Set(fiches.compactMap { PersonHandle(name: $0.name) })
-        trouves.formUnion(PersonScanner.mentions(inAny: journalNotes.map(\.text)))
-        trouves.formUnion(PersonScanner.mentions(inAny: activities.map(\.activityDescription)))
+        // La note en cours d'écriture est écartée de son propre annuaire.
+        //
+        // Le journal enregistre à la frappe : « @To » à moitié tapé est déjà
+        // dans le magasin, et se proposait donc lui-même — vu à l'écran, en
+        // tête de liste, juste avant « @Tom ». Une complétion qui propose ce
+        // qu'on est en train d'écrire ne sert à rien et occupe la place.
+        //
+        // Conséquence assumée : quelqu'un cité dans cette note et nulle part
+        // ailleurs n'est pas proposé. On vient justement d'écrire son nom.
+        let autres = journalNotes.map(\.text).filter { $0 != texte }
+        trouves.formUnion(PersonScanner.mentions(inAny: autres))
+        trouves.formUnion(
+            PersonScanner.mentions(
+                inAny: activities.map(\.activityDescription).filter { $0 != texte }
+            )
+        )
         return trouves.sorted()
     }
 
@@ -50,6 +64,18 @@ struct MentionField: ViewModifier {
 
     func body(content: Content) -> some View {
         VStack(alignment: .leading, spacing: 4) {
+            // Au-dessus du champ, et non en dessous.
+            //
+            // `TextEditor` ne dit pas où est son curseur, donc la barre ne peut
+            // pas le suivre. Reste à choisir le bord le moins mauvais : dans le
+            // journal, l'éditeur occupe toute la hauteur du volet même pour
+            // trois lignes, et une barre posée en bas se retrouvait à l'autre
+            // bout de l'écran — signalé, capture à l'appui. En haut, elle est
+            // à quelques centimètres des premières lignes, là où l'on écrit le
+            // plus souvent.
+            if ouverte {
+                barre
+            }
             content
                 // Posées sur l'éditeur lui-même : c'est lui qui a le focus, et
                 // `onKeyPress` ne voit que ce qui traverse la vue focalisée.
@@ -61,9 +87,6 @@ struct MentionField: ViewModifier {
                     enCours = nil
                     return .handled
                 }
-            if ouverte {
-                barre
-            }
         }
         .onChange(of: texte) { ancien, nouveau in
             guard let curseur = MentionCompletion.pointDInsertion(de: ancien, vers: nouveau)
