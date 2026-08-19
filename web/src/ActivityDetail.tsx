@@ -12,6 +12,7 @@ import { traceDepuisBytea } from "./track"
 const Carte = lazy(() => import("./Carte").then((m) => ({ default: m.Carte })))
 import { Markdown } from "./markdown"
 import { Courbes } from "./Courbes"
+import { ParcoursSimilaires } from "./ParcoursSimilaires"
 import { NoteActivite } from "./NoteActivite"
 import { Feuille } from "./Chrome"
 import { NOMS, etiquettesDe, type SourceEtiquettes } from "./etiquettes"
@@ -50,7 +51,13 @@ function Chiffre({ valeur, etiquette }: { valeur: string; etiquette: string }) {
   )
 }
 
-export function ActivityDetail({ uuid }: { uuid: string }) {
+export function ActivityDetail({
+  uuid,
+  onOuvrir,
+}: {
+  uuid: string
+  onOuvrir: (uuid: string) => void
+}) {
   const [enEdition, setEnEdition] = useState(false)
   const { data, error, isPending } = useQuery({
     queryKey: ["activite", uuid],
@@ -167,6 +174,17 @@ export function ActivityDetail({ uuid }: { uuid: string }) {
       </div>
 
       <Courbes activiteUUID={uuid} />
+
+      <ParcoursSimilaires
+        uuid={uuid}
+        sport={data.sport_type_raw}
+        distance={data.distance}
+        temps={data.moving_time}
+        nom={data.name}
+        date={data.start_local_date}
+        trace={trace}
+        onOuvrir={onOuvrir}
+      />
 
       {enEdition && (
         <Feuille titre="Note de sortie" onFerme={() => setEnEdition(false)}>

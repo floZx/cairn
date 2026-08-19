@@ -17,6 +17,9 @@
   --erreur: #ff3b30;
   --vert: #34c759;
   --orange: #ff9500;
+  /* La coupe du meilleur temps sur un parcours, et son point sur la courbe.
+     Le jaune système, celui que le Mac emploie au même endroit. */
+  --or: #d4a800;
   /* Les anciens noms, gardés le temps que tout soit repris. */
   --attenue: var(--texte-2);
   /* La couleur qu'un liseré renvoie : blanche sur un fond clair, blanche aussi
@@ -38,6 +41,7 @@
     --erreur: #ff453a;
     --vert: #30d158;
     --orange: #ff9f0a;
+    --or: #ffd60a;
   }
 }
 
@@ -2676,3 +2680,67 @@ body {
   min-width: 0;
   font-size: 13px;
 }
+
+/* ---- Parcours similaires ------------------------------------------------- */
+
+.parcours {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* La courbe de progression : la vitesse moyenne dans le temps, le haut étant
+   le rapide — le sens dans lequel une progression se lit. */
+.progression {
+  width: 100%;
+  height: 76px;
+  overflow: visible;
+}
+
+.efforts {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Quatre colonnes fixes plutôt qu'une grille souple : ce qu'on lit ici, ce
+   sont des chiffres qu'on compare de ligne en ligne, et des colonnes qui
+   bougent d'une ligne à l'autre interdisent la comparaison. */
+.effort {
+  display: grid;
+  grid-template-columns: 1fr auto auto 4.5rem;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  padding: 8px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--texte-2);
+  font: inherit;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* La sortie ouverte se tient dans la liste sans en sortir : c'est le zéro de
+   la colonne d'écart, pas une ligne à cliquer. */
+.effort.courant {
+  background: var(--champ);
+  color: var(--texte);
+  font-weight: 600;
+  cursor: default;
+}
+
+.effort .rythme,
+.effort .delta {
+  text-align: right;
+}
+
+.effort .coupe {
+  margin-left: 4px;
+  font-size: 12px;
+}
+
+.effort .delta.mieux { color: var(--vert); }
+.effort .delta.moins { color: var(--erreur); }

@@ -92,7 +92,7 @@ export function App() {
       action={<BoutonCompte />}
     >
       {surUneFiche ? (
-        <ActivityDetail uuid={ouverte} />
+        <ActivityDetail uuid={ouverte} onOuvrir={ouvrir} />
       ) : section === "activites" ? (
         <ActivityList
           onOuvrir={ouvrir}
