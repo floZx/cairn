@@ -108,18 +108,36 @@ export function resume(f: Filtre): string | null {
 ///
 /// « L'an dernier » a une fin, les autres non — c'est la seule qui désigne un
 /// intervalle fermé.
+/// La même heure, estampillée `+00:00`.
+///
+/// Ces bornes sont comparées à `start_local_date`, que le Mac écrit en heure
+/// murale sous une estampille UTC — « midi quarante sur place » y vaut
+/// `12:40:00+00:00`. Une borne construite en heure locale et convertie par
+/// `toISOString` décalait donc la coupure d'une heure l'hiver et de deux
+/// l'été : « cette année » attrapait la dernière heure du 31 décembre
+/// précédent.
+function murale(local: Date): Date {
+  return new Date(
+    Date.UTC(
+      local.getFullYear(), local.getMonth(), local.getDate(),
+      local.getHours(), local.getMinutes(), local.getSeconds(),
+    ),
+  )
+}
+
 export function bornes(f: Filtre, maintenant = new Date()) {
-  const debutAnnee = new Date(maintenant.getFullYear(), 0, 1)
+  const ici = murale(maintenant)
+  const debutAnnee = new Date(Date.UTC(maintenant.getFullYear(), 0, 1))
   switch (f.periode) {
     case "last30Days":
-      return { debut: new Date(maintenant.getTime() - 30 * 864e5), fin: null }
+      return { debut: new Date(ici.getTime() - 30 * 864e5), fin: null }
     case "last90Days":
-      return { debut: new Date(maintenant.getTime() - 90 * 864e5), fin: null }
+      return { debut: new Date(ici.getTime() - 90 * 864e5), fin: null }
     case "thisYear":
       return { debut: debutAnnee, fin: null }
     case "lastYear":
       return {
-        debut: new Date(maintenant.getFullYear() - 1, 0, 1),
+        debut: new Date(Date.UTC(maintenant.getFullYear() - 1, 0, 1)),
         fin: debutAnnee,
       }
     default:

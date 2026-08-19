@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
-import { nomDuSport } from "./sports"
 import { IconeSport, couleurDuSport } from "./IconeSport"
 import { allureOuVitesse, dateCourte, denivele, distance, duree, heure } from "./format"
 import { traceDepuisBytea } from "./track"
@@ -200,10 +199,18 @@ function Fiche({
         </span>
         <div className="quoi-fil">
           <h3 className="titre-fil">{a.name}</h3>
+          {/* Après la date, l'étiquette plutôt que le sport.
+              Le sport est déjà dit deux fois par la pastille — son dessin et sa
+              couleur — et l'écrire une troisième ne renseignait personne. Les
+              étiquettes, elles, occupaient une ligne à elles seules alors
+              qu'une sortie en porte rarement plus d'une : elles tiennent dans
+              celle-ci, et la fiche gagne la hauteur d'une ligne par sortie
+              étiquetée.
+              Sans étiquette, la date reste seule — pas de point d'attente pour
+              quelque chose qui ne vient pas. */}
           <div className="repere-fil minuscule attenue">
             <span>
-              {dateCourte(a.start_local_date)} à {heure(a.start_local_date)} ·{" "}
-              {nomDuSport(a.sport_type_raw)}
+              {dateCourte(a.start_local_date)} à {heure(a.start_local_date)}
             </span>
             {etiquettes.map((m) => (
               <span className="etiquette-tag minuscule" key={m}>

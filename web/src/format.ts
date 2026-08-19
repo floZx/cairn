@@ -24,16 +24,32 @@ export function denivele(metres: number): string {
   return `${Math.round(metres).toLocaleString("fr-FR")} m`
 }
 
+/// Ces trois formats lisent `start_local_date`, et donc en UTC — voir la note
+/// ci-dessous.
+///
+/// Le Mac écrit l'heure **murale** de la sortie estampillée `+00:00` : « Marche
+/// le midi » vaut `2026-08-18T12:40:00+00:00`, midi quarante étant l'heure
+/// qu'il était sur place. C'est ce que dit le nom de la colonne, et ce que
+/// `ISO8601DateFormatter` produit, lui qui écrit en UTC par défaut.
+///
+/// Les rendre dans le fuseau du navigateur ajoutait donc deux heures en été :
+/// « Marche le midi » s'affichait à 14:40 et « Morning Trail Run » à 09:54.
+/// Signalé le 18 août 2026, mesuré sur la valeur brute.
+///
+/// La date est concernée autant que l'heure : une sortie de 23:30 rendue à
+/// Paris tombait le lendemain.
 const jour = new Intl.DateTimeFormat("fr-FR", {
   weekday: "short",
   day: "numeric",
   month: "short",
+  timeZone: "UTC",
 })
 
 const jourAvecAnnee = new Intl.DateTimeFormat("fr-FR", {
   day: "numeric",
   month: "short",
   year: "numeric",
+  timeZone: "UTC",
 })
 
 /// L'année n'apparaît que si l'activité n'est pas de l'année en cours — elle
@@ -53,6 +69,10 @@ const jourLong = new Intl.DateTimeFormat("fr-FR", {
 
 /// Une clé de jour du journal (`AAAA-MM-JJ`) en toutes lettres.
 ///
+/// Sans `timeZone: "UTC"`, à la différence des formats du dessus : celui-ci
+/// reçoit une date construite en local par `new Date(a, m - 1, j)`, et la lire
+/// en UTC la ferait reculer d'un jour.
+///
 /// Découpée à la main plutôt que passée à `new Date` : une date seule est lue
 /// comme UTC par le navigateur, et un journal tenu à Paris verrait ses notes
 /// du soir datées de la veille.
@@ -66,11 +86,13 @@ const jourEntier = new Intl.DateTimeFormat("fr-FR", {
   day: "numeric",
   month: "long",
   year: "numeric",
+  timeZone: "UTC",
 })
 
 const heureExacte = new Intl.DateTimeFormat("fr-FR", {
   hour: "2-digit",
   minute: "2-digit",
+  timeZone: "UTC",
 })
 
 /// « lundi 17 août 2026 à 19:23 » — la forme que la fiche du Mac emploie.
