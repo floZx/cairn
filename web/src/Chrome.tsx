@@ -184,6 +184,22 @@ export function Chrome({
     return () => cancelAnimationFrame(t)
   }, [vue])
 
+  /// Toucher l'onglet où l'on est déjà remonte en haut.
+  ///
+  /// La convention d'iOS, et le geste qu'on fait sans y penser après avoir
+  /// déroulé cinquante sorties. En douceur : un saut sec fait douter d'avoir
+  /// changé d'écran, alors que la glissade montre qu'on remonte celui-ci.
+  ///
+  /// Sauf par-dessus une fiche : là, l'onglet de la section qu'elle recouvre
+  /// sert à la refermer, et c'est `App` qui s'en charge.
+  const remonterOuAller = (s: Section) => {
+    if (s === section && !masquerOnglets) {
+      zone.current?.scrollTo({ top: 0, behavior: "smooth" })
+      return
+    }
+    onSection(s)
+  }
+
   return (
     <div className="chassis">
       <header
@@ -238,7 +254,7 @@ export function Chrome({
             <button
               key={s}
               className={s === section ? "onglet-bas actif" : "onglet-bas"}
-              onClick={() => onSection(s)}
+              onClick={() => remonterOuAller(s)}
               aria-current={s === section ? "page" : undefined}
             >
               {/* Le contenu dans sa propre enveloppe : c'est elle qui porte la
