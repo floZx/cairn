@@ -933,8 +933,12 @@ input, button { font: inherit; }
 
 .onglets-bas {
   position: absolute;
-  left: 12px;
-  right: 12px;
+  /* Vingt et non douze : mesurée sur la capture de Strava, leur capsule laisse
+     une vingtaine de points de chaque côté. Elle est ainsi plus étroite que la
+     colonne des cartes, et c'est ce qui la fait flotter au lieu de s'aligner
+     sur le contenu. */
+  left: 20px;
+  right: 20px;
   /* Six points du bord, et non « la zone sûre moins quelque chose ».
 
      La zone sûre du bas fait trente-quatre points quand la barre d'accueil
