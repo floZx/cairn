@@ -377,6 +377,9 @@ create table recipe_item (
   protein100   double precision not null default 0,
   carbs100     double precision not null default 0,
   fat100       double precision not null default 0,
+  -- Facultatives, comme sur `food_entry` : nul veut dire « l'aliment n'a rien
+  -- annoncé », ce qui n'est pas zéro.
+  fiber100     double precision,
   grams        double precision not null default 0,
   sort_order   bigint not null default 0
 );
@@ -398,6 +401,8 @@ create table favorite_food (
   protein100   double precision not null default 0,
   carbs100     double precision not null default 0,
   fat100       double precision not null default 0,
+  -- Facultatives, comme sur `food_entry`.
+  fiber100     double precision,
   grams        double precision not null default 0
 );
 

@@ -128,6 +128,7 @@ extension RecipeItem: MirrorRow {
             "protein100": .double(protein100),
             "carbs100": .double(carbs100),
             "fat100": .double(fat100),
+            "fiber100": .from(fiber100),
             "grams": .double(grams),
             "sort_order": .from(sortOrder),
         ]
@@ -150,6 +151,9 @@ extension FavoriteFood: MirrorRow {
             "protein100": .double(protein100),
             "carbs100": .double(carbs100),
             "fat100": .double(fat100),
+            // `.from` et non `.double` : c'est l'absence qu'il faut porter, un
+            // aliment muet n'ayant pas zéro gramme de fibres.
+            "fiber100": .from(fiber100),
             "grams": .double(grams),
         ]
     }
