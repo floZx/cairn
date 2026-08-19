@@ -2238,3 +2238,37 @@ body {
   border-radius: 12px;
 }
 
+/* ---- Carte statique du fil ----------------------------------------------- */
+
+/* Les tuiles posées au pixel, la trace par-dessus : pas de moteur de rendu,
+   donc pas de contexte WebGL par ligne — voir `CarteStatique`. */
+.carte-statique {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.tuile-fil {
+  position: absolute;
+  display: block;
+  width: 256px;
+  height: 256px;
+}
+
+/* Le même renversement que la fiche applique à ses fonds de papier, mais par
+   un filtre CSS et non dans la couche : ici les tuiles sont des images, et le
+   filtre ne peut pas atteindre la trace, qui est leur voisine et non leur
+   contenu. Les valeurs sont celles de `peintureDuFond`. */
+@media (prefers-color-scheme: dark) {
+  .tuile-fil.papier {
+    filter: invert(1) hue-rotate(180deg) saturate(0.65);
+  }
+}
+
+.trace-fil {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}

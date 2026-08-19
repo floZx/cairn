@@ -6,6 +6,7 @@ import { IconeSport, couleurDuSport } from "./IconeSport"
 import { allureOuVitesse, dateCourte, denivele, distance, duree, heure } from "./format"
 import { traceDepuisBytea } from "./track"
 import { Miniature } from "./Miniature"
+import { CarteStatique } from "./CarteStatique"
 import { NOMS, etiquettesDe, type SourceEtiquettes } from "./etiquettes"
 
 /// Le fil : la même sélection que la liste, une activité par fiche.
@@ -241,7 +242,10 @@ function Fiche({
                 <Miniature trace={trace} couleur={couleur} epaisseur={2} />
               </div>
             ) : (
-              <Miniature trace={trace} couleur={couleur} />
+              // Sans photo, la bande est à la carte : c'est la même que la
+              // fiche montre, mêmes tuiles et même fond retenu, pour qu'on ne
+              // passe pas d'un plan à une photo aérienne en ouvrant la sortie.
+              <CarteStatique trace={trace} couleur={couleur} />
             ))}
         </div>
       )}

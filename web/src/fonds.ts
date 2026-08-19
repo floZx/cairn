@@ -52,6 +52,18 @@ export const FONDS: Record<Fond, Definition> = {
   },
 }
 
+/// L'adresse d'une tuile précise, pour une carte posée en `<img>`.
+///
+/// Le même gabarit que `tuiles`, ses trois trous remplis. Deux formes plutôt
+/// qu'une parce que les deux clients ne veulent pas la même chose : MapLibre
+/// veut le gabarit et remplit lui-même, une balise `img` veut une adresse.
+export function urlDeTuile(fond: Fond, zoom: number, x: number, y: number): string {
+  return tuiles(fond)
+    .replace("{z}", String(zoom))
+    .replace("{x}", String(x))
+    .replace("{y}", String(y))
+}
+
 function tuiles(fond: Fond): string {
   const d = FONDS[fond]
   return (
