@@ -5,6 +5,7 @@ import { SignIn } from "./SignIn"
 import { ActivityList } from "./ActivityList"
 import { ActivityDetail } from "./ActivityDetail"
 import { Journal } from "./Journal"
+import { Entrainement } from "./Entrainement"
 import { Nutrition } from "./Nutrition"
 import { Stats } from "./Stats"
 import { Chrome, type Section } from "./Chrome"
@@ -100,6 +101,8 @@ export function App() {
           vue={vue}
           onVue={setVue}
         />
+      ) : section === "plan" ? (
+        <Entrainement />
       ) : section === "journal" ? (
         <Journal
           onActivite={ouvrir}

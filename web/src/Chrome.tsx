@@ -17,7 +17,7 @@ import { createPortal } from "react-dom"
 ///   d'accueil en bas : sans `env(safe-area-inset-*)`, le premier titre passe
 ///   sous l'heure et le dernier onglet sous le trait blanc.
 
-export type Section = "activites" | "journal" | "nutrition" | "stats"
+export type Section = "activites" | "plan" | "journal" | "nutrition" | "stats"
 
 /// Les icônes, dessinées ici plutôt qu'importées.
 ///
@@ -43,6 +43,16 @@ function Icone({ nom, actif }: { nom: Section; actif: boolean }) {
         <svg {...commun}>
           <path d="M3 18l5.5-8 3.5 5 2.5-3.5L21 18z" />
           <path d="M3 21h18" />
+        </svg>
+      )
+    case "plan":
+      // Un calendrier : le cadre, l'anneau de reliure, et une case cochée —
+      // ce que le plan raconte, du prévu qui se coche.
+      return (
+        <svg {...commun}>
+          <path d="M4 6.5A1.5 1.5 0 015.5 5h13A1.5 1.5 0 0120 6.5v12a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 18.5z" />
+          <path d="M4 9.5h16M8.5 3v4M15.5 3v4" />
+          <path d="M8.5 14.5l2 2 4-4" />
         </svg>
       )
     case "journal":
@@ -76,6 +86,9 @@ function Icone({ nom, actif }: { nom: Section; actif: boolean }) {
 
 const TITRES: Record<Section, string> = {
   activites: "Activités",
+  // « Plan » et non « Entraînement » : cinq onglets se partagent la capsule,
+  // et le mot long y forçait deux lignes.
+  plan: "Plan",
   journal: "Journal",
   nutrition: "Repas",
   stats: "Stats",
