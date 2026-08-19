@@ -255,6 +255,7 @@ function Fiche({
                   couleur={couleur}
                   marge={7}
                   epaisseur={2}
+                  voile
                 />
               </div>
             ) : (

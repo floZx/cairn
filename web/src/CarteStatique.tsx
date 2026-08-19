@@ -70,11 +70,24 @@ export function CarteStatique({
   /// De l'air autour de la trace, pour qu'elle ne touche pas les bords.
   marge = 16,
   epaisseur = 3,
+  /// Un voile sombre entre les tuiles et la trace.
+  ///
+  /// Pour la vignette posée sur une photo, où la carte est si petite qu'un nom
+  /// de ville en occupe le quart : « ST-ÉTIENNE » y ressortait plus que le
+  /// tracé, alors que la vignette est là pour dire le parcours, la photo
+  /// disant déjà le lieu. Le voile fait reculer le plan d'un cran sans
+  /// l'effacer.
+  ///
+  /// Un élément et non un filtre : les tuiles de papier en portent déjà un en
+  /// thème sombre, et deux règles de `filter` se remplacent au lieu de se
+  /// composer.
+  voile = false,
 }: {
   trace: Coordonnee[]
   couleur: string
   marge?: number
   epaisseur?: number
+  voile?: boolean
 }) {
   const boite = useRef<HTMLDivElement>(null)
   const [taille, setTaille] = useState<{ l: number; h: number } | null>(null)
@@ -149,6 +162,7 @@ export function CarteStatique({
           aria-hidden
         />
       ))}
+      {voile && <div className="voile-carte" aria-hidden />}
       {plan && plan.trait.length > 1 && (
         <svg className="trace-fil" aria-hidden>
           <polyline

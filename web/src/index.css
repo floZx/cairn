@@ -2308,7 +2308,23 @@ body {
   }
 }
 
+/* Entre les tuiles et la trace, jamais au-dessus d'elle : c'est le plan qu'on
+   fait reculer, pas le tracé. D'où l'ordre des trois plans, écrit plutôt que
+   laissé à l'ordre du document — les tuiles sont positionnées, et se seraient
+   posées par-dessus. */
+.voile-carte {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.tuile-fil {
+  z-index: 0;
+}
+
 .trace-fil {
+  z-index: 2;
   position: absolute;
   inset: 0;
   width: 100%;
