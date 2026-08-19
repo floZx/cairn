@@ -13,6 +13,11 @@ struct PlannedSessionSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
+    /// Le jour de la séance, modifiable.
+    ///
+    /// Un plan se déplace tout le temps — la séance de côte du mardi se fait le
+    /// lundi soir — et sans ce champ il fallait supprimer puis réécrire.
+    @State private var jour = Date()
     @State private var sport: SportType = .run
     @State private var title = ""
     @State private var distanceKm: Double?
@@ -27,11 +32,8 @@ struct PlannedSessionSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             Text(session == nil ? "Nouvelle séance" : "Modifier la séance")
                 .font(.headline)
-            Text(Format.fullDate(dateKey.date()).capitalized)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
             Form {
+                DatePicker("Jour", selection: $jour, displayedComponents: .date)
                 Picker("Sport", selection: $sport) {
                     ForEach(SportType.allCases) { type in
                         Label(type.displayName, systemImage: type.symbolName).tag(type)
@@ -87,6 +89,7 @@ struct PlannedSessionSheet: View {
     }
 
     private func charger() {
+        jour = (session?.dateKey ?? dateKey).date()
         guard let session else { return }
         sport = session.sport
         title = session.title
@@ -97,27 +100,38 @@ struct PlannedSessionSheet: View {
         dayType = session.dayType
     }
 
+    /// Le rang à donner à une séance qui arrive dans une journée : après
+    /// celles qui y sont déjà, pour que l'ordre d'écriture soit l'ordre de
+    /// lecture.
+    private func rangSuivant(dans journee: String) -> Int {
+        let voisines = (try? context.fetch(
+            FetchDescriptor<PlannedSession>(
+                // La chaîne sortie de la fermeture : un `#Predicate` ne sait
+                // pas traverser une propriété d'une valeur capturée.
+                predicate: #Predicate { $0.dateKeyRaw == journee }
+            )
+        )) ?? []
+        return (voisines.map(\.sortOrder).max() ?? -1) + 1
+    }
+
     private func enregistrer() {
+        let destination = DateKey(jour)
         let cible = session ?? {
-            // Rangée après celles du jour : deux séances écrites dans l'ordre
-            // se lisent dans cet ordre.
-            // `dateKey.raw` sorti de la fermeture : un `#Predicate` ne sait
-            // pas traverser une propriété d'une valeur capturée, il veut la
-            // chaîne elle-même.
-            let jour = dateKey.raw
-            let voisines = (try? context.fetch(
-                FetchDescriptor<PlannedSession>(
-                    predicate: #Predicate { $0.dateKeyRaw == jour }
-                )
-            )) ?? []
             let seance = PlannedSession(
-                dateKey: dateKey, sportTypeRaw: sport.rawValue, title: title,
-                sortOrder: (voisines.map(\.sortOrder).max() ?? -1) + 1
+                dateKey: destination, sportTypeRaw: sport.rawValue, title: title,
+                sortOrder: rangSuivant(dans: destination.raw)
             )
             context.insert(seance)
             return seance
         }()
 
+        // Déplacée : elle se range à la fin de sa nouvelle journée, sinon elle
+        // y garderait le rang qu'elle avait dans l'ancienne et passerait
+        // devant des séances écrites avant elle.
+        if cible.dateKeyRaw != destination.raw {
+            cible.sortOrder = rangSuivant(dans: destination.raw)
+            cible.dateKeyRaw = destination.raw
+        }
         cible.sportTypeRaw = sport.rawValue
         cible.title = title
         cible.plannedDistance = distanceKm.map { $0 * 1000 }

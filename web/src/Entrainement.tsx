@@ -289,7 +289,7 @@ export function Entrainement() {
           <SaisieSeance
             dateKey={jour}
             seance={aEditer === "nouvelle" ? null : aEditer}
-            rangSuivant={duJour.paires.length}
+            rangDans={(cle) => (parJour.get(cle)?.seances.length ?? 0)}
             onFerme={() => setAEditer(null)}
           />
         </Feuille>
@@ -302,14 +302,20 @@ export function Entrainement() {
 function SaisieSeance({
   dateKey,
   seance,
-  rangSuivant,
+  rangDans,
   onFerme,
 }: {
   dateKey: string
   seance: Seance | null
-  rangSuivant: number
+  /// Combien de séances porte déjà une journée — le rang à prendre en y
+  /// arrivant. Une fonction et non un nombre : la séance peut partir vers un
+  /// autre jour que celui d'où on a ouvert la feuille.
+  rangDans: (dateKey: string) => number
   onFerme: () => void
 }) {
+  // Le jour, modifiable : un plan se déplace tout le temps — la séance de
+  // côte du mardi se fait le lundi soir.
+  const [jour, setJour] = useState(seance?.date_key_raw ?? dateKey)
   const [sport, setSport] = useState(seance?.sport_type_raw ?? "run")
   const [titre, setTitre] = useState(seance?.title ?? "")
   // En kilomètres et en minutes, comme sur le Mac : un plan s'écrit
@@ -344,7 +350,7 @@ function SaisieSeance({
       const { error } = await supabase.from("planned_session").upsert({
         uuid: seance?.uuid ?? crypto.randomUUID(),
         user_id: await identifiant(),
-        date_key_raw: dateKey,
+        date_key_raw: jour,
         sport_type_raw: sport,
         title: titre,
         planned_distance: km.trim() === "" ? null : (nombre(km) ?? 0) * 1000,
@@ -352,7 +358,11 @@ function SaisieSeance({
         planned_elevation: nombre(denivele),
         notes,
         day_type_uuid: seance?.day_type_uuid ?? null,
-        sort_order: seance?.sort_order ?? rangSuivant,
+        // Déplacée, elle se range à la fin de sa nouvelle journée : y garder
+        // le rang de l'ancienne la ferait passer devant des séances écrites
+        // avant elle.
+        sort_order:
+          seance && seance.date_key_raw === jour ? seance.sort_order : rangDans(jour),
         edited_at: maintenant,
         deleted_at: null,
       })
@@ -382,7 +392,7 @@ function SaisieSeance({
         <button className="lien" onClick={onFerme} disabled={occupe}>
           Annuler
         </button>
-        <span className="jour">{dateLongue(dateKey)}</span>
+        <span className="jour">{dateLongue(jour)}</span>
         <button
           className="lien fort"
           onClick={() => enregistrement.mutate()}
@@ -396,6 +406,11 @@ function SaisieSeance({
           {((enregistrement.error ?? suppression.error) as Error).message}
         </p>
       )}
+
+      <label className="ligne-champ">
+        <span>Jour</span>
+        <input type="date" value={jour} onChange={(e) => setJour(e.target.value || dateKey)} />
+      </label>
 
       <label className="ligne-champ">
         <span>Sport</span>
