@@ -28,8 +28,8 @@ struct PersonDetailView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Note").font(.headline)
-                    MentionBar(texte: $note)
                     TextEditor(text: $note)
+                        .citations($note)
                         .font(.system(size: 14))
                         .frame(minHeight: 110)
                         .padding(6)

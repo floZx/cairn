@@ -332,8 +332,8 @@ struct ActivityDetailView: View {
 
     private var noteEditor: some View {
         VStack(alignment: .leading, spacing: 4) {
-            MentionBar(texte: $noteDraft)
             TextEditor(text: $noteDraft)
+                .citations($noteDraft)
                 .font(.system(size: Self.noteSize))
                 .scrollContentBackground(.hidden)
                 .padding(6)

@@ -310,17 +310,7 @@ struct JournalDetailView: View {
         // One way only. The getter reads the draft this view holds, never the
         // store, so nothing the store does to `notes` while a key is being
         // pressed can replace the text under the caret — see `draft`.
-        VStack(alignment: .leading, spacing: 4) {
-            MentionBar(texte: Binding(
-                get: { draft },
-                set: { nouveau in
-                    guard nouveau != draft else { return }
-                    draft = nouveau
-                    onEdit(nouveau)
-                }
-            ))
-            .padding(.horizontal, 12)
-            TextEditor(text: Binding(
+        TextEditor(text: Binding(
                 get: { draft },
                 set: { newValue in
                     guard newValue != draft else { return }
@@ -345,6 +335,17 @@ struct JournalDetailView: View {
                 onLeaveEditor()
                 return .handled
             }
-        }
+            // Après l'échappement de l'éditeur, et l'ordre compte : le
+            // modificateur pose le sien, qui se déclare « non traité » quand
+            // la barre est fermée — c'est ce qui laisse celui du dessus
+            // reprendre la main pour quitter le champ.
+            .citations(Binding(
+                get: { draft },
+                set: { nouveau in
+                    guard nouveau != draft else { return }
+                    draft = nouveau
+                    onEdit(nouveau)
+                }
+            ))
     }
 }
