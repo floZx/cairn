@@ -151,6 +151,16 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         fileprivate func columnDidResize(_ splitView: NSSplitView) {
             guard splitView.arrangedSubviews.count >= 3 else { return }
             let width = splitView.arrangedSubviews[2].frame.width
+            if ecran == .alimentation {
+                let item = (splitView.delegate as? NSSplitViewController)?
+                    .splitViewItems.last
+                PaneGeometry.tracer(
+                    "détail \(Int(width))"
+                        + " | minimum de l'élément \(item.map { Int($0.minimumThickness) } ?? -1)"
+                        + " | vue \(Int(splitView.arrangedSubviews[2].fittingSize.width))"
+                        + " | dû \(pendingWidth.map { Int($0) } ?? -1)"
+                )
+            }
             if PaneGeometry.shouldRestore(
                 previousWidth: lastWidth, newWidth: width
             ), let saved = PaneGeometry.saved(ecran, .detail) {

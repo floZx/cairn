@@ -29,6 +29,32 @@ import AppKit
 /// milieu est ce qui reste, et le ranger en plus reviendrait à garder une
 /// valeur qui contredirait les deux autres un jour sur deux.
 enum PaneGeometry {
+    /// Le journal des largeurs, remis le temps de mesurer le volet
+    /// d'alimentation. À retirer ensuite.
+    ///
+    ///     ~/Library/Logs/Cairn-volets.log
+    nonisolated(unsafe) private static let fichier: URL? = {
+        guard let dossier = FileManager.default.urls(
+            for: .libraryDirectory, in: .userDomainMask
+        ).first?.appendingPathComponent("Logs") else { return nil }
+        try? FileManager.default.createDirectory(
+            at: dossier, withIntermediateDirectories: true
+        )
+        return dossier.appendingPathComponent("Cairn-volets.log")
+    }()
+
+    static func tracer(_ ligne: String) {
+        guard let fichier else { return }
+        guard let octets = "\(ligne)\n".data(using: .utf8) else { return }
+        if let poignee = try? FileHandle(forWritingTo: fichier) {
+            defer { try? poignee.close() }
+            _ = try? poignee.seekToEnd()
+            try? poignee.write(contentsOf: octets)
+        } else {
+            try? octets.write(to: fichier)
+        }
+    }
+
     /// L'écran affiché, et donc à qui ces largeurs appartiennent.
     ///
     /// Un par section, parce qu'elles ne montrent pas la même chose dans la
