@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 /// La largeur des volets, écran par écran, sous des clés qui survivent aux
 /// reconstructions.
@@ -29,6 +30,18 @@ import AppKit
 /// milieu est ce qui reste, et le ranger en plus reviendrait à garder une
 /// valeur qui contredirait les deux autres un jour sur deux.
 enum PaneGeometry {
+    /// Le journal des largeurs, le temps de comprendre.
+    ///
+    /// Posé parce que « c'est complètement aléatoire » ne se corrige pas en
+    /// raisonnant : il faut voir ce qui est écrit, quand, et par quel chemin.
+    /// Se lit de l'extérieur avec :
+    ///
+    ///     log show --last 10m --predicate 'subsystem == "com.florianmaisonnial.Cairn"'
+    ///
+    /// À retirer une fois la cause trouvée.
+    static let journal = Logger(
+        subsystem: "com.florianmaisonnial.Cairn", category: "volets"
+    )
     /// L'écran affiché, et donc à qui ces largeurs appartiennent.
     ///
     /// Un par section, parce qu'elles ne montrent pas la même chose dans la
@@ -95,7 +108,15 @@ enum PaneGeometry {
         _ width: Double, _ ecran: Ecran, _ colonne: Colonne,
         to defaults: UserDefaults = .standard
     ) {
-        guard width >= floor(ecran, colonne) else { return }
+        guard width >= floor(ecran, colonne) else {
+            journal.debug(
+                "refus \(ecran.rawValue, privacy: .public) \(colonne.rawValue, privacy: .public) \(width, format: .fixed(precision: 0))"
+            )
+            return
+        }
+        journal.debug(
+            "écrit \(ecran.rawValue, privacy: .public) \(colonne.rawValue, privacy: .public) \(width, format: .fixed(precision: 0))"
+        )
         defaults.set(width, forKey: key(ecran, colonne))
     }
 

@@ -91,7 +91,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         /// column had just been clamped to overwrote the very width that was
         /// about to be restored, and the pane came back at its minimum for
         /// good.
-        private var isSettling = false
+        fileprivate var isSettling = false
 
         /// How wide the column was at the last resize, so the one that reopens
         /// it can be told from the rest.
@@ -105,6 +105,9 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
                 ecran = nouvel
                 return
             }
+            PaneGeometry.journal.debug(
+                "passage \(self.ecran.rawValue, privacy: .public) → \(nouvel.rawValue, privacy: .public) | latérale \(splitView.arrangedSubviews[0].frame.width, format: .fixed(precision: 0)) détail \(splitView.arrangedSubviews[2].frame.width, format: .fixed(precision: 0))"
+            )
             saveCurrentWidth(of: splitView)
             ecran = nouvel
             isSettling = true
@@ -151,6 +154,9 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         fileprivate func columnDidResize(_ splitView: NSSplitView) {
             guard splitView.arrangedSubviews.count >= 3 else { return }
             let width = splitView.arrangedSubviews[2].frame.width
+            PaneGeometry.journal.debug(
+                "redim \(self.ecran.rawValue, privacy: .public) | latérale \(splitView.arrangedSubviews[0].frame.width, format: .fixed(precision: 0)) détail \(width, format: .fixed(precision: 0)) | calme=\(!self.isSettling)"
+            )
             if PaneGeometry.shouldRestore(
                 previousWidth: lastWidth, newWidth: width
             ), let saved = PaneGeometry.saved(ecran, .detail) {
