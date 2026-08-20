@@ -48,16 +48,15 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         .zero, .milliseconds(50), .milliseconds(250), .milliseconds(750),
     ]
 
-    /// Which pane the detail column is showing, so its width is filed under
-    /// the pane it was dragged for.
-    var paneKind: DetailPaneWidth.Kind = .activity
+    /// L'écran affiché, sous lequel les largeurs sont rangées.
+    var ecran: PaneGeometry.Ecran = .activites
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> NSView {
         let probe = ProbeView()
         let coordinator = context.coordinator
-        coordinator.kind = paneKind
+        coordinator.ecran = ecran
         probe.onAttachToWindow = { [weak probe] in
             Task { @MainActor in
                 guard let probe else { return }
@@ -71,7 +70,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
     @MainActor
     final class Coordinator {
         fileprivate weak var splitView: NSSplitView?
-        fileprivate var kind: DetailPaneWidth.Kind = .activity
+        fileprivate var ecran: PaneGeometry.Ecran = .activites
 
         /// The width the column owes the pane now showing, until it can take
         /// it.
@@ -101,18 +100,24 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         /// Hands the column from one pane to the other: what the user left
         /// behind is filed under the pane they dragged it for, and the pane
         /// arriving comes back at its own width.
-        fileprivate func handOver(to newKind: DetailPaneWidth.Kind) {
-            guard newKind != kind, let splitView else {
-                kind = newKind
+        fileprivate func handOver(to nouvel: PaneGeometry.Ecran) {
+            guard nouvel != ecran, let splitView else {
+                ecran = nouvel
                 return
             }
             saveCurrentWidth(of: splitView)
-            kind = newKind
+            ecran = nouvel
             isSettling = true
+            // La latérale se pose tout de suite : elle ne se ferme pas quand on
+            // change de section — seule celle de droite le fait — donc rien ne
+            // justifie de la faire attendre.
+            SplitViewHoldingPriorities.setSidebarWidth(
+                PaneGeometry.saved(nouvel, .laterale), of: splitView
+            )
             // Read now rather than when it is finally applied: the churn this
             // switch is about to cause would have had time to answer with
             // something else.
-            pendingWidth = DetailPaneWidth.saved(for: newKind)
+            pendingWidth = PaneGeometry.saved(nouvel, .detail)
             // Attempted one hop later, because the column's minimum changes
             // with the pane in this very update and a position set before
             // AppKit has taken the new constraint gets clamped to the old
@@ -146,9 +151,9 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         fileprivate func columnDidResize(_ splitView: NSSplitView) {
             guard splitView.arrangedSubviews.count >= 3 else { return }
             let width = splitView.arrangedSubviews[2].frame.width
-            if DetailPaneWidth.shouldRestore(
+            if PaneGeometry.shouldRestore(
                 previousWidth: lastWidth, newWidth: width
-            ), let saved = DetailPaneWidth.saved(for: kind) {
+            ), let saved = PaneGeometry.saved(ecran, .detail) {
                 pendingWidth = saved
             }
             // Before applying, not after: setting the position posts another
@@ -163,15 +168,21 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
             if splitView.arrangedSubviews.count >= 3 {
                 lastWidth = splitView.arrangedSubviews[2].frame.width
             }
-            pendingWidth = DetailPaneWidth.saved(for: kind)
+            pendingWidth = PaneGeometry.saved(ecran, .detail)
             applyPendingWidth(to: splitView)
+            SplitViewHoldingPriorities.setSidebarWidth(
+                PaneGeometry.saved(ecran, .laterale), of: splitView
+            )
         }
 
+        /// Range les deux largeurs libres de l'écran courant.
+        ///
+        /// Le milieu n'en est pas : dans une fenêtre de largeur fixe, il est ce
+        /// qui reste une fois les deux autres posées.
         fileprivate func saveCurrentWidth(of splitView: NSSplitView) {
             guard !isSettling, splitView.arrangedSubviews.count >= 3 else { return }
-            DetailPaneWidth.save(
-                splitView.arrangedSubviews[2].frame.width, for: kind
-            )
+            PaneGeometry.save(splitView.arrangedSubviews[2].frame.width, ecran, .detail)
+            PaneGeometry.save(splitView.arrangedSubviews[0].frame.width, ecran, .laterale)
         }
     }
 
@@ -179,7 +190,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         // The probe's own work hangs off joining a window, which happens after
         // SwiftUI's first update and never again. What does change here is
         // which pane the column holds.
-        context.coordinator.handOver(to: paneKind)
+        context.coordinator.handOver(to: ecran)
     }
 
     @MainActor
@@ -234,7 +245,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
               splitView.arrangedSubviews[2].frame.width > 0
         else { return }
 
-        let position = DetailPaneWidth.dividerPosition(
+        let position = PaneGeometry.dividerPosition(
             detailWidth: width,
             totalWidth: splitView.bounds.width,
             dividerThickness: splitView.dividerThickness,
@@ -243,6 +254,28 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         )
         guard let position else { return }
         splitView.setPosition(position, ofDividerAt: 1)
+    }
+
+    /// Pose le premier diviseur pour que la barre latérale fasse `width`.
+    ///
+    /// Ne fait rien quand la latérale est repliée : c'est un geste délibéré,
+    /// et la rouvrir parce qu'on change de section serait la reprendre à
+    /// quelqu'un qui vient de la ranger.
+    @MainActor
+    static func setSidebarWidth(_ width: Double?, of splitView: NSSplitView) {
+        guard let width, splitView.arrangedSubviews.count >= 3,
+              splitView.arrangedSubviews[0].frame.width > 0
+        else { return }
+
+        let position = PaneGeometry.sidebarPosition(
+            sidebarWidth: width,
+            totalWidth: splitView.bounds.width,
+            dividerThickness: splitView.dividerThickness,
+            detailWidth: splitView.arrangedSubviews[2].frame.width,
+            minimumMiddle: 480
+        )
+        guard let position else { return }
+        splitView.setPosition(position, ofDividerAt: 0)
     }
 
     /// Records the width whenever the user drags the divider.

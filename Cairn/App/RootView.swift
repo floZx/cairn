@@ -598,6 +598,25 @@ struct RootView: View {
 
     private var showsPeople: Bool { sidebarSelection == .people }
 
+    /// L'écran sous lequel les largeurs de volets sont rangées.
+    ///
+    /// Un par section : la barre latérale n'y porte pas la même chose — un
+    /// calendrier ici, des étiquettes là, des filtres de sport ailleurs — et le
+    /// volet de droite non plus. Sans sélection, c'est la liste des activités
+    /// qui s'affiche, donc son écran.
+    private var ecranDesVolets: PaneGeometry.Ecran {
+        switch sidebarSelection {
+        case .globalMap: .carte
+        case .statistics: .statistiques
+        case .training: .plan
+        case .journal: .journal
+        case .people: .people
+        case .nutrition: .alimentation
+        case .weight: .poids
+        case .all, nil: .activites
+        }
+    }
+
     private var showsNutrition: Bool { sidebarSelection == .nutrition }
 
     private var showsWeight: Bool { sidebarSelection == .weight }
@@ -764,10 +783,7 @@ struct RootView: View {
         // back the cover the split view's dividers had lost, so the mask that
         // stood in for it — clipping each divider to stop at the bottom of the
         // bar — went with it.
-        .background(SplitViewHoldingPriorities(
-            paneKind: showsJournal ? .journal
-                : (showsNutrition ? .nutrition : .activity)
-        ))
+        .background(SplitViewHoldingPriorities(ecran: ecranDesVolets))
         // Arriving at the statistics gives the whole width to the charts: the
         // activity left selected in the list has nothing to do with the
         // figures now on screen, and its pane was simply in the way. Clicking
