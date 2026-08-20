@@ -434,17 +434,33 @@ struct RootView: View {
     /// Whether the selected day has a note of its own to delete. A day listed
     /// only because an outing, a meal or a weigh-in wrote something has none.
     private var journalSelectionHasNote: Bool {
-        guard let journalSelection,
-              let day = journalDays.first(where: { $0.date == journalSelection })
-        else { return false }
-        return !day.note.isEmpty
+        // Lu dans le magasin plutôt que dans la fusion : la barre d'outils
+        // pose cette question à chaque rendu, et la fusion coûte la
+        // bibliothèque entière pour un booléen.
+        guard let journalSelection else { return false }
+        return app.journal.notes.contains {
+            $0.date == journalSelection && !$0.text.isEmpty
+        }
     }
 
     /// The tag list the sidebar ticks, counted over every source at once — a
     /// `#Sam` weighs the same whether it was written in the vault, under an
     /// outing, beside a meal or next to a weigh-in.
     private var journalTagCounts: [JournalTagTally.Row] {
-        JournalTagTally.rows(for: journalDays.map(\.tags))
+        // Seulement quand le journal est à l'écran : la barre latérale ne
+        // montre ses étiquettes que là, et les compter ailleurs revenait à
+        // fusionner toute la bibliothèque pour une liste que personne ne voit.
+        guard showsJournal else { return [] }
+        return JournalTagTally.rows(for: journalDays.map(\.tags))
+    }
+
+    /// Les jours que la barre latérale a besoin de connaître — son compte et
+    /// les points de son calendrier. Voir `JournalDaySources.dayKeys`.
+    private var journalDayKeys: Set<String> {
+        JournalDaySources.dayKeys(
+            notes: app.journal.notes, activities: allActivities,
+            mealNotes: mealNotes, weights: weightEntries
+        )
     }
 
     /// The list's selection.
@@ -1254,7 +1270,7 @@ struct RootView: View {
             selection: $sidebarSelection,
             filter: $filter,
             journalTags: $journalTags,
-            journalDays: journalDays,
+            journalDayKeys: journalDayKeys,
             journalTagCounts: journalTagCounts,
             journalDay: journalDayBinding,
             nutritionDay: $nutritionDateKey

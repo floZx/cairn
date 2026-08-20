@@ -26,10 +26,14 @@ struct SidebarView: View {
     /// every other filter, so the list and this pane never disagree.
     @Binding var journalTags: Set<JournalTag>
 
-    /// Every day the journal lists — for the badge, and for the calendar's
-    /// dots, which must mark a day written about in an outing's note just as
-    /// they mark one with a file in the vault.
-    let journalDays: [JournalDay]
+    /// Les jours que le journal liste, réduits à leurs dates — pour la
+    /// pastille, et pour les points du calendrier, qui doivent marquer un jour
+    /// raconté dans la note d'une sortie comme un jour qui a son fichier.
+    ///
+    /// Des dates et non les journées entières : celles-ci coûtent un tri de
+    /// toute la bibliothèque et la traversée des photos, pour un compte et une
+    /// poignée de points.
+    let journalDayKeys: Set<String>
 
     /// The tags to tick, with their counts. Computed by `RootView`, which is
     /// where the vault's notes and the outings' notes are already merged —
@@ -95,7 +99,7 @@ struct SidebarView: View {
                 Label("Entraînement", systemImage: "figure.run.square.stack")
                     .tag(SidebarItem.training)
                 Label("Journal", systemImage: "text.book.closed")
-                    .badge(journalDays.count)
+                    .badge(journalDayKeys.count)
                     .tag(SidebarItem.journal)
                 Label("People", systemImage: "at")
                     .tag(SidebarItem.people)
@@ -134,7 +138,7 @@ struct SidebarView: View {
                 Section {
                     MiniCalendarView(
                         selected: $journalDay,
-                        loggedDays: Set(journalDays.map(\.date.raw))
+                        loggedDays: journalDayKeys
                     )
                     .listRowInsets(Self.calendarInsets)
                 }

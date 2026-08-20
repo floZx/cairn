@@ -19,12 +19,56 @@ enum JournalDaySources {
     ///
     /// Days with no mark are simply absent — a dictionary of empty marks would
     /// be a dictionary of nothing.
+    /// Les seuls jours **nommés** par quelque chose, sans rien construire de
+    /// plus.
+    ///
+    /// La barre latérale ne demande que ça : un compte pour sa pastille, et
+    /// des dates pour les points de son calendrier. Elle recevait pourtant la
+    /// fusion complète — laquelle trie toutes les sorties et traverse les
+    /// photos de chacune —, et elle la recevait sur **tous** les écrans, à
+    /// chaque évaluation du corps de la vue racine. Le profileur en faisait
+    /// 56 % du temps du fil principal.
+    ///
+    /// Ici : une lecture de propriété par ligne, aucun tri, aucune photo.
+    static func dayKeys(
+        notes: [JournalFileNote], activities: [Activity],
+        mealNotes: [MealNote], weights: [WeightEntry]
+    ) -> Set<String> {
+        var jours = Set(notes.map(\.date.raw))
+        for activity in activities { jours.insert(DateKey(activity.startDate).raw) }
+        for weight in weights where !isBlank(weight.note) {
+            if let date = weight.dateKey { jours.insert(date.raw) }
+        }
+        // Les pesées sans un mot marquent quand même leur jour : c'est la
+        // règle de `marks`, et la liste les montre.
+        for weight in weights { if let date = weight.dateKey { jours.insert(date.raw) } }
+        for note in mealNotes where !isBlank(note.note) {
+            if let date = note.dateKey { jours.insert(date.raw) }
+        }
+        return jours
+    }
+
+    private static func isBlank(_ texte: String?) -> Bool {
+        (texte ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     static func marks(
         activities: [Activity], weights: [WeightEntry]
     ) -> [DateKey: JournalDay.Marks] {
         var marks: [DateKey: JournalDay.Marks] = [:]
-        for activity in activities.sorted(by: { $0.startDate < $1.startDate }) {
-            let date = DateKey(activity.startDate)
+        // La date est lue **une fois** par sortie, puis on trie ces couples.
+        //
+        // Le comparateur lisait `startDate` à chaque comparaison, soit deux
+        // accès SwiftData par paire : sur huit cents sorties, le profileur
+        // attribuait 28 % du temps du fil principal à ce seul accesseur, et
+        // 38 % au tri qui l'appelait. Or ce tri tourne à chaque évaluation du
+        // corps de la vue racine — donc à chaque touche frappée dans le
+        // journal, qui enregistre au fil de l'écriture.
+        let parDate = activities
+            .map { (date: $0.startDate, sortie: $0) }
+            .sorted { $0.date < $1.date }
+        for (brute, activity) in parDate {
+            let date = DateKey(brute)
             var day = marks[date] ?? .none
             if !day.sports.contains(activity.sportType) {
                 day.sports.append(activity.sportType)

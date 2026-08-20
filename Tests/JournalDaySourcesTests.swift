@@ -209,3 +209,56 @@ struct JournalDaySourcesTests {
         )
     }
 }
+
+@MainActor
+@Suite("Les jours nommés, pour la barre latérale")
+struct JournalDayKeysTests {
+    private func jour(_ raw: String) -> DateKey { DateKey(raw: raw)! }
+
+    /// La liste des dates doit dire la même chose que la fusion complète, sans
+    /// quoi la pastille et les points du calendrier mentiraient — c'est tout
+    /// l'objet du raccourci.
+    @Test func uneSortieNommeSonJour() throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let sortie = Activity(stravaID: 1, name: "Footing", sportType: .run)
+        sortie.startDate = jour("2026-08-14").date()
+        sortie.startLocalDate = sortie.startDate
+        context.insert(sortie)
+
+        let cles = JournalDaySources.dayKeys(
+            notes: [], activities: [sortie], mealNotes: [], weights: []
+        )
+        #expect(cles == ["2026-08-14"])
+    }
+
+    @Test func unePeseeEtUneNoteDeRepasNommentLeLeur() throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let pesee = WeightEntry(dateKey: jour("2026-08-15"), weightKg: 70)
+        let repas = MealNote(dateKey: jour("2026-08-16"), mealSlot: nil, note: "Sushi")
+        context.insert(pesee)
+        context.insert(repas)
+
+        let cles = JournalDaySources.dayKeys(
+            notes: [], activities: [], mealNotes: [repas], weights: [pesee]
+        )
+        #expect(cles == ["2026-08-15", "2026-08-16"])
+    }
+
+    /// Une note de repas ouverte puis refermée sans un mot ne fait pas
+    /// apparaître sa journée : c'est la règle de la fusion, et le raccourci
+    /// doit la suivre.
+    @Test func uneNoteDeRepasBlancheNeNommeRien() throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let repas = MealNote(dateKey: jour("2026-08-16"), mealSlot: nil, note: "   ")
+        context.insert(repas)
+
+        #expect(
+            JournalDaySources.dayKeys(
+                notes: [], activities: [], mealNotes: [repas], weights: []
+            ).isEmpty
+        )
+    }
+}
