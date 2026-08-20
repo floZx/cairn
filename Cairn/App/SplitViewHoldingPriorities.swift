@@ -80,7 +80,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         /// — and a pane of zero width is one `RootView` has deliberately
         /// closed, which nothing may reopen. So the width waits here and is
         /// laid on at the first resize that finds the column open again.
-        fileprivate private(set) var pendingWidth: Double?
+        private var pendingWidth: Double?
 
         /// True while the column is rearranging itself after a hand-over.
         ///
@@ -91,7 +91,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         /// column had just been clamped to overwrote the very width that was
         /// about to be restored, and the pane came back at its minimum for
         /// good.
-        fileprivate var isSettling = false
+        private var isSettling = false
 
         /// How wide the column was at the last resize, so the one that reopens
         /// it can be told from the rest.
@@ -105,11 +105,6 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
                 ecran = nouvel
                 return
             }
-            PaneGeometry.tracer(
-                "PASSAGE \(ecran.rawValue) → \(nouvel.rawValue)"
-                    + " | latérale \(Int(splitView.arrangedSubviews[0].frame.width))"
-                    + " détail \(Int(splitView.arrangedSubviews[2].frame.width))"
-            )
             saveCurrentWidth(of: splitView)
             ecran = nouvel
             isSettling = true
@@ -156,11 +151,6 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         fileprivate func columnDidResize(_ splitView: NSSplitView) {
             guard splitView.arrangedSubviews.count >= 3 else { return }
             let width = splitView.arrangedSubviews[2].frame.width
-            PaneGeometry.tracer(
-                "redim  \(ecran.rawValue)"
-                    + " | latérale \(Int(splitView.arrangedSubviews[0].frame.width))"
-                    + " détail \(Int(width)) | calme=\(!isSettling)"
-            )
             if PaneGeometry.shouldRestore(
                 previousWidth: lastWidth, newWidth: width
             ), let saved = PaneGeometry.saved(ecran, .detail) {

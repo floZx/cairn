@@ -1162,11 +1162,18 @@ struct RootView: View {
     /// reopened a few points wide, its labels wrapped one letter per line.
     private static let detailMinWidth: CGFloat = 360
 
-    /// The food journal's panel needs far less: a small calendar and a day's
-    /// totals, where the activity pane carries a map and a photo strip. It
-    /// used to inherit the activity floor and so could never be tucked away
-    /// to the sliver it wants to be.
-    private static let nutritionPanelMinWidth: CGFloat = 220
+    /// Le panneau du journal alimentaire demande bien moins que les autres :
+    /// des lignes de texte, et rien d'autre.
+    ///
+    /// Il valait 220 du temps où il portait un calendrier ; celui-ci est parti
+    /// dans la barre latérale le 11 août 2026 et le plancher est resté, si bien
+    /// que le volet refusait de descendre sous une largeur que plus rien ne
+    /// justifiait — « il doit pouvoir être plus petit, ça tient pas ».
+    ///
+    /// 160 : « moy. 2450 kcal/j » tient sur une ligne avec ses seize points de
+    /// marge de chaque côté, et les deux ou trois lignes plus longues se
+    /// replient, ce qu'un panneau de chiffres supporte très bien.
+    private static let nutritionPanelMinWidth: CGFloat = 160
 
     @ViewBuilder
     private var detailColumn: some View {

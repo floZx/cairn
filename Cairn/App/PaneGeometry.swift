@@ -1,5 +1,4 @@
 import AppKit
-import os
 
 /// La largeur des volets, écran par écran, sous des clés qui survivent aux
 /// reconstructions.
@@ -30,46 +29,6 @@ import os
 /// milieu est ce qui reste, et le ranger en plus reviendrait à garder une
 /// valeur qui contredirait les deux autres un jour sur deux.
 enum PaneGeometry {
-    /// Le journal des largeurs, le temps de comprendre.
-    ///
-    /// Posé parce que « c'est complètement aléatoire » ne se corrige pas en
-    /// raisonnant : il faut voir ce qui est écrit, quand, et par quel chemin.
-    ///
-    /// Dans un fichier et non dans le journal unifié : les messages de niveau
-    /// `debug` n'y sont pas persistés, et `log show` n'a donc rien rendu du
-    /// premier essai. Un fichier ne se discute pas.
-    ///
-    ///     ~/Library/Logs/Cairn-volets.log
-    ///
-    /// À retirer une fois la cause trouvée.
-    nonisolated(unsafe) private static let fichier: URL? = {
-        guard let dossier = FileManager.default.urls(
-            for: .libraryDirectory, in: .userDomainMask
-        ).first?.appendingPathComponent("Logs") else { return nil }
-        try? FileManager.default.createDirectory(
-            at: dossier, withIntermediateDirectories: true
-        )
-        return dossier.appendingPathComponent("Cairn-volets.log")
-    }()
-
-    private static let horloge: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss.SSS"
-        return formatter
-    }()
-
-    static func tracer(_ ligne: String) {
-        guard let fichier else { return }
-        let texte = "\(horloge.string(from: Date()))  \(ligne)\n"
-        guard let octets = texte.data(using: .utf8) else { return }
-        if let poignee = try? FileHandle(forWritingTo: fichier) {
-            defer { try? poignee.close() }
-            _ = try? poignee.seekToEnd()
-            try? poignee.write(contentsOf: octets)
-        } else {
-            try? octets.write(to: fichier)
-        }
-    }
     /// L'écran affiché, et donc à qui ces largeurs appartiennent.
     ///
     /// Un par section, parce qu'elles ne montrent pas la même chose dans la
@@ -136,11 +95,7 @@ enum PaneGeometry {
         _ width: Double, _ ecran: Ecran, _ colonne: Colonne,
         to defaults: UserDefaults = .standard
     ) {
-        guard width >= floor(ecran, colonne) else {
-            tracer("refus  \(ecran.rawValue) \(colonne.rawValue) \(Int(width))")
-            return
-        }
-        tracer("ÉCRIT  \(ecran.rawValue) \(colonne.rawValue) \(Int(width))")
+        guard width >= floor(ecran, colonne) else { return }
         defaults.set(width, forKey: key(ecran, colonne))
     }
 
