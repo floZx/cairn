@@ -47,6 +47,14 @@ type Journee = {
 
 const JOURS_PAR_PAGE = 45
 
+/// La borne haute de la première page.
+///
+/// Elle valait « aujourd'hui », et une note écrite pour demain — le Mac les
+/// accepte — n'était donc jamais demandée : elle n'existait nulle part sur le
+/// téléphone. Signalé. Les pages suivantes, elles, descendent bien depuis
+/// aujourd'hui.
+const FUTUR = "9999-12-31"
+
 function decale(dateKey: string, jours: number): string {
   const [a, m, j] = dateKey.split("-").map(Number)
   const d = new Date(a, m - 1, j + jours)
@@ -123,10 +131,13 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
     // la requête.
     queryKey: ["journal-journees", creneaux.map((c) => c.uuid).join(",")],
     enabled: creneaux.length > 0,
-    initialPageParam: jourCourant(),
+    initialPageParam: FUTUR,
     queryFn: async ({ pageParam }) => {
       const fin = pageParam as string
-      const debut = decale(fin, -JOURS_PAR_PAGE)
+      // La première page part d'aujourd'hui pour son bord bas, même si son
+      // bord haut est ouvert : sans quoi elle couvrirait quarante-cinq jours
+      // de l'an 9999.
+      const debut = decale(fin === FUTUR ? jourCourant() : fin, -JOURS_PAR_PAGE)
 
       const [notes, activites, poids, repas] = await Promise.all([
         supabase
@@ -306,6 +317,22 @@ export function Journal({
     }
   }, [noteAOuvrir, onNoteOuverte])
 
+  /// Amène la liste sur le jour qu'on édite, derrière la feuille.
+  ///
+  /// Ouvrir une note depuis le calendrier laissait la liste où elle était :
+  /// on refermait la feuille et l'on se retrouvait à cent jours de ce qu'on
+  /// venait d'écrire.
+  ///
+  /// Dans un effet et non au moment du clic : la journée visée peut n'être
+  /// rendue qu'après, et une image demandée trop tôt ne trouvait rien à
+  /// atteindre — mesuré, le défilement ne bougeait pas d'un pixel.
+  useEffect(() => {
+    if (!enEdition) return
+    document
+      .getElementById(`jour-${enEdition.dateKey}`)
+      ?.scrollIntoView({ block: "start" })
+  }, [enEdition?.dateKey])
+
   const sentinelle = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const cible = sentinelle.current
@@ -381,7 +408,6 @@ export function Journal({
               aujourd'hui » est le bouton d'à côté. */}
           <input
             type="date"
-            max={jourCourant()}
             defaultValue={jourCourant()}
             onChange={(e) => {
               if (!e.target.value) return
@@ -399,7 +425,7 @@ export function Journal({
       {journees.length === 0 && <p className="attenue">Aucune note pour l'instant.</p>}
 
       {journees.map((j) => (
-        <article className="note" key={j.dateKey}>
+        <article className="note" key={j.dateKey} id={`jour-${j.dateKey}`}>
           <h2 className="jour">
             <span>
               {dateLongue(j.dateKey)}
