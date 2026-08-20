@@ -171,17 +171,29 @@ enum PaneGeometry {
     /// ou nil quand c'est impossible sans écraser le milieu sous
     /// `minimumMiddle`.
     ///
-    /// Rendre nil plutôt que de rogner : une fenêtre plus étroite que les
-    /// largeurs qu'on lui a laissées est un cas où la mise en page d'AppKit est
-    /// la meilleure réponse, et forcer une position réduirait la liste à rien.
+    /// Rogné plutôt que refusé, et c'est le correctif du défaut le plus grave
+    /// de cette mécanique.
+    ///
+    /// Le refus pur était mesuré dans le journal des largeurs : une fenêtre de
+    /// 1426 points ne peut pas rendre 869 au volet de droite sans écraser le
+    /// milieu, donc rien n'était posé — et la colonne restait à la largeur par
+    /// défaut de macOS. Comme quitter l'écran enregistrait ce qui était à
+    /// l'écran, la largeur qu'on avait réglée était remplacée par ce défaut, et
+    /// perdue pour de bon. Chaque aller-retour en détruisait une de plus :
+    /// c'est tout le « complètement aléatoire ».
+    ///
+    /// La largeur rangée, elle, n'est **jamais** modifiée par ce rognage : la
+    /// fenêtre s'élargira, et le volet retrouvera sa taille.
     static func dividerPosition(
         detailWidth: Double, totalWidth: Double,
         dividerThickness: Double, sidebarWidth: Double, minimumMiddle: Double
     ) -> Double? {
-        let position = totalWidth - detailWidth - dividerThickness
-        guard position - sidebarWidth - dividerThickness >= minimumMiddle else {
-            return nil
-        }
+        let ideale = totalWidth - detailWidth - dividerThickness
+        let plusAGauche = sidebarWidth + dividerThickness + minimumMiddle
+        let position = max(ideale, plusAGauche)
+        // Sous le plancher du volet, il n'y a plus de volet à rendre : mieux
+        // vaut laisser AppKit faire que d'ouvrir une bande de trente points.
+        guard totalWidth - position - dividerThickness >= 80 else { return nil }
         return position
     }
 

@@ -80,7 +80,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         /// — and a pane of zero width is one `RootView` has deliberately
         /// closed, which nothing may reopen. So the width waits here and is
         /// laid on at the first resize that finds the column open again.
-        private var pendingWidth: Double?
+        fileprivate private(set) var pendingWidth: Double?
 
         /// True while the column is rearranging itself after a hand-over.
         ///
@@ -191,6 +191,19 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         /// qui reste une fois les deux autres posées.
         fileprivate func saveCurrentWidth(of splitView: NSSplitView) {
             guard !isSettling, splitView.arrangedSubviews.count >= 3 else { return }
+            // Rien tant qu'une largeur est due.
+            //
+            // Une colonne qui vient de se rouvrir porte ce que macOS lui a
+            // donné, pas ce qu'on avait réglé : l'enregistrer remplaçait la
+            // largeur rangée par ce défaut, et la perdait définitivement.
+            // Mesuré — « ÉCRIT people detail 360 » trois lignes après que
+            // macOS eut rouvert la colonne à 360.
+            //
+            // Tant que la restauration n'a pas eu lieu, on ne sait pas si ce
+            // qui est à l'écran vient de l'utilisateur. Dans le doute, on
+            // n'écrit pas : perdre une largeur coûte plus cher que de ne pas
+            // en retenir une nouvelle.
+            guard pendingWidth == nil else { return }
             PaneGeometry.save(splitView.arrangedSubviews[2].frame.width, ecran, .detail)
             PaneGeometry.save(splitView.arrangedSubviews[0].frame.width, ecran, .laterale)
         }

@@ -134,6 +134,35 @@ struct PaneGeometryTests {
         ) == nil)
     }
 
+    /// Le défaut le plus grave, et celui que le journal des largeurs a
+    /// montré : une fenêtre trop étroite faisait **refuser** la restauration,
+    /// la colonne restait au défaut de macOS, et quitter l'écran enregistrait
+    /// ce défaut à la place de la largeur réglée. Chaque aller-retour en
+    /// détruisait une.
+    @Test("une fenêtre trop étroite rogne au lieu de renoncer")
+    func rogneAuLieuDeRenoncer() {
+        // 1426 de large, 268 de latérale : rendre 869 au détail ne laisserait
+        // que 287 au milieu, sous son plancher de 480.
+        let position = PaneGeometry.dividerPosition(
+            detailWidth: 869, totalWidth: 1_426,
+            dividerThickness: 1, sidebarWidth: 268, minimumMiddle: 480
+        )
+        let position2 = try! #require(position)
+        // Le milieu garde exactement son plancher, et le volet prend le reste.
+        #expect(1_426 - position2 - 1 == 676)
+        #expect(position2 - 268 - 1 == 480)
+    }
+
+    /// Il reste un cas où renoncer est juste : quand il ne resterait qu'une
+    /// bande au volet, la mise en page d'AppKit vaut mieux.
+    @Test("sous une bande, on laisse faire")
+    func sousUneBandeOnLaisseFaire() {
+        #expect(PaneGeometry.dividerPosition(
+            detailWidth: 400, totalWidth: 800,
+            dividerThickness: 1, sidebarWidth: 268, minimumMiddle: 480
+        ) == nil)
+    }
+
     @Test("le séparateur se place pour rendre au volet sa largeur")
     func placesTheDivider() {
         let position = PaneGeometry.dividerPosition(
@@ -185,15 +214,20 @@ struct PaneGeometryTests {
         #expect(!PaneGeometry.shouldRestore(previousWidth: 0, newWidth: 0))
     }
 
-    @Test("une fenêtre trop étroite laisse AppKit décider")
-    func givesUpWhenItDoesNotFit() {
-        // Restoring a width the window can no longer hold would squeeze the list
-        // to nothing. AppKit's own layout is the better answer here.
-        #expect(
+    /// Le comportement a changé, et c'est délibéré : renoncer laissait la
+    /// colonne au défaut de macOS, que le passage à l'écran suivant
+    /// enregistrait ensuite à la place de la largeur réglée. Rogner rend ce
+    /// qu'on peut et ne touche pas à ce qui est rangé.
+    @Test("une fenêtre trop étroite rend ce qu'elle peut")
+    func rendCeQuEllePeut() {
+        let position = try! #require(
             PaneGeometry.dividerPosition(
                 detailWidth: 900, totalWidth: 1_200,
                 dividerThickness: 1, sidebarWidth: 268, minimumMiddle: 480
-            ) == nil
+            )
         )
+        // Le milieu à son plancher, le volet prend les 451 qui restent.
+        #expect(position == 749)
+        #expect(1_200 - position - 1 == 450)
     }
 }
