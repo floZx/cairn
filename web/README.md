@@ -67,11 +67,26 @@ compte Cloudflare) :
 npx wrangler login
 ```
 
-Ensuite, à chaque fois :
+Ensuite, plus rien à lancer : un crochet Git met en ligne à chaque `git push`
+qui touche `web/`. Il s'installe une fois, depuis la racine du dépôt :
+
+```
+git config core.hooksPath .githooks
+```
+
+Le crochet vit dans `.githooks/pre-push`, versionné — sous `.git/hooks` il ne
+survivrait pas à un clone. Il ne se réveille que si les commits poussés
+touchent `web/` : les commits du Mac ne remettent rien en ligne. Et si la mise
+en ligne rate, la poussée passe quand même, avec un message qui le dit ; on
+rattrape à la main :
 
 ```
 npm run deploy
 ```
+
+Il agit avant la poussée, pas après — Git n'offre pas de crochet d'après. En
+pratique la nuance ne se voit que si le distant refuse la poussée, et le site
+porte alors une version d'avance de quelques secondes.
 
 Ce que le paquet emporte : `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`,
 lus dans `.env.local`. La clé anonyme est faite pour être publique — c'est la

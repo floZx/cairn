@@ -1,0 +1,43 @@
+#!/bin/sh
+# Met le web en ligne à chaque poussée qui le touche.
+#
+# Il n'y a pas d'intégration Git côté Cloudflare : `git push` ne déclenchait
+# rien, et la mise en ligne reposait sur le fait de penser à lancer
+# `npm run deploy` juste après. Une fois oubliée, le site restait des heures
+# sur une version d'avant sans que rien ne le signale — signalé, et c'est ce
+# crochet qui répond.
+#
+# Installé par `git config core.hooksPath .githooks`, d'où sa présence dans le
+# dépôt : un crochet rangé sous `.git/hooks` ne survit pas à un clone.
+
+racine=$(git rev-parse --show-toplevel)
+zero=0000000000000000000000000000000000000000
+touche=""
+
+# Git donne sur l'entrée standard une ligne par référence poussée.
+while read -r ref_local sha_local ref_distant sha_distant; do
+    [ "$sha_local" = "$zero" ] && continue   # une branche qu'on supprime
+    if [ "$sha_distant" = "$zero" ]; then
+        # Branche neuve chez le distant : on s'en tient au commit de tête,
+        # faute d'un point de comparaison.
+        fichiers=$(git show --name-only --format= "$sha_local")
+    else
+        fichiers=$(git diff --name-only "$sha_distant" "$sha_local")
+    fi
+    case "$fichiers" in *web/*) touche="oui" ;; esac
+done
+
+# Le Mac est une application à part : ses commits ne remettent rien en ligne.
+[ -z "$touche" ] && exit 0
+
+echo "→ le web a changé, mise en ligne sur Cloudflare Pages…"
+if ! npm --prefix "$racine/web" run deploy; then
+    # Sans blocage : la poussée est bonne, c'est la mise en ligne qui a raté,
+    # et refuser le commit pour une coupure de réseau serait pire que le mal.
+    echo "" >&2
+    echo "✗ MISE EN LIGNE ÉCHOUÉE — la poussée continue, le site reste sur la version d'avant." >&2
+    echo "  À relancer : npm --prefix web run deploy" >&2
+    echo "" >&2
+fi
+
+exit 0
