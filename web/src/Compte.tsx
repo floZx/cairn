@@ -47,12 +47,22 @@ export function BoutonCompte() {
         method: "POST",
         headers: { Authorization: `Bearer ${jeton}` },
       })
-      const corps = (await reponse.json()) as { importees?: number; erreur?: string }
+      const corps = (await reponse.json()) as {
+        importees?: number
+        vues?: number
+        erreur?: string
+      }
       if (corps.erreur) throw new Error(corps.erreur)
+      // Trois issues et non deux : « rien de neuf » disait la même chose que
+      // Strava n'ait rien renvoyé ou que tout fût déjà connu, et c'est
+      // exactement ce qui a masqué le défaut de pagination. Le compte de ce
+      // qui a été vu chez eux tranche.
       setMessage(
         corps.importees
           ? `${corps.importees} sortie${corps.importees > 1 ? "s" : ""} importée${corps.importees > 1 ? "s" : ""}.`
-          : "Rien de neuf chez Strava.",
+          : corps.vues
+            ? `${corps.vues} sorties vues chez Strava, toutes déjà dans Cairn.`
+            : "Strava n'a renvoyé aucune sortie.",
       )
       client.invalidateQueries({ queryKey: ["activites"] })
       client.invalidateQueries({ queryKey: ["journal-journees"] })

@@ -130,19 +130,31 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const acces = await jetonStrava(env, qui.token, qui.userID)
   if (!acces) return json({ erreur: "Cairn n'est pas connecté à Strava." }, 428)
 
-  // Les trente derniers jours : au-delà, c'est le travail du Mac, et les
-  // quotas de Strava — cent requêtes par quart d'heure — ne sont pas faits
-  // pour rejouer une bibliothèque depuis un téléphone.
-  const depuis = Math.floor(Date.now() / 1000) - 30 * 24 * 3600
+  // Les trente dernières sorties, **sans `after`**.
+  //
+  // C'est le correctif d'un défaut mesuré : avec `after`, Strava rend la
+  // fenêtre dans l'ordre **croissant**, en commençant par la plus ancienne.
+  // Demander « les trente derniers jours, trente par page » donnait donc les
+  // trente plus vieilles du mois — toutes déjà connues — et la sortie du soir
+  // même n'était jamais atteinte. Le téléphone répondait « rien de neuf »
+  // pendant que Strava en avait une.
+  //
+  // Sans `after`, la liste part de la plus récente, ce qui est exactement ce
+  // qu'on vient chercher. La borne des trente jours est reprise ici, sur les
+  // lignes rendues : au-delà c'est le travail du Mac.
+  const depuis = Date.now() - 30 * 24 * 3600 * 1000
   const chezStrava = await fetch(
-    `https://www.strava.com/api/v3/athlete/activities?after=${depuis}&per_page=30`,
+    "https://www.strava.com/api/v3/athlete/activities?per_page=30",
     { headers: { Authorization: `Bearer ${acces}` } },
   )
   if (!chezStrava.ok) {
     return json({ erreur: `Strava a répondu ${chezStrava.status}.` }, 502)
   }
-  const sorties = (await chezStrava.json()) as SortieStrava[]
-  if (sorties.length === 0) return json({ importees: 0, vues: 0 })
+  const toutes = (await chezStrava.json()) as SortieStrava[]
+  const sorties = toutes.filter(
+    (sortie) => new Date(sortie.start_date).getTime() >= depuis,
+  )
+  if (sorties.length === 0) return json({ importees: 0, vues: toutes.length })
 
   const identifiants = sorties.map((s) => s.id)
   const liste = `(${identifiants.join(",")})`
