@@ -20,7 +20,7 @@ import SwiftData
 /// either — see the note there.
 struct MirrorBootstrapCursor: Sendable {
     // `UserDefaults` is thread-safe by Apple's own documentation but not
-    // marked `Sendable` in this SDK — the same gap `DetailPaneWidth` and
+    // marked `Sendable` in this SDK — the same gap `PaneGeometry` and
     // `BackupService` sidestep by taking it as a plain default-argument
     // rather than storing it across an isolation boundary. Storing it here
     // is unavoidable — the cursor has to outlive a single call — so this is
@@ -50,7 +50,7 @@ struct MirrorBootstrapCursor: Sendable {
 
     /// `nil` when the mirror has never finished a bootstrap or a push.
     /// `UserDefaults.double(forKey:)` answers `0` for a missing key —
-    /// `Tests/DetailPaneWidthTests.swift` already documents the same trap —
+    /// `Tests/PaneGeometryTests.swift` already documents the same trap —
     /// so `0` reads back as "never", not as the epoch.
     func lastPushAt() -> Date? {
         let epoch = defaults.double(forKey: Self.lastPushAtKey)
