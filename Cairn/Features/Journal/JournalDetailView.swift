@@ -133,6 +133,20 @@ struct JournalDetailView: View {
         // This is the one moment the caret is allowed to move on its own —
         // the text it was in is not there any more.
         .onChange(of: textRevision) { _, _ in
+            // Jamais pendant qu'on écrit.
+            //
+            // Le magasin publie une révision quand son texte change — y
+            // compris quand c'est **notre** frappe qui vient d'y arriver.
+            // Réensemencer le brouillon à ce moment-là remplace le texte sous
+            // le curseur par une version d'un caractère en retard : l'éditeur
+            // réécrit sa chaîne, replace le curseur au mieux, et l'on voit ce
+            // qu'il a décrit — le texte qui disparaît un instant, le curseur
+            // qui clignote au mauvais endroit.
+            //
+            // Ce qu'on tape est la vérité tant qu'on tape. Une modification
+            // venue d'ailleurs attendra que le champ soit rendu — et le
+            // changement de jour, lui, passe par un autre chemin.
+            guard !editorFocused else { return }
             seedDraft()
             // And we are still the ones holding it. Some of the reasons the
             // store replaces a text are also reasons it stops considering the
