@@ -8,8 +8,8 @@ import SwiftData
 /// `Person`. Tant que le champ reste vide, rien n'est rangé en base, et la
 /// personne continue de n'exister que dans les phrases où on la nomme.
 struct PersonDetailView: View {
-    let handle: PersonHandle
-    let citations: [PeopleIndex.Citation]
+    /// La personne ouverte, par sa clé repliée.
+    let cle: String
     /// Aller là d'où vient une citation — la sortie, la journée du journal,
     /// celle des repas, la pesée, la séance.
     ///
@@ -25,14 +25,49 @@ struct PersonDetailView: View {
 
     @Environment(\.modelContext) private var context
     @Query private var people: [Person]
+    @Query private var journalNotes: [JournalNote]
+    @Query private var activities: [Activity]
+    @Query private var mealNotes: [MealNote]
+    @Query private var weights: [WeightEntry]
+    @Query private var sessions: [PlannedSession]
+    @Query private var slots: [MealSlot]
+
+    /// Les citations de cette personne, et d'elle seule.
+    private var citations: [PeopleIndex.Citation] {
+        guard let handle else { return [] }
+        return PeopleIndex.citations(
+            dans: PeopleView.textes(
+                journalNotes: journalNotes, activities: activities,
+                mealNotes: mealNotes, weights: weights,
+                sessions: sessions, slots: slots
+            )
+        )[handle] ?? []
+    }
+
+    /// Retrouvée par ses citations d'abord, par sa fiche ensuite : quelqu'un
+    /// dont la note existe mais que plus aucune note ne cite doit rester
+    /// ouvrable.
+    private var handle: PersonHandle? {
+        if let fiche = people.first(where: { $0.key == cle }) {
+            return PersonHandle(name: fiche.name)
+        }
+        return PersonScanner.mentions(
+            inAny: journalNotes.map(\.text) + activities.map(\.activityDescription)
+        ).first { $0.key == cle }
+    }
 
     @State private var note = ""
     @State private var charge = false
     @State private var noteFocus = false
 
-    private var fiche: Person? { people.first { $0.key == handle.key } }
+    private var fiche: Person? { people.first { $0.key == cle } }
 
     var body: some View {
+        guard let handle else { return AnyView(EmptyView()) }
+        return AnyView(contenu(handle))
+    }
+
+    private func contenu(_ handle: PersonHandle) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text(handle.displayName)
@@ -77,7 +112,7 @@ struct PersonDetailView: View {
             note = fiche?.note ?? ""
             charge = true
         }
-        .onChange(of: handle.key) { _, _ in
+        .onChange(of: cle) { _, _ in
             charge = false
             note = fiche?.note ?? ""
             charge = true
@@ -130,7 +165,7 @@ struct PersonDetailView: View {
             } else {
                 fiche.note = texte
             }
-        } else if !propre.isEmpty {
+        } else if !propre.isEmpty, let handle {
             context.insert(Person(handle: handle, note: texte))
         }
         try? context.save()

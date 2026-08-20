@@ -515,43 +515,6 @@ struct RootView: View {
         sidebarSelection = .all
     }
 
-    /// Les citations de tout le monde, pour la page d'une personne.
-    ///
-    /// Calculées ici plutôt que dans la page : c'est `RootView` qui tient déjà
-    /// les modèles, et les recalculer à chaque frappe dans la note d'une fiche
-    /// relirait la bibliothèque entière pour une lettre.
-    /// Seuls les deux modèles que cette vue n'interrogeait pas déjà : les
-    /// notes du journal, les séances du plan et les fiches. Le reste —
-    /// sorties, notes de repas, pesées, créneaux — est là depuis longtemps, et
-    /// une seconde requête sur les mêmes lignes serait un doublon silencieux.
-    @Query private var peopleJournalNotes: [JournalNote]
-    @Query private var peopleSessions: [PlannedSession]
-
-    private var peopleCitations: [PersonHandle: [PeopleIndex.Citation]] {
-        PeopleIndex.citations(
-            dans: PeopleView.textes(
-                journalNotes: peopleJournalNotes, activities: allActivities,
-                mealNotes: mealNotes, weights: weightEntries,
-                sessions: peopleSessions, slots: mealSlots
-            )
-        )
-    }
-
-    /// La personne ouverte, retrouvée depuis sa clé.
-    ///
-    /// Par les citations d'abord, par les fiches ensuite : quelqu'un dont la
-    /// note existe mais que plus aucune note ne cite doit rester ouvrable.
-    private var selectedPersonHandle: PersonHandle? {
-        guard let selectedPerson else { return nil }
-        if let cite = peopleCitations.keys.first(where: { $0.key == selectedPerson }) {
-            return cite
-        }
-        return peopleFiches.first { $0.key == selectedPerson }
-            .flatMap { PersonHandle(name: $0.name) }
-    }
-
-    @Query private var peopleFiches: [Person]
-
     /// Va là d'où vient une citation.
     ///
     /// Cliquer une note de sortie menait à la sortie, et cliquer une note de
@@ -1240,10 +1203,13 @@ struct RootView: View {
                 collapsedDetailColumn
             }
         } else if showsPeople {
-            if let handle = selectedPersonHandle {
+            if let cle = selectedPerson {
+                // La page tient ses propres requêtes, et c'est le correctif
+                // d'un vrai coût : elles vivaient ici, donc sur **tous** les
+                // écrans, et la moindre écriture — le journal en fait une par
+                // frappe — les relançait sur toute la bibliothèque.
                 PersonDetailView(
-                    handle: handle,
-                    citations: peopleCitations[handle] ?? [],
+                    cle: cle,
                     onOuvrirLaSource: { ouvrirLaSource($0) },
                     attachmentsBase: app.journal.attachmentsBase
                 )

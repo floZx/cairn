@@ -24,9 +24,23 @@ struct CompletingNoteEditor: View {
     /// Ce qu'une image collée devient. Seul le journal en accepte.
     var onImageCollee: ((Data) -> Bool)?
 
-    @Query private var fiches: [Person]
-    @Query private var journalNotes: [JournalNote]
-    @Query private var activities: [Activity]
+    /// L'annuaire se lit à la demande, pas par `@Query`.
+    ///
+    /// Trois `@Query` vivaient ici, dont une sur les huit cents sorties — dans
+    /// **chacun** des six champs de saisie. Or le journal écrit à chaque
+    /// frappe, et une écriture invalide toute requête ouverte : taper une
+    /// phrase relançait donc la lecture de la bibliothèque entière, lettre
+    /// après lettre. C'est ce qui rendait la saisie poussive et le texte
+    /// hésitant.
+    ///
+    /// Ici, rien ne se lit tant qu'aucune arobase n'a été tapée, et la lecture
+    /// n'a lieu qu'une fois par séance d'écriture. Conséquence assumée :
+    /// quelqu'un cité pour la première fois pendant qu'on écrit n'entre pas
+    /// dans l'annuaire avant le champ suivant — on est justement en train de
+    /// taper son nom en entier.
+    @Environment(\.modelContext) private var context
+    @State private var annuaire: [PersonHandle] = []
+    @State private var annuaireLu = false
 
     @State private var enCours: MentionCompletion.EnCours?
     @State private var retenue = 0
@@ -34,17 +48,34 @@ struct CompletingNoteEditor: View {
     /// Où poser le curseur après une insertion, une fois.
     @State private var curseurDemande: Int?
 
-    private var annuaire: [PersonHandle] {
-        guard enCours != nil else { return [] }
-        var trouves = Set(fiches.compactMap { PersonHandle(name: $0.name) })
+    private func lireLAnnuaire() {
+        guard !annuaireLu else { return }
+        annuaireLu = true
+
+        var trouves = Set(
+            ((try? context.fetch(FetchDescriptor<Person>())) ?? [])
+                .compactMap { PersonHandle(name: $0.name) }
+        )
         // La note en cours d'écriture est écartée de son propre annuaire : le
         // journal enregistre à la frappe, et « @To » à moitié tapé se
         // proposait sinon lui-même.
-        trouves.formUnion(
-            PersonScanner.mentions(inAny: journalNotes.map(\.text).filter { $0 != texte })
+        let notes = ((try? context.fetch(FetchDescriptor<JournalNote>())) ?? [])
+            .map(\.text)
+            .filter { $0 != texte }
+        trouves.formUnion(PersonScanner.mentions(inAny: notes))
+
+        // Seules les sorties qui portent une note : les autres ne peuvent
+        // citer personne, et les lire toutes revenait à parcourir la
+        // bibliothèque pour rien.
+        let decrites = FetchDescriptor<Activity>(
+            predicate: #Predicate { $0.activityDescription != nil }
         )
-        trouves.formUnion(PersonScanner.mentions(inAny: activities.map(\.activityDescription)))
-        return trouves.sorted()
+        trouves.formUnion(
+            PersonScanner.mentions(
+                inAny: ((try? context.fetch(decrites)) ?? []).map(\.activityDescription)
+            )
+        )
+        annuaire = trouves.sorted()
     }
 
     private var propositions: [PersonHandle] {
@@ -81,6 +112,7 @@ struct CompletingNoteEditor: View {
             }
             enCours = MentionCompletion.enCours(dans: nouveau, a: position)
             retenue = 0
+            if enCours != nil { lireLAnnuaire() }
         }
     }
 
