@@ -34,14 +34,42 @@ enum PaneGeometry {
     ///
     /// Posé parce que « c'est complètement aléatoire » ne se corrige pas en
     /// raisonnant : il faut voir ce qui est écrit, quand, et par quel chemin.
-    /// Se lit de l'extérieur avec :
     ///
-    ///     log show --last 10m --predicate 'subsystem == "com.florianmaisonnial.Cairn"'
+    /// Dans un fichier et non dans le journal unifié : les messages de niveau
+    /// `debug` n'y sont pas persistés, et `log show` n'a donc rien rendu du
+    /// premier essai. Un fichier ne se discute pas.
+    ///
+    ///     ~/Library/Logs/Cairn-volets.log
     ///
     /// À retirer une fois la cause trouvée.
-    static let journal = Logger(
-        subsystem: "com.florianmaisonnial.Cairn", category: "volets"
-    )
+    nonisolated(unsafe) private static let fichier: URL? = {
+        guard let dossier = FileManager.default.urls(
+            for: .libraryDirectory, in: .userDomainMask
+        ).first?.appendingPathComponent("Logs") else { return nil }
+        try? FileManager.default.createDirectory(
+            at: dossier, withIntermediateDirectories: true
+        )
+        return dossier.appendingPathComponent("Cairn-volets.log")
+    }()
+
+    private static let horloge: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return formatter
+    }()
+
+    static func tracer(_ ligne: String) {
+        guard let fichier else { return }
+        let texte = "\(horloge.string(from: Date()))  \(ligne)\n"
+        guard let octets = texte.data(using: .utf8) else { return }
+        if let poignee = try? FileHandle(forWritingTo: fichier) {
+            defer { try? poignee.close() }
+            _ = try? poignee.seekToEnd()
+            try? poignee.write(contentsOf: octets)
+        } else {
+            try? octets.write(to: fichier)
+        }
+    }
     /// L'écran affiché, et donc à qui ces largeurs appartiennent.
     ///
     /// Un par section, parce qu'elles ne montrent pas la même chose dans la
@@ -109,14 +137,10 @@ enum PaneGeometry {
         to defaults: UserDefaults = .standard
     ) {
         guard width >= floor(ecran, colonne) else {
-            journal.debug(
-                "refus \(ecran.rawValue, privacy: .public) \(colonne.rawValue, privacy: .public) \(width, format: .fixed(precision: 0))"
-            )
+            tracer("refus  \(ecran.rawValue) \(colonne.rawValue) \(Int(width))")
             return
         }
-        journal.debug(
-            "écrit \(ecran.rawValue, privacy: .public) \(colonne.rawValue, privacy: .public) \(width, format: .fixed(precision: 0))"
-        )
+        tracer("ÉCRIT  \(ecran.rawValue) \(colonne.rawValue) \(Int(width))")
         defaults.set(width, forKey: key(ecran, colonne))
     }
 
