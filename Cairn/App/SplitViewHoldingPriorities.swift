@@ -129,14 +129,42 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
             }
         }
 
-        /// Lays the owed width on the column, if it is open to take it.
-        fileprivate func applyPendingWidth(to splitView: NSSplitView) {
+        /// Pose la largeur due, et vérifie qu'elle a été prise.
+        ///
+        /// AppKit rogne une position sur le minimum du volet **encore
+        /// installé** : quand l'écran vient de changer, c'est celui d'avant.
+        /// Mesuré — une largeur de 160 demandée pendant que la colonne portait
+        /// encore la fiche d'une sortie et son minimum de 360 : la demande
+        /// était consommée, la position ignorée, et le volet restait large.
+        ///
+        /// `handOver` connaissait déjà ce piège et différait d'un tour ; le
+        /// chemin des réouvertures, lui, ne le connaissait pas. Plutôt que
+        /// d'ajouter un second délai à l'aveugle, on relit ce qu'on a obtenu :
+        /// tant que la colonne n'a pas la largeur demandée, la demande tient
+        /// et se rejoue au tour suivant.
+        ///
+        /// Trois tentatives, pas plus : une largeur qu'AppKit refuse trois
+        /// fois est une largeur qu'il ne donnera pas, et insister ferait une
+        /// boucle qui écrit à chaque image.
+        fileprivate func applyPendingWidth(to splitView: NSSplitView, essai: Int = 0) {
             guard let width = pendingWidth,
                   splitView.arrangedSubviews.count >= 3,
                   splitView.arrangedSubviews[2].frame.width > 0
             else { return }
-            pendingWidth = nil
             SplitViewHoldingPriorities.setDetailWidth(width, of: splitView)
+
+            let obtenu = splitView.arrangedSubviews[2].frame.width
+            // Un point de tolérance : les positions se posent en points
+            // fractionnaires, et repartir pour un demi-pixel n'a pas de sens.
+            if abs(obtenu - width) <= 1 || essai >= 2 {
+                pendingWidth = nil
+                return
+            }
+            Task { @MainActor [weak self, weak splitView] in
+                try? await Task.sleep(for: .milliseconds(60))
+                guard let splitView else { return }
+                self?.applyPendingWidth(to: splitView, essai: essai + 1)
+            }
         }
 
         /// Takes a resize into account: the column may have just reopened, and
