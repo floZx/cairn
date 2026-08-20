@@ -84,7 +84,15 @@ const COURBES: Courbe[] = [
 export function Courbes({ activiteUUID }: { activiteUUID: string }) {
   const { data, error, isPending } = useQuery({
     queryKey: ["courbes", activiteUUID],
-    staleTime: Infinity,
+    // Pour toujours quand on les a, tout de suite quand on ne les a pas.
+    //
+    // Les octets d'un flux ne changent jamais : les garder est gratuit et
+    // juste. Mais l'**absence** de flux, elle, change — c'est exactement ce
+    // qui arrive quand le téléphone importe une sortie que le Mac complétera
+    // plus tard. Ouvrir la fiche avant son passage mettait « pas de flux » en
+    // cache pour la session entière, et les courbes ne revenaient plus qu'au
+    // redémarrage de l'application. Mesuré le 20 août 2026.
+    staleTime: (requete) => (requete.state.data ? Infinity : 0),
     queryFn: async () => {
       const { data: ligne, error: erreurLigne } = await supabase
         .from("activity_streams")
