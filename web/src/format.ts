@@ -19,6 +19,23 @@ export function duree(secondes: number): string {
   return `${heures} h ${String(minutes).padStart(2, "0")}`
 }
 
+/// Le temps d'un tour, à la seconde — « 4:13 », « 1:02:40 ».
+///
+/// `duree` arrondit à la minute, ce qui convient à une sortie et pas du tout à
+/// un tour : deux répétitions de 4:02 et 4:58 s'y lisaient toutes deux
+/// « 4 min », alors que dans un fractionné c'est justement cet écart qu'on
+/// vient regarder.
+export function dureePrecise(secondes: number): string {
+  if (secondes <= 0) return "—"
+  const heures = Math.floor(secondes / 3600)
+  const minutes = Math.floor((secondes % 3600) / 60)
+  const reste = Math.round(secondes % 60)
+  const deux = (n: number) => String(n).padStart(2, "0")
+  return heures > 0
+    ? `${heures}:${deux(minutes)}:${deux(reste)}`
+    : `${minutes}:${deux(reste)}`
+}
+
 export function denivele(metres: number): string {
   if (metres <= 0) return "—"
   return `${Math.round(metres).toLocaleString("fr-FR")} m`

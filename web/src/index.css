@@ -2936,3 +2936,45 @@ body {
   font-weight: 600;
   cursor: pointer;
 }
+
+/* ---- Les tours d'une sortie ---------------------------------------------- */
+
+.tours {
+  margin-top: 16px;
+}
+
+/* Cinq colonnes fixes : ce qu'on lit ici, ce sont des chiffres qu'on compare
+   de ligne en ligne, et des colonnes qui bougent interdisent la comparaison —
+   la même raison qu'aux parcours similaires. */
+.tour {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr 1fr 1fr 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-top: 1px solid var(--trait);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tour:first-of-type {
+  border-top: 0;
+}
+
+.tour .numero {
+  color: var(--texte-2);
+}
+
+.tour .mesure {
+  text-align: right;
+}
+
+.tour .rythme {
+  font-weight: 600;
+}
+
+/* Le tour le plus rapide : dans une série de six côtes, savoir laquelle on a
+   tenue le mieux est la question qu'on se pose. */
+.tour.meilleur .rythme {
+  color: var(--vert);
+}

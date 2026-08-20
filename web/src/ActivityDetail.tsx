@@ -12,6 +12,7 @@ import { traceDepuisBytea } from "./track"
 const Carte = lazy(() => import("./Carte").then((m) => ({ default: m.Carte })))
 import { Markdown } from "./markdown"
 import { Courbes } from "./Courbes"
+import { Tours } from "./Tours"
 import { ParcoursSimilaires } from "./ParcoursSimilaires"
 import { NoteActivite } from "./NoteActivite"
 import { Feuille } from "./Chrome"
@@ -185,6 +186,8 @@ export function ActivityDetail({
       />
 
       <Courbes activiteUUID={uuid} />
+
+      <Tours uuid={uuid} sport={data.sport_type_raw} />
 
       {enEdition && (
         <Feuille titre="Note de sortie" onFerme={() => setEnEdition(false)}>
