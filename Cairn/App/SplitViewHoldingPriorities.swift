@@ -82,6 +82,17 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         /// laid on at the first resize that finds the column open again.
         private var pendingWidth: Double?
 
+        /// Vrai pendant qu'on pose une position, et c'est un garde-fou contre
+        /// la récursion, pas une commodité.
+        ///
+        /// `setPosition` poste son redimensionnement **sur-le-champ**, donc
+        /// `columnDidResize` rappelle la pose avant même que celle-ci soit
+        /// revenue. Tant que la largeur due était effacée d'abord, la boucle
+        /// se refermait toute seule ; en la gardant pour pouvoir réessayer,
+        /// j'ai ouvert une récursion infinie — l'application se tuait dès
+        /// qu'on changeait d'onglet.
+        private var enPose = false
+
         /// True while the column is rearranging itself after a hand-over.
         ///
         /// Everything the switch provokes — the column's minimum changing with
@@ -147,11 +158,13 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         /// fois est une largeur qu'il ne donnera pas, et insister ferait une
         /// boucle qui écrit à chaque image.
         fileprivate func applyPendingWidth(to splitView: NSSplitView, essai: Int = 0) {
-            guard let width = pendingWidth,
+            guard !enPose, let width = pendingWidth,
                   splitView.arrangedSubviews.count >= 3,
                   splitView.arrangedSubviews[2].frame.width > 0
             else { return }
+            enPose = true
             SplitViewHoldingPriorities.setDetailWidth(width, of: splitView)
+            enPose = false
 
             let obtenu = splitView.arrangedSubviews[2].frame.width
             // Un point de tolérance : les positions se posent en points
