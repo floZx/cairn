@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef} from "react"
+import { useMemo, useState, useRef} from "react"
 import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
@@ -124,24 +124,18 @@ function useFiches() {
 
 export function People({
   onSource,
-  personneAOuvrir,
-  onPersonneOuverte,
+  ouverte,
+  onOuvrir,
+  onFermer,
 }: {
   onSource: (citation: Citation) => void
-  /// La personne à ouvrir en arrivant — un clic sur une citation dans une
-  /// note. Même mécanique que `noteAOuvrir` côté journal, et effacée de la
-  /// même façon : sans quoi revenir sur l'onglet trois jours plus tard
-  /// rouvrirait la fiche d'alors.
-  personneAOuvrir?: string | null
-  onPersonneOuverte?: () => void
+  /// La fiche ouverte, tenue par l'App : c'est une page poussée dans
+  /// l'historique, et le geste de retour doit la refermer — depuis la liste
+  /// comme depuis une note. Voir `App.ouvrirLaPersonne`.
+  ouverte: string | null
+  onOuvrir: (cle: string) => void
+  onFermer: () => void
 }) {
-  const [ouverte, setOuverte] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!personneAOuvrir) return
-    setOuverte(personneAOuvrir)
-    onPersonneOuverte?.()
-  }, [personneAOuvrir, onPersonneOuverte])
   const textes = useTextes()
   const fiches = useFiches()
   // Les mêmes URL signées que le journal : une citation venue d'une note
@@ -166,7 +160,7 @@ export function People({
         personne={qui}
         citations={entree?.citations ?? []}
         fiche={(fiches.data ?? []).find((f) => f.key === ouverte) ?? null}
-        onFermer={() => setOuverte(null)}
+        onFermer={onFermer}
         onSource={onSource}
         urlImage={(chemin) => images.data?.get(chemin.replace(/^.*\//, ""))}
       />
@@ -187,7 +181,7 @@ export function People({
         <button
           key={ligne.personne.cle}
           className="ligne-personne"
-          onClick={() => setOuverte(ligne.personne.cle)}
+          onClick={() => onOuvrir(ligne.personne.cle)}
         >
           <span className="pseudo">@{ligne.personne.nom}</span>
           {ligne.aUneNote && <span className="marque-note">·</span>}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { Session } from "@supabase/supabase-js"
 import { supabase } from "./supabase"
 import { SignIn } from "./SignIn"
@@ -43,9 +43,34 @@ export function App() {
     () => new URLSearchParams(location.search).get("activite"),
   )
 
+  /// La fiche d'une personne, dans l'historique elle aussi.
+  ///
+  /// Tenue ici et non dans People, et c'est ce qui répond au retour : ouverte
+  /// depuis une note, elle est une page *poussée par-dessus cette note*, et le
+  /// geste de retour doit ramener là. Sans historique, il ramenait sur la liste
+  /// des gens — un endroit d'où l'on ne venait pas. Signalé.
+  const [personneOuverte, setPersonneOuverte] = useState<string | null>(
+    () => new URLSearchParams(location.search).get("personne"),
+  )
+
   useEffect(() => {
     const onPop = () => {
-      setOuverte(new URLSearchParams(location.search).get("activite"))
+      const params = new URLSearchParams(location.search)
+      setOuverte(params.get("activite"))
+      setPersonneOuverte(params.get("personne"))
+      // L'entrée sur laquelle on retombe porte l'écran qu'on regardait en
+      // partant — posé par `retenirLEcran` juste avant la poussée. Le lire
+      // ici est ce qui ramène à la note plutôt qu'à l'onglet par défaut.
+      if (retourProvoque.current) {
+        retourProvoque.current = false
+        return
+      }
+      const ecran = history.state as
+        | { section?: Section; vueJournal?: VueJournal; note?: string | null }
+        | null
+      if (ecran?.section) setSection(ecran.section)
+      if (ecran?.vueJournal) setVueJournal(ecran.vueJournal)
+      if (ecran?.note !== undefined) setNoteAOuvrir(ecran.note)
     }
     addEventListener("popstate", onPop)
     return () => removeEventListener("popstate", onPop)
@@ -112,12 +137,20 @@ export function App() {
     })
   }, [])
 
-  const [section, setSection] = useState<Section>("activites")
+  /// Amorcés sur l'adresse quand elle porte une personne : une application
+  /// installée se recharge, et retomber sur l'onglet des activités avec une
+  /// fiche dans l'adresse aurait montré la mauvaise chose.
+  const surUnePersonne = new URLSearchParams(location.search).has("personne")
+  const [section, setSection] = useState<Section>(
+    surUnePersonne ? "journal" : "activites",
+  )
   /// L'onglet Journal montre deux choses : les journées, et les gens qui y
   /// sont cités. Un sixième onglet ne tenait pas dans la capsule — c'est déjà
   /// pour ça qu'« Entraînement » s'y appelle « Plan » — et People est de toute
   /// façon une façon de lire le journal, pas un ailleurs.
-  const [vueJournal, setVueJournal] = useState<VueJournal>("journees")
+  const [vueJournal, setVueJournal] = useState<VueJournal>(
+    surUnePersonne ? "gens" : "journees",
+  )
 
   // Le jour d'arrivée dans les repas, quand on y va depuis une citation du
   // journal. Effacé dès qu'on choisit un onglet à la main : sans quoi revenir
@@ -127,19 +160,24 @@ export function App() {
   /// raisons que `jourRepas`, mêmes effacements à main levée.
   const [jourPlan, setJourPlan] = useState<string | null>(null)
   const [noteAOuvrir, setNoteAOuvrir] = useState<string | null>(null)
-  /// La personne à ouvrir en arrivant sur People — un clic sur une citation
-  /// dans une note, d'où qu'elle soit lue.
-  const [personneAOuvrir, setPersonneAOuvrir] = useState<string | null>(null)
+  /// Vrai le temps d'un retour qu'on a soi-même déclenché pour fermer une
+  /// fiche. L'entrée retrouvée porte l'écran d'où l'on venait, et le restaurer
+  /// annulerait l'onglet qu'on vient de choisir — on a demandé à partir, pas à
+  /// revenir.
+  const retourProvoque = useRef(false)
+
   const changerDeSection = (s: Section) => {
     setJourRepas(null)
     setJourPlan(null)
     setNoteAOuvrir(null)
-    setPersonneAOuvrir(null)
     // Une fiche est une page poussée : partir vers un onglet la referme, comme
     // le chevron le ferait. Sans ça, la barre étant désormais visible depuis
     // une fiche, on changeait d'onglet sans rien voir changer — la fiche
     // restant devant.
-    if (ouverte !== null) history.back()
+    if (ouverte !== null || personneOuverte !== null) {
+      retourProvoque.current = true
+      history.back()
+    }
     setSection(s)
   }
 
@@ -156,13 +194,33 @@ export function App() {
     setOuverte(uuid)
   }
 
+  /// Marque l'entrée courante de l'historique avec l'écran qu'on regarde.
+  ///
+  /// À faire **avant** de pousser : c'est cette entrée-ci que le retour
+  /// retrouvera, et sans cela il n'y aurait rien dedans pour dire où l'on
+  /// était — le navigateur ne retient que l'adresse, et l'adresse ne dit pas
+  /// quel onglet regardait celui qui l'a quittée.
+  function retenirLEcran() {
+    history.replaceState(
+      { section, vueJournal, note: noteAOuvrir },
+      "",
+      location.search,
+    )
+  }
+
   /// Un clic sur une personne citée, dans n'importe quelle note : sa fiche.
   ///
-  /// Depuis une fiche d'activité, il faut d'abord la refermer — c'est une page
-  /// poussée, et elle resterait devant l'onglet où l'on vient d'aller.
+  /// Poussée dans l'historique, comme une fiche d'activité : le geste de retour
+  /// est le premier réflexe sur un téléphone, et il doit ramener à la note d'où
+  /// l'on vient — pas à la liste des gens, où l'on n'est jamais passé.
   function ouvrirLaPersonne(cle: string) {
-    if (ouverte !== null) history.back()
-    setPersonneAOuvrir(cle)
+    retenirLEcran()
+    history.pushState(null, "", `?personne=${encodeURIComponent(cle)}`)
+    setPersonneOuverte(cle)
+    // La fiche d'activité passe derrière : c'est une page poussée elle aussi,
+    // et elle resterait devant. Le retour la remet, puisqu'elle est dans
+    // l'adresse de l'entrée précédente.
+    setOuverte(null)
     setVueJournal("gens")
     setSection("journal")
   }
@@ -239,8 +297,16 @@ export function App() {
         vueJournal === "gens" ? (
           <People
             onSource={allerALaSource}
-            personneAOuvrir={personneAOuvrir}
-            onPersonneOuverte={() => setPersonneAOuvrir(null)}
+            ouverte={personneOuverte}
+            onOuvrir={(cle) => {
+              // Depuis la liste : une page poussée aussi, pour que le retour
+              // ramène à la liste. C'est le même geste, il mérite la même
+              // mécanique.
+              retenirLEcran()
+              history.pushState(null, "", `?personne=${encodeURIComponent(cle)}`)
+              setPersonneOuverte(cle)
+            }}
+            onFermer={() => history.back()}
           />
         ) : (
         <Journal
