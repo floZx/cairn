@@ -837,17 +837,31 @@ input, button { font: inherit; }
   gap: 12px;
   min-height: 44px;
   padding: calc(env(safe-area-inset-top) + 6px) 12px 8px;
-  background: color-mix(in srgb, var(--fond) 18%, transparent);
-  -webkit-backdrop-filter: blur(12px) saturate(210%) brightness(1.1);
-  backdrop-filter: blur(12px) saturate(210%) brightness(1.1);
+  /* Rien tant qu'on est en haut, et c'est ce qui fait la différence avec une
+     page web. La matière posée là en permanence éclaircissait un fond uni —
+     un `brightness(1.1)` sur du #f2f2f7 donne du blanc — d'où un bandeau clair
+     sous la barre d'état, noir en thème sombre, que rien ne justifiait :
+     signalé, capture à l'appui. iOS fait l'inverse, et c'est la règle que
+     cette barre suit maintenant : transparente au repos, elle se matérialise
+     quand le contenu passe dessous.
+
+     Un filtre neutre plutôt qu'aucun filtre : `blur(0)` se transforme
+     doucement en `blur(12px)`, là où passer de `none` à un flou saute. */
+  background: transparent;
+  -webkit-backdrop-filter: blur(0) saturate(100%) brightness(1);
+  backdrop-filter: blur(0) saturate(100%) brightness(1);
   /* Le filet n'apparaît qu'une fois le grand titre replié, comme sur iOS.
      Elle ne flotte pas, elle : un titre s'ancre au bord, seule la barre
      d'onglets se détache. */
   border-bottom: 0.5px solid transparent;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease,
+    -webkit-backdrop-filter 0.2s ease, backdrop-filter 0.2s ease;
 }
 
 .barre-nav.repliee {
+  background: color-mix(in srgb, var(--fond) 18%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(210%) brightness(1.1);
+  backdrop-filter: blur(12px) saturate(210%) brightness(1.1);
   border-bottom-color: var(--trait);
 }
 
