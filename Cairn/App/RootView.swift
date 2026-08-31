@@ -10,6 +10,10 @@ struct RootView: View {
     /// jours d'écran, pour que la grille et son mois survivent à un aller-retour
     /// vers la liste.
     @State private var trainingDateKey = DateKey(Date())
+    /// Ce que le journal montre : ses journées, ou les gens qui y sont cités.
+    /// `AppStorage`, comme la présentation de la liste d'activités : c'est une
+    /// façon de lire, et elle doit se retrouver au lancement suivant.
+    @AppStorage(VueJournal.storageKey) private var vueJournal: VueJournal = .journees
     /// La personne ouverte, par sa clé repliée — jamais par son orthographe :
     /// la sélection doit survivre à une note qui écrit « @Sam » au lieu de
     /// « @sam ».
@@ -402,7 +406,11 @@ struct RootView: View {
             && !showsTraining && !showsPeople
     }
 
-    private var showsJournal: Bool { sidebarSelection == .journal }
+    /// La section du journal, quelle que soit la vue choisie dans sa barre
+    /// d'outils — `showsJournal` et `showsPeople` la coupent en deux.
+    private var showsJournalSection: Bool { sidebarSelection == .journal }
+
+    private var showsJournal: Bool { showsJournalSection && vueJournal == .journees }
 
     /// Every day the journal knows about: the vault's notes, and the days
     /// something was written about elsewhere — an outing, a meal, a weigh-in.
@@ -511,6 +519,9 @@ struct RootView: View {
         app.journal.open(date)
         selectJournalNote(date)
         sidebarSelection = .journal
+        // Le journal se rouvre là où on l'avait laissé, gens compris : une
+        // journée demandée doit arriver sur la vue qui sait la montrer.
+        vueJournal = .journees
         // The keyboard follows: arriving in a list one cannot walk with `j`
         // reads as the shortcuts being broken.
         journalListFocus += 1
@@ -551,6 +562,9 @@ struct RootView: View {
             app.journal.open(citation.dateKey)
             selectJournalNote(citation.dateKey)
             sidebarSelection = .journal
+            // La citation vient de la liste des gens : sans cette bascule elle
+            // ouvrirait la journée derrière la liste qu'on est en train de lire.
+            vueJournal = .journees
             journalListFocus += 1
         case .repas:
             nutritionDateKey = citation.dateKey
@@ -575,7 +589,9 @@ struct RootView: View {
 
     private var showsTraining: Bool { sidebarSelection == .training }
 
-    private var showsPeople: Bool { sidebarSelection == .people }
+    /// Les gens ne sont plus une section : c'est le journal, rangé par qui y
+    /// est cité. Voir `VueJournal`.
+    private var showsPeople: Bool { showsJournalSection && vueJournal == .gens }
 
     /// L'écran sous lequel les largeurs de volets sont rangées.
     ///
@@ -588,8 +604,10 @@ struct RootView: View {
         case .globalMap: .carte
         case .statistics: .statistiques
         case .training: .plan
-        case .journal: .journal
-        case .people: .people
+        // Deux écrans pour une section : le volet de droite porte l'éditeur
+        // d'une note d'un côté, la fiche d'une personne de l'autre, et ils
+        // n'ont pas la même largeur utile.
+        case .journal: vueJournal == .gens ? .people : .journal
         case .nutrition: .alimentation
         case .weight: .poids
         case .all, nil: .activites
@@ -1273,7 +1291,8 @@ struct RootView: View {
             journalDayKeys: journalDayKeys,
             journalTagCounts: journalTagCounts,
             journalDay: journalDayBinding,
-            nutritionDay: $nutritionDateKey
+            nutritionDay: $nutritionDateKey,
+            journalVue: vueJournal
         )
             .frame(minWidth: 260)
             .sportWash(washColor, strength: SportWashStrength.sidebar)
@@ -1354,6 +1373,10 @@ struct RootView: View {
                     // instead of clearing a selection it doesn't have.
                     if showsNutrition {
                         nutritionPanelVisible.toggle()
+                    } else if showsPeople {
+                        // Le volet des gens suit la personne choisie, comme
+                        // celui du journal suit la note.
+                        selectedPerson = nil
                     } else if showsJournal {
                         // The journal's pane follows the note selection, and
                         // the activity selection it would otherwise clear is
@@ -1378,7 +1401,9 @@ struct RootView: View {
                 .disabled(
                     showsWeight
                         || (showsJournal && journalSelection == nil)
-                        || (!showsNutrition && !showsJournal && selection.isEmpty)
+                        || (showsPeople && selectedPerson == nil)
+                        || (!showsNutrition && !showsJournal && !showsPeople
+                            && selection.isEmpty)
                 )
                 .help(
                     showsNutrition
@@ -1433,22 +1458,39 @@ struct RootView: View {
                 }
             }
 
-            if showsJournal {
+            if showsJournalSection {
                 ToolbarItemGroup {
-                    Button {
-                        openTodaysNote()
-                    } label: {
-                        Label("Note du jour", systemImage: "square.and.pencil")
+                    // Le même segmenté que la présentation des activités : le
+                    // choix porte sur la façon de ranger ce qu'on a sous les
+                    // yeux, pas sur l'endroit où l'on va.
+                    Picker("Vue du journal", selection: $vueJournal) {
+                        ForEach(VueJournal.allCases) { vue in
+                            Label(vue.displayName, systemImage: vue.symbolName)
+                                .tag(vue)
+                        }
                     }
-                    .help("Ouvrir la note d'aujourd'hui (⌘N)")
+                    .pickerStyle(.segmented)
+                    .labelStyle(.iconOnly)
+                    .help("Basculer entre les journées et les gens qui y sont cités")
 
-                    Button {
-                        journalPendingDeletion = journalSelection
-                    } label: {
-                        Label("Supprimer", systemImage: "trash")
+                    // Écrire et supprimer, ce sont des gestes sur une note :
+                    // devant la liste des gens ils n'ont rien à viser.
+                    if showsJournal {
+                        Button {
+                            openTodaysNote()
+                        } label: {
+                            Label("Note du jour", systemImage: "square.and.pencil")
+                        }
+                        .help("Ouvrir la note d'aujourd'hui (⌘N)")
+
+                        Button {
+                            journalPendingDeletion = journalSelection
+                        } label: {
+                            Label("Supprimer", systemImage: "trash")
+                        }
+                        .disabled(!journalSelectionHasNote)
+                        .help("Supprimer la note sélectionnée")
                     }
-                    .disabled(!journalSelectionHasNote)
-                    .help("Supprimer la note sélectionnée")
                 }
             }
     }

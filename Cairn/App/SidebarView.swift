@@ -7,7 +7,6 @@ enum SidebarItem: Hashable {
     case statistics
     case training
     case journal
-    case people
     case nutrition
     case weight
 }
@@ -50,6 +49,14 @@ struct SidebarView: View {
     /// The food journal's day, for its own calendar. The same binding the
     /// journal screen travels on, so the two never disagree.
     @Binding var nutritionDay: DateKey
+
+    /// Ce que le journal montre : ses journées, ou les gens qui y sont cités.
+    ///
+    /// Le calendrier et les étiquettes ne rangent que des journées ; devant la
+    /// liste des gens ils désignent une liste qui n'est plus là. La bascule
+    /// elle-même est dans la barre d'outils, au-dessus de ce qu'elle change —
+    /// voir `VueJournal`.
+    let journalVue: VueJournal
 
     /// A calendar is a grid, not a row: on the list's own row insets it loses
     /// a column to them.
@@ -101,8 +108,6 @@ struct SidebarView: View {
                 Label("Journal", systemImage: "text.book.closed")
                     .badge(journalDayKeys.count)
                     .tag(SidebarItem.journal)
-                Label("People", systemImage: "at")
-                    .tag(SidebarItem.people)
                 Label("Alimentation", systemImage: "fork.knife")
                     .tag(SidebarItem.nutrition)
                 Label("Poids", systemImage: "scalemass")
@@ -131,7 +136,7 @@ struct SidebarView: View {
                 }
             }
 
-            if selection == .journal {
+            if selection == .journal, journalVue == .journees {
                 // Above the tags, because it answers the question one arrives
                 // with — "what did I write on the 6th?" — where the tags answer
                 // the one that comes after, "what have I written about Sam?".
