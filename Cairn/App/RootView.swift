@@ -38,6 +38,23 @@ struct RootView: View {
     /// jours d'écran, pour que la grille et son mois survivent à un aller-retour
     /// vers la liste.
     @State private var trainingDateKey = DateKey(Date())
+    /// Si le volet de droite montre une sortie sur un écran qui ne parle pas
+    /// de sorties — le plan, les statistiques.
+    ///
+    /// On y arrive pour lire des semaines ou des chiffres : la sortie restée
+    /// sélectionnée dans la liste y mangeait la colonne de droite sans rien
+    /// dire de ce qu'on est venu voir. Elle revient dès qu'on clique une
+    /// séance accomplie ou un record, qui sont les deux gestes par lesquels on
+    /// demande une sortie depuis ces écrans.
+    ///
+    /// Un drapeau, et non la sélection vidée en arrivant. La sélection
+    /// n'appartient pas à ces écrans-là : la vider ici, c'est la perdre dans
+    /// la liste d'activités, où elle attendait qu'on revienne. Signalé le
+    /// 31 août 2026, sur le plan puis sur les statistiques.
+    ///
+    /// Un seul drapeau pour les deux : un seul de ces écrans est à l'écran à
+    /// la fois, et chacun le baisse en arrivant.
+    @State private var sortieOuverteDepuisLEcran = false
     /// Ce que le journal montre : ses journées, ou les gens qui y sont cités.
     /// `AppStorage`, comme la présentation de la liste d'activités : c'est une
     /// façon de lire, et elle doit se retrouver au lancement suivant.
@@ -681,7 +698,10 @@ struct RootView: View {
                     // then tries to make a `TableColumn` out of it.
                     StatisticsView(
                         activities: statisticsActivities,
-                        onSelect: { selectedActivities = [$0] }
+                        onSelect: {
+                            selectedActivities = [$0]
+                            sortieOuverteDepuisLEcran = true
+                        }
                     )
                     .vimKeys(performOutsideTheList)
                 } else if showsJournal {
@@ -715,7 +735,10 @@ struct RootView: View {
                         // Sélectionnée, pas ouverte : `openActivity` bascule
                         // sur l'onglet des activités, ce qui ferait quitter le
                         // plan à chaque sortie qu'on veut relire.
-                        onSelectActivity: { selectedActivities = [$0] }
+                        onSelectActivity: {
+                            selectedActivities = [$0]
+                            sortieOuverteDepuisLEcran = true
+                        }
                     )
                     .vimKeys(performOutsideTheList)
                 } else if showsNutrition {
@@ -822,13 +845,14 @@ struct RootView: View {
         // a record still opens that activity beside them — this fires on
         // entering the section, not on every selection made inside it.
         //
-        // Le plan pour la même raison : on y arrive pour lire des semaines,
-        // et la sortie restée sélectionnée dans la liste mangeait la colonne
-        // de droite sans rien dire du plan. Cliquer une séance faite ouvre
-        // toujours sa sortie à côté.
+        // Le plan pour la même raison. Et un drapeau plutôt que la sélection
+        // vidée : voir `sortieOuverteDepuisLEcran`. Vider fermait bien le
+        // volet, mais emportait avec lui la ligne que la liste d'activités
+        // gardait pour le retour.
+        //
         .onChange(of: sidebarSelection) { _, newValue in
             if newValue == .statistics || newValue == .training {
-                selectedActivities = []
+                sortieOuverteDepuisLEcran = false
             }
         }
         // A pending debounce is unwritten work: leaving the note or the section
@@ -1267,7 +1291,7 @@ struct RootView: View {
             // le plan. Cliquer une séance faite emmenait sur l'onglet des
             // activités, et il fallait revenir pour lire la ligne suivante du
             // plan ; ici les deux se lisent côte à côte.
-            if let selected {
+            if sortieOuverteDepuisLEcran, let selected {
                 ActivityDetailView(
                     activity: selected,
                     onExpandMap: { expandedMap = .activity(selected.id) },
@@ -1294,6 +1318,11 @@ struct RootView: View {
                 collapsedDetailColumn
             }
         } else if showsWeight {
+            collapsedDetailColumn
+        } else if showsStatistics, !sortieOuverteDepuisLEcran {
+            // Une branche à part plutôt qu'une condition sur `let selected` :
+            // plusieurs sorties sélectionnées ouvriraient sinon la carte de
+            // comparaison au milieu des graphiques.
             collapsedDetailColumn
         } else if let selected {
             ActivityDetailView(
