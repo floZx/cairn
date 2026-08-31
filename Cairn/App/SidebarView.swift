@@ -139,7 +139,9 @@ struct SidebarView: View {
                 }
             }
 
-            if selection == .journal, journalVue == .journees {
+            // Rien du journal tant qu'il est verrouillé : le calendrier
+            // marque les jours racontés, et les étiquettes sont des prénoms.
+            if selection == .journal, journalVue == .journees, app.journalLock.estOuvert {
                 // Above the tags, because it answers the question one arrives
                 // with — "what did I write on the 6th?" — where the tags answer
                 // the one that comes after, "what have I written about Sam?".

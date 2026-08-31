@@ -334,7 +334,7 @@ struct RootView: View {
             // the list, today's note in the journal. One shortcut rather than
             // two, since the two can never both apply.
             app.requestNewActivity = {
-                if showsJournal {
+                if showsJournal, app.journalLock.estOuvert {
                     openTodaysNote()
                 } else {
                     editor = .create
@@ -342,7 +342,7 @@ struct RootView: View {
             }
             app.requestEditSelection = { if let selected { editor = .edit(selected) } }
             app.requestDeleteSelection = {
-                if showsJournal {
+                if showsJournal, app.journalLock.estOuvert {
                     journalPendingDeletion = journalSelectionHasNote
                         ? journalSelection : nil
                 } else {
@@ -353,6 +353,8 @@ struct RootView: View {
             app.requestImportGPX = { chooseGPXFilesToImport() }
             app.requestExportGPX = { exportGPX(selection) }
             app.requestExportJournalPDF = {
+                // Un livre du journal est le journal : il attend la même clé.
+                guard app.journalLock.estOuvert else { return }
                 // Pre-filled on the month being read: that is the period one
                 // has in mind when the menu is opened from the journal.
                 let day = journalSelection ?? DateKey(Date())
@@ -707,6 +709,11 @@ struct RootView: View {
                         }
                     )
                     .vimKeys(performOutsideTheList)
+                } else if showsJournalSection, !app.journalLock.estOuvert {
+                    // Avant les deux vues du journal, gens compris : c'est la
+                    // même matière, et la ranger par personne ne la rend pas
+                    // moins intime.
+                    JournalLockView()
                 } else if showsJournal {
                     JournalListView(
                         days: filteredJournalDays,
@@ -1248,7 +1255,9 @@ struct RootView: View {
         // more: clicking a track on one, or a record on the other, opens the
         // activity beside it, and both give the width back when nothing is
         // selected.
-        if showsJournal {
+        if showsJournalSection, !app.journalLock.estOuvert {
+            collapsedDetailColumn
+        } else if showsJournal {
             if let date = journalSelection,
                let day = journalDays.first(where: { $0.date == date }) {
                 JournalDetailView(

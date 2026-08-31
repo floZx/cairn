@@ -18,6 +18,11 @@ final class AppEnvironment {
     /// scene get the same instance rather than two views of one journal.
     let journal: JournalStore
 
+    /// Le verrou du journal, une fois par ouverture de l'application. Tenu ici
+    /// pour cette raison même : un `@State` de vue redemanderait à chaque
+    /// reconstruction.
+    let journalLock = JournalLock()
+
     /// Ce que la bibliothèque dit des journées, calculé une fois par écriture
     /// et non une fois par rendu. Tenu ici parce qu'il doit survivre aux
     /// reconstructions de `RootView` : un `@State` le referait à chaque
