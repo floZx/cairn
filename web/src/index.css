@@ -835,8 +835,13 @@ input, button { font: inherit; }
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
-  min-height: 44px;
-  padding: calc(env(safe-area-inset-top) + 6px) 12px 8px;
+  /* 34 et non 44 : cette barre ne porte qu'un bouton de 32, et la hauteur
+     d'une barre de navigation d'iOS y laissait un vide au-dessus du grand
+     titre — « un grand espace vide », signalé. Le titre remonte d'autant, et
+     son encre commence maintenant juste sous le bouton plutôt qu'un cran plus
+     bas. */
+  min-height: 34px;
+  padding: calc(env(safe-area-inset-top) + 6px) 12px 4px;
   /* Rien tant qu'on est en haut, et c'est ce qui fait la différence avec une
      page web. La matière posée là en permanence éclaircissait un fond uni —
      un `brightness(1.1)` sur du #f2f2f7 donne du blanc — d'où un bandeau clair
@@ -888,8 +893,11 @@ input, button { font: inherit; }
   flex: 1;
   overflow-y: auto;
   /* La hauteur de la barre du haut, qui la surplombe désormais : sans cette
-     réserve, le grand titre naîtrait dessous. */
-  padding-top: calc(env(safe-area-inset-top) + 50px);
+     réserve, le grand titre naîtrait dessous. L'encoche en est, et elle ne
+     doit jamais sortir de ce calcul : un navigateur de bureau n'en a pas, si
+     bien qu'une valeur fixe s'y voit juste et passe le titre sous l'heure du
+     téléphone. */
+  padding-top: calc(env(safe-area-inset-top) + 34px);
   /* L'inertie du doigt : sans elle le défilement s'arrête net et c'est le
      deuxième détail, après les onglets, qui trahit une page web. */
   -webkit-overflow-scrolling: touch;
@@ -911,6 +919,7 @@ input, button { font: inherit; }
   justify-content: space-between;
   gap: 12px;
   padding-right: 12px;
+  margin-top: 0;
   /* Les marges verticales du titre remontées ici, et c'est ce qui aligne
      vraiment. `align-items: center` centre la **boîte de marge** de chaque
      élément : les dix pixels sous le titre tiraient donc le sélecteur de trois
