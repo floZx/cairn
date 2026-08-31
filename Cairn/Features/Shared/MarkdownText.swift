@@ -31,39 +31,46 @@ struct MarkdownText: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // Un bloc, une popover : elle s'ancre sur ce qu'on a cliqué. Posée
+            // sur la note entière, elle s'ouvrait sous le dernier paragraphe,
+            // à des centimètres du mot. Signalé.
             ForEach(blocks) { block in
-                switch block {
-                case let .heading(level, text):
-                    inline(text)
-                        .font(headingFont(level))
-                        // Air above a heading and not below it: the gap belongs
-                        // to what the heading separates from, not to what it
-                        // introduces.
-                        .padding(.top, block == blocks.first ? 0 : 6)
-                case let .paragraph(text):
-                    sized(inline(text))
-                case let .bullet(text):
-                    marker("•", text)
-                case let .numbered(number, text):
-                    marker("\(number).", text)
-                case let .image(path, alt):
-                    image(path: path, alt: alt)
-                case let .quote(text):
-                    HStack(alignment: .top, spacing: 8) {
-                        // A rule rather than an indent: an indent alone is
-                        // indistinguishable from a wrapped line.
-                        Rectangle()
-                            .fill(.tertiary)
-                            .frame(width: 2)
-                        sized(inline(text))
-                            .foregroundStyle(.secondary)
-                            .italic()
-                    }
-                    .fixedSize(horizontal: false, vertical: true)
-                }
+                BlocDeNote { vue(pour: block) }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func vue(pour block: MarkdownBlock) -> some View {
+        switch block {
+                case let .heading(level, text):
+            inline(text)
+                .font(headingFont(level))
+                // Air above a heading and not below it: the gap belongs to what
+                // the heading separates from, not to what it introduces.
+                .padding(.top, block == blocks.first ? 0 : 6)
+        case let .paragraph(text):
+            sized(inline(text))
+        case let .bullet(text):
+            marker("•", text)
+        case let .numbered(number, text):
+            marker("\(number).", text)
+        case let .image(path, alt):
+            image(path: path, alt: alt)
+        case let .quote(text):
+            HStack(alignment: .top, spacing: 8) {
+                // A rule rather than an indent: an indent alone is
+                // indistinguishable from a wrapped line.
+                Rectangle()
+                    .fill(.tertiary)
+                    .frame(width: 2)
+                sized(inline(text))
+                    .foregroundStyle(.secondary)
+                    .italic()
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     /// The picture, or its name.
@@ -197,9 +204,42 @@ struct MarkdownText: View {
 
         for citation in trouves {
             resultat[citation].foregroundColor = .accentColor
+            // Un lien, parce que c'est la seule façon dont un `Text` de SwiftUI
+            // rend une plage cliquable : il n'y a pas de geste par plage de
+            // texte, et le survol n'en a pas non plus. Voir `lien(pour:)` pour
+            // ce que l'adresse transporte.
+            let ecrit = String(resultat[citation].characters.dropFirst())
+            if let handle = PersonHandle(name: ecrit) {
+                resultat[citation].link = lien(pour: handle)
+            }
         }
         return resultat
     }
+
+    /// L'adresse d'une mention, qu'`openURL` reconnaîtra.
+    ///
+    /// Elle transporte le pseudo **tel qu'il est écrit**, pas sa clé repliée :
+    /// `PersonHandle` sait passer de l'un à l'autre, et la fiche a besoin des
+    /// deux — la clé pour retrouver la personne, l'orthographe pour la nommer.
+    ///
+    /// Un schéma à nous, et aucune déclaration dans `Info.plist` : rien ici ne
+    /// doit pouvoir être ouvert de l'extérieur, ces adresses ne vivent que le
+    /// temps d'un clic dans une note.
+    static func lien(pour handle: PersonHandle) -> URL? {
+        handle.name
+            .addingPercentEncoding(withAllowedCharacters: .alphanumerics)
+            .flatMap { URL(string: "\(schemaDesMentions):\($0)") }
+    }
+
+    /// La personne qu'une adresse désigne, ou nil quand ce n'en est pas une.
+    static func mention(dans url: URL) -> PersonHandle? {
+        guard url.scheme == schemaDesMentions else { return nil }
+        let corps = url.absoluteString.dropFirst(schemaDesMentions.count + 1)
+        guard let ecrit = corps.removingPercentEncoding else { return nil }
+        return PersonHandle(name: ecrit)
+    }
+
+    private static let schemaDesMentions = "cairn-personne" 
 
     /// Drops the `#` from every tag.
     ///
@@ -244,5 +284,55 @@ struct MarkdownText: View {
             result.removeSubrange(hash)
         }
         return result
+    }
+}
+
+
+/// Un bloc de note, avec la fiche d'une personne citée ancrée sur lui.
+///
+/// Le bloc et non la note : une popover posée sur la note entière s'ouvrait
+/// sous son dernier paragraphe, à des centimètres du mot cliqué. Ancrée ici,
+/// elle sort de la ligne qu'on lisait. Faute de savoir où un *mot* est dessiné
+/// — SwiftUI ne le dit pas — c'est le plus près qu'on puisse arriver sans
+/// réécrire le rendu du texte.
+private struct BlocDeNote<Contenu: View>: View {
+    @ViewBuilder var contenu: Contenu
+
+    /// Optionnel : `MarkdownText` sert aussi hors de l'application montée —
+    /// aperçus, essais — où personne n'a posé d'environnement.
+    @Environment(AppEnvironment.self) private var app: AppEnvironment?
+    @State private var personneOuverte: PersonHandle?
+
+    var body: some View {
+        contenu
+            // Les liens ordinaires d'une note gardent leur sens : seule une
+            // adresse de mention est détournée, le reste part au navigateur.
+            .environment(\.openURL, OpenURLAction { url in
+                guard let handle = MarkdownText.mention(dans: url) else {
+                    return .systemAction
+                }
+                ouvrir(handle)
+                return .handled
+            })
+            .popover(item: $personneOuverte) { handle in
+                PersonPopoverCard(handle: handle)
+            }
+    }
+
+    /// Ouvre la fiche, en demandant d'abord la clé du journal s'il est fermé.
+    ///
+    /// Une fiche est de la matière du journal — c'est ce qu'on a écrit sur
+    /// quelqu'un — et une note de sortie qui cite `@Sam` se lit, elle, sans
+    /// verrou. Sans ce passage, un clic depuis là ouvrirait par la fenêtre ce
+    /// que la porte protège.
+    private func ouvrir(_ handle: PersonHandle) {
+        guard let verrou = app?.journalLock, !verrou.estOuvert else {
+            personneOuverte = handle
+            return
+        }
+        Task {
+            await verrou.ouvrir()
+            if verrou.estOuvert { personneOuverte = handle }
+        }
     }
 }

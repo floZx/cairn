@@ -99,6 +99,18 @@ struct PeopleIndexTests {
         #expect(PeopleIndex.unites(de: "une phrase\n---\n— et sa suite").count == 1)
     }
 
+    /// Ce que la popover d'une mention prend : les cinq dernières, dans
+    /// l'ordre. La règle vit dans `citations`, la carte ne fait que couper.
+    @Test func lesCinqDernieresSuffisentALaPopover() {
+        let index = PeopleIndex.citations(dans: (1...9).map {
+            texte(String(format: "2026-08-%02d", $0), .journal, "vu @sam")
+        })
+        let cinq = Array((index[handle("sam")] ?? []).prefix(5))
+        #expect(cinq.map(\.dateKey.raw) == [
+            "2026-08-09", "2026-08-08", "2026-08-07", "2026-08-06", "2026-08-05",
+        ])
+    }
+
     @Test func lesPlusRecentesDAbord() {
         let index = PeopleIndex.citations(dans: [
             texte("2026-08-10", .journal, "@sam"),
