@@ -221,6 +221,13 @@ export function Chrome({
   const positions = useRef<Record<string, number>>({})
   const vueCourante = useRef(vue)
   vueCourante.current = vue
+  /// La vue dont la position a été posée. Tant qu'elle diffère de la vue
+  /// courante, on ne retient rien : entre le changement de contenu et la
+  /// remise en place, le navigateur émet des défilements qui ne sont de
+  /// personne — un contenu plus court rogne la position, un contenu plus long
+  /// la laisse telle quelle — et les retenir revenait à hériter, sur la fiche
+  /// où l'on arrive, du défilement de l'écran qu'on vient de quitter.
+  const vuePosee = useRef<string | null>(null)
 
   // Deux seuils au lieu d'un : à seuil unique, un doigt posé pile dessus fait
   // clignoter le titre à chaque pixel de défilement.
@@ -233,6 +240,10 @@ export function Chrome({
       // Retenue au fil du défilement plutôt qu'au moment de partir : à ce
       // moment-là le contenu a déjà changé, et la position lue ne serait plus
       // celle de la vue qu'on quitte.
+      //
+      // Sauf avant que la vue courante n'ait été posée : ce défilement-là
+      // n'est pas le geste de quelqu'un, c'est le contenu qui change.
+      if (vuePosee.current !== vueCourante.current) return
       positions.current[vueCourante.current] = y
     }
     cible.addEventListener("scroll", surDefilement, { passive: true })
@@ -243,15 +254,35 @@ export function Chrome({
     const cible = zone.current
     if (!cible) return
     const y = positions.current[vue] ?? 0
-    // Après le rendu, et une seconde fois au coup d'horloge suivant : au
-    // retour d'une fiche, la liste peut n'avoir pas encore repris sa hauteur,
-    // et un défilement demandé trop tôt se fait rogner à ce que le conteneur
-    // mesure à cet instant.
-    const poser = () => cible.scrollTo({ top: y })
+    // Après le rendu, au coup d'horloge suivant, puis une fois le contenu
+    // arrivé. Au retour d'une fiche, la liste peut n'avoir pas encore repris
+    // sa hauteur, et un défilement demandé trop tôt se fait rogner à ce que le
+    // conteneur mesure à cet instant. Dans l'autre sens — une fiche longue,
+    // quelqu'un de beaucoup cité — rien ne rogne rien et la position de
+    // l'écran quitté survit telle quelle : c'est le défaut signalé.
+    const poser = () => {
+      cible.scrollTo({ top: y })
+      // Et le document lui-même : selon la hauteur du contenu, c'est parfois
+      // lui qui a défilé et non le conteneur.
+      if (y === 0) scrollTo({ top: 0 })
+    }
     poser()
-    const t = requestAnimationFrame(poser)
+    const image = requestAnimationFrame(poser)
+    // Les citations d'une fiche et leurs images arrivent après coup, et le
+    // navigateur recale la position pour garder l'écran stable quand la mise
+    // en page grandit au-dessus. Reposer une fois de plus, un souffle plus
+    // tard, est ce qui tient devant ce recalage-là.
+    // La vue n'est tenue pour posée qu'après cette dernière remise : d'ici là,
+    // ce qui bouge est le contenu, pas quelqu'un.
+    const tard = setTimeout(() => {
+      poser()
+      vuePosee.current = vue
+    }, 200)
     setReplie(y > 52)
-    return () => cancelAnimationFrame(t)
+    return () => {
+      cancelAnimationFrame(image)
+      clearTimeout(tard)
+    }
   }, [vue])
 
   /// Toucher l'onglet où l'on est déjà remonte en haut.
