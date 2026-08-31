@@ -786,8 +786,15 @@ struct RootView: View {
         // figures now on screen, and its pane was simply in the way. Clicking
         // a record still opens that activity beside them — this fires on
         // entering the section, not on every selection made inside it.
+        //
+        // Le plan pour la même raison : on y arrive pour lire des semaines,
+        // et la sortie restée sélectionnée dans la liste mangeait la colonne
+        // de droite sans rien dire du plan. Cliquer une séance faite ouvre
+        // toujours sa sortie à côté.
         .onChange(of: sidebarSelection) { _, newValue in
-            if newValue == .statistics { selectedActivities = [] }
+            if newValue == .statistics || newValue == .training {
+                selectedActivities = []
+            }
         }
         // A pending debounce is unwritten work: leaving the note or the section
         // has to flush it, not race it.
