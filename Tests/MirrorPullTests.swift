@@ -545,10 +545,17 @@ struct MirrorPullNutritionTests {
 @MainActor
 struct MirrorPullPaginationTests {
     /// Une page pleine de notes partageant toutes le même `updated_at`.
+    ///
+    /// Un jour chacune, et c'est la règle qu'on ne peut pas contourner ici :
+    /// deux notes le même jour sont un doublon que le miroir recolle en une
+    /// seule (voir `JournalNoteWrite.foldDuplicateDays`), et la pagination
+    /// aurait alors compté une ligne pour deux cent dix pages lues.
     private static func pageIdentique(_ debut: Int, _ nombre: Int, horodatage: String) -> Data {
+        let premier = DateKey(raw: "2026-01-01")!.date()
         let rows = (debut..<(debut + nombre)).map { i -> [String: Any] in
-            [
-                "uuid": "n\(i)", "date_key_raw": "2026-08-16", "text": "Note \(i)",
+            let jour = Calendar.current.date(byAdding: .day, value: i, to: premier)!
+            return [
+                "uuid": "n\(i)", "date_key_raw": DateKey(jour).raw, "text": "Note \(i)",
                 "updated_at": horodatage, "edited_at": horodatage,
                 "deleted_at": NSNull(),
             ]

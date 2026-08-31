@@ -92,4 +92,59 @@ struct JournalNoteWriteTests {
         #expect(JournalNoteWrite.row(for: day, in: context)?.text == "Le 14.")
         #expect(JournalNoteWrite.row(for: other, in: context)?.text == "Le 15.")
     }
+
+    // MARK: - Un jour, une note
+
+    /// Les deux textes ont été écrits pour de bon et aucun n'a vu l'autre :
+    /// en garder un seul reviendrait à jeter ce que quelqu'un a écrit.
+    @Test("Deux notes du même jour sont recollées en une")
+    func foldRecolleLesDeuxTextes() throws {
+        let context = try context()
+        let ancienne = JournalNote(dateKey: day, text: "Écrit sur le Mac.")
+        ancienne.applyMirrored(
+            text: "Écrit sur le Mac.", editedAt: Date(timeIntervalSince1970: 1_000)
+        )
+        let recente = JournalNote(dateKey: day, text: "Écrit sur le téléphone.")
+        recente.applyMirrored(
+            text: "Écrit sur le téléphone.", editedAt: Date(timeIntervalSince1970: 2_000)
+        )
+        context.insert(ancienne)
+        context.insert(recente)
+        try context.save()
+
+        #expect(JournalNoteWrite.foldDuplicateDays(in: context) == 1)
+        try context.save()
+
+        let notes = try rows(context)
+        #expect(notes.count == 1)
+        // La plus récente survit, et le texte se lit dans l'ordre où il a été
+        // écrit.
+        #expect(notes.first?.uuid == recente.uuid)
+        #expect(notes.first?.text == "Écrit sur le Mac.\n\nÉcrit sur le téléphone.")
+    }
+
+    @Test("Un jour qui n'a qu'une note n'est pas touché")
+    func foldNeToucheRienSansDoublon() throws {
+        let context = try context()
+        JournalNoteWrite.apply("Sortie longue.", for: day, in: context)
+        try context.save()
+
+        #expect(JournalNoteWrite.foldDuplicateDays(in: context) == 0)
+        #expect(try rows(context).first?.text == "Sortie longue.")
+    }
+
+    /// La ligne écartée dort encore dans le miroir et peut en revenir : sans
+    /// le test de contenance, chaque passage rallongerait la note d'une copie
+    /// d'elle-même.
+    @Test("Un texte déjà contenu ne s'ajoute pas une seconde fois")
+    func fusionNeRepetePasCeQuelleContientDeja() {
+        let fondu = JournalNoteWrite.fusion(["Le matin.", "Le matin.\n\nLe soir."])
+        #expect(fondu == "Le matin.\n\nLe soir.")
+        #expect(JournalNoteWrite.fusion([fondu, "Le matin."]) == fondu)
+    }
+
+    @Test("Un texte vide ne compte pas dans la fusion")
+    func fusionIgnoreLeVide() {
+        #expect(JournalNoteWrite.fusion(["   ", "Le soir."]) == "Le soir.")
+    }
 }

@@ -146,7 +146,14 @@ enum StoreMaintenance {
 
         changed += try linkPhotosToTheirActivity(context)
 
-        guard changed > 0 else { return 0 }
+        // Hors du compte rendu, comme la récupération du journal : une journée
+        // racontée deux fois n'est pas une identité à réparer, c'est un texte
+        // à recoller. Les bases d'avant le correctif en portent — la règle
+        // vient d'arriver côté miroir, elle n'a pas pu défaire ce qui était
+        // déjà là. Voir `JournalNoteWrite.foldDuplicateDays`.
+        let recolles = JournalNoteWrite.foldDuplicateDays(in: context)
+
+        guard changed > 0 || recolles > 0 else { return 0 }
         try context.save()
         return changed
     }

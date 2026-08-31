@@ -806,6 +806,19 @@ extension MirrorEngine {
         // next push — the Mac sending back, under its own clock, exactly what
         // it just received.
         try MirrorBookkeeping.perform { try context.save() }
+
+        // Une journée peut arriver ici sous une identité que le Mac ne connaît
+        // pas alors qu'il a déjà sa note : les deux côtés l'ont écrite sans se
+        // voir. Le `uuid` ne les rapproche pas, le jour si — voir
+        // `JournalNoteWrite.foldDuplicateDays`.
+        //
+        // Hors de l'exemption ci-dessus, et c'est tout le contraire d'un
+        // oubli : la fusion est une écriture du Mac, la seule des deux que
+        // l'autre côté n'a pas, et elle doit repartir comme n'importe quelle
+        // frappe. La ligne retirée part avec, en pierre tombale.
+        if JournalNoteWrite.foldDuplicateDays(in: context) > 0 {
+            try context.save()
+        }
         return outcome
     }
 }
