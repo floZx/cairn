@@ -13,6 +13,9 @@ struct RootView: View {
     /// pâlirait, ce qui se lit comme un défaut. Voir
     /// `EnvironmentValues.vimKeysClaimentLeFocus`.
     @State private var sectionChoisieALaSouris = false
+    /// Incrémenté quand le contenu doit prendre le clavier — la touche Entrée
+    /// depuis la barre latérale. Voir `EnvironmentValues.vimKeysDemandeDeFocus`.
+    @State private var demandeDeFocusDuContenu = 0
 
     /// La sélection de la barre latérale, écrite par la barre elle-même — donc
     /// à la souris, ou aux flèches depuis la barre. Les changements de section
@@ -772,6 +775,7 @@ struct RootView: View {
             // Le contenu ne prend le clavier que si la souris ne vient pas de
             // le poser dans la barre latérale — voir `sectionChoisieALaSouris`.
             .environment(\.vimKeysClaimentLeFocus, !sectionChoisieALaSouris)
+            .environment(\.vimKeysDemandeDeFocus, demandeDeFocusDuContenu)
             // The same surface as the detail pane, so the two content columns
             // read as one and only the sidebar stands apart. At the column
             // rather than on the list: SwiftUI paints the column's own fill
@@ -1363,6 +1367,12 @@ struct RootView: View {
             journalTagCounts: journalTagCounts,
             journalDay: journalDayBinding,
             nutritionDay: $nutritionDateKey,
+            onEntree: {
+                // Le journal a son propre compteur, déjà câblé jusqu'à sa
+                // liste ; les autres écrans passent par l'environnement.
+                journalListFocus += 1
+                demandeDeFocusDuContenu += 1
+            },
             journalVue: vueJournal
         )
             .frame(minWidth: 260)

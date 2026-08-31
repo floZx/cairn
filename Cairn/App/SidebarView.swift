@@ -50,6 +50,9 @@ struct SidebarView: View {
     /// journal screen travels on, so the two never disagree.
     @Binding var nutritionDay: DateKey
 
+    /// Entrée : le clavier passe de la barre au contenu.
+    let onEntree: () -> Void
+
     /// Ce que le journal montre : ses journées, ou les gens qui y sont cités.
     ///
     /// Le calendrier et les étiquettes ne rangent que des journées ; devant la
@@ -260,6 +263,13 @@ struct SidebarView: View {
                     }
                 }
             }
+        }
+        // Entrée passe la main au contenu. La barre garde le clavier après un
+        // clic — c'est ce qui laisse sa ligne en bleu vif — et il faut bien un
+        // geste pour en sortir sans la souris.
+        .onKeyPress(.return) {
+            onEntree()
+            return .handled
         }
         .listStyle(.sidebar)
         // The list paints its own opaque background over anything behind it.

@@ -36,6 +36,11 @@ struct VimKeys: ViewModifier {
     /// travers l'environnement. Voir `EnvironmentValues.vimKeysClaimentLeFocus`.
     @Environment(\.vimKeysClaimentLeFocus) private var claimsFocusOnAppear
 
+    /// Un compteur qu'on incrémente pour réclamer le clavier depuis ailleurs —
+    /// aujourd'hui, la touche Entrée de la barre latérale. Voir
+    /// `EnvironmentValues.vimKeysDemandeDeFocus`.
+    @Environment(\.vimKeysDemandeDeFocus) private var demandeDeFocus
+
     @State private var buffer = VimKeyBuffer()
     @FocusState private var focused: Bool
 
@@ -47,6 +52,7 @@ struct VimKeys: ViewModifier {
             .focusEffectDisabled()
             .focused($focused)
             .onChange(of: focusRequest) { _, _ in focused = true }
+            .onChange(of: demandeDeFocus) { _, _ in focused = true }
             // Claim focus on appearance: a `g` jump builds a fresh view, and
             // without this the keys stay dead until the user clicks into the
             // content. One tick later, because the focus system silently drops
@@ -122,4 +128,19 @@ extension View {
 /// à personne.
 extension EnvironmentValues {
     @Entry var vimKeysClaimentLeFocus = true
+}
+
+/// Réclame le clavier pour la vue de contenu, de l'extérieur.
+///
+/// Un compteur et non un booléen : ce qui se demande est un *geste*, pas un
+/// état, et deux gestes de suite doivent tous deux arriver.
+///
+/// Son unique usager est la touche Entrée de la barre latérale. Depuis que le
+/// contenu ne prend plus le clavier après un clic — voir
+/// `vimKeysClaimentLeFocus` — la barre le garde, ce qui est juste, mais laissait
+/// `j` et `k` sans effet jusqu'au premier clic dans la liste. Entrée fait ce
+/// passage, comme la tabulation le fait ailleurs dans le système : on choisit
+/// une section, on valide, on est dedans.
+extension EnvironmentValues {
+    @Entry var vimKeysDemandeDeFocus = 0
 }
