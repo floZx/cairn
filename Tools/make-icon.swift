@@ -5,10 +5,20 @@ import AppKit
 // checked-in art alone so the shape can be tweaked and regenerated.
 //
 // Usage: swift Tools/make-icon.swift <chemin/AppIcon.appiconset>
+//        swift Tools/make-icon.swift --web <chemin/public>
+//
+// Deux dessins pour un seul tracé, et il faut dire pourquoi. Le Dock de macOS
+// attend une plaque posée sur du vide : une icône qui remplirait son carré y
+// serait plus grosse que toutes les autres. iOS et Android attendent l'inverse
+// — un carré plein, qu'ils masquent eux-mêmes — et composent ce qui est
+// transparent sur du **blanc**. Le même fichier aux deux endroits donnait donc
+// un cadre blanc autour de l'icône sur l'écran d'accueil du téléphone.
+// Signalé le 31 août 2026.
 
-let outputPath = CommandLine.arguments.count > 1
-    ? CommandLine.arguments[1]
-    : "Cairn/Assets.xcassets/AppIcon.appiconset"
+let pourLeWeb = CommandLine.arguments.contains("--web")
+let chemins = CommandLine.arguments.dropFirst().filter { $0 != "--web" }
+let outputPath = chemins.first
+    ?? (pourLeWeb ? "web/public" : "Cairn/Assets.xcassets/AppIcon.appiconset")
 let output = URL(filePath: outputPath)
 
 /// The four slabs, traced off the reference image and normalised to its ink box.
@@ -30,7 +40,10 @@ let slabs: [[(x: CGFloat, y: CGFloat)]] = [
 /// Not `NSImage.lockFocus`: that renders at the screen's backing scale, so on a
 /// Retina Mac every file came out twice its declared size and the asset catalog
 /// warned about all ten of them.
-func drawIcon(size: CGFloat) -> NSBitmapImageRep {
+/// - Parameter pleinBord: le fond couvre tout le carré, sans marge ni coins
+///   arrondis, et rien n'est transparent. Ce que veulent les écrans d'accueil,
+///   qui posent leur propre masque par-dessus.
+func drawIcon(size: CGFloat, pleinBord: Bool = false) -> NSBitmapImageRep {
     let pixels = Int(size)
     guard let rep = NSBitmapImageRep(
         bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: pixels,
@@ -50,9 +63,9 @@ func drawIcon(size: CGFloat) -> NSBitmapImageRep {
     // macOS icons leave a margin: the artwork is a rounded square filling about
     // 80 % of the canvas, not the canvas itself. The reference is a transparent
     // silhouette, but an icon without a plate reads as a broken image in the Dock.
-    let inset = size * 0.0977
+    let inset = pleinBord ? 0 : size * 0.0977
     let box = CGRect(x: inset, y: inset, width: size - 2 * inset, height: size - 2 * inset)
-    let radius = box.width * 0.225
+    let radius = pleinBord ? 0 : box.width * 0.225
 
     let plate = NSBezierPath(roundedRect: box, xRadius: radius, yRadius: radius)
     NSGraphicsContext.saveGraphicsState()
@@ -65,7 +78,13 @@ func drawIcon(size: CGFloat) -> NSBitmapImageRep {
     )?.draw(in: box, angle: -90)
     NSGraphicsContext.restoreGraphicsState()
 
-    let field = box.insetBy(dx: box.width * 0.13, dy: box.height * 0.13)
+    // Le champ des pierres garde la même part du carré dans les deux dessins —
+    // 59,5 %, ce que la plaque du Dock lui laisse — plutôt que la même part de
+    // la plaque : à bord perdu, cette dernière l'aurait fait grossir d'un
+    // quart, et le masque d'iOS lui aurait rogné les angles.
+    let field = pleinBord
+        ? box.insetBy(dx: size * 0.2023, dy: size * 0.2023)
+        : box.insetBy(dx: box.width * 0.13, dy: box.height * 0.13)
     NSColor(srgbRed: 0.075, green: 0.082, blue: 0.090, alpha: 1).setFill()
     for slab in slabs {
         let path = NSBezierPath()
@@ -98,10 +117,19 @@ let variants: [(name: String, pixels: CGFloat)] = [
     ("icon_512x512", 512), ("icon_512x512@2x", 1024),
 ]
 
+/// Les trois que le téléphone lit : `apple-touch-icon`, et les deux du
+/// manifeste. Dessinées à leur taille réelle comme les autres.
+let variantesWeb: [(name: String, pixels: CGFloat)] = [
+    ("icone-180", 180), ("icone-192", 192), ("icone-512", 512),
+]
+
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-for variant in variants {
+for variant in pourLeWeb ? variantesWeb : variants {
     // Drawn at the real pixel count so small sizes stay crisp instead of being a
     // downscale of the 1024 version.
-    try write(drawIcon(size: variant.pixels), to: output.appending(path: "\(variant.name).png"))
+    try write(
+        drawIcon(size: variant.pixels, pleinBord: pourLeWeb),
+        to: output.appending(path: "\(variant.name).png")
+    )
 }
 print("icônes écrites dans \(output.path)")

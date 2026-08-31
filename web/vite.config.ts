@@ -41,9 +41,23 @@ export default defineConfig({
         // avant une application sombre est un éclair dans les yeux le soir.
         background_color: "#000000",
         theme_color: "#000000",
+        // « maskable » en plus de « any » : les icônes sont désormais à bord
+        // perdu et opaques, et leurs pierres tiennent dans les 60 % du centre —
+        // la zone qu'Android promet de ne pas rogner, quelle que soit la forme
+        // que le lanceur découpe. Voir `Tools/make-icon.swift`.
         icons: [
-          { src: "/icone-192.png", sizes: "192x192", type: "image/png" },
-          { src: "/icone-512.png", sizes: "512x512", type: "image/png" },
+          {
+            src: "/icone-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any maskable",
+          },
+          {
+            src: "/icone-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable",
+          },
         ],
       },
       workbox: {
