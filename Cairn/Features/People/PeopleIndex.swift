@@ -32,6 +32,8 @@ enum PeopleIndex {
     struct Citation: Identifiable, Equatable {
         var dateKey: DateKey
         var source: Source
+        /// Ce qu'on montre : les seuls passages où elle est nommée, pas la note
+        /// entière. Voir `extrait(de:citant:)`.
         var texte: String
         /// La sortie à ouvrir, quand la citation vient de sa note.
         var activityUUID: String?
@@ -68,7 +70,8 @@ enum PeopleIndex {
             for handle in PersonScanner.mentions(in: propre) {
                 index[handle, default: []].append(
                     Citation(
-                        dateKey: texte.dateKey, source: texte.source, texte: propre,
+                        dateKey: texte.dateKey, source: texte.source,
+                        texte: extrait(de: propre, citant: handle),
                         activityUUID: texte.activityUUID
                     )
                 )
@@ -82,6 +85,75 @@ enum PeopleIndex {
             }
         }
         return index
+    }
+
+    /// Ce qu'on montre d'un texte sur la fiche de quelqu'un : les passages où
+    /// elle est nommée, et rien d'autre.
+    ///
+    /// Une note de journée raconte la journée entière — le réveil, la sortie,
+    /// le dîner. La fiche d'une personne recopiait tout cela parce que son nom
+    /// apparaissait une fois au milieu, si bien que dix citations faisaient dix
+    /// notes à relire pour retrouver la phrase qui parle d'elle.
+    ///
+    /// Plusieurs passages citants sont recollés, séparés par une ligne vide :
+    /// une citation reste une note, comme le dit `citations(dans:)`, elle est
+    /// seulement réduite à ce qui la concerne. Et le texte entier quand le
+    /// découpage ne trouve rien — mieux vaut trop montrer que rien.
+    static func extrait(de texte: String, citant handle: PersonHandle) -> String {
+        let citants = unites(de: texte).filter {
+            PersonScanner.mentions(in: $0).contains(handle)
+        }
+        return citants.isEmpty ? texte : citants.joined(separator: "\n\n")
+    }
+
+    /// Les unités de lecture d'un texte : les blocs séparés par une ligne
+    /// vide, et **chaque item de liste** pour son compte.
+    ///
+    /// Les items comptent à part parce qu'une note de journée en est souvent
+    /// faite de bout en bout. Sans cela, « le paragraphe » d'une liste de dix
+    /// lignes est la note entière, et on n'aurait rien découpé.
+    ///
+    /// Une ligne ordinaire, elle, prolonge ce qui précède : un paragraphe
+    /// replié sur trois lignes reste un paragraphe, et l'extrait ne doit pas
+    /// s'arrêter au milieu d'une phrase.
+    static func unites(de texte: String) -> [String] {
+        var unites: [String] = []
+        var courante: [String] = []
+        func clore() {
+            if !courante.isEmpty { unites.append(courante.joined(separator: "\n")) }
+            courante = []
+        }
+        for ligne in texte.components(separatedBy: CharacterSet.newlines) {
+            if ligne.trimmingCharacters(in: .whitespaces).isEmpty {
+                clore()
+                continue
+            }
+            if !courante.isEmpty, ouvreUneUnite(ligne) { clore() }
+            courante.append(ligne)
+        }
+        clore()
+        return unites
+    }
+
+    /// Ce qui ouvre une unité au milieu d'un bloc : un item de liste — `-`,
+    /// `*`, `+`, `1.`, `1)` — ou un titre.
+    ///
+    /// L'espace après la puce est exigé, sinon un trait de séparation `---` ou
+    /// une phrase commençant par un tiret cadratin ouvrirait une unité.
+    /// L'indentation est ignorée : un sous-item est un item.
+    private static func ouvreUneUnite(_ ligne: String) -> Bool {
+        let nu = ligne.drop { $0 == " " || $0 == "\t" }
+        if nu.hasPrefix("#") { return true }
+        if let premier = nu.first, "-*+".contains(premier) {
+            return nu.dropFirst().first == " "
+        }
+        let chiffres = nu.prefix(while: \.isNumber)
+        guard !chiffres.isEmpty else { return false }
+        let suite = nu.dropFirst(chiffres.count)
+        guard let ponctuation = suite.first, ponctuation == "." || ponctuation == ")" else {
+            return false
+        }
+        return suite.dropFirst().first == " "
     }
 
     /// Une ligne de la liste des gens.
