@@ -51,6 +51,20 @@ struct ActivityFilterTests {
         #expect(try fetch(context, .none).count == 2)
     }
 
+    /// `apply(to:)` a son propre chemin — les essais ci-dessus passent par le
+    /// prédicat et la base. Sans filtre, il rend la liste telle quelle plutôt
+    /// que de dérouler l'interpréteur de prédicat sur chaque sortie pour
+    /// répondre « oui » : c'est un raccourci, donc une équivalence à tenir.
+    @Test("sans filtre, apply rend la liste entière")
+    func applySansFiltreRendTout() throws {
+        let context = try makeContext {
+            insert($0, id: 1, sport: .ride)
+            insert($0, id: 2, sport: .run)
+        }
+        let toutes = try context.fetch(FetchDescriptor<Activity>())
+        #expect(ActivityFilter.none.apply(to: toutes, now: now).count == toutes.count)
+    }
+
     @Test("filtre par sport")
     func filtersBySport() throws {
         let context = try makeContext {
