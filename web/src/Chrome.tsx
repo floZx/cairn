@@ -176,6 +176,8 @@ export function Chrome({
   /// barre vaut mieux : depuis une fiche on veut souvent aller ailleurs, et
   /// remonter d'abord coûte un geste.
   masquerOnglets = false,
+  titre,
+  identite,
   retour,
   entete,
 }: {
@@ -185,6 +187,16 @@ export function Chrome({
   /// Le bouton de droite de la barre, s'il y en a un.
   action?: ReactNode
   masquerOnglets?: boolean
+  /// Ce que la barre annonce, quand la page n'est pas l'onglet.
+  ///
+  /// Sans lui, une fiche portait le nom de la section d'où elle vient — une
+  /// fiche de personne ouverte depuis une note s'intitulait « Journal », et
+  /// l'on ne savait plus où l'on était. Signalé.
+  titre?: string
+  /// Ce qui distingue une fiche d'une autre, pour la mémoire des positions de
+  /// défilement : sans elle, toutes les fiches partagent un seul repère, et
+  /// l'on arrive au milieu de la deuxième là où l'on avait laissé la première.
+  identite?: string
   /// De quoi revenir, quand il y a d'où revenir.
   ///
   /// Dans la barre et non dans la fiche : la barre est fixe, la fiche défile,
@@ -205,7 +217,7 @@ export function Chrome({
   // Chaque vue garde sa position de défilement : les quatre onglets, et la
   // fiche par-dessus. Revenir d'une activité remettait la liste en haut, ce
   // qui après un filtre à quarante résultats oblige à tout refaire défiler.
-  const vue = masquerOnglets ? "fiche" : section
+  const vue = masquerOnglets ? `fiche:${identite ?? ""}` : section
   const positions = useRef<Record<string, number>>({})
   const vueCourante = useRef(vue)
   vueCourante.current = vue
@@ -287,7 +299,7 @@ export function Chrome({
             </svg>
           </button>
         )}
-        <div className="titre-compact">{titreEcran(section)}</div>
+        <div className="titre-compact">{titre ?? titreEcran(section)}</div>
         <div className="action-barre">{action}</div>
       </header>
 

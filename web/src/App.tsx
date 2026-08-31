@@ -256,7 +256,10 @@ export function App() {
   if (!ready) return null
   if (!session) return <SignIn />
 
-  const surUneFiche = ouverte !== null
+  /// Une fiche de personne en est une aussi : elle recouvre l'écran, elle se
+  /// referme par le retour, et elle a son propre repère de défilement — sans
+  /// quoi on arrivait là où la liste du journal en était restée, au milieu.
+  const surUneFiche = ouverte !== null || personneOuverte !== null
 
   return (
     <SurUneMention.Provider value={ouvrirLaPersonne}>
@@ -264,6 +267,8 @@ export function App() {
       section={section}
       onSection={changerDeSection}
       masquerOnglets={surUneFiche}
+      titre={personneOuverte ? `@${personneOuverte}` : undefined}
+      identite={personneOuverte ?? ouverte ?? undefined}
       retour={surUneFiche ? () => history.back() : undefined}
       // Seulement sur les activités : c'est la seule section qui se regarde de
       // trois façons.
@@ -281,7 +286,10 @@ export function App() {
           {motStrava}
         </p>
       )}
-      {surUneFiche ? (
+      {/* `ouverte` et non `surUneFiche` : une fiche de personne est une fiche
+          aux yeux du châssis — onglets masqués, retour, repère de défilement —
+          mais c'est People qui la rend, pas la fiche d'une sortie. */}
+      {ouverte !== null ? (
         <ActivityDetail uuid={ouverte} onOuvrir={ouvrir} />
       ) : section === "activites" ? (
         <ActivityList
@@ -306,7 +314,18 @@ export function App() {
               history.pushState(null, "", `?personne=${encodeURIComponent(cle)}`)
               setPersonneOuverte(cle)
             }}
-            onFermer={() => history.back()}
+            // « ‹ Tous » mène à la liste, puisque c'est ce qu'il annonce — le
+            // chevron du châssis, lui, ramène d'où l'on vient. Deux gestes,
+            // deux promesses tenues : depuis une note, ils ne mènent pas au
+            // même endroit, et c'est exactement ce qu'on veut dire.
+            //
+            // L'entrée est remplacée plutôt qu'empilée : la liste n'est pas une
+            // page de plus par-dessus la fiche, c'est celle qu'on regarde à sa
+            // place.
+            onFermer={() => {
+              history.replaceState({ section, vueJournal }, "", location.pathname)
+              setPersonneOuverte(null)
+            }}
           />
         ) : (
         <Journal
