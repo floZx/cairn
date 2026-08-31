@@ -653,6 +653,36 @@ actor MirrorEngine {
     /// that fails midway through a table leaves the ones before it gone from
     /// the outbox and the ones from it onward — including itself —
     /// untouched.
+    /// ## Pourquoi les lectures par `uuid` filtrent en Swift, ici et deux fois
+    /// plus bas
+    ///
+    /// SwiftData retrouve la propriété derrière un `keyPath` en comparant des
+    /// `keyPath`, et ceux d'un `@Model` sont *calculés* : la comparaison porte
+    /// sur l'adresse des accesseurs. Formé dans une fonction générique qu'une
+    /// compilation optimisée spécialise, le `keyPath` n'est plus celui que le
+    /// schéma tient, la recherche échoue, et SwiftData s'arrête net :
+    ///
+    ///     SwiftData/DataUtilities.swift:85: Fatal error: Couldn't find
+    ///     \Athlete.<computed 0x104b320e8 (String)> on Athlete with fields
+    ///     [PropertyMetadata(name: "uuid", keypath: \Athlete.<computed
+    ///     0x1049b7b5c (String)>, …)]
+    ///
+    /// Mesuré le 31 août 2026, et pas déduit : en Release l'application mourait
+    /// à chaque synchronisation, sur la ligne de l'athlète, la seule en attente
+    /// dans l'outbox. En Debug rien ne se voit — sans spécialisation les deux
+    /// `keyPath` sont le même objet. Un `#Predicate` écrit sur le type concret
+    /// passe dans les deux cas : c'est la généricité qui décide, l'optimiseur
+    /// ne fait que la révéler. `propertiesToFetch` de `StoreMaintenance` ne
+    /// souffre pas du même mal, et pour la même raison : son `keyPath` lui est
+    /// donné tout formé par un appelant qui nomme le modèle.
+    ///
+    /// D'où ce parti : lire la table et filtrer en Swift. Le prix est une
+    /// lecture de table par page envoyée, sur des lignes plates — les blobs
+    /// sont en stockage externe et ne suivent pas, ce qui laisse intacte
+    /// l'arithmétique de `blobBatchSize`. Garder le filtre en SQL demanderait
+    /// un `#Predicate` écrit sur chacune des vingt conformances, soit soixante
+    /// lignes qu'aucun compilateur ne saurait tenir à jour ; à reprendre le
+    /// jour où une table sera assez grosse pour que la lecture se sente.
     private func pushRows<Model: PersistentModel & MirrorRow>(
         _ type: Model.Type, table: String, entries: [MirrorOutbox], userID: String,
         entriesByRow: [String: [MirrorOutbox]], outboxContext: ModelContext
@@ -679,11 +709,10 @@ actor MirrorEngine {
                 try Task.checkCancellation()
                 let pageUUIDs = Set(page)
                 let pageContext = ModelContext(container)
-                let models = try pageContext.fetch(
-                    FetchDescriptor<Model>(
-                        predicate: #Predicate<Model> { pageUUIDs.contains($0.uuid) }
-                    )
-                )
+                // Le filtre en Swift plutôt qu'en SQL : contournement, pas
+                // choix — voir la note en tête de cette fonction.
+                let models = try pageContext.fetch(FetchDescriptor<Model>())
+                    .filter { pageUUIDs.contains($0.uuid) }
                 // A row named by an entry but absent from the store —
                 // created and deleted before the recorder ever saw it as a
                 // deletion — has nothing left to send; the ones that do
@@ -1255,17 +1284,21 @@ actor MirrorEngine {
             // table harmless rather than something this loop has to reason
             // about.
             let pageContext = ModelContext(container)
-            var descriptor: FetchDescriptor<Model>
-            if let lastUUID = cursor.lastUUID(for: table) {
-                descriptor = FetchDescriptor<Model>(
-                    predicate: #Predicate<Model> { $0.uuid > lastUUID }
-                )
-            } else {
-                descriptor = FetchDescriptor<Model>()
-            }
-            descriptor.sortBy = [SortDescriptor(\Model.uuid, comparator: .lexical)]
-            descriptor.fetchLimit = Self.batchSize
-            let batch = try pageContext.fetch(descriptor)
+            // La page se découpe en Swift : le prédicat comme le tri
+            // passaient par un `keyPath` formé ici, dans une fonction
+            // générique — voir la note en tête de `pushRows`. L'ordre ne
+            // change pas de sens au passage : `uuidString` n'est fait que de
+            // chiffres hexadécimaux et de tirets, où l'ordre d'octets de
+            // Swift et le `.lexical` d'avant se rangent pareil. Et les deux
+            // moitiés — la borne et le tri — sont maintenant du même côté,
+            // là où l'une lisait la collation de SQLite et l'autre non.
+            let lastUUID = cursor.lastUUID(for: table)
+            let batch = Array(
+                try pageContext.fetch(FetchDescriptor<Model>())
+                    .filter { ligne in lastUUID.map { ligne.uuid > $0 } ?? true }
+                    .sorted { $0.uuid < $1.uuid }
+                    .prefix(Self.batchSize)
+            )
             if batch.isEmpty { break }
 
             let rows = batch.map { model -> [String: MirrorValue] in
@@ -1301,16 +1334,21 @@ actor MirrorEngine {
         }
     }
 
-    /// How many of this table's rows the cursor already accounts for — a
-    /// count, so it costs nothing beyond what `sendBatches` already pays for
-    /// `total`.
+    /// How many of this table's rows the cursor already accounts for — pour
+    /// le seul chiffre d'avancement montré pendant la remontée initiale.
+    ///
+    /// C'était un `fetchCount`, qui ne ramenait aucune ligne. Il compte
+    /// maintenant des lignes lues, faute de pouvoir poser le prédicat — voir
+    /// la note en tête de `pushRows`. Le prix est une lecture de la table par
+    /// table remontée, une seule fois, et les blobs n'en sont pas : ils sont
+    /// en stockage externe et ne se chargent qu'à la lecture d'un octet.
     private func alreadySentCount<Model: PersistentModel & MirrorRow>(
         _ type: Model.Type, table: String
     ) throws -> Int {
         guard let lastUUID = cursor.lastUUID(for: table) else { return 0 }
-        return try ModelContext(container).fetchCount(
-            FetchDescriptor<Model>(predicate: #Predicate<Model> { $0.uuid <= lastUUID })
-        )
+        return try ModelContext(container).fetch(FetchDescriptor<Model>())
+            .filter { $0.uuid <= lastUUID }
+            .count
     }
 
     func setPhase(_ phase: MirrorPhase) async {

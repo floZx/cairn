@@ -94,8 +94,15 @@ schemes:
       targets:
         Cairn: all
         CairnTests: [test]
+    # Release pour ce qu'on lance : `-Onone` coûte un facteur 1,6 sur le code
+    # de l'application — mesuré le 31 août 2026 sur `PersonScanner` (0,45 s
+    # contre 0,27 s) et sur `PeopleIndex.citations` (5,36 s contre 3,26 s) —
+    # et ce code-là tourne à chaque rendu : la fusion des journées relit la
+    # bibliothèque, l'index des gens relit tous les textes.
+    #
+    # Les essais restent en Debug, ils en ont besoin pour `@testable`.
     run:
-      config: Debug
+      config: Release
     test:
       config: Debug
       gatherCoverageData: false
