@@ -72,10 +72,10 @@ extension MirrorEngine {
     /// `2026-08-17T09:12:00.482913+00:00` are both routine, and a single
     /// `ISO8601DateFormatter` configured for one flatly refuses the other.
     static func date(from text: String) -> Date? {
-        MirrorClient.iso8601.date(from: text) ?? plainISO8601.date(from: text)
+        MirrorValue.iso8601.date(from: text) ?? plainISO8601.date(from: text)
     }
 
-    /// `nonisolated(unsafe)` on the same grounds as `MirrorClient.iso8601`:
+    /// `nonisolated(unsafe)` on the same grounds as `MirrorValue.iso8601`:
     /// never mutated after creation.
     nonisolated(unsafe) private static let plainISO8601: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()

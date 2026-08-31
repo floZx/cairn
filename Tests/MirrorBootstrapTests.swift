@@ -197,7 +197,7 @@ struct MirrorBootstrapTests {
         )
         #expect(
             byUUID[edited.uuid]?["edited_at"] as? String
-                == MirrorClient.iso8601.string(from: editedAt)
+                == MirrorValue.iso8601.string(from: editedAt)
         )
         // Une activité jamais éditée reçoit tout de même la colonne — à
         // `null`, jamais absente : PostgREST rejette un lot dont les objets

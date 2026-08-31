@@ -257,7 +257,7 @@ struct MirrorClientTests {
         #expect(row["b"] as? Int64 == 42)
         #expect(row["c"] as? Double == 3.5)
         #expect(row["d"] as? Bool == true)
-        #expect(row["e"] as? String == MirrorClient.iso8601.string(from: date))
+        #expect(row["e"] as? String == MirrorValue.iso8601.string(from: date))
         // Hexadécimal préfixé de `\x`, la forme littérale que `byteain`
         // reconnaît — écrite en dur, pas recalculée par le code testé. Le
         // base64 qu'envoyait la version précédente ne contient aucun
