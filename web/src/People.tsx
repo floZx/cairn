@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef} from "react"
+import { useEffect, useMemo, useState, useRef} from "react"
 import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
@@ -122,8 +122,26 @@ function useFiches() {
   })
 }
 
-export function People({ onSource }: { onSource: (citation: Citation) => void }) {
+export function People({
+  onSource,
+  personneAOuvrir,
+  onPersonneOuverte,
+}: {
+  onSource: (citation: Citation) => void
+  /// La personne à ouvrir en arrivant — un clic sur une citation dans une
+  /// note. Même mécanique que `noteAOuvrir` côté journal, et effacée de la
+  /// même façon : sans quoi revenir sur l'onglet trois jours plus tard
+  /// rouvrirait la fiche d'alors.
+  personneAOuvrir?: string | null
+  onPersonneOuverte?: () => void
+}) {
   const [ouverte, setOuverte] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!personneAOuvrir) return
+    setOuverte(personneAOuvrir)
+    onPersonneOuverte?.()
+  }, [personneAOuvrir, onPersonneOuverte])
   const textes = useTextes()
   const fiches = useFiches()
   // Les mêmes URL signées que le journal : une citation venue d'une note

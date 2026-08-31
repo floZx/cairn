@@ -1,6 +1,30 @@
 import type { ReactNode } from "react"
 import { CARACTERES_ETIQUETTE, nomDEtiquette } from "./tags"
+import { createContext, useContext } from "react"
 import { personne } from "./citations"
+
+/// Ce qu'un clic sur une personne citée doit faire.
+///
+/// Par un contexte : `enLigne` est une fonction, pas un composant — elle ne
+/// peut pas lire de contexte elle-même — mais ce qu'elle rend, si. Et une note
+/// est rendue à cinq étages de l'écran qui sait changer d'onglet ; faire
+/// descendre une fermeture à travers cinq signatures aurait mêlé la navigation
+/// à des composants qui n'en parlent pas.
+///
+/// `null` par défaut : la mention reste alors du texte coloré, ce qu'elle était
+/// avant. Rien ne casse là où personne n'a posé de fournisseur.
+export const SurUneMention = createContext<((cle: string) => void) | null>(null)
+
+/// Une personne citée, cliquable quand il y a où aller.
+function Mention({ cle, nom }: { cle: string; nom: string }) {
+  const ouvrir = useContext(SurUneMention)
+  if (!ouvrir) return <span className="citation">@{nom}</span>
+  return (
+    <button type="button" className="citation" onClick={() => ouvrir(cle)}>
+      @{nom}
+    </button>
+  )
+}
 
 /// Un rendu Markdown minimal, écrit à la main plutôt qu'emprunté.
 ///
@@ -119,13 +143,7 @@ export function enLigne(texte: string): ReactNode[] {
       // reste.
       const qui = personne(brut.slice(1))
       morceaux.push(
-        qui ? (
-          <span className="citation" key={cle++}>
-            @{qui.nom}
-          </span>
-        ) : (
-          brut
-        ),
+        qui ? <Mention key={cle++} cle={qui.cle} nom={qui.nom} /> : brut,
       )
     } else if (brut.startsWith("#")) {
       // Une suite qui n'est pas une étiquette valide reste telle quelle,

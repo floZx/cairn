@@ -2854,6 +2854,23 @@ body {
   color: var(--accent);
 }
 
+/* La même chose quand c'est un bouton — une mention cliquable dans une note.
+   Tout est remis à plat : un bouton apporte sa police, ses marges et son fond,
+   et une citation doit rester un mot dans une phrase. `inline` et non
+   `inline-block` pour qu'elle se coupe en fin de ligne comme le reste du
+   texte. */
+button.citation {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 /* ---- People --------------------------------------------------------------- */
 
 .liste-gens {

@@ -14,6 +14,7 @@ import { Stats } from "./Stats"
 import { Chrome, type Section } from "./Chrome"
 import { AUCUN, type Filtre } from "./criteres"
 import { presentationRetenue, type Vue } from "./vues"
+import { SurUneMention } from "./markdown"
 import { SelecteurVue } from "./SelecteurVue"
 import { BoutonCompte } from "./Compte"
 
@@ -126,10 +127,14 @@ export function App() {
   /// raisons que `jourRepas`, mêmes effacements à main levée.
   const [jourPlan, setJourPlan] = useState<string | null>(null)
   const [noteAOuvrir, setNoteAOuvrir] = useState<string | null>(null)
+  /// La personne à ouvrir en arrivant sur People — un clic sur une citation
+  /// dans une note, d'où qu'elle soit lue.
+  const [personneAOuvrir, setPersonneAOuvrir] = useState<string | null>(null)
   const changerDeSection = (s: Section) => {
     setJourRepas(null)
     setJourPlan(null)
     setNoteAOuvrir(null)
+    setPersonneAOuvrir(null)
     // Une fiche est une page poussée : partir vers un onglet la referme, comme
     // le chevron le ferait. Sans ça, la barre étant désormais visible depuis
     // une fiche, on changeait d'onglet sans rien voir changer — la fiche
@@ -149,6 +154,17 @@ export function App() {
   function ouvrir(uuid: string) {
     history.pushState(null, "", `?activite=${uuid}`)
     setOuverte(uuid)
+  }
+
+  /// Un clic sur une personne citée, dans n'importe quelle note : sa fiche.
+  ///
+  /// Depuis une fiche d'activité, il faut d'abord la refermer — c'est une page
+  /// poussée, et elle resterait devant l'onglet où l'on vient d'aller.
+  function ouvrirLaPersonne(cle: string) {
+    if (ouverte !== null) history.back()
+    setPersonneAOuvrir(cle)
+    setVueJournal("gens")
+    setSection("journal")
   }
 
   /// Va là d'où vient une citation de People.
@@ -185,6 +201,7 @@ export function App() {
   const surUneFiche = ouverte !== null
 
   return (
+    <SurUneMention.Provider value={ouvrirLaPersonne}>
     <Chrome
       section={section}
       onSection={changerDeSection}
@@ -220,7 +237,11 @@ export function App() {
         <Entrainement key={jourPlan ?? "aujourd'hui"} jourInitial={jourPlan ?? undefined} onOuvrir={ouvrir} />
       ) : section === "journal" ? (
         vueJournal === "gens" ? (
-          <People onSource={allerALaSource} />
+          <People
+            onSource={allerALaSource}
+            personneAOuvrir={personneAOuvrir}
+            onPersonneOuverte={() => setPersonneAOuvrir(null)}
+          />
         ) : (
         <Journal
           noteAOuvrir={noteAOuvrir}
@@ -241,5 +262,6 @@ export function App() {
         <Stats />
       )}
     </Chrome>
+    </SurUneMention.Provider>
   )
 }
