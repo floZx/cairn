@@ -85,8 +85,9 @@ struct NoteTextView: NSViewRepresentable {
         // c'est le défaut que tout le monde rencontre ici. On ne touche donc
         // au texte que lorsqu'il diffère vraiment — un changement venu
         // d'ailleurs, jamais celui qu'on vient de taper — et la sélection est
-        // rétablie derrière.
-        if champ.string != texte {
+        // rétablie derrière. Voir `doitReecrire` pour le second cas, moins
+        // connu, où il ne faut pas y toucher non plus.
+        if Self.doitReecrire(champ, texte: texte) {
             let selection = champ.selectedRange()
             champ.string = texte
             let borne = min(selection.location, (texte as NSString).length)
@@ -108,6 +109,27 @@ struct NoteTextView: NSViewRepresentable {
             // rien du tout, silencieusement.
             DispatchQueue.main.async { champ.window?.makeFirstResponder(champ) }
         }
+    }
+
+    /// Si la chaîne du champ doit être remplacée par celle que SwiftUI tient.
+    ///
+    /// Différente ne suffit pas : **pas pendant une composition**. Une touche
+    /// morte — le `^` d'un clavier français, avant le `e` de « ê » — pose du
+    /// *texte marqué* dans le champ, que la méthode de saisie remplacera par
+    /// le caractère composé à la touche suivante. Écrire `string` entre les
+    /// deux abandonne la composition : le `^` disparaît, et le `e` arrive nu.
+    /// Signalé le 31 août 2026 — aucun accent circonflexe n'était saisissable
+    /// dans le moindre champ de note.
+    ///
+    /// Et la course est difficile à perdre : dans le journal, chaque frappe
+    /// remonte jusqu'au magasin et redescend, si bien qu'une mise à jour
+    /// arrive presque à coup sûr entre les deux touches, avec un `texte` d'un
+    /// cycle de retard — donc différent, donc réécrit.
+    ///
+    /// À part et non `hasMarkedText()` glissé dans la condition : c'est la
+    /// règle qui porte le défaut, et une règle s'éprouve.
+    static func doitReecrire(_ champ: NSTextView, texte: String) -> Bool {
+        champ.string != texte && !champ.hasMarkedText()
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
