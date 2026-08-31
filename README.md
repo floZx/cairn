@@ -350,6 +350,50 @@ d'une activité.
 Ces notes partent maintenant dans la sauvegarde iCloud de Cairn, comme le reste
 de la base — voir « Sauvegarde ».
 
+### `cairn-note` : la note du jour dans vim
+
+Un outil en ligne de commande écrit la même note que le volet, depuis le
+terminal :
+
+```
+cairn-note              # la note d'aujourd'hui
+cairn-note 2026-08-14   # ce jour-là
+cairn-note 20260814     # le même, sans les tirets
+cairn-note -1           # hier ; +3 pour dans trois jours, signe compris
+```
+
+La note s'ouvre dans `$VISUAL`, à défaut `$EDITOR`, à défaut `nvim` ou `vim`
+selon ce qui est installé. Un alias du shell — `alias vim=nvim` — n'est pas vu
+d'ici : un alias est une règle du shell interactif, qu'aucun programme lancé
+par un autre programme ne voit. Pour ouvrir les notes dans nvim, c'est
+`$VISUAL` ou `$EDITOR` qu'il faut poser.
+
+Sortir sans rien changer
+n'écrit rien ; sortir en laissant la note vide la supprime, la même règle que
+le volet applique — elle vit dans `JournalNoteWrite`, appelée par les deux, et
+non recopiée dans chacun.
+
+**L'outil refuse de démarrer quand Cairn est ouvert.** L'application garde la
+note en mémoire et n'a aucun moyen d'apprendre qu'un autre processus a touché
+la base : une note écrite depuis le terminal lui serait invisible, puis écrasée
+à la frappe suivante. Il n'y a pas de fusion à proposer, donc pas de drapeau
+pour passer outre.
+
+Il ouvre la base par le schéma *entier* de l'application, ce qui est la raison
+pour laquelle sa cible compile tout `Cairn/Model` plutôt que les deux modèles
+du journal : un schéma partiel passerait pour une migration, et SwiftData se
+mettrait à réécrire la bibliothèque comme effet de bord de l'édition d'une
+note. Il démarre aussi `MirrorRecorder`, sans quoi sa note resterait sur le Mac
+— l'outbox du miroir est alimentée par un observateur de `willSave` que seule
+l'application installait jusqu'ici.
+
+Il se construit comme le reste, et n'est pas installé pour vous :
+
+```bash
+xcodebuild build -project Cairn.xcodeproj -scheme cairn-note -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+ln -sf "$PWD/build/Build/Products/Debug/cairn-note" ~/.local/bin/cairn-note
+```
+
 ## Alimentation et poids
 
 Deux sections de la barre latérale, portage d'un carnet en console que

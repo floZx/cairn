@@ -192,14 +192,11 @@ final class JournalStore {
         return updated
     }
 
-    /// The row for that day, or nil.
+    /// The row for that day, or nil. Through `JournalNoteWrite`, which holds
+    /// the fetch as well as the rule, so the pane and `cairn-note` read the
+    /// journal by the same predicate.
     private func row(for date: DateKey) -> JournalNote? {
-        let raw = date.raw
-        var descriptor = FetchDescriptor<JournalNote>(
-            predicate: #Predicate { $0.dateKeyRaw == raw }
-        )
-        descriptor.fetchLimit = 1
-        return try? context.fetch(descriptor).first
+        JournalNoteWrite.row(for: date, in: context)
     }
 
     // MARK: - Writing
@@ -267,22 +264,10 @@ final class JournalStore {
         saveTask = nil
         guard isDirty, let date = editingDate else { return }
         isDirty = false
-        if let existing = row(for: date) {
-            existing.setText(buffer)
-            // A note emptied to nothing goes, exactly as an emptied file used
-            // to leave the vault: opening today's note and typing nothing must
-            // not leave a blank day in the journal. The rule is
-            // `JournalNote.isEmpty`, and it has not changed.
-            //
-            // The row goes; the note does not. This is a pause in the middle
-            // of writing — select-all, delete, think — and `refresh()` below
-            // puts the open day's row back on its own.
-            if existing.isEmpty { context.delete(existing) }
-        } else {
-            let note = JournalNote(dateKey: date, text: buffer)
-            // Never inserted at all when there is nothing to keep.
-            if !note.isEmpty { context.insert(note) }
-        }
+        // The rule itself lives in `JournalNoteWrite`: `cairn-note` writes the
+        // same notes from the terminal, and a second copy of "empty means
+        // gone" is a copy that drifts.
+        JournalNoteWrite.apply(buffer, for: date, in: context)
         save()
         refresh()
     }

@@ -35,6 +35,43 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Cairn/Cairn.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         SWIFT_EMIT_LOC_STRINGS: YES
+  # L'outil en ligne de commande : la note du jour dans vim. Il rouvre le
+  # store de l'application, donc il compile le modèle *entier* — un schéma
+  # partiel passerait pour une migration, et SwiftData se mettrait à réécrire
+  # la bibliothèque comme effet de bord de l'édition d'une note.
+  cairn-note:
+    type: tool
+    platform: macOS
+    sources:
+      - path: CairnNote
+      - path: Cairn/Model
+        excludes:
+          # La reprise du premier lancement, qui appelle `JournalImport` et
+          # tirerait toute la lecture du dossier de notes derrière elle. Rien
+          # ici n'en a besoin : l'outil écrit dans une base déjà reprise.
+          - StoreMaintenance.swift
+      - path: Cairn/Mirror/MirrorRow.swift
+      - path: Cairn/Mirror/MirrorValue.swift
+      # La seule conformité dont l'outil ait besoin : le journal. Le
+      # magnétophone reconnaît une ligne par `as? any MirrorRow`, donc les
+      # tables qu'il ne compile pas sont celles qu'il ne touche pas.
+      - path: Cairn/Mirror/MirrorRows+Journal.swift
+      - path: Cairn/Mirror/MirrorOutbox.swift
+      - path: Cairn/Mirror/MirrorRecorder.swift
+      # `Activity` et sa trace : la géométrie vient avec le modèle.
+      - path: Cairn/Geo
+      - path: Cairn/Features/Journal/JournalTag.swift
+      - path: Cairn/Features/People/PersonHandle.swift
+      - path: Cairn/Features/Journal/JournalNoteDate.swift
+      - path: Cairn/Features/Journal/JournalNoteWrite.swift
+    settings:
+      base:
+        PRODUCT_NAME: cairn-note
+        # Signé localement et sans runtime durci : l'outil ne demande aucune
+        # autorisation système, il n'ouvre qu'un fichier de l'utilisateur.
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        ENABLE_HARDENED_RUNTIME: NO
   CairnTests:
     type: bundle.unit-test
     platform: macOS
@@ -64,3 +101,7 @@ schemes:
       gatherCoverageData: false
       targets:
         - CairnTests
+  cairn-note:
+    build:
+      targets:
+        cairn-note: all
