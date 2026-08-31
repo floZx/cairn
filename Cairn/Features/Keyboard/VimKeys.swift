@@ -32,6 +32,10 @@ struct VimKeys: ViewModifier {
     /// exactly as if nothing had been focused at all.
     var focusRequest: Int = 0
 
+    /// Si la vue prend le clavier en apparaissant — posé par l'écran, à
+    /// travers l'environnement. Voir `EnvironmentValues.vimKeysClaimentLeFocus`.
+    @Environment(\.vimKeysClaimentLeFocus) private var claimsFocusOnAppear
+
     @State private var buffer = VimKeyBuffer()
     @FocusState private var focused: Bool
 
@@ -43,12 +47,17 @@ struct VimKeys: ViewModifier {
             .focusEffectDisabled()
             .focused($focused)
             .onChange(of: focusRequest) { _, _ in focused = true }
-            // Claim focus on appearance: switching sections (sidebar click or
-            // `g` jump) builds a fresh view, and without this the keys stay
-            // dead until the user clicks into the content. One tick later,
-            // because the focus system silently drops a target that is still
-            // being inserted.
+            // Claim focus on appearance: a `g` jump builds a fresh view, and
+            // without this the keys stay dead until the user clicks into the
+            // content. One tick later, because the focus system silently drops
+            // a target that is still being inserted.
+            //
+            // Sauf après un clic dans la barre latérale — voir
+            // `claimsFocusOnAppear`. Le clavier reste alors où le clic l'a mis,
+            // comme dans n'importe quelle application du système : on ne prend
+            // pas le clavier à qui vient de s'en servir.
             .onAppear {
+                guard claimsFocusOnAppear else { return }
                 Task { @MainActor in focused = true }
             }
             // `.repeat` as well as `.down`: without it a held key fires once and
@@ -92,4 +101,25 @@ extension View {
             onCommand: onCommand, enabled: enabled, focusRequest: focusRequest
         ))
     }
+}
+
+/// Si les vues de contenu prennent le clavier en apparaissant.
+///
+/// Faux quand la section vient d'être choisie **à la souris** dans la barre
+/// latérale. Une liste macOS ne peint sa sélection en bleu vif que lorsqu'elle
+/// tient le clavier ; le lui prendre un tick après le clic faisait pâlir la
+/// ligne qu'on venait de choisir, sous les yeux de l'utilisateur : bleu, puis
+/// le contenu s'affiche, puis le bleu s'en va. Signalé le 31 août 2026, et
+/// « un peu aléatoire » parce que c'est une course entre ce tick et le clic.
+///
+/// Par l'environnement plutôt que par un argument : le réglage vaut pour
+/// toutes les vues de la colonne de contenu, dont quatre reçoivent `vimKeys`
+/// chez elles — leur faire porter le réglage aurait demandé de le passer à
+/// travers quatre signatures qui n'ont rien à voir avec le focus.
+///
+/// Vrai par défaut, donc au clavier — `gj`, `gd` — où le focus était déjà dans
+/// le contenu et doit y rester : c'est le seul cas où le réclamer ne prend rien
+/// à personne.
+extension EnvironmentValues {
+    @Entry var vimKeysClaimentLeFocus = true
 }

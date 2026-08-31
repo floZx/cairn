@@ -127,6 +127,33 @@ struct JournalDayTests {
         #expect(day.excerpt(matching: "lourdes") == "Jambes lourdes.")
     }
 
+    /// Le raccourci de `JournalLibraryCache` : les étiquettes d'ailleurs sont
+    /// fournies au lieu d'être relues. Fournies, elles font foi — c'est tout
+    /// l'intérêt — d'où ce test, qui vérifie qu'elles arrivent bien jusqu'à
+    /// `tags` en s'ajoutant à celles du carnet.
+    @Test("les tags d'ailleurs fournis évitent la relecture des textes")
+    func tagsDAilleursFournis() {
+        let jour = key("2026-08-11")
+        let jours = JournalDay.merge(
+            notes: [note("2026-08-11", "Promenade avec #Sam.")],
+            elsewhereNotes: [jour: ["Sortie #vélo."]],
+            elsewhereTags: [jour: [JournalTag(name: "vélo")!]]
+        )
+        #expect(jours.first?.tags == Set([JournalTag(name: "Sam")!, JournalTag(name: "vélo")!]))
+    }
+
+    /// Et sans dictionnaire, la journée relit ses textes : le raccourci ne peut
+    /// pas se prendre par mégarde.
+    @Test("sans tags fournis, la journée relit ses textes")
+    func tagsDAilleursRelus() {
+        let jour = key("2026-08-11")
+        let jours = JournalDay.merge(
+            notes: [note("2026-08-11", "Promenade avec #Sam.")],
+            elsewhereNotes: [jour: ["Sortie #vélo."]]
+        )
+        #expect(jours.first?.tags == Set([JournalTag(name: "Sam")!, JournalTag(name: "vélo")!]))
+    }
+
     @Test("le filtre cumule recherche et tags sur les deux sources")
     func filterCombinesBoth() {
         let days = JournalDay.merge(

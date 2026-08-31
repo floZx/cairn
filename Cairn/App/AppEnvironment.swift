@@ -18,6 +18,12 @@ final class AppEnvironment {
     /// scene get the same instance rather than two views of one journal.
     let journal: JournalStore
 
+    /// Ce que la bibliothèque dit des journées, calculé une fois par écriture
+    /// et non une fois par rendu. Tenu ici parce qu'il doit survivre aux
+    /// reconstructions de `RootView` : un `@State` le referait à chaque
+    /// création de la structure, et reposerait son observateur avec.
+    let journalLibrary = JournalLibraryCache()
+
     let mirrorClient: MirrorClient
     let mirror: MirrorEngine
     let mirrorProgress: MirrorProgress

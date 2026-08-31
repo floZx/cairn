@@ -447,7 +447,14 @@ final class JournalStore {
 /// the store's isolated properties — handing the tokens to an object of their
 /// own moves the teardown to a `deinit` that is allowed to run it, at the very
 /// same moment, the store being the only owner.
-private final class NotificationObservers {
+/// Des observateurs de notifications qu'un `deinit` peut retirer.
+///
+/// À part de ce qui les pose, et c'est la raison d'être du type : un
+/// observateur à base de bloc n'est pas remis à zéro tout seul, il faut le
+/// retirer à la main, et un `deinit` n'est jamais isolé sur l'acteur
+/// principal — quelle que soit la classe à qui il appartient. Partagé avec
+/// `JournalLibraryCache`, qui observe les écritures du magasin.
+final class NotificationObservers {
     private var tokens: [any NSObjectProtocol] = []
 
     func observe(

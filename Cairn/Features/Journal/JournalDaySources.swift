@@ -34,7 +34,19 @@ enum JournalDaySources {
         notes: [JournalFileNote], activities: [Activity],
         mealNotes: [MealNote], weights: [WeightEntry]
     ) -> Set<String> {
-        var jours = Set(notes.map(\.date.raw))
+        libraryDayKeys(activities: activities, mealNotes: mealNotes, weights: weights)
+            .union(notes.map(\.date.raw))
+    }
+
+    /// La même chose sans le carnet : ce que la bibliothèque seule nomme.
+    ///
+    /// La coupure sert `JournalLibraryCache` — cette moitié-ci ne bouge qu'à
+    /// l'écriture, quand celle du carnet bouge à chaque frappe. Les deux se
+    /// réunissent à la lecture, où les notes se comptent sur les doigts.
+    static func libraryDayKeys(
+        activities: [Activity], mealNotes: [MealNote], weights: [WeightEntry]
+    ) -> Set<String> {
+        var jours: Set<String> = []
         for activity in activities { jours.insert(DateKey(activity.startDate).raw) }
         for weight in weights where !isBlank(weight.note) {
             if let date = weight.dateKey { jours.insert(date.raw) }

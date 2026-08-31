@@ -6,6 +6,34 @@ struct RootView: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(\.modelContext) private var modelContext
     @State private var sidebarSelection: SidebarItem? = .all
+    /// Si la section a été choisie dans la barre latérale plutôt qu'au clavier.
+    ///
+    /// Le contenu ne prend alors pas le clavier en apparaissant : la ligne
+    /// qu'on vient de cliquer garderait son bleu une demi-seconde puis
+    /// pâlirait, ce qui se lit comme un défaut. Voir
+    /// `EnvironmentValues.vimKeysClaimentLeFocus`.
+    @State private var sectionChoisieALaSouris = false
+
+    /// La sélection de la barre latérale, écrite par la barre elle-même — donc
+    /// à la souris, ou aux flèches depuis la barre. Les changements de section
+    /// venus d'ailleurs passent par `allerA`, qui les distingue.
+    private var sidebarSelectionBinding: Binding<SidebarItem?> {
+        Binding(
+            get: { sidebarSelection },
+            set: { item in
+                sectionChoisieALaSouris = true
+                sidebarSelection = item
+            }
+        )
+    }
+
+    /// Change de section depuis ailleurs que la barre latérale : une commande
+    /// au clavier, une citation cliquée, une journée ouverte depuis une sortie.
+    /// Le clavier suit le contenu, puisqu'il y était déjà.
+    private func allerA(_ item: SidebarItem?) {
+        sectionChoisieALaSouris = false
+        sidebarSelection = item
+    }
     /// Le jour choisi dans le plan d'entraînement. Tenu ici comme les autres
     /// jours d'écran, pour que la grille et son mois survivent à un aller-retour
     /// vers la liste.
@@ -378,7 +406,7 @@ struct RootView: View {
             set: { newRegion in
                 filter.region = newRegion
                 if newRegion != nil {
-                    sidebarSelection = .all
+                    allerA(.all)
                     // A region chosen from the expanded map has to reveal the
                     // list it just filtered.
                     expandedMap = nil
@@ -420,17 +448,24 @@ struct RootView: View {
     /// whole library. Where each text belongs is `JournalDaySources`'s
     /// business, not this view's.
     private var journalDays: [JournalDay] {
-        JournalDay.merge(
+        let bibliotheque = bibliothequeDuJournal
+        return JournalDay.merge(
             notes: app.journal.notes,
-            elsewhereNotes: JournalDaySources.elsewhereNotes(
-                activities: notedActivities, mealNotes: mealNotes,
-                weights: weightEntries
-            ),
+            elsewhereNotes: bibliotheque.elsewhereNotes,
             // From every outing, not only the ones that wrote something: a day
             // with a vault note and a silent run still ran.
-            marks: JournalDaySources.marks(
-                activities: allActivities, weights: weightEntries
-            )
+            marks: bibliotheque.marks,
+            elsewhereTags: bibliotheque.elsewhereTags
+        )
+    }
+
+    /// Ce que la bibliothèque dit des journées — la moitié qui ne bouge qu'à
+    /// l'écriture. Voir `JournalLibraryCache` : cette moitié-là se retrouvait
+    /// recalculée à chaque touche frappée dans une note.
+    private var bibliothequeDuJournal: JournalLibraryCache.Contenu {
+        app.journalLibrary.contenu(
+            activities: allActivities, notedActivities: notedActivities,
+            mealNotes: mealNotes, weights: weightEntries
         )
     }
 
@@ -465,10 +500,7 @@ struct RootView: View {
     /// Les jours que la barre latérale a besoin de connaître — son compte et
     /// les points de son calendrier. Voir `JournalDaySources.dayKeys`.
     private var journalDayKeys: Set<String> {
-        JournalDaySources.dayKeys(
-            notes: app.journal.notes, activities: allActivities,
-            mealNotes: mealNotes, weights: weightEntries
-        )
+        bibliothequeDuJournal.jours.union(app.journal.notes.map(\.date.raw))
     }
 
     /// The list's selection.
@@ -518,7 +550,7 @@ struct RootView: View {
         let date = DateKey(activity.startDate)
         app.journal.open(date)
         selectJournalNote(date)
-        sidebarSelection = .journal
+        allerA(.journal)
         // Le journal se rouvre là où on l'avait laissé, gens compris : une
         // journée demandée doit arriver sur la vue qui sait la montrer.
         vueJournal = .journees
@@ -539,7 +571,7 @@ struct RootView: View {
     /// sentence.
     private func openActivity(_ id: PersistentIdentifier) {
         selectedActivities = [id]
-        sidebarSelection = .all
+        allerA(.all)
     }
 
     /// Va là d'où vient une citation.
@@ -554,28 +586,28 @@ struct RootView: View {
                   let sortie = allActivities.first(where: { $0.uuid == uuid })
             else { return }
             selectedActivities = [sortie.persistentModelID]
-            sidebarSelection = .all
+            allerA(.all)
         case .journal:
             // `open` plutôt qu'une simple sélection, comme partout ailleurs :
             // un jour dont la note n'existe pas encore n'a pas de ligne, et
             // c'est justement le geste par lequel on l'écrit.
             app.journal.open(citation.dateKey)
             selectJournalNote(citation.dateKey)
-            sidebarSelection = .journal
+            allerA(.journal)
             // La citation vient de la liste des gens : sans cette bascule elle
             // ouvrirait la journée derrière la liste qu'on est en train de lire.
             vueJournal = .journees
             journalListFocus += 1
         case .repas:
             nutritionDateKey = citation.dateKey
-            sidebarSelection = .nutrition
+            allerA(.nutrition)
         case .pesee:
             // L'écran des pesées, et non la journée où le commentaire se
             // modifie : une citation qui annonce un poids doit mener au poids.
-            sidebarSelection = .weight
+            allerA(.weight)
         case .seance:
             trainingDateKey = citation.dateKey
-            sidebarSelection = .training
+            allerA(.training)
         }
     }
 
@@ -714,6 +746,9 @@ struct RootView: View {
                 }
             }
             .frame(minWidth: 480)
+            // Le contenu ne prend le clavier que si la souris ne vient pas de
+            // le poser dans la barre latérale — voir `sectionChoisieALaSouris`.
+            .environment(\.vimKeysClaimentLeFocus, !sectionChoisieALaSouris)
             // The same surface as the detail pane, so the two content columns
             // read as one and only the sidebar stands apart. At the column
             // rather than on the list: SwiftUI paints the column's own fill
@@ -896,7 +931,7 @@ struct RootView: View {
     private func perform(_ command: VimCommand) {
         switch command {
         case let .section(item):
-            sidebarSelection = item
+            allerA(item)
         case .edit:
             if let selected { openEditor(selected, focusingNotes: false) }
         case .editNotes:
@@ -1204,9 +1239,9 @@ struct RootView: View {
                     onLeaveEditor: { journalListFocus += 1 },
                     onSelectDay: { jour in
                         nutritionDateKey = jour
-                        sidebarSelection = .nutrition
+                        allerA(.nutrition)
                     },
-                    onSelectWeight: { sidebarSelection = .weight },
+                    onSelectWeight: { allerA(.weight) },
                     attachmentsBase: app.journal.attachmentsBase,
                     onAddPhotos: { addJournalPhotos($0, to: date) },
                     onPastePhoto: { pasteJournalPhoto($0, to: date) }
@@ -1292,7 +1327,7 @@ struct RootView: View {
 
     private var sidebar: some View {
         SidebarView(
-            selection: $sidebarSelection,
+            selection: sidebarSelectionBinding,
             filter: $filter,
             journalTags: $journalTags,
             journalDayKeys: journalDayKeys,

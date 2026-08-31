@@ -35,6 +35,19 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     /// out — and where an outing that wrote nothing still counts, which is the
     /// difference between these and `elsewhereNotes`.
     let marks: Marks
+    /// Les étiquettes des textes écrits ailleurs que dans le carnet.
+    ///
+    /// Tenues plutôt que relues : `tags` les tirait des textes à **chaque
+    /// lecture**, et la barre latérale les relit une fois par journée à chaque
+    /// rendu pour compter ses tags. Mesuré le 31 août 2026 : 19 ms par appel,
+    /// pour des textes qui n'avaient pas bougé — un jour raconté est raconté
+    /// une fois pour toutes, seule la note du carnet suit la frappe.
+    ///
+    /// `JournalLibraryCache` les calcule avec le reste de la bibliothèque. Un
+    /// appelant qui n'en fournit pas les fait calculer par `init` depuis les
+    /// textes : le raccourci ne peut pas se prendre par mégarde, et une
+    /// journée n'a jamais moins d'étiquettes que ce qu'elle dit.
+    let elsewhereTags: Set<JournalTag>
 
     /// The day's silent facts, gathered by `JournalDaySources`.
     struct Marks: Equatable, Sendable {
@@ -54,12 +67,14 @@ struct JournalDay: Identifiable, Equatable, Sendable {
 
     init(
         date: DateKey, note: JournalFileNote? = nil, elsewhereNotes: [String] = [],
-        marks: Marks = .none
+        marks: Marks = .none, elsewhereTags: Set<JournalTag>? = nil
     ) {
         self.date = date
         self.note = note ?? JournalFileNote(date: date, text: "")
         self.elsewhereNotes = elsewhereNotes
         self.marks = marks
+        self.elsewhereTags = elsewhereTags
+            ?? elsewhereNotes.reduce(into: []) { $0.formUnion(JournalTagScanner.tags(in: $1)) }
     }
 
     /// The tags of every source together.
@@ -69,9 +84,7 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     /// other, and a tag list that answered only for half of them would be a
     /// tag list one cannot trust.
     var tags: Set<JournalTag> {
-        elsewhereNotes.reduce(into: note.tags) { all, text in
-            all.formUnion(JournalTagScanner.tags(in: text))
-        }
+        note.tags.union(elsewhereTags)
     }
 
     /// The line that stands for the day when nothing is being searched for.
@@ -116,13 +129,17 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     /// through and weighed in silence is not a journal entry.
     static func merge(
         notes: [JournalFileNote], elsewhereNotes: [DateKey: [String]],
-        marks: [DateKey: Marks] = [:]
+        marks: [DateKey: Marks] = [:], elsewhereTags: [DateKey: Set<JournalTag>]? = nil
     ) -> [JournalDay] {
-        var days: [JournalDay] = notes.map {
+        // `elsewhereTags.map` et non `elsewhereTags?[…]` : fourni, un jour
+        // absent du dictionnaire n'a pas d'étiquette, et c'est une réponse ;
+        // absent, chaque journée relit ses textes, et c'est le repli.
+        var days: [JournalDay] = notes.map { note in
             JournalDay(
-                date: $0.date, note: $0,
-                elsewhereNotes: spoken(elsewhereNotes[$0.date]),
-                marks: marks[$0.date] ?? .none
+                date: note.date, note: note,
+                elsewhereNotes: spoken(elsewhereNotes[note.date]),
+                marks: marks[note.date] ?? .none,
+                elsewhereTags: elsewhereTags.map { $0[note.date] ?? [] }
             )
         }
         let written = Set(notes.map(\.date))
@@ -131,7 +148,8 @@ struct JournalDay: Identifiable, Equatable, Sendable {
             guard !said.isEmpty else { continue }
             days.append(
                 JournalDay(
-                    date: date, elsewhereNotes: said, marks: marks[date] ?? .none
+                    date: date, elsewhereNotes: said, marks: marks[date] ?? .none,
+                    elsewhereTags: elsewhereTags.map { $0[date] ?? [] }
                 )
             )
         }
@@ -148,6 +166,15 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     static func filter(
         _ days: [JournalDay], query: String, tags: Set<JournalTag>
     ) -> [JournalDay] {
-        days.filter { $0.has(tags) && $0.matches(query: query) }
+        // Deux sorties sèches avant de travailler. Sans tag coché, `has`
+        // relisait les étiquettes de chaque texte de chaque journée pour
+        // vérifier qu'un ensemble vide y est inclus — ce qui est vrai
+        // d'avance. Mesuré le 31 août 2026 : 97 ms par tranche de deux
+        // secondes dans le journal, pour une question dont la réponse était
+        // connue avant d'être posée.
+        guard !query.isEmpty || !tags.isEmpty else { return days }
+        return days.filter {
+            (tags.isEmpty || $0.has(tags)) && (query.isEmpty || $0.matches(query: query))
+        }
     }
 }
