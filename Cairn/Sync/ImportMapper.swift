@@ -192,6 +192,7 @@ struct ImportMapper {
         guard activity.source.isSynced else { return }
 
         assign(.notes, on: activity, \.activityDescription, dto.description)
+        assign(.privateNote, on: activity, \.privateNote, dto.private_note)
         activity.calories = dto.calories
         activity.deviceName = dto.device_name
         activity.detailFetchedAt = Date()

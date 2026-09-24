@@ -26,6 +26,7 @@ struct ActivityDraft: Equatable {
     var movingMinutes: Double
     var elevationGain: Double
     var notes: String
+    var privateNote: String
     var isCommute: Bool
     var isTrainer: Bool
     /// Nil means "no particular type", which is a value the user can choose —
@@ -41,6 +42,7 @@ struct ActivityDraft: Equatable {
         movingMinutes = Double(activity.movingTime) / 60
         elevationGain = activity.totalElevationGain
         notes = activity.activityDescription ?? ""
+        privateNote = activity.privateNote ?? ""
         isCommute = activity.isCommute
         isTrainer = activity.isTrainer
         workoutLabel = activity.workoutLabel
@@ -57,6 +59,7 @@ struct ActivityDraft: Equatable {
         movingMinutes = 0
         elevationGain = 0
         notes = ""
+        privateNote = ""
         isCommute = false
         isTrainer = false
         workoutLabel = nil
@@ -113,6 +116,7 @@ struct ActivityDraft: Equatable {
             changed.insert(.totalElevationGain)
         }
         if notes != original.notes { changed.insert(.notes) }
+        if privateNote != original.privateNote { changed.insert(.privateNote) }
         if isCommute != original.isCommute { changed.insert(.isCommute) }
         if isTrainer != original.isTrainer { changed.insert(.isTrainer) }
         if workoutLabel != original.workoutLabel { changed.insert(.workoutLabel) }
@@ -192,6 +196,7 @@ struct ActivityDraft: Equatable {
         }
         activity.totalElevationGain = elevationGain
         activity.activityDescription = notes.isEmpty ? nil : notes
+        activity.privateNote = privateNote.isEmpty ? nil : privateNote
         activity.isCommute = isCommute
         activity.isTrainer = isTrainer
         activity.workoutLabel = workoutLabel

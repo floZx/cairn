@@ -415,6 +415,26 @@ actor SyncEngine {
         try context.fetchCount(Self.backfillDescriptor())
     }
 
+    /// Puts every Strava activity back in the backfill, once, so its detail is
+    /// read again — this time with the private note, which the detail always
+    /// carried but nothing kept until September 2026.
+    ///
+    /// By clearing `detailFetchedAt`, the very marker the backfill already
+    /// works from, rather than with a queue of its own: the library drains at
+    /// the pace it always has — ten a launch, the lot on a full sync — and one
+    /// request each, photos untouched. Laps are replaced as on any detail
+    /// fetch, and the notes keep whatever was edited here (`ImportMapper`).
+    func requestPrivateNotesOnce() throws {
+        let state = try state()
+        guard !state.privateNotesRequested else { return }
+        for activity in try context.fetch(FetchDescriptor<Activity>())
+        where activity.source.isSynced {
+            activity.detailFetchedAt = nil
+        }
+        state.privateNotesRequested = true
+        try context.save()
+    }
+
     /// Completes activities imported before Cairn fetched details and photos.
     ///
     /// Two requests each, so a library of 840 is roughly 1 500 — under the daily
@@ -426,6 +446,7 @@ actor SyncEngine {
     /// already saved and usable.
     @discardableResult
     func syncBackfill(limit: Int? = nil) async throws -> Int {
+        try requestPrivateNotesOnce()
         let total = try backfillRemaining()
         guard total > 0 else { return 0 }
 

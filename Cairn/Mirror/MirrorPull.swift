@@ -411,16 +411,20 @@ extension MirrorEngine {
     private struct ActivityRow: Decodable {
         let uuid: String
         let activity_description: String?
+        /// Absent from the rows of a mirror not yet migrated (011), where it
+        /// decodes as nil — which is why it is only applied alongside an
+        /// `edited_fields` that claims it.
+        let private_note: String?
         let edited_fields: [String]?
         let edited_at: String?
         let updated_at: String
     }
 
-    /// La description d'une sortie, et elle seule.
+    /// La description d'une sortie et sa note privée, et elles seules.
     ///
     /// La seule entorse à la règle qui ouvre ce fichier — « rien d'autre que
     /// le Mac n'écrit une activité » — et elle est taillée au plus juste :
-    /// deux colonnes sur la cinquantaine que porte la table. Distance, durée,
+    /// trois colonnes sur la cinquantaine que porte la table. Distance, durée,
     /// dénivelé, trace, sport : tout cela vient de Strava par le Mac, et une
     /// copie périmée de ces valeurs redescendant du miroir écraserait ce que
     /// la synchronisation vient d'établir. La description, elle, n'est écrite
@@ -456,12 +460,21 @@ extension MirrorEngine {
             // ligne qu'il vient de pousser revient avec son propre
             // `edited_at`, et la réappliquer ne serait qu'un aller-retour.
             if let localEdit = local.editedAt, editedAt <= localEdit { continue }
-            guard local.activityDescription != row.activity_description else { continue }
+            let claimed = Set(
+                (row.edited_fields ?? []).compactMap(ActivityField.init(rawValue:))
+            )
+            // La note privée ne descend que si le navigateur l'a revendiquée :
+            // une ligne sans elle (miroir pas encore migré, ou simplement
+            // jamais touchée là-bas) ne doit pas effacer celle du Mac.
+            let takesPrivateNote = claimed.contains(.privateNote)
+                && local.privateNote != row.private_note
+            guard local.activityDescription != row.activity_description
+                    || takesPrivateNote
+            else { continue }
 
             local.activityDescription = row.activity_description
-            local.markEdited(
-                Set((row.edited_fields ?? []).compactMap(ActivityField.init(rawValue:)))
-            )
+            if takesPrivateNote { local.privateNote = row.private_note }
+            local.markEdited(claimed)
             outcome.applied += 1
         }
         try save(context, outcome)

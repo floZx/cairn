@@ -13,7 +13,8 @@ struct ActivityFieldTests {
         #expect(ActivityField.name.rawValue == "name")
         #expect(ActivityField.startDate.rawValue == "startDate")
         #expect(ActivityField.totalElevationGain.rawValue == "totalElevationGain")
-        #expect(ActivityField.allCases.count == 10)
+        #expect(ActivityField.privateNote.rawValue == "privateNote")
+        #expect(ActivityField.allCases.count == 11)
         #expect(ActivityField.allCases.allSatisfy { !$0.displayName.isEmpty })
     }
 
@@ -226,7 +227,7 @@ struct ActivityDraftTests {
         #expect(draft.validationMessage != nil)
     }
 
-    @Test("changedFields détecte les dix champs, pas seulement ceux exercés ailleurs")
+    @Test("changedFields détecte les onze champs, pas seulement ceux exercés ailleurs")
     func changedFieldsCoversEveryField() throws {
         let context = ModelContext(try AppModelContainer.inMemory())
         let activity = makeActivity(in: context)
@@ -238,6 +239,7 @@ struct ActivityDraftTests {
         draft.movingMinutes = Double(activity.movingTime) / 60 + 1
         draft.elevationGain = activity.totalElevationGain + 1
         draft.notes = "Une note"
+        draft.privateNote = "Une note privée"
         draft.isCommute = !activity.isCommute
         draft.isTrainer = !activity.isTrainer
         draft.workoutLabel = .race

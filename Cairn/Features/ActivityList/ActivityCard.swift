@@ -73,10 +73,19 @@ struct ActivityCard: View {
                 // rather than filled with something for the sake of it: the
                 // height is fixed anyway, and a blank line reads as "nothing
                 // written", which is true.
-                Text(preview ?? " ")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                HStack(spacing: 3) {
+                    // Said, since the private note stands in for the public
+                    // one here: read as the note everyone sees, it would be
+                    // the one thing on the row that is not what it seems.
+                    if preview?.isPrivate == true {
+                        Image(systemName: "lock")
+                            .help("Note privée")
+                    }
+                    Text(preview?.text ?? " ")
+                        .lineLimit(1)
+                }
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
             }
         }
         .padding(.vertical, 3)
@@ -148,16 +157,27 @@ struct ActivityCard: View {
         .fixedSize()
     }
 
-    /// The first line of the note: what there is to read about the outing
-    /// beyond its numbers. Not the gear in its absence — tried, and Strava's
-    /// guess at which shoes were worn is too often wrong to print on every row.
-    private var preview: String? {
-        let note = activity.activityDescription?
+    /// The first line of the note, else of the private note: what there is to
+    /// read about the outing beyond its numbers. Not the gear in their absence
+    /// — tried, and Strava's guess at which shoes were worn is too often wrong
+    /// to print on every row.
+    private var preview: (text: String, isPrivate: Bool)? {
+        if let note = Self.firstLine(of: activity.activityDescription) {
+            return (note, false)
+        }
+        if let note = Self.firstLine(of: activity.privateNote) {
+            return (note, true)
+        }
+        return nil
+    }
+
+    private static func firstLine(of text: String?) -> String? {
+        let line = text?
             .split(whereSeparator: \.isNewline)
             .first
             .map { $0.trimmingCharacters(in: .whitespaces) }
-        guard let note, !note.isEmpty else { return nil }
-        return note
+        guard let line, !line.isEmpty else { return nil }
+        return line
     }
 
     /// The figures the sport is read by, with their units and without labels:

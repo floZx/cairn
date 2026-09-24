@@ -90,6 +90,8 @@ create table activity (
   simplified_track bytea,
   summary_polyline text,
   activity_description text,
+  -- La note privée de Strava (011-note-privee.sql).
+  private_note    text,
   device_name     text,
   detail_fetched_at timestamptz,
   photos_fetched_at timestamptz,

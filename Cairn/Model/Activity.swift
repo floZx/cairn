@@ -82,6 +82,10 @@ final class Activity {
 
     var summaryPolyline: String?
     var activityDescription: String?
+    /// Strava's private note, the one only its author sees. Read from Strava
+    /// and editable here, but never written back: Cairn only ever reads the
+    /// Strava API, and an edit made here stays here (and in the mirror).
+    var privateNote: String?
     var deviceName: String?
     /// Non-nil once the detail endpoint has been fetched for this activity.
     var detailFetchedAt: Date?

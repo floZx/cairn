@@ -68,6 +68,13 @@ struct DetailActivityDTO: Decodable, Sendable {
     let device_name: String?
     let laps: [LapDTO]?
     let photos: PhotosSummaryDTO?
+    /// The note only its owner sees. Not in Strava's published reference, but
+    /// present on the detail of every activity the athlete wrote one on, and
+    /// absent — the key itself, not a null — on the others. Measured on
+    /// 24 September 2026 against thirteen activities.
+    ///
+    /// Last and defaulted, so the tests' memberwise details need not name it.
+    var private_note: String? = nil
 }
 
 /// What the documented detail endpoint says about photos: a count, and the

@@ -14,6 +14,10 @@ final class SyncState {
     var lastRunAt: Date?
     var lastErrorMessage: String?
     var isInitialImportDone: Bool = false
+    /// Set once every Strava activity has been queued for a second look at
+    /// its detail, for the private note that was not read before September
+    /// 2026. See `SyncEngine.requestPrivateNotesOnce()`.
+    var privateNotesRequested: Bool = false
 
     init() {}
 }

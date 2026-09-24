@@ -65,6 +65,7 @@ extension Activity: MirrorRow {
             "simplified_track": simplifiedTrack.map(MirrorValue.data) ?? .null,
             "summary_polyline": .from(summaryPolyline),
             "activity_description": .from(activityDescription),
+            "private_note": .from(privateNote),
             "device_name": .from(deviceName),
             "detail_fetched_at": .from(detailFetchedAt),
             "photos_fetched_at": .from(photosFetchedAt),

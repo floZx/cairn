@@ -123,6 +123,27 @@ struct EditProtectionTests {
         #expect(activity.calories == 812)
     }
 
+    @Test("la note privée de Strava arrive avec la fiche détaillée")
+    func importsPrivateNote() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let mapper = ImportMapper(context: context)
+        let activity = try mapper.upsert(
+            summary: summary(id: 51, name: "Sortie", distance: 5_000)
+        )
+        let detail = try StravaJSON.decoder.decode(
+            DetailActivityDTO.self,
+            from: Data(#"{"id": 51, "private_note": "Genou gauche un peu raide"}"#.utf8)
+        )
+        try mapper.apply(detail: detail, to: activity)
+        #expect(activity.privateNote == "Genou gauche un peu raide")
+
+        // Absent key, as Strava sends it when there is no note: nothing.
+        let without = try StravaJSON.decoder.decode(
+            DetailActivityDTO.self, from: Data(#"{"id": 51}"#.utf8)
+        )
+        #expect(without.private_note == nil)
+    }
+
     /// One arm per `ActivityField`, on purpose written by hand rather than by
     /// reflection: an exhaustive `switch` fails to *compile* the moment a
     /// tenth case joins the enum without a matching arm here, which is a much
@@ -215,6 +236,19 @@ struct EditProtectionTests {
                 to: activity
             )
             #expect(activity.activityDescription == "Note perso")
+
+        case .privateNote:
+            activity.privateNote = "Note privée perso"
+            activity.markEdited([.privateNote])
+            try mapper.apply(
+                detail: DetailActivityDTO(
+                    id: 60, description: nil, calories: nil,
+                    device_name: nil, laps: nil, photos: nil,
+                    private_note: "Note privée Strava"
+                ),
+                to: activity
+            )
+            #expect(activity.privateNote == "Note privée perso")
 
         case .isCommute:
             activity.isCommute = true
