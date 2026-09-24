@@ -345,8 +345,10 @@ actor SyncEngine {
     ///
     /// Streams are deliberately left alone: a recorded track does not change,
     /// and re-fetching them would cost one request per activity. The detail
-    /// cache *is* cleared, because description, laps and device come from the
-    /// detail endpoint and are otherwise fetched once and kept forever.
+    /// cache *is* cleared and fetched again, because description, private
+    /// note, laps and device come from the detail endpoint and are otherwise
+    /// fetched once and kept forever — one request per activity, an hour or
+    /// so for a library of 900 at Strava's pace.
     func resyncEverything() async throws {
         let state = try state()
         state.lastSummaryEpoch = 0
@@ -362,6 +364,12 @@ actor SyncEngine {
         try await syncAthlete()
         try await syncSummaries()
         try await syncGear()
+        // The details it just cleared, fetched in the same run rather than
+        // left to ten a launch: « Resynchroniser tout » promises everything,
+        // and a note or a lap edited on Strava lives in the detail. Asked for
+        // on 24 September 2026, after a resync that finished in a minute and
+        // brought back not one note.
+        try await syncBackfill()
     }
 
     func syncAthlete() async throws {

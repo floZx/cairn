@@ -289,12 +289,13 @@ struct SyncSummariesTests {
         // Le curseur est reparti de 0, sinon rien n'aurait été relu.
         let asked = await source.requestedAfter
         #expect(asked.filter { $0 == 0 }.count >= 2)
-        // Et le cache du détail est invalidé, sinon une note modifiée sur
-        // Strava ne serait jamais relue.
+        // Et le détail est relu dans la foulée, sinon une note modifiée sur
+        // Strava ne le serait qu'à dix sorties par lancement.
         let after = ModelContext(container)
         let reread = try after.fetch(FetchDescriptor<Activity>())
         #expect(reread.count == 1)
-        #expect(reread[0].detailFetchedAt == nil)
+        let refetched = try #require(reread[0].detailFetchedAt)
+        #expect(refetched > Date(timeIntervalSince1970: 1000))
     }
 
     @Test("resynchroniser tout laisse le détail d'une activité locale tel quel")
