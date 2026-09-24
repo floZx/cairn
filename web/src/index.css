@@ -1341,6 +1341,29 @@ input, button { font: inherit; }
   background: var(--champ);
 }
 
+/* La même carte que « Se déconnecter », en couleur d'accent : le rouge est
+   réservé à ce qui met dehors. */
+.action-bleue {
+  width: 100%;
+  padding: 13px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 17px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.action-bleue:active {
+  background: var(--champ);
+}
+
+.action-bleue:disabled {
+  color: var(--attenue);
+  cursor: default;
+}
+
 /* ---- Journal : ce qui vient d'ailleurs ----------------------------------- */
 
 .barre-jour .note-du-jour {

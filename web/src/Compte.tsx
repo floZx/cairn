@@ -106,7 +106,7 @@ export function BoutonCompte() {
           <ul className="liste-actions">
             <li>
               {connecte ? (
-                <button onClick={chercher} disabled={enCours}>
+                <button className="action-bleue" onClick={chercher} disabled={enCours}>
                   {enCours ? "Recherche…" : "Chercher les sorties récentes"}
                 </button>
               ) : (
