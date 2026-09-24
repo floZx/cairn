@@ -293,6 +293,27 @@ struct ImportMapperTests {
         #expect(!shoes.isBike)
     }
 
+    @Test("une paire retirée sur Strava disparaît aussi de Cairn")
+    func clearsRemovedGear() throws {
+        let context = try makeContext()
+        let mapper = ImportMapper(context: context)
+        _ = try mapper.upsert(
+            gear: GearDTO(
+                id: "b1234567", name: "Vélo", brand_name: nil, model_name: nil, distance: 0
+            )
+        )
+        let dto = try Fixture.decode(SummaryActivityDTO.self, "summary_activity")
+        let activity = try mapper.upsert(summary: dto)
+        #expect(activity.gear?.name == "Vélo")
+
+        let withoutGear = try Fixture.decode(
+            SummaryActivityDTO.self, from: "summary_activity", patching: ["gear_id": NSNull()]
+        )
+        let again = try mapper.upsert(summary: withoutGear)
+        #expect(again.gearID == nil)
+        #expect(again.gear == nil)
+    }
+
     @Test("elapsedTime dérivé n'écrase pas une durée protégée")
     func elapsedTimeFollowsMovingTimeProtection() throws {
         let context = try makeContext()

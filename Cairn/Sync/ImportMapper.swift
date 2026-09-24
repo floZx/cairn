@@ -173,9 +173,16 @@ struct ImportMapper {
 
         activity.summaryPolyline = dto.map?.summary_polyline
 
+        // Strava's answer either way, a missing pair included: a pair removed
+        // there because it was the wrong one must not stay here. Only set when
+        // present, it used to — the old shoes outlived the correction. Safe to
+        // clear, since the gear is not a field anyone edits in Cairn.
         if let gearID = dto.gear_id, !gearID.isEmpty {
             activity.gearID = gearID
             activity.gear = try existingGear(stravaID: gearID)
+        } else {
+            activity.gearID = nil
+            activity.gear = nil
         }
 
         // Only derive the track from the summary polyline while the real streams
