@@ -1305,26 +1305,6 @@ input, button { font: inherit; }
 
 /* ---- Compte -------------------------------------------------------------- */
 
-/* Discret : la couleur d'accent le rend touchable sans le faire crier, et il
-   ne prend que la place d'une icône. */
-.bouton-compte {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--accent);
-  cursor: pointer;
-}
-
-.bouton-compte:active {
-  opacity: 0.5;
-}
-
 .titre-feuille {
   margin: 8px 0 2px;
   font-size: 22px;

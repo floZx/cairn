@@ -181,6 +181,7 @@ export function Chrome({
   identite,
   retour,
   entete,
+  dernierOnglet,
 }: {
   section: Section
   onSection: (s: Section) => void
@@ -202,13 +203,15 @@ export function Chrome({
   ///
   /// Dans la barre et non dans la fiche : la barre est fixe, la fiche défile,
   /// et un retour qui disparaît dès qu'on descend d'un écran n'est plus un
-  /// retour. Il fait pendant au bouton de compte, à l'autre bord.
+  /// retour.
   retour?: () => void
   /// Ce qui se pose à droite du grand titre.
   ///
   /// Le titre occupe une ligne entière pour un seul mot ; c'est là qu'un
   /// réglage de l'écran a sa place, au même rang que son nom.
   entete?: ReactNode
+  /// Ce qui ferme la barre du bas sans être une section — le compte.
+  dernierOnglet?: ReactNode
 }) {
   const [replie, setReplie] = useState(false)
   const zone = useRef<HTMLDivElement>(null)
@@ -368,6 +371,7 @@ export function Chrome({
               </span>
             </button>
           ))}
+          {dernierOnglet}
       </nav>
     </div>
   )

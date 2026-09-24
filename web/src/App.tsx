@@ -288,7 +288,7 @@ export function App() {
           <SelecteurJournal vue={vueJournal} onVue={setVueJournal} />
         ) : undefined
       }
-      action={<BoutonCompte />}
+      dernierOnglet={<BoutonCompte />}
     >
       {motStrava && (
         <p className="mot-strava" onClick={() => setMotStrava(null)}>

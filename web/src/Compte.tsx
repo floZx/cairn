@@ -75,25 +75,28 @@ export function BoutonCompte() {
 
   return (
     <>
-      <button
-        className="bouton-compte"
-        onClick={() => setOuvert(true)}
-        aria-label="Compte"
-      >
-        <svg
-          width="26"
-          height="26"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          aria-hidden
-        >
-          <circle cx="12" cy="12" r="9" />
-          <circle cx="12" cy="10" r="3.2" />
-          <path d="M5.9 19a6.4 6.4 0 0112.2 0" />
-        </svg>
+      {/* Un onglet de la barre du bas, et non plus un rond en haut à droite :
+          le pouce y est déjà, et le haut de l'écran n'a plus que le titre.
+          Il ouvre une feuille au lieu de changer d'écran — le compte n'est
+          pas un endroit où l'on reste. */}
+      <button className="onglet-bas" onClick={() => setOuvert(true)}>
+        <span className="dedans-onglet">
+          <svg
+            width="26"
+            height="26"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            aria-hidden
+          >
+            <circle cx="12" cy="12" r="9" />
+            <circle cx="12" cy="10" r="3.2" />
+            <path d="M5.9 19a6.4 6.4 0 0112.2 0" />
+          </svg>
+          <span>Compte</span>
+        </span>
       </button>
 
       {ouvert && (
