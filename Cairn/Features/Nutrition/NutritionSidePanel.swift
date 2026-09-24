@@ -29,29 +29,31 @@ struct NutritionSidePanel: View {
                     statLine("moy. \(model.averageKcal7d) kcal/j")
                     statLine("moy. \(model.averageProtein7d) g P/j")
                 }
-                section("Poids") {
-                    if let last = model.lastWeightKg {
-                        statLine(
-                            "\(Format.typedNumber(last)) kg · obj "
-                            + "\(Format.typedNumber(weightGoal))"
-                        )
-                        if let delta = model.weightDelta7d {
-                            coloredLine(
-                                "vs il y a 7 j : \(Format.signedTwoDecimals(delta)) kg",
-                                favorable: delta <= 0
+                if !SidebarItem.weight.estMasquee {
+                    section("Poids") {
+                        if let last = model.lastWeightKg {
+                            statLine(
+                                "\(Format.typedNumber(last)) kg · obj "
+                                + "\(Format.typedNumber(weightGoal))"
                             )
+                            if let delta = model.weightDelta7d {
+                                coloredLine(
+                                    "vs il y a 7 j : \(Format.signedTwoDecimals(delta)) kg",
+                                    favorable: delta <= 0
+                                )
+                            }
+                            if let rate = model.weightRatePerWeek {
+                                coloredLine(
+                                    "\(Format.signedTwoDecimals(rate)) kg/sem",
+                                    favorable: rate <= 0
+                                )
+                            }
+                            if let weeks = model.weeksToGoal {
+                                statLine("→ obj : ~\(Int(weeks.rounded())) sem")
+                            }
+                        } else {
+                            statLine("aucune pesée")
                         }
-                        if let rate = model.weightRatePerWeek {
-                            coloredLine(
-                                "\(Format.signedTwoDecimals(rate)) kg/sem",
-                                favorable: rate <= 0
-                            )
-                        }
-                        if let weeks = model.weeksToGoal {
-                            statLine("→ obj : ~\(Int(weeks.rounded())) sem")
-                        }
-                    } else {
-                        statLine("aucune pesée")
                     }
                 }
                 section("Régularité") {

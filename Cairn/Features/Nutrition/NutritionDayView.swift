@@ -175,7 +175,7 @@ struct NutritionDayView: View {
                 if let slot = cursorSlot { addTargetSlot = slot }
                 return true
             case .newWeighIn:
-                isAddingWeight = true
+                if !SidebarItem.weight.estMasquee { isAddingWeight = true }
                 return true
             case .edit:
                 if let entry = cursorEntry { editingEntry = entry }

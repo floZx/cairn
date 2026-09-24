@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
+import { POIDS_MASQUE } from "./masquees"
 import { dateLongue } from "./format"
 import { jourCourant } from "./NoteEditor"
 import { AjoutAliment } from "./AjoutAliment"
@@ -409,14 +410,16 @@ export function Nutrition({
             </span>
           </div>
         </li>
-        <li className="ligne" onClick={() => setPeseeOuverte(true)}>
-          <div className="ligne-tete">
-            <span className="titre">Poids</span>
-            <span className={pesee ? "" : "attenue"}>
-              {pesee ? `${pesee.weight_kg.toLocaleString("fr-FR")} kg` : "Noter"}
-            </span>
-          </div>
-        </li>
+        {!POIDS_MASQUE && (
+          <li className="ligne" onClick={() => setPeseeOuverte(true)}>
+            <div className="ligne-tete">
+              <span className="titre">Poids</span>
+              <span className={pesee ? "" : "attenue"}>
+                {pesee ? `${pesee.weight_kg.toLocaleString("fr-FR")} kg` : "Noter"}
+              </span>
+            </div>
+          </li>
+        )}
       </ul>
 
       {creneaux.map((creneau, i) => {

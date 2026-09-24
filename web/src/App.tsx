@@ -15,8 +15,15 @@ import { Chrome, type Section } from "./Chrome"
 import { AUCUN, type Filtre } from "./criteres"
 import { presentationRetenue, type Vue } from "./vues"
 import { SurUneMention } from "./markdown"
+import { SECTIONS_MASQUEES, sectionVisible } from "./masquees"
 import { SelecteurVue } from "./SelecteurVue"
 import { BoutonCompte } from "./Compte"
+
+/// La personne que l'adresse porte — aucune tant que le journal, qui rend sa
+/// fiche, est masqué.
+function personneDeLAdresse(params = new URLSearchParams(location.search)) {
+  return SECTIONS_MASQUEES.has("journal") ? null : params.get("personne")
+}
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -50,14 +57,14 @@ export function App() {
   /// geste de retour doit ramener là. Sans historique, il ramenait sur la liste
   /// des gens — un endroit d'où l'on ne venait pas. Signalé.
   const [personneOuverte, setPersonneOuverte] = useState<string | null>(
-    () => new URLSearchParams(location.search).get("personne"),
+    () => personneDeLAdresse(),
   )
 
   useEffect(() => {
     const onPop = () => {
       const params = new URLSearchParams(location.search)
       setOuverte(params.get("activite"))
-      setPersonneOuverte(params.get("personne"))
+      setPersonneOuverte(personneDeLAdresse(params))
       // L'entrée sur laquelle on retombe porte l'écran qu'on regardait en
       // partant — posé par `retenirLEcran` juste avant la poussée. Le lire
       // ici est ce qui ramène à la note plutôt qu'à l'onglet par défaut.
@@ -68,7 +75,7 @@ export function App() {
       const ecran = history.state as
         | { section?: Section; vueJournal?: VueJournal; note?: string | null }
         | null
-      if (ecran?.section) setSection(ecran.section)
+      if (ecran?.section) setSection(sectionVisible(ecran.section))
       if (ecran?.vueJournal) setVueJournal(ecran.vueJournal)
       if (ecran?.note !== undefined) setNoteAOuvrir(ecran.note)
     }
@@ -142,7 +149,7 @@ export function App() {
   /// fiche dans l'adresse aurait montré la mauvaise chose.
   const surUnePersonne = new URLSearchParams(location.search).has("personne")
   const [section, setSection] = useState<Section>(
-    surUnePersonne ? "journal" : "activites",
+    sectionVisible(surUnePersonne ? "journal" : "activites"),
   )
   /// L'onglet Journal montre deux choses : les journées, et les gens qui y
   /// sont cités. Un sixième onglet ne tenait pas dans la capsule — c'est déjà
@@ -262,7 +269,9 @@ export function App() {
   const surUneFiche = ouverte !== null || personneOuverte !== null
 
   return (
-    <SurUneMention.Provider value={ouvrirLaPersonne}>
+    // Sans journal, plus de fiche de personne où mener : la mention redevient
+    // du texte coloré.
+    <SurUneMention.Provider value={SECTIONS_MASQUEES.has("journal") ? null : ouvrirLaPersonne}>
     <Chrome
       section={section}
       onSection={changerDeSection}

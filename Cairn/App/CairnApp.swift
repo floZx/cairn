@@ -139,10 +139,12 @@ struct CairnApp: App {
                 Button("Exporter la sélection en GPX…") { app.requestExportGPX?() }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
                     .disabled(app.requestExportGPX == nil)
-                Button("Exporter le journal en PDF…") {
-                    app.requestExportJournalPDF?()
+                if !SidebarItem.journal.estMasquee {
+                    Button("Exporter le journal en PDF…") {
+                        app.requestExportJournalPDF?()
+                    }
+                    .disabled(app.requestExportJournalPDF == nil)
                 }
-                .disabled(app.requestExportJournalPDF == nil)
             }
             CommandMenu("Strava") {
                 Button("Synchroniser") { app.syncNow() }

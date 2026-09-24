@@ -34,6 +34,9 @@ struct RootView: View {
     /// au clavier, une citation cliquée, une journée ouverte depuis une sortie.
     /// Le clavier suit le contenu, puisqu'il y était déjà.
     private func allerA(_ item: SidebarItem?) {
+        // Une section masquée ne s'atteint pas plus au clavier ou par une
+        // citation que par la barre. Voir `SidebarItem.masquees`.
+        if let item, item.estMasquee { return }
         sectionChoisieALaSouris = false
         sidebarSelection = item
     }
@@ -568,6 +571,7 @@ struct RootView: View {
     /// key one presses precisely to write the first line about it. Nothing
     /// reaches the disk until a character is typed.
     private func openJournalDay() {
+        guard !SidebarItem.journal.estMasquee else { return }
         guard let activity = selected ?? selection.first else { return }
         let date = DateKey(activity.startDate)
         app.journal.open(date)

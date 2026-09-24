@@ -25,8 +25,10 @@ struct SettingsScene: View {
                 .tabItem { Label("Cartes", systemImage: "map") }
             NutritionSettingsView()
                 .tabItem { Label("Nutrition", systemImage: "fork.knife") }
-            JournalSettingsView()
-                .tabItem { Label("Journal", systemImage: "text.book.closed") }
+            if !SidebarItem.journal.estMasquee {
+                JournalSettingsView()
+                    .tabItem { Label("Journal", systemImage: "text.book.closed") }
+            }
             BackupSettingsView()
                 .tabItem { Label("Sauvegarde", systemImage: "externaldrive.badge.icloud") }
             MirrorSettingsView()

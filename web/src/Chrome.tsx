@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
+import { SECTIONS_MASQUEES } from "./masquees"
 import { createPortal } from "react-dom"
 
 /// Le châssis de l'application : ce qui ne change pas d'un écran à l'autre.
@@ -350,7 +351,7 @@ export function Chrome({
       <div className="fondu-bas" aria-hidden />
 
       <nav className="onglets-bas matiere" aria-label="Sections">
-          {(Object.keys(TITRES) as Section[]).map((s) => (
+          {(Object.keys(TITRES) as Section[]).filter((s) => !SECTIONS_MASQUEES.has(s)).map((s) => (
             <button
               key={s}
               className={s === section ? "onglet-bas actif" : "onglet-bas"}

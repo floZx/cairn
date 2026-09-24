@@ -11,6 +11,18 @@ enum SidebarItem: Hashable {
     case weight
 }
 
+extension SidebarItem {
+    /// Les sections mises de côté : le code reste, rien ne s'affiche.
+    ///
+    /// Retirées le 24 septembre 2026 — le journal (et les gens, qui en sont
+    /// une vue), le plan d'entraînement et le poids. Vider cet ensemble les
+    /// remet toutes : la barre latérale, les raccourcis, les menus et les
+    /// réglages le lisent, et `RootView.allerA` refuse d'y mener.
+    static let masquees: Set<SidebarItem> = [.training, .journal, .weight]
+
+    var estMasquee: Bool { Self.masquees.contains(self) }
+}
+
 /// Navigation and every filter in one pane.
 ///
 /// Sport used to be a sidebar *selection* while the other criteria lived in a
@@ -106,15 +118,21 @@ struct SidebarView: View {
                     .tag(SidebarItem.globalMap)
                 Label("Statistiques", systemImage: "chart.bar")
                     .tag(SidebarItem.statistics)
-                Label("Entraînement", systemImage: "figure.run.square.stack")
-                    .tag(SidebarItem.training)
-                Label("Journal", systemImage: "text.book.closed")
-                    .badge(journalDayKeys.count)
-                    .tag(SidebarItem.journal)
+                if !SidebarItem.training.estMasquee {
+                    Label("Entraînement", systemImage: "figure.run.square.stack")
+                        .tag(SidebarItem.training)
+                }
+                if !SidebarItem.journal.estMasquee {
+                    Label("Journal", systemImage: "text.book.closed")
+                        .badge(journalDayKeys.count)
+                        .tag(SidebarItem.journal)
+                }
                 Label("Alimentation", systemImage: "fork.knife")
                     .tag(SidebarItem.nutrition)
-                Label("Poids", systemImage: "scalemass")
-                    .tag(SidebarItem.weight)
+                if !SidebarItem.weight.estMasquee {
+                    Label("Poids", systemImage: "scalemass")
+                        .tag(SidebarItem.weight)
+                }
 
                 // Sits with the map rather than among the filters: it undoes a
                 // rectangle drawn there, and that is where it will be looked for.

@@ -106,11 +106,14 @@ struct PersonPopoverCard: View {
                 }
             }
 
-            Button("Voir sa fiche") {
-                fermer()
-                ouvrirDansPeople(handle.key)
+            // La fiche vit dans le journal : masqué, il n'y a plus où l'ouvrir.
+            if !SidebarItem.journal.estMasquee {
+                Button("Voir sa fiche") {
+                    fermer()
+                    ouvrirDansPeople(handle.key)
+                }
+                .buttonStyle(.link)
             }
-            .buttonStyle(.link)
         }
         .padding(16)
         .frame(width: 340, alignment: .leading)

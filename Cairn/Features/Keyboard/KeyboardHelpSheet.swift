@@ -69,6 +69,20 @@ struct KeyboardHelpSheet: View {
         ]),
     ]
 
+    /// Sans les touches des sections masquées — voir `SidebarItem.masquees`.
+    private var visibleGroups: [Group] {
+        var cachees: Set<String> = []
+        if SidebarItem.journal.estMasquee { cachees.formUnion(["gj", "gd"]) }
+        if SidebarItem.weight.estMasquee { cachees.formUnion(["gp", "w"]) }
+        return groups.compactMap { group in
+            if group.title == "Journal", SidebarItem.journal.estMasquee { return nil }
+            return Group(
+                title: group.title,
+                rows: group.rows.filter { !cachees.contains($0.keys) }
+            )
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Raccourcis clavier")
@@ -78,7 +92,7 @@ struct KeyboardHelpSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    ForEach(groups) { group in
+                    ForEach(visibleGroups) { group in
                         VStack(alignment: .leading, spacing: 6) {
                             Text(group.title)
                                 .font(.headline)

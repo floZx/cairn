@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
+import { POIDS_MASQUE } from "./masquees"
 import { nomDuSport } from "./sports"
 import { IconeSport } from "./IconeSport"
 import { denivele, distance, duree } from "./format"
@@ -403,7 +404,7 @@ export function Stats() {
         </>
       )}
 
-      <CourbePoids pesees={data.pesees} />
+      {!POIDS_MASQUE && <CourbePoids pesees={data.pesees} />}
 
       {sports.length > 0 && (
         <>
