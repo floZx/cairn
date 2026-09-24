@@ -305,7 +305,9 @@ export function Chrome({
   }
 
   return (
-    <div className="chassis">
+    // Sans retour, la barre du haut ne porte plus rien tant que le titre n'est
+    // pas replié — le compte est descendu dans les onglets. Rien à lui réserver.
+    <div className={retour ? "chassis" : "chassis sans-bouton-haut"}>
       <header
         className={replie && !masquerOnglets ? "barre-nav repliee" : "barre-nav"}
       >

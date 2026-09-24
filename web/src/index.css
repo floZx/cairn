@@ -904,6 +904,13 @@ input, button { font: inherit; }
   overscroll-behavior-y: contain;
 }
 
+/* Sans bouton dans la barre du haut — le compte a rejoint les onglets, seul
+   le retour d'une fiche y reste —, les 34 points qu'on lui gardait n'étaient
+   plus qu'un vide au-dessus du titre. Signalé. Le titre monte sous l'heure. */
+.sans-bouton-haut .defilement {
+  padding-top: calc(env(safe-area-inset-top) + 8px);
+}
+
 /* 34 pt chez Apple ; le poids compte autant que la taille. */
 /* Le titre et ce qui l'accompagne sur une ligne : le titre prend ce qu'il lui
    faut, le réglage se range à droite.
