@@ -870,21 +870,6 @@ input, button { font: inherit; }
   border-bottom-color: var(--trait);
 }
 
-/* Le titre compact ne se montre qu'une fois le grand titre parti : les deux
-   affichés ensemble diraient deux fois la même chose. */
-.titre-compact {
-  font-size: 17px;
-  font-weight: 600;
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.barre-nav.repliee .titre-compact {
-  opacity: 1;
-  transform: none;
-}
-
 .action-barre {
   margin-left: auto;
 }
@@ -1128,7 +1113,6 @@ input, button { font: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   .feuille-modale,
-  .titre-compact,
   .barre-nav {
     transition: none;
   }

@@ -276,7 +276,6 @@ export function App() {
       section={section}
       onSection={changerDeSection}
       masquerOnglets={surUneFiche}
-      titre={personneOuverte ? `@${personneOuverte}` : undefined}
       identite={personneOuverte ?? ouverte ?? undefined}
       retour={surUneFiche ? () => history.back() : undefined}
       // Seulement sur les activités : c'est la seule section qui se regarde de

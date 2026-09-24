@@ -11,8 +11,10 @@ import { createPortal } from "react-dom"
 ///   le haut ; toutes les applications d'Apple les y mettent depuis 2007, et
 ///   des onglets en haut est le détail qui trahit une page web en premier.
 /// - **Le grand titre se replie.** Il annonce l'écran quand on arrive, puis
-///   cède la place au contenu dès qu'on défile, et laisse derrière lui une
-///   barre compacte qui dit toujours où l'on est.
+///   cède la place au contenu dès qu'on défile. Sans titre compact derrière
+///   lui : depuis iOS 27, le système floute tout ce qui passe sous l'heure, et
+///   un titre posé là se lisait comme une tache (capture du 24 septembre
+///   2026). L'onglet actif dit déjà où l'on est.
 /// - **Les zones sûres sont respectées.** En application installée il n'y a
 ///   plus de barre d'adresse pour absorber l'encoche en haut ni la barre
 ///   d'accueil en bas : sans `env(safe-area-inset-*)`, le premier titre passe
@@ -177,7 +179,6 @@ export function Chrome({
   /// barre vaut mieux : depuis une fiche on veut souvent aller ailleurs, et
   /// remonter d'abord coûte un geste.
   masquerOnglets = false,
-  titre,
   identite,
   retour,
   entete,
@@ -189,12 +190,6 @@ export function Chrome({
   /// Le bouton de droite de la barre, s'il y en a un.
   action?: ReactNode
   masquerOnglets?: boolean
-  /// Ce que la barre annonce, quand la page n'est pas l'onglet.
-  ///
-  /// Sans lui, une fiche portait le nom de la section d'où elle vient — une
-  /// fiche de personne ouverte depuis une note s'intitulait « Journal », et
-  /// l'on ne savait plus où l'on était. Signalé.
-  titre?: string
   /// Ce qui distingue une fiche d'une autre, pour la mémoire des positions de
   /// défilement : sans elle, toutes les fiches partagent un seul repère, et
   /// l'on arrive au milieu de la deuxième là où l'on avait laissé la première.
@@ -305,8 +300,8 @@ export function Chrome({
   }
 
   return (
-    // Sans retour, la barre du haut ne porte plus rien tant que le titre n'est
-    // pas replié — le compte est descendu dans les onglets. Rien à lui réserver.
+    // Sans retour, la barre du haut ne porte rien — le compte est descendu dans
+    // les onglets. Rien à lui réserver.
     <div className={retour ? "chassis" : "chassis sans-bouton-haut"}>
       <header
         className={replie && !masquerOnglets ? "barre-nav repliee" : "barre-nav"}
@@ -336,7 +331,7 @@ export function Chrome({
             </svg>
           </button>
         )}
-        <div className="titre-compact">{titre ?? titreEcran(section)}</div>
+        {/* Plus de titre compact ici : voir l'en-tête du fichier. */}
         <div className="action-barre">{action}</div>
       </header>
 
