@@ -2850,14 +2850,20 @@ body {
 /* Un lien qui a l'air d'une action : la connexion à Strava est une navigation
    — elle quitte l'application pour y revenir — mais elle se range parmi les
    boutons, où on la cherche. */
+/* Centré et à la taille des deux boutons du compte : c'est la même carte. */
 .action-lien {
   display: block;
   width: 100%;
   padding: 13px 16px;
   color: var(--accent);
   font: inherit;
-  text-align: left;
+  font-size: 17px;
+  text-align: center;
   text-decoration: none;
+}
+
+.action-lien:active {
+  background: var(--champ);
 }
 
 /* Ce que le retour de Strava a donné. Posé en haut du contenu, cliquable pour
