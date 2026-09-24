@@ -259,6 +259,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
                 coordinator.splitView = splitView
                 coordinator.restoreOnLaunch(splitView)
                 observeDetailWidth(of: splitView, coordinator: coordinator)
+                clipDividersUnderToolbar(of: splitView)
                 return
             }
         }
@@ -371,7 +372,52 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
                 // whether it was posted at a hand-over or is only asked for
                 // now, the column having reopened without changing pane.
                 coordinator?.columnDidResize(splitView)
+                // The dividers were just resized along with everything else,
+                // so the mask has to follow or it clips the wrong slice.
+                clipDividersUnderToolbar(of: splitView)
             }
+        }
+    }
+
+    /// Stops the column dividers at the bottom of the toolbar.
+    ///
+    /// Back after a month away. It left on 11 August because the toolbar's own
+    /// fill covered the dividers again; under Liquid Glass (macOS 26 and
+    /// later) the bar has no fill left to speak of, and the divider between
+    /// the list and the detail pane ran straight up through it again, cutting
+    /// the bar in two between the list's buttons and the search. Signalé.
+    ///
+    /// Masked rather than hidden: below the bar the divider is doing its job,
+    /// and the two content columns are close enough in tone that without it
+    /// they would run together. Only the part inside the bar goes.
+    @MainActor
+    static func clipDividersUnderToolbar(of splitView: NSSplitView) {
+        guard let window = splitView.window,
+              let contentView = window.contentView else { return }
+        // What the titlebar and toolbar take off the top. Zero in a window
+        // without one, in which case there is nothing to clip.
+        let barHeight = contentView.bounds.height - window.contentLayoutRect.height
+        guard barHeight > 0 else { return }
+
+        // By class name, no longer by elimination. On macOS 27 the split view
+        // also holds the toolbar's own backgrounds (`NSTitlebarBackgroundView`),
+        // a shadow and two hit areas; "everything that is not a column" masked
+        // the bar's background away along with the line. Measured: the line is
+        // an `NSSplitDividerView`. Should AppKit rename it, nothing is masked
+        // and the line simply comes back — nothing else is touched.
+        for divider in splitView.subviews
+        where String(describing: type(of: divider)).contains("Divider") {
+            divider.wantsLayer = true
+            let mask = divider.layer?.mask ?? CALayer()
+            mask.backgroundColor = NSColor.black.cgColor
+            // Layer coordinates follow the view, which is not flipped: y grows
+            // upward, so the bar is the top slice and what we keep starts at 0.
+            mask.frame = CGRect(
+                x: 0, y: 0,
+                width: divider.bounds.width,
+                height: max(0, divider.bounds.height - barHeight)
+            )
+            divider.layer?.mask = mask
         }
     }
 

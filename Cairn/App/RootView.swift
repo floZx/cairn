@@ -783,6 +783,11 @@ struct RootView: View {
                 }
             }
             .frame(minWidth: 480)
+            // Sur la colonne et non sur la fenêtre : dès que la colonne de
+            // détail porte sa propre barre (le bouton du volet), SwiftUI range
+            // la fenêtre après les colonnes, et ces actions passaient derrière
+            // le tri et la présentation. Mesuré sur capture.
+            .toolbar { syncToolbar }
             // Le contenu ne prend le clavier que si la souris ne vient pas de
             // le poser dans la barre latérale — voir `sectionChoisieALaSouris`.
             .environment(\.vimKeysClaimentLeFocus, !sectionChoisieALaSouris)
@@ -804,6 +809,7 @@ struct RootView: View {
             )
         } detail: {
             detailColumn
+                .toolbar { panelToolbar }
                 // The pane has no fill of its own — with the window opened up
                 // for the sidebar's material, what is behind came straight
                 // through it and the figures sat on someone else's window,
@@ -883,7 +889,6 @@ struct RootView: View {
         // has to flush it, not race it.
         .onChange(of: journalSelection) { _, _ in app.journal.saveNow() }
         .onChange(of: sidebarSelection) { _, _ in app.journal.saveNow() }
-        .toolbar { syncToolbar }
     }
 
     /// Removes an activity from the journal: from the current selection so the
@@ -1454,18 +1459,125 @@ struct RootView: View {
                     .help(app.progress.statusText)
                 }
             }
+            // Des `ControlGroup` en style `.navigation`, et non des
+            // `ToolbarItem` côte à côte : macOS 26 coule tous les boutons
+            // voisins dans une seule capsule — six icônes où plus rien ne se
+            // distinguait — et `ToolbarSpacer` n'y change rien dans cette
+            // fenêtre (essayé, fixe comme flexible). Une capsule par sujet :
+            // la bibliothèque (rapatrier, ajouter), puis la sortie choisie.
             ToolbarItem {
-                Button {
-                    app.syncNow()
-                } label: {
-                    Label("Synchroniser", systemImage: "arrow.triangle.2.circlepath")
+                ControlGroup {
+                    Button {
+                        app.syncNow()
+                    } label: {
+                        Label("Synchroniser", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .disabled(!app.isAuthenticated || app.progress.isRunning)
+                    // Already worded for every phase: the last run's date and time
+                    // when idle, "Jamais synchronisé" before the first one, and what
+                    // is happening while a sync is in flight.
+                    .help(app.progress.statusText)
+
+                    // Va avec la synchronisation : il ne vise pas la sélection.
+                    if showsActivityActions {
+                        Button {
+                            editor = .create
+                        } label: {
+                            Label("Nouvelle activité", systemImage: "plus")
+                        }
+                        .help("Ajouter une activité saisie à la main")
+                    }
                 }
-                .disabled(!app.isAuthenticated || app.progress.isRunning)
-                // Already worded for every phase: the last run's date and time
-                // when idle, "Jamais synchronisé" before the first one, and what
-                // is happening while a sync is in flight.
-                .help(app.progress.statusText)
+                .controlGroupStyle(.navigation)
             }
+            // These three act on the selected activity and belong together —
+            // and leave together, on the screens that show no activity.
+            if showsActivityActions {
+                ToolbarItem {
+                    ControlGroup {
+                        Button {
+                            toggleFavorite()
+                        } label: {
+                            // Filled when every selected activity is already a favourite,
+                            // so the icon says what the button is about to do.
+                            Label(
+                                "Favori",
+                                systemImage: selection.allSatisfy(\.isFavorite) && !selection.isEmpty
+                                    ? "star.fill" : "star"
+                            )
+                        }
+                        .disabled(selection.isEmpty)
+                        .help("Marquer ou retirer des favoris")
+
+                        Button {
+                            if let selected { editor = .edit(selected) }
+                        } label: {
+                            Label("Modifier", systemImage: "pencil")
+                        }
+                        .disabled(selected == nil)
+                        .help("Modifier l'activité sélectionnée")
+
+                        Button {
+                            pendingDeletion = selected
+                        } label: {
+                            Label("Supprimer", systemImage: "trash")
+                        }
+                        .disabled(selected == nil)
+                        .help("Supprimer l'activité sélectionnée")
+                    }
+                    .controlGroupStyle(.navigation)
+                }
+            }
+            if showsJournalSection {
+                ToolbarItemGroup {
+                    // Le même segmenté que la présentation des activités : le
+                    // choix porte sur la façon de ranger ce qu'on a sous les
+                    // yeux, pas sur l'endroit où l'on va.
+                    Picker("Vue du journal", selection: $vueJournal) {
+                        ForEach(VueJournal.allCases) { vue in
+                            Label(vue.displayName, systemImage: vue.symbolName)
+                                .tag(vue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelStyle(.iconOnly)
+                    .help("Basculer entre les journées et les gens qui y sont cités")
+
+                    // Écrire et supprimer, ce sont des gestes sur une note :
+                    // devant la liste des gens ils n'ont rien à viser.
+                    if showsJournal {
+                        Button {
+                            openTodaysNote()
+                        } label: {
+                            Label("Note du jour", systemImage: "square.and.pencil")
+                        }
+                        .help("Ouvrir la note d'aujourd'hui (⌘N)")
+
+                        Button {
+                            journalPendingDeletion = journalSelection
+                        } label: {
+                            Label("Supprimer", systemImage: "trash")
+                        }
+                        .disabled(!journalSelectionHasNote)
+                        .help("Supprimer la note sélectionnée")
+                    }
+                }
+            }
+    }
+
+    /// Le bouton du volet, à part du reste de la barre : posé sur la colonne
+    /// de détail, il passe après le tri et la présentation que la liste
+    /// déclare, et vient donc juste avant la recherche — la place du bouton
+    /// d'inspecteur dans Xcode ou le Finder. Sur la colonne du milieu, il
+    /// restait devant le tri : la barre d'une vue englobante passe avant
+    /// celles qu'elle contient. Il reste affiché quand la colonne est
+    /// refermée à zéro (Alimentation, volet masqué), essayé : sans quoi on
+    /// ne pourrait plus la rouvrir. Plus à droite encore, après la
+    /// recherche, n'est pas possible : `.searchable` se range toujours en
+    /// dernier (essayé : `.primaryAction`, `.confirmationAction`, la colonne
+    /// de détail, `.inspector`).
+    @ToolbarContentBuilder
+    private var panelToolbar: some ToolbarContent {
             // Kept in place and merely disabled rather than appearing with the
             // selection: a toolbar whose buttons come and go is unsettling, and
             // this way the affordance is visible before it is needed.
@@ -1515,86 +1627,6 @@ struct RootView: View {
                             : "Rouvrir le panneau de droite (⌥⌘I)")
                         : "Fermer le panneau de droite et désélectionner (⌥⌘I)"
                 )
-            }
-            // Grouped, not three loose buttons: the toolbar already carries three
-            // items, and six side by side is where it stops reading as a toolbar.
-            // These three act on the selected activity and belong together —
-            // and leave together, on the screens that show no activity.
-            if showsActivityActions {
-                ToolbarItemGroup {
-                    Button {
-                        editor = .create
-                    } label: {
-                        Label("Nouvelle activité", systemImage: "plus")
-                    }
-                    .help("Ajouter une activité saisie à la main")
-
-                    Button {
-                        toggleFavorite()
-                    } label: {
-                        // Filled when every selected activity is already a favourite,
-                        // so the icon says what the button is about to do.
-                        Label(
-                            "Favori",
-                            systemImage: selection.allSatisfy(\.isFavorite) && !selection.isEmpty
-                                ? "star.fill" : "star"
-                        )
-                    }
-                    .disabled(selection.isEmpty)
-                    .help("Marquer ou retirer des favoris")
-
-                    Button {
-                        if let selected { editor = .edit(selected) }
-                    } label: {
-                        Label("Modifier", systemImage: "pencil")
-                    }
-                    .disabled(selected == nil)
-                    .help("Modifier l'activité sélectionnée")
-
-                    Button {
-                        pendingDeletion = selected
-                    } label: {
-                        Label("Supprimer", systemImage: "trash")
-                    }
-                    .disabled(selected == nil)
-                    .help("Supprimer l'activité sélectionnée")
-                }
-            }
-
-            if showsJournalSection {
-                ToolbarItemGroup {
-                    // Le même segmenté que la présentation des activités : le
-                    // choix porte sur la façon de ranger ce qu'on a sous les
-                    // yeux, pas sur l'endroit où l'on va.
-                    Picker("Vue du journal", selection: $vueJournal) {
-                        ForEach(VueJournal.allCases) { vue in
-                            Label(vue.displayName, systemImage: vue.symbolName)
-                                .tag(vue)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelStyle(.iconOnly)
-                    .help("Basculer entre les journées et les gens qui y sont cités")
-
-                    // Écrire et supprimer, ce sont des gestes sur une note :
-                    // devant la liste des gens ils n'ont rien à viser.
-                    if showsJournal {
-                        Button {
-                            openTodaysNote()
-                        } label: {
-                            Label("Note du jour", systemImage: "square.and.pencil")
-                        }
-                        .help("Ouvrir la note d'aujourd'hui (⌘N)")
-
-                        Button {
-                            journalPendingDeletion = journalSelection
-                        } label: {
-                            Label("Supprimer", systemImage: "trash")
-                        }
-                        .disabled(!journalSelectionHasNote)
-                        .help("Supprimer la note sélectionnée")
-                    }
-                }
             }
     }
 }
