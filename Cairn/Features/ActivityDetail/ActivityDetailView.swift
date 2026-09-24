@@ -38,8 +38,7 @@ struct ActivityDetailView: View {
     /// there: one re-reads an outing far more often than one writes about it,
     /// so the pane opens rendered — and writing costs one click rather than a
     /// link, a sheet and a form with eight other fields in it.
-    /// Which of the two notes is open for writing, if either.
-    @State private var editingNote: NoteKind?
+    @State private var isEditingNote = false
     /// Held here while it is being typed, exactly as the journal's pane holds
     /// its own: bound straight to the model, every keystroke would be a write
     /// and a re-read, and `TextEditor` loses its selection to a value replaced
@@ -252,45 +251,20 @@ struct ActivityDetailView: View {
             .accessibilityHidden(true)
     }
 
-    /// The two notes an outing can carry: the one Strava shows its followers,
-    /// and the private one only its author sees. Same editor, same saving,
-    /// different field — and neither goes back to Strava.
-    enum NoteKind {
-        case publique, privee
-
-        var field: ActivityField { self == .publique ? .notes : .privateNote }
-
-        /// As stored, for the editor: a trimmed copy would differ from the
-        /// field on its first save and claim it edited without a key pressed.
-        func stored(in activity: Activity) -> String {
-            (self == .publique ? activity.activityDescription : activity.privateNote) ?? ""
-        }
-
-        /// As shown.
-        func text(of activity: Activity) -> String {
-            stored(in: activity).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-
-        func set(_ text: String, on draft: inout ActivityDraft) {
-            if self == .publique { draft.notes = text } else { draft.privateNote = text }
-        }
-    }
-
-    /// The note, or an invitation to write one; then the private note.
+    /// The note, or an invitation to write one.
     ///
-    /// The public one is shown even when empty, which is the whole point: an
-    /// activity with no note used to display nothing at all, so nothing ever
-    /// suggested writing one. A journal is only kept if it asks to be.
-    ///
-    /// The private one asks more quietly — a single line under the first, not
-    /// a second invitation of the same size: most outings will never carry
-    /// one, and two empty cards would make the pane read as a form.
+    /// Shown even when empty, which is the whole point: an activity with no note
+    /// used to display nothing at all, so nothing ever suggested writing one. A
+    /// journal is only kept if it asks to be.
     private var notes: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let note = activity.activityDescription?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Text("Notes").font(.headline)
                 Spacer()
-                if editingNote != nil {
+                if isEditingNote {
                     Text("Échap pour terminer")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
@@ -303,11 +277,11 @@ struct ActivityDetailView: View {
                     .foregroundStyle(.red)
             }
 
-            if editingNote == .publique {
+            if isEditingNote {
                 noteEditor
-            } else if NoteKind.publique.text(of: activity).isEmpty {
+            } else if note.isEmpty {
                 Button {
-                    beginEditingNote(.publique)
+                    beginEditingNote()
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "square.and.pencil")
@@ -325,70 +299,39 @@ struct ActivityDetailView: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                renderedNote(.publique)
+                MarkdownText(
+                    markdown: note, baseSize: Self.noteSize, hidesTagHashes: true
+                )
+                // No `textSelection` here, deliberately: a selectable `Text`
+                // takes the click for itself, so only the empty surface beside
+                // the words opened the editor — measured at the pointer, 13
+                // August 2026. Selecting the note is what the editor is for,
+                // and it is one click away. The journal's pane made the same
+                // trade for the same reason.
+                // La même surface que l'invitation à écrire, juste au-dessus.
+                //
+                // Elle ne l'avait pas, et le rapport était à l'envers : la
+                // carte allait à la proposition d'écrire, la note écrite
+                // restait nue entre la carte du parcours et la grille des
+                // chiffres — deux blocs autrement plus présents qu'elle. Elle
+                // est pourtant la seule prose de l'écran, et la seule chose
+                // qu'on ait mise là soi-même.
+                //
+                // Une surface plutôt qu'un cadre ou une couleur : c'est déjà
+                // le vocabulaire de cet écran, et le plus discret des trois.
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+                .contentShape(.rect)
+                .onTapGesture { beginEditingNote() }
             }
-
-            privateNote
         }
         // Leaving the activity commits what was typed: the pane is rebuilt for
         // the next one, and a draft left behind would go nowhere.
         .onChange(of: activity.persistentModelID) { _, _ in
-            if editingNote != nil { endEditingNote() }
+            if isEditingNote { endEditingNote() }
         }
-        .onDisappear { if editingNote != nil { endEditingNote() } }
-    }
-
-    @ViewBuilder
-    private var privateNote: some View {
-        if editingNote == .privee {
-            VStack(alignment: .leading, spacing: 4) {
-                privateNoteLabel
-                noteEditor
-            }
-        } else if NoteKind.privee.text(of: activity).isEmpty {
-            Button {
-                beginEditingNote(.privee)
-            } label: {
-                Label("Ajouter une note privée", systemImage: "lock")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Visible de vous seul, comme sur Strava. Rien n'y est renvoyé.")
-        } else {
-            VStack(alignment: .leading, spacing: 4) {
-                privateNoteLabel
-                renderedNote(.privee)
-            }
-        }
-    }
-
-    private var privateNoteLabel: some View {
-        Label("Note privée", systemImage: "lock")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .help("Visible de vous seul, comme sur Strava. Rien n'y est renvoyé.")
-    }
-
-    private func renderedNote(_ kind: NoteKind) -> some View {
-        MarkdownText(
-            markdown: kind.text(of: activity), baseSize: Self.noteSize, hidesTagHashes: true
-        )
-        // No `textSelection` here, deliberately: a selectable `Text` takes the
-        // click for itself, so only the empty surface beside the words opened
-        // the editor — measured at the pointer, 13 August 2026. Selecting the
-        // note is what the editor is for, and it is one click away. The
-        // journal's pane made the same trade for the same reason.
-        //
-        // La même surface que l'invitation à écrire : la note est la seule
-        // prose de l'écran, et la seule chose qu'on ait mise là soi-même. Une
-        // surface plutôt qu'un cadre ou une couleur : c'est déjà le
-        // vocabulaire de cet écran, et le plus discret des trois.
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
-        .contentShape(.rect)
-        .onTapGesture { beginEditingNote(kind) }
+        .onDisappear { if isEditingNote { endEditingNote() } }
     }
 
     private var noteEditor: some View {
@@ -406,20 +349,17 @@ struct ActivityDetailView: View {
         }
     }
 
-    private func beginEditingNote(_ kind: NoteKind) {
-        // One editor at a time: switching from one note to the other commits
-        // the first before the draft is replaced.
-        if editingNote != nil { endEditingNote() }
-        noteDraft = kind.stored(in: activity)
+    private func beginEditingNote() {
+        noteDraft = activity.activityDescription ?? ""
         noteFailure = nil
-        editingNote = kind
+        isEditingNote = true
         noteFocused = true
     }
 
     private func endEditingNote() {
         noteSaveTask?.cancel()
         saveNote()
-        editingNote = nil
+        isEditingNote = false
         noteFocused = false
     }
 
@@ -444,10 +384,9 @@ struct ActivityDetailView: View {
     /// it would be quietly overwritten by the next sync of that activity —
     /// which is the whole point of `editedFields`.
     private func saveNote() {
-        guard let kind = editingNote else { return }
         var draft = ActivityDraft(activity)
-        kind.set(noteDraft, on: &draft)
-        guard draft.changedFields(comparedTo: activity).contains(kind.field) else {
+        draft.notes = noteDraft
+        guard draft.changedFields(comparedTo: activity).contains(.notes) else {
             return
         }
         draft.apply(to: activity)

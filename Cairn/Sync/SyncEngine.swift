@@ -417,21 +417,26 @@ actor SyncEngine {
 
     /// Puts every Strava activity back in the backfill, once, so its detail is
     /// read again — this time with the private note, which the detail always
-    /// carried but nothing kept until September 2026.
+    /// carried but nothing kept until September 2026, and which now joins the
+    /// note.
     ///
     /// By clearing `detailFetchedAt`, the very marker the backfill already
     /// works from, rather than with a queue of its own: the library drains at
     /// the pace it always has — ten a launch, the lot on a full sync — and one
     /// request each, photos untouched. Laps are replaced as on any detail
-    /// fetch, and the notes keep whatever was edited here (`ImportMapper`).
+    /// fetch, and a note edited here only gains the private note at its end
+    /// (`ImportMapper.applyNote`).
     func requestPrivateNotesOnce() throws {
         let state = try state()
-        guard !state.privateNotesRequested else { return }
+        guard !state.privateNotesMerged else { return }
         for activity in try context.fetch(FetchDescriptor<Activity>())
         where activity.source.isSynced {
             activity.detailFetchedAt = nil
+            // Forgotten so the next detail merges it: a private note already
+            // seen is one `applyNote` deliberately leaves alone.
+            activity.privateNote = nil
         }
-        state.privateNotesRequested = true
+        state.privateNotesMerged = true
         try context.save()
     }
 

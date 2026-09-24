@@ -82,9 +82,11 @@ final class Activity {
 
     var summaryPolyline: String?
     var activityDescription: String?
-    /// Strava's private note, the one only its author sees. Read from Strava
-    /// and editable here, but never written back: Cairn only ever reads the
-    /// Strava API, and an edit made here stays here (and in the mirror).
+    /// The last private note Strava gave, as it gave it — not shown anywhere.
+    /// The note shown is `activityDescription`, which carries it after the
+    /// description (`ImportMapper.applyNote`); this copy is only what tells a
+    /// private note new on Strava from one already merged, or deliberately
+    /// deleted from the note here.
     var privateNote: String?
     var deviceName: String?
     /// Non-nil once the detail endpoint has been fetched for this activity.

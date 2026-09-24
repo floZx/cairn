@@ -17,7 +17,11 @@ final class SyncState {
     /// Set once every Strava activity has been queued for a second look at
     /// its detail, for the private note that was not read before September
     /// 2026. See `SyncEngine.requestPrivateNotesOnce()`.
-    var privateNotesRequested: Bool = false
+    ///
+    /// A second name for a second pass: the first (`privateNotesRequested`,
+    /// gone) kept the private note apart, and the ten activities it reached
+    /// must be read again to fold theirs into the note.
+    var privateNotesMerged: Bool = false
 
     init() {}
 }

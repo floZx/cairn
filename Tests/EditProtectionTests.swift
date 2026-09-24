@@ -123,25 +123,60 @@ struct EditProtectionTests {
         #expect(activity.calories == 812)
     }
 
-    @Test("la note privée de Strava arrive avec la fiche détaillée")
-    func importsPrivateNote() throws {
+    private func detail(_ id: Int64, _ description: String?, _ privateNote: String?) -> DetailActivityDTO {
+        DetailActivityDTO(
+            id: id, description: description, calories: nil,
+            device_name: nil, laps: nil, photos: nil, private_note: privateNote
+        )
+    }
+
+    @Test("la note privée de Strava rejoint la note, après une ligne vide")
+    func mergesPrivateNote() throws {
         let context = ModelContext(try AppModelContainer.inMemory())
         let mapper = ImportMapper(context: context)
-        let activity = try mapper.upsert(
-            summary: summary(id: 51, name: "Sortie", distance: 5_000)
-        )
-        let detail = try StravaJSON.decoder.decode(
-            DetailActivityDTO.self,
-            from: Data(#"{"id": 51, "private_note": "Genou gauche un peu raide"}"#.utf8)
-        )
-        try mapper.apply(detail: detail, to: activity)
-        #expect(activity.privateNote == "Genou gauche un peu raide")
+        let activity = try mapper.upsert(summary: summary(id: 51, name: "Sortie", distance: 5_000))
 
-        // Absent key, as Strava sends it when there is no note: nothing.
-        let without = try StravaJSON.decoder.decode(
-            DetailActivityDTO.self, from: Data(#"{"id": 51}"#.utf8)
+        try mapper.apply(detail: detail(51, "Belle sortie", "Genou raide"), to: activity)
+        #expect(activity.activityDescription == "Belle sortie\n\nGenou raide")
+
+        // Alone when the other is missing.
+        try mapper.apply(detail: detail(51, nil, "Genou raide"), to: activity)
+        #expect(activity.activityDescription == "Genou raide")
+        try mapper.apply(detail: detail(51, "Belle sortie", nil), to: activity)
+        #expect(activity.activityDescription == "Belle sortie")
+
+        // Strava's JSON, where the key is simply absent without a note.
+        let decoded = try StravaJSON.decoder.decode(
+            DetailActivityDTO.self, from: Data(#"{"id": 51, "private_note": "Vent"}"#.utf8)
         )
-        #expect(without.private_note == nil)
+        #expect(decoded.private_note == "Vent")
+    }
+
+    @Test("une note modifiée ici reçoit la note privée une seule fois")
+    func appendsPrivateNoteToEditedNoteOnce() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let mapper = ImportMapper(context: context)
+        let activity = try mapper.upsert(summary: summary(id: 52, name: "Sortie", distance: 5_000))
+        activity.activityDescription = "Écrit dans Cairn"
+        activity.markEdited([.notes])
+
+        try mapper.apply(detail: detail(52, "Description Strava", "Genou raide"), to: activity)
+        // The edit keeps its text, gains the private note, and not Strava's
+        // description.
+        #expect(activity.activityDescription == "Écrit dans Cairn\n\nGenou raide")
+
+        // The same detail again: nothing added twice.
+        try mapper.apply(detail: detail(52, "Description Strava", "Genou raide"), to: activity)
+        #expect(activity.activityDescription == "Écrit dans Cairn\n\nGenou raide")
+
+        // Deleted here on purpose: it stays deleted while Strava's is unchanged…
+        activity.activityDescription = "Écrit dans Cairn"
+        try mapper.apply(detail: detail(52, "Description Strava", "Genou raide"), to: activity)
+        #expect(activity.activityDescription == "Écrit dans Cairn")
+
+        // …and a private note changed on Strava is new again.
+        try mapper.apply(detail: detail(52, "Description Strava", "Genou mieux"), to: activity)
+        #expect(activity.activityDescription == "Écrit dans Cairn\n\nGenou mieux")
     }
 
     /// One arm per `ActivityField`, on purpose written by hand rather than by
@@ -236,19 +271,6 @@ struct EditProtectionTests {
                 to: activity
             )
             #expect(activity.activityDescription == "Note perso")
-
-        case .privateNote:
-            activity.privateNote = "Note privée perso"
-            activity.markEdited([.privateNote])
-            try mapper.apply(
-                detail: DetailActivityDTO(
-                    id: 60, description: nil, calories: nil,
-                    device_name: nil, laps: nil, photos: nil,
-                    private_note: "Note privée Strava"
-                ),
-                to: activity
-            )
-            #expect(activity.privateNote == "Note privée perso")
 
         case .isCommute:
             activity.isCommute = true

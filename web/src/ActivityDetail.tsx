@@ -14,7 +14,7 @@ import { Markdown } from "./markdown"
 import { Courbes } from "./Courbes"
 import { Tours } from "./Tours"
 import { ParcoursSimilaires } from "./ParcoursSimilaires"
-import { NoteActivite, type SorteDeNote } from "./NoteActivite"
+import { NoteActivite } from "./NoteActivite"
 import { Feuille } from "./Chrome"
 import { NOMS, etiquettesDe, type SourceEtiquettes } from "./etiquettes"
 
@@ -32,7 +32,6 @@ type Fiche = {
   average_cadence: number | null
   calories: number | null
   activity_description: string | null
-  private_note: string | null
   edited_fields: string[] | null
   source_raw: string
   workout_type: number | null
@@ -60,7 +59,7 @@ export function ActivityDetail({
   uuid: string
   onOuvrir: (uuid: string) => void
 }) {
-  const [enEdition, setEnEdition] = useState<SorteDeNote | null>(null)
+  const [enEdition, setEnEdition] = useState(false)
   const { data, error, isPending } = useQuery({
     queryKey: ["activite", uuid],
     queryFn: async () => {
@@ -69,7 +68,7 @@ export function ActivityDetail({
         .select(
           "uuid, name, sport_type_raw, start_local_date, distance, moving_time, " +
             "total_elevation_gain, average_heartrate, max_heartrate, average_watts, " +
-            "average_cadence, calories, activity_description, private_note, edited_fields, " +
+            "average_cadence, calories, activity_description, edited_fields, " +
             "source_raw, workout_type, workout_label_raw, is_favorite, is_commute, " +
             "is_trainer, is_manual, simplified_track",
         )
@@ -164,7 +163,7 @@ export function ActivityDetail({
       <div className="description carte-groupe">
         <div className="tete-description">
           <span className="attenue petit">Note</span>
-          <button className="lien petit" onClick={() => setEnEdition("publique")}>
+          <button className="lien petit" onClick={() => setEnEdition(true)}>
             {data.activity_description ? "Modifier" : "Écrire"}
           </button>
         </div>
@@ -172,20 +171,6 @@ export function ActivityDetail({
           <Markdown texte={data.activity_description} />
         ) : (
           <p className="attenue">Rien de noté sur cette sortie.</p>
-        )}
-      </div>
-
-      <div className="description carte-groupe">
-        <div className="tete-description">
-          <span className="attenue petit">Note privée</span>
-          <button className="lien petit" onClick={() => setEnEdition("privee")}>
-            {data.private_note ? "Modifier" : "Écrire"}
-          </button>
-        </div>
-        {data.private_note ? (
-          <Markdown texte={data.private_note} />
-        ) : (
-          <p className="attenue">Visible de vous seul, comme sur Strava.</p>
         )}
       </div>
 
@@ -205,18 +190,12 @@ export function ActivityDetail({
       <Tours uuid={uuid} sport={data.sport_type_raw} />
 
       {enEdition && (
-        <Feuille
-          titre={enEdition === "privee" ? "Note privée" : "Note de sortie"}
-          onFerme={() => setEnEdition(null)}
-        >
+        <Feuille titre="Note de sortie" onFerme={() => setEnEdition(false)}>
           <NoteActivite
             uuid={uuid}
-            sorte={enEdition}
-            texte={
-              (enEdition === "privee" ? data.private_note : data.activity_description) ?? ""
-            }
+            texte={data.activity_description ?? ""}
             champsEdites={data.edited_fields ?? []}
-            onFerme={() => setEnEdition(null)}
+            onFerme={() => setEnEdition(false)}
           />
         </Feuille>
       )}

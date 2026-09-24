@@ -191,8 +191,7 @@ struct ImportMapper {
         // manual activity being captured by a Strava identifier of 0.
         guard activity.source.isSynced else { return }
 
-        assign(.notes, on: activity, \.activityDescription, dto.description)
-        assign(.privateNote, on: activity, \.privateNote, dto.private_note)
+        applyNote(description: dto.description, privateNote: dto.private_note, to: activity)
         activity.calories = dto.calories
         activity.deviceName = dto.device_name
         activity.detailFetchedAt = Date()
@@ -219,6 +218,49 @@ struct ImportMapper {
             context.insert(lap)
             activity.laps.append(lap)
         }
+    }
+
+    /// One note in Cairn, where Strava keeps two: the description its
+    /// followers read, then — after a blank line — the private note only its
+    /// author sees. Kept apart on Strava because one is shared; here nothing
+    /// is, and two notes to read and write was one too many.
+    ///
+    /// A note edited here is left alone, as every edited field is — except
+    /// that a private note Strava did not have before is added at its end
+    /// rather than lost. `privateNote` remembers the last one seen, so that
+    /// happens once: deleted from the note here, it does not come back at the
+    /// next sync unless it changed on Strava.
+    private func applyNote(
+        description: String?, privateNote rawPrivate: String?, to activity: Activity
+    ) {
+        let privateNote = rawPrivate
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+        defer { activity.privateNote = privateNote }
+
+        guard activity.isEdited(.notes) else {
+            activity.activityDescription = Self.note(
+                description: description, privateNote: privateNote
+            )
+            return
+        }
+        guard let privateNote, privateNote != activity.privateNote else { return }
+        let current = activity.activityDescription ?? ""
+        guard !current.contains(privateNote) else { return }
+        activity.activityDescription = Self.note(
+            description: current, privateNote: privateNote
+        )
+    }
+
+    /// The description, a blank line, the private note — either alone when
+    /// the other is missing, and the private one dropped when the description
+    /// already says it (a note copied from one field to the other).
+    static func note(description: String?, privateNote: String?) -> String? {
+        guard let privateNote else { return description }
+        let trimmed = description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmed.isEmpty { return privateNote }
+        if trimmed.contains(privateNote) { return description }
+        return trimmed + "\n\n" + privateNote
     }
 
     func apply(streams dto: StreamSetDTO, to activity: Activity) {

@@ -13,7 +13,6 @@ enum ActivityField: String, CaseIterable, Sendable {
     case movingTime
     case totalElevationGain
     case notes
-    case privateNote
     case isCommute
     case isTrainer
     case workoutLabel
@@ -27,7 +26,6 @@ enum ActivityField: String, CaseIterable, Sendable {
         case .movingTime: "Durée"
         case .totalElevationGain: "Dénivelé positif"
         case .notes: "Notes"
-        case .privateNote: "Note privée"
         case .isCommute: "Domicile-travail"
         case .isTrainer: "Home-trainer"
         case .workoutLabel: "Type de séance"
