@@ -3,6 +3,12 @@ import SwiftData
 
 /// One activity as a card: its shape, its name, its figures.
 ///
+/// Laid out the way Mail lays out a message — three stacked lines rather than
+/// a row of columns: the name with the date at its end, the figures, then the
+/// note. Columns reserved 4 × 72 pt for the figures before the name got a
+/// point, so a narrow list cut the name and the date down to nothing; stacked,
+/// every line takes the width there is.
+///
 /// Every card is the same height, and deliberately so. A list of rows that size
 /// themselves makes AppKit build all 840 of them to measure — the ten-second
 /// freeze on sorting the table came from exactly that. Uniform cards let the
@@ -10,11 +16,9 @@ import SwiftData
 struct ActivityCard: View {
     let activity: Activity
 
-    /// Half the original 84: the tall card showed a handful of outings where
-    /// the point of a list is to scan many. Two lines of text and a thumbnail
-    /// still fit, everything just speaks one size down. Fixed so nothing has
+    /// Three lines of text, where there were two at 42. Fixed so nothing has
     /// to be measured — see the type's own note.
-    static let height: CGFloat = 42
+    static let height: CGFloat = 52
     /// The insets the list wraps each card in — ours, not the `List` default,
     /// so the full row height is a constant the row-height probe can be told
     /// instead of having to measure (and mis-measure — see the probe).
@@ -26,14 +30,17 @@ struct ActivityCard: View {
     /// proportions, and the glyph that stands in for a missing trace is derived
     /// from the width rather than fixed, so one number moves the whole thing.
     private static let thumbnailWidth: CGFloat = 44
-    private var inner: CGFloat { Self.height - 14 }
+    /// The thumbnail keeps the height it had beside two lines: the trace is a
+    /// mark to recognise, and a taller box would only make it louder.
+    private var inner: CGFloat { 28 }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             thumbnail
+                .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     // No sport glyph here: the thumbnail to the left already
                     // says which sport this was, by the colour of its trace or
                     // by the symbol standing in for one, and repeating it
@@ -41,46 +48,39 @@ struct ActivityCard: View {
                     Text(activity.name)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                    // The thumbnails themselves were too much beside a row of
-                    // figures; the fact that there are any is still worth
-                    // knowing, and one glyph says it without taking a column.
-                    if !activity.photos.isEmpty {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                            .font(.caption2)
-                            .help(
-                                activity.photos.count == 1
-                                    ? "1 photo" : "\(activity.photos.count) photos"
-                            )
-                    }
-                }
-                HStack(spacing: 4) {
-                    Text(Format.longDate(activity.startDate, in: activity.timeZone))
-                        .font(.caption2)
+                    Spacer(minLength: 0)
+                    // Short and relative, as Mail heads a message: the full
+                    // date was the widest thing in the row and said the least.
+                    // The full one is still there on hover.
+                    Text(Format.relativeDate(activity.startDate, in: activity.timeZone))
+                        .font(.caption)
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    // Symbols only, and after the date rather than beside the
-                    // name: the favourite's star used to sit up there alone,
-                    // and one marker shown out of six is a marker that lies by
-                    // omission. Priority to the chips — a truncated date is
-                    // still a date, a truncated row of markers is a wrong one.
-                    ForEach(activity.labels) { label in
-                        ActivityLabelChip(label: label, compact: true)
-                    }
-                    .layoutPriority(1)
+                        .fixedSize()
+                        .help(Format.longDate(activity.startDate, in: activity.timeZone))
                 }
-            }
-            // A low floor and no priority: the figures are what the row is
-            // read for, and a name cut short is still a name where a missing
-            // heart rate is a row that quietly says less than its neighbour.
-            // So this is what gives way, down to an ellipsis if it must.
-            .frame(minWidth: 60, alignment: .leading)
 
-            Spacer(minLength: 12)
-            figures
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(figures.joined(separator: " · "))
+                        .font(.caption.monospacedDigit())
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    markers
+                }
+
+                // What Mail gives to the first words of a message. Left empty
+                // rather than filled with something for the sake of it: the
+                // height is fixed anyway, and a blank line reads as "nothing
+                // written", which is true.
+                Text(preview ?? " ")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
         }
-        .padding(.vertical, 5)
-        .frame(height: Self.height)
+        .padding(.vertical, 3)
+        .frame(height: Self.height, alignment: .top)
     }
 
     @ViewBuilder
@@ -119,55 +119,89 @@ struct ActivityCard: View {
         .ambientGlow(activity.sportType.color, cornerRadius: 6, blurRadius: 18)
     }
 
-    /// The figures, as a row of blocks rather than a line of small grey text.
+    /// Photos and labels as bare symbols at the end of the figures, where Mail
+    /// puts its paperclip: known at a glance, and out of the way of the text.
+    /// The names move to the tooltips — these symbols are learned in a day,
+    /// but not in a second.
+    private var markers: some View {
+        HStack(spacing: 5) {
+            if !activity.photos.isEmpty {
+                Image(systemName: "photo")
+                    .help(
+                        activity.photos.count == 1
+                            ? "1 photo" : "\(activity.photos.count) photos"
+                    )
+            }
+            ForEach(activity.labels) { label in
+                Image(systemName: label.symbolName)
+                    .foregroundStyle(
+                        label == .favorite
+                            ? AnyShapeStyle(.yellow) : AnyShapeStyle(.tertiary)
+                    )
+                    .help(label.displayName)
+            }
+        }
+        .font(.caption2)
+        .foregroundStyle(.tertiary)
+        // The markers win over the figures: a figure cut short still ends in
+        // an ellipsis that says so, a missing marker says nothing at all.
+        .fixedSize()
+    }
+
+    /// The first line of the note: what there is to read about the outing
+    /// beyond its numbers. Not the gear in its absence — tried, and Strava's
+    /// guess at which shoes were worn is too often wrong to print on every row.
+    private var preview: String? {
+        let note = activity.activityDescription?
+            .split(whereSeparator: \.isNewline)
+            .first
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        guard let note, !note.isEmpty else { return nil }
+        return note
+    }
+
+    /// The figures the sport is read by, with their units and without labels:
+    /// « 8,5 km · 47 min · 5:32/km · 137 bpm ». The unit already says which is
+    /// which, and four captions under four numbers on every row was most of
+    /// what made the list heavy.
     ///
-    /// Value above label, the value at reading size: four identical captions
-    /// made the card say everything at the same volume, which is the same as
-    /// saying nothing. Heart rate drops out when there is none rather than
-    /// leaving a hole.
-    private var figures: some View {
-        // All four, always. They used to drop out one by one through a
-        // `ViewThatFits` as the pane narrowed, which made two rows side by
-        // side carry different columns — the reader cannot tell a figure
-        // withheld for want of room from one the activity never recorded.
-        // The name absorbs the shortfall instead; see its frame above.
-        HStack(spacing: 0) {
-            distanceBlock
-            durationBlock
-            elevationBlock
-            heartrateBlock
+    /// Chosen by sport, not by the room there is. Figures used to drop out one
+    /// by one as the pane narrowed, and two rows side by side then carried
+    /// different columns; here there are no columns to compare down, and two
+    /// runs always show the same four things.
+    private var figures: [String] {
+        let sport = activity.sportType
+        var parts: [String] = []
+        if activity.distance > 0 {
+            parts.append(Format.distance(activity.distance))
         }
+        parts.append(Format.durationCompact(activity.movingTime))
+        switch sport {
+        // On the road, pace is the figure; the climb is noise.
+        case .run, .swim, .rowing:
+            if let pace = pace { parts.append(pace) }
+        case .workout, .other:
+            break
+        default:
+            parts.append("\(Format.elevation(activity.totalElevationGain)) D+")
+        }
+        if let heartrate = activity.averageHeartrate, heartrate > 0 {
+            parts.append(Format.heartrate(heartrate))
+        }
+        // A gym session has no distance, pace or climb: its calories are what
+        // is left to tell one from another.
+        if sport == .workout || sport == .other,
+           let calories = activity.calories, calories > 0 {
+            parts.append(Format.calories(calories))
+        }
+        return parts
     }
 
-    private var distanceBlock: some View {
-        block(Format.distance(activity.distance), "Distance")
-    }
-    private var durationBlock: some View {
-        block(Format.durationCompact(activity.movingTime), "Durée")
-    }
-    private var elevationBlock: some View {
-        block(Format.elevation(activity.totalElevationGain), "D+")
-    }
-    @ViewBuilder
-    private var heartrateBlock: some View {
-        if let heartrate = activity.averageHeartrate {
-            block(Format.heartrate(heartrate), "FC moy.")
-        }
-    }
-
-    private func block(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(value)
-                .font(.subheadline.weight(.medium).monospacedDigit())
-                .lineLimit(1)
-                // Rather than truncating: a number cut short reads as another
-                // number, where a slightly smaller one reads as itself.
-                .minimumScaleFactor(0.7)
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-        }
-        .frame(width: 72, alignment: .leading)
+    private var pace: String? {
+        let speed = activity.averageSpeed > 0
+            ? activity.averageSpeed
+            : (activity.movingTime > 0 ? activity.distance / Double(activity.movingTime) : 0)
+        guard speed > 0 else { return nil }
+        return Format.speed(speed, sport: activity.sportType)
     }
 }

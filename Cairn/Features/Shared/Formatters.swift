@@ -66,6 +66,39 @@ enum Format {
         return date.formatted(style)
     }
 
+    /// « 06:52 », « hier », « dimanche », « 11/08/2026 » — the date as Mail
+    /// gives it at the head of a message, for a list read top to bottom where
+    /// the long form was the widest thing in the row and said the least.
+    ///
+    /// Days are counted in the activity's own zone, like every other date of
+    /// an outing: a run at 23:30 in Nouméa was not « hier » for whoever ran it.
+    static func relativeDate(
+        _ date: Date, in zone: TimeZone, now: Date = .now
+    ) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: date),
+            to: calendar.startOfDay(for: now)
+        ).day ?? .max
+        switch days {
+        case 0:
+            return time(date, in: zone)
+        case 1:
+            return "hier"
+        // Under a week, the weekday is unambiguous: this Sunday cannot be
+        // confused with last Sunday, which is seven days back and gets a date.
+        case 2...6:
+            var style = Date.FormatStyle().weekday(.wide)
+            style.locale = french
+            style.timeZone = zone
+            return date.formatted(style)
+        default:
+            return numericDate(date, in: zone)
+        }
+    }
+
     /// « 2026-08-11 », for a file name: sortable, and the same string whoever
     /// exports it.
     static func fileDate(_ date: Date, in zone: TimeZone) -> String {

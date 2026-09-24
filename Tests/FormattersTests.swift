@@ -32,6 +32,28 @@ struct FormattersTests {
         #expect(Format.durationCompact(20) == "< 1 min")
     }
 
+    @Test("la date relative : l'heure, hier, le jour de la semaine, puis la date")
+    func formatsRelativeDate() {
+        let paris = TimeZone(identifier: "Europe/Paris")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = paris
+        // Thursday 24 September 2026, 18:00 in Paris.
+        let now = calendar.date(
+            from: DateComponents(year: 2026, month: 9, day: 24, hour: 18)
+        )!
+        func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+            calendar.date(from: DateComponents(
+                year: 2026, month: 9, day: day, hour: hour, minute: minute
+            ))!
+        }
+        #expect(Format.relativeDate(at(24, 6, 52), in: paris, now: now) == "06:52")
+        #expect(Format.relativeDate(at(23, 23, 30), in: paris, now: now) == "hier")
+        #expect(Format.relativeDate(at(20, 8), in: paris, now: now) == "dimanche")
+        // Seven days back is last Thursday, which a weekday alone would pass
+        // off as today's.
+        #expect(Format.relativeDate(at(17, 12), in: paris, now: now) == "17/09/2026")
+    }
+
     @Test("la fréquence cardiaque absente donne un tiret")
     func formatsHeartRate() {
         #expect(Format.heartrate(142.6) == "143 bpm")
