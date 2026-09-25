@@ -208,6 +208,13 @@ struct ActivityListView: View {
             // Set even when nothing was selected — an empty library on first
             // launch must not arm the auto-selection for the next filter change.
             hasAutoSelected = true
+            // A selection made elsewhere — a track on the global map, a record
+            // in the statistics — comes back selected but out of sight: the
+            // list is built anew, scrolled to its top. Signalé.
+            if let selected = selection.first,
+               let index = rows.firstIndex(where: { $0.id == selected }) {
+                scroller.scrollWhenAttached(toRow: index)
+            }
         }
         .toolbar {
             // Only with the cards: the table sorts by clicking a header, and a

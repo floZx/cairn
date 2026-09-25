@@ -61,6 +61,64 @@ final class TableScroller {
     fileprivate func attach(_ probe: NSView) {
         self.probe = probe
         applyPendingFocus()
+        applyPendingScroll()
+    }
+
+    /// A row to bring into view once the table has its rows.
+    private var pendingRow: Int?
+
+    /// Brings a row to the middle of the view, now or as soon as the table can.
+    ///
+    /// For a selection made elsewhere — a track clicked on the global map —
+    /// that the list only meets when it is built again: it arrives selected,
+    /// but at the top of a list scrolled nowhere near it. Retried like the
+    /// focus, and for the same reason: the first passes land before the
+    /// table has its rows.
+    func scrollWhenAttached(toRow index: Int) {
+        pendingRow = index
+        Task { @MainActor in
+            for delay in Self.focusDelays {
+                if delay != .zero { try? await Task.sleep(for: delay) }
+                applyPendingScroll()
+                if pendingRow == nil { return }
+            }
+            pendingRow = nil
+        }
+    }
+
+    private func applyPendingScroll() {
+        guard let index = pendingRow, let tableView,
+              index < tableView.numberOfRows
+        else { return }
+        Self.center(row: index, in: tableView)
+        pendingRow = nil
+    }
+
+    /// Scrolls so the row sits in the middle of what is visible, not at the
+    /// edge `scrollRowToVisible` leaves it on — which, coming from further
+    /// down, is the very bottom of the list: found, but with nothing after it
+    /// and no sense of where it stands. Signalé. Clamped to the content, so a
+    /// row near either end simply goes as far as the list does.
+    ///
+    /// Only for a selection arriving from elsewhere. A step with `j` keeps the
+    /// minimal scroll, or the list would lurch at every keystroke.
+    private static func center(row index: Int, in tableView: NSTableView) {
+        guard let scrollView = tableView.enclosingScrollView else {
+            tableView.scrollRowToVisible(index)
+            return
+        }
+        let clip = scrollView.contentView
+        let rowRect = tableView.rect(ofRow: index)
+        let visibleHeight = clip.bounds.height
+        let insets = clip.contentInsets
+        let top = -insets.top
+        let bottom = max(top, tableView.bounds.height - visibleHeight + insets.bottom)
+        // The middle of what is actually visible: the list runs up under the
+        // toolbar, and those points are inset, not seen.
+        let seen = visibleHeight - insets.top - insets.bottom
+        let y = min(max(rowRect.midY - insets.top - seen / 2, top), bottom)
+        clip.scroll(to: NSPoint(x: clip.bounds.origin.x, y: y))
+        scrollView.reflectScrolledClipView(clip)
     }
 
     /// Puts the keyboard back in the list, now or as soon as there is one.
