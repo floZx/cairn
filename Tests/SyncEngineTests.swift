@@ -55,8 +55,18 @@ private actor FakeSource: StravaSyncSource {
         return streamsToReturn
     }
 
+    /// Details refused once for quota, then served: Strava's 429.
+    private var throttledOnce: Set<Int64> = []
+    func setThrottledOnce(_ ids: Set<Int64>) { throttledOnce = ids }
+    /// Details refused for quota every time.
+    private var alwaysThrottled = false
+    func setAlwaysThrottled(_ value: Bool) { alwaysThrottled = value }
+
     func activityDetail(id: Int64) async throws -> DetailActivityDTO {
         detailRequests.append(id)
+        if alwaysThrottled || throttledOnce.remove(id) != nil {
+            throw StravaError.http(429, "Quota d'API dépassé")
+        }
         return DetailActivityDTO(
             id: id, description: nil, calories: nil, device_name: nil,
             laps: nil, photos: photosToReturn
@@ -296,6 +306,48 @@ struct SyncSummariesTests {
         #expect(reread.count == 1)
         let refetched = try #require(reread[0].detailFetchedAt)
         #expect(refetched > Date(timeIntervalSince1970: 1000))
+    }
+
+    @Test("un refus pour quota est réessayé, pas sauté")
+    func backfillRetriesQuotaRefusals() async throws {
+        let source = FakeSource(pages: [[
+            makeSummary(id: 1, epoch: 1000), makeSummary(id: 2, epoch: 2000),
+        ]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
+        )
+        _ = try await engine.syncSummaries()
+        await source.setThrottledOnce([2])
+
+        try await engine.syncBackfill()
+
+        let reread = try ModelContext(container).fetch(FetchDescriptor<Activity>())
+        #expect(reread.allSatisfy { $0.detailFetchedAt != nil })
+        // Asked twice: refused, then served.
+        #expect(await source.detailRequests.filter { $0 == 2 }.count == 2)
+    }
+
+    @Test("un quota qui ne revient pas arrête la reprise au lieu de tout sauter")
+    func backfillStopsWhenQuotaNeverReturns() async throws {
+        let source = FakeSource(pages: [[
+            makeSummary(id: 1, epoch: 1000), makeSummary(id: 2, epoch: 2000),
+        ]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
+        )
+        _ = try await engine.syncSummaries()
+        await source.setAlwaysThrottled(true)
+
+        try await engine.syncBackfill()
+
+        // The first one tried its retries, and the second was not attempted.
+        let asked = await source.detailRequests
+        #expect(Set(asked).count == 1)
+        #expect(asked.count == SyncEngine.maxQuotaRetries + 1)
     }
 
     @Test("resynchroniser tout laisse le détail d'une activité locale tel quel")

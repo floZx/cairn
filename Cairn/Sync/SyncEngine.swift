@@ -480,14 +480,49 @@ actor SyncEngine {
             }
 
             let stravaID = activity.stravaID
-            try? await fetchDetailIfNeeded(stravaID: stravaID)
-            try? await fetchPhotosIfNeeded(activity)
+            // A refusal for quota is a « not now », not a « nothing there »:
+            // waited out and asked again. Swallowed like any other error, it
+            // used to leave the activity behind — 39 of a 892-activity resync
+            // on 25 September 2026, in little runs at each quarter hour.
+            guard await retryingOnQuota({ try await self.fetchDetailIfNeeded(stravaID: stravaID) }),
+                  await retryingOnQuota({ try await self.fetchPhotosIfNeeded(activity) })
+            else { break }
             done += 1
         }
 
         await finish(quota: await source.rateLimitSnapshot(), at: try? state().lastRunAt)
         return done
     }
+
+    /// Runs `operation`, waiting out and retrying a quota refusal (429) as
+    /// many times as `maxQuotaRetries`; any other failure is let go, as the
+    /// backfill always has. False only when Strava is still refusing after
+    /// that, or the wait was cancelled: the pass should stop there rather than
+    /// skip through the rest of the library one refusal at a time.
+    ///
+    /// The wait is the limiter's, which backs off from 30 s after each 429
+    /// up to the quarter hour — so the window has turned by the last try.
+    private func retryingOnQuota(_ operation: () async throws -> Void) async -> Bool {
+        var refusals = 0
+        while true {
+            do {
+                try await operation()
+                return true
+            } catch StravaError.http(429, _) {
+                refusals += 1
+                guard refusals <= Self.maxQuotaRetries else { return false }
+                let wait = await source.delayBeforeNextRequest()
+                if wait > 0 {
+                    await setPhase(.waitingForQuota(until: Date().addingTimeInterval(wait)))
+                    do { try await Task.sleep(for: .seconds(wait)) } catch { return false }
+                }
+            } catch {
+                return true
+            }
+        }
+    }
+
+    static let maxQuotaRetries = 4
 
     /// Above this, a pass is a backfill rather than "new activities arrived".
     ///
