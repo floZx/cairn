@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { POIDS_MASQUE } from "./masquees"
 import { nomDuSport } from "./sports"
-import { IconeSport } from "./IconeSport"
+import { Symbole, symboleDuSport } from "./IconeSport"
 import { denivele, distance, duree } from "./format"
 
 /// Les statistiques, portées d'`ActivityStatistics`.
@@ -22,7 +22,9 @@ const PERIODES: { clef: Periode; nom: string; mois: number }[] = [
   { clef: "3mois", nom: "3 mois", mois: 3 },
   { clef: "6mois", nom: "6 mois", mois: 6 },
   { clef: "12mois", nom: "12 mois", mois: 12 },
-  { clef: "annee", nom: "Année en cours", mois: 0 },
+  // « Année » et non « Année en cours » : les quatre tiennent ainsi sur une
+  // ligne, dans le sélecteur.
+  { clef: "annee", nom: "Année", mois: 0 },
 ]
 
 type Ligne = {
@@ -344,12 +346,16 @@ export function Stats() {
 
   return (
     <>
-      <div className="pastilles">
+      {/* Un sélecteur segmenté, et non des pastilles : quatre choix qui
+          s'excluent, sur une ligne, comme ceux d'iOS. Les pastilles passaient
+          à la ligne pour « Année en cours ». */}
+      <div className="segmente" role="group" aria-label="Période">
         {PERIODES.map((p) => (
           <button
             key={p.clef}
-            className={periode === p.clef ? "pastille-choix active" : "pastille-choix"}
+            className={periode === p.clef ? "segment-texte actif" : "segment-texte"}
             onClick={() => setPeriode(p.clef)}
+            aria-pressed={periode === p.clef}
           >
             {p.nom}
           </button>
@@ -359,24 +365,23 @@ export function Stats() {
       {/* Les trois seuls chiffres qu'on peut additionner tous sports
           confondus. La distance n'y est pas, et c'est délibéré. */}
       <div className="carte-groupe grands-totaux">
+        {/* Côte à côte, comme les anneaux de Forme : trois chiffres empilés
+            prenaient la moitié de l'écran pour trois nombres. L'évolution
+            sous l'étiquette, pour qu'aucune colonne ne passe à deux lignes. */}
         <div className="grand-total">
+          <span className="etiquette">Sorties</span>
           <span className="valeur">{totaux.nombre}</span>
-          <span className="etiquette">
-            sortie{totaux.nombre > 1 ? "s" : ""}{" "}
-            <Evolution valeur={ecart(totaux.nombre, totauxAvant.nombre)} />
-          </span>
+          <Evolution valeur={ecart(totaux.nombre, totauxAvant.nombre)} />
         </div>
         <div className="grand-total">
+          <span className="etiquette">Temps</span>
           <span className="valeur">{duree(totaux.temps)}</span>
-          <span className="etiquette">
-            de mouvement <Evolution valeur={ecart(totaux.temps, totauxAvant.temps)} />
-          </span>
+          <Evolution valeur={ecart(totaux.temps, totauxAvant.temps)} />
         </div>
         <div className="grand-total">
+          <span className="etiquette">Dénivelé</span>
           <span className="valeur">{denivele(totaux.denivele)}</span>
-          <span className="etiquette">
-            de dénivelé <Evolution valeur={ecart(totaux.denivele, totauxAvant.denivele)} />
-          </span>
+          <Evolution valeur={ecart(totaux.denivele, totauxAvant.denivele)} />
         </div>
       </div>
 
@@ -387,12 +392,13 @@ export function Stats() {
       {dansLaFenetre.length > 0 && (
         <>
           <h4 className="titre-section">Par mois</h4>
-          <div className="pastilles">
+          <div className="segmente" role="group" aria-label="Mesure">
             {MESURES.map((m) => (
               <button
                 key={m.clef}
-                className={mesure === m.clef ? "pastille-choix active" : "pastille-choix"}
+                className={mesure === m.clef ? "segment-texte actif" : "segment-texte"}
                 onClick={() => setMesure(m.clef)}
+                aria-pressed={mesure === m.clef}
               >
                 {m.nom}
               </button>
@@ -412,8 +418,11 @@ export function Stats() {
           <h4 className="titre-section">Par sport</h4>
           <ul className="liste sans-chevron">
             {sports.map(([sport, t]) => (
-              <li className="ligne avec-icone" key={sport}>
-                <IconeSport sport={sport} />
+              <li className="ligne avec-icone ligne-mail" key={sport}>
+                {/* La pastille monochrome de la liste des activités. */}
+                <span className="pastille-sport">
+                  <Symbole nom={symboleDuSport(sport)} taille={17} couleur="var(--accent)" />
+                </span>
                 <div>
                   <div className="ligne-tete">
                     <span className="titre">{nomDuSport(sport)}</span>
@@ -422,7 +431,15 @@ export function Stats() {
                     </span>
                   </div>
                   <div className="attenue petit">
-                    {distance(t.km)} · {duree(t.temps)} · {denivele(t.dplus)}
+                    {/* Ce que le sport a, sans tiret pour ce qu'il n'a pas : le
+                        renfort montrait « — · 3 h 56 · — ». */}
+                    {[
+                      t.km > 0 ? distance(t.km) : null,
+                      duree(t.temps),
+                      t.dplus > 0 ? `${denivele(t.dplus)} D+` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </div>
                 </div>
               </li>

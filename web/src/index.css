@@ -3384,3 +3384,56 @@ button.citation {
   box-shadow: none;
 }
 
+/* ---- Statistiques, à la façon d'iOS 27 -----------------------------------
+   Un sélecteur segmenté en capsule pour les choix qui s'excluent, et les
+   trois totaux côte à côte. */
+.segmente {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 12px;
+  border-radius: 999px;
+  background: var(--champ);
+}
+
+.segment-texte {
+  flex: 1;
+  padding: 7px 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--texte);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.16s ease;
+}
+
+.segment-texte.actif {
+  background: var(--carte);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
+}
+
+.grands-totaux {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 4px;
+}
+
+.grand-total .etiquette {
+  font-size: 13px;
+}
+
+.grand-total .valeur {
+  font-size: 22px;
+  white-space: nowrap;
+}
+
+.grand-total .evolution {
+  font-size: 13px;
+}
+

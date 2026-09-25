@@ -13,8 +13,12 @@ export function distance(metres: number): string {
 /// seconde ne veut rien dire sur une heure et demie de vélo.
 export function duree(secondes: number): string {
   if (secondes <= 0) return "—"
-  const heures = Math.floor(secondes / 3600)
-  const minutes = Math.round((secondes % 3600) / 60)
+  // Arrondi sur le total des minutes, puis découpé : arrondir les minutes à
+  // part des heures donnait « 104 h 60 » pour 104 h 59 min 40 s — vu dans les
+  // statistiques. C'est la règle de `Format.durationCompact` côté Mac.
+  const total = Math.round(secondes / 60)
+  const heures = Math.floor(total / 60)
+  const minutes = total % 60
   if (heures === 0) return `${minutes} min`
   return `${heures} h ${String(minutes).padStart(2, "0")}`
 }
