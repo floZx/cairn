@@ -155,6 +155,16 @@ enum Format {
         return oneDecimal.string(from: value as NSNumber) ?? "\(value)"
     }
 
+    /// Whether the sport is read as a pace (time per distance) rather than a
+    /// speed — which decides the label as much as the unit: « Vitesse
+    /// moyenne 5:31/km » names one thing and shows the other.
+    static func readsAsPace(_ sport: SportType) -> Bool {
+        switch sport {
+        case .swim, .run, .trailRun, .walk, .hike: true
+        default: false
+        }
+    }
+
     /// Runners think in pace, cyclists in speed. Showing the wrong one makes
     /// every number in the row useless to read at a glance.
     static func speed(_ metresPerSecond: Double, sport: SportType) -> String {

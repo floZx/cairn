@@ -440,14 +440,17 @@ struct ActivityDetailView: View {
         }
         add("Dénivelé +", Format.elevation(activity.totalElevationGain))
 
+        // Named after what is shown: a pace for the sports read in minutes per
+        // kilometre (or per 100 m), a speed for the others.
+        let speedWord = Format.readsAsPace(activity.sportType) ? "Allure" : "Vitesse"
         if activity.averageSpeed > 0 {
             add(
-                "Vitesse moyenne",
+                "\(speedWord) moyenne",
                 Format.speed(activity.averageSpeed, sport: activity.sportType)
             )
         }
         if activity.maxSpeed > 0 {
-            add("Vitesse max", Format.speed(activity.maxSpeed, sport: activity.sportType))
+            add("\(speedWord) max", Format.speed(activity.maxSpeed, sport: activity.sportType))
         }
         if let average = activity.averageHeartrate, average > 0 {
             add("FC moyenne", Format.heartrate(average))

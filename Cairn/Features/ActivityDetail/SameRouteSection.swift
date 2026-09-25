@@ -194,9 +194,14 @@ struct SameRouteSection: View {
             // columns wider than the pane push the whole detail page
             // sideways. The heart rate lives in the tooltip instead of a
             // column — the gap and the pace are what the comparison is about.
+            //
+            // The date got 20 pt more — « 24 sept. 2026 » was cut to « 24
+            // sept. 20… » at 80 — taken from the time (« 3 h 14 » and its
+            // trophy fit in 62) and the gap (« +3 min » in 54), so the row
+            // still adds up to what the 360 pt floor leaves.
             HStack(spacing: 8) {
                 Text(Format.dateOnly(row.startDate, in: row.timeZone))
-                    .frame(width: 80, alignment: .leading)
+                    .frame(width: 100, alignment: .leading)
                 HStack(spacing: 4) {
                     Text(Format.durationCompact(row.movingTime))
                         .fontWeight(isCurrent ? .semibold : .regular)
@@ -207,12 +212,12 @@ struct SameRouteSection: View {
                             .help("Meilleur temps sur ce parcours")
                     }
                 }
-                .frame(width: 74, alignment: .leading)
+                .frame(width: 62, alignment: .leading)
                 Spacer(minLength: 4)
                 Text(Format.speed(row.averageSpeed, sport: row.sportType))
                     .frame(width: 74, alignment: .trailing)
                 deltaText(row, isCurrent: isCurrent)
-                    .frame(width: 62, alignment: .trailing)
+                    .frame(width: 54, alignment: .trailing)
             }
             .font(.callout.monospacedDigit())
             .lineLimit(1)

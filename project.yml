@@ -1,6 +1,11 @@
 name: Cairn
 options:
   bundleIdPrefix: com.florianmaisonnial
+  # L'interface est en français et en rien d'autre. Sans ceci, l'app se
+  # déclarait anglaise (`CFBundleDevelopmentRegion = en`) et macOS habillait
+  # en anglais tout ce qu'il dessine pour elle — « Hide Sidebar », les mois
+  # des axes de Swift Charts — sur un système pourtant réglé en français.
+  developmentLanguage: fr
   deploymentTarget:
     macOS: "15.0"
   createIntermediateGroups: true
