@@ -3367,3 +3367,28 @@ button.citation {
   background: var(--fond);
 }
 
+/* ---- La barre d'onglets, à la façon de Strava ----------------------------
+   Ce qui la rendait plus jolie chez eux, relevé sur une capture : des onglets
+   **noirs** et non gris — le gris délavait toute la barre —, des libellés en
+   semi-gras qu'on lit, des symboles plus appuyés (`public/sf/onglet`, rendus
+   en semi-gras), une pastille neutre bien visible sous l'onglet actif, et une
+   capsule presque opaque. */
+.onglets-bas.matiere {
+  background: color-mix(in srgb, var(--carte) 82%, transparent);
+}
+
+.onglet-bas {
+  color: var(--texte);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.onglet-bas.actif {
+  color: var(--accent);
+}
+
+.onglet-bas.actif .dedans-onglet {
+  background: color-mix(in srgb, var(--texte) 8%, transparent);
+  box-shadow: none;
+}
+

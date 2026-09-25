@@ -82,7 +82,7 @@ export function BoutonCompte() {
           pas un endroit où l'on reste. */}
       <button className="onglet-bas" onClick={() => setOuvert(true)}>
         <span className="dedans-onglet">
-          <Symbole nom="person.crop.circle" taille={26} />
+          <Symbole nom="onglet/person.crop.circle" taille={26} />
           <span>Compte</span>
         </span>
       </button>

@@ -27,7 +27,7 @@ export type Section = "activites" | "plan" | "journal" | "nutrition" | "stats"
 /// symboles SF (voir `Symbole`). Les tracés faits main qui les précédaient
 /// n'étaient « pas ouf », signalé.
 function Icone({ nom }: { nom: Section; actif: boolean }) {
-  return <Symbole nom={SYMBOLES_ONGLETS[nom]} taille={26} />
+  return <Symbole nom={`onglet/${SYMBOLES_ONGLETS[nom]}`} taille={26} />
 }
 
 /// Les symboles de la barre latérale du Mac, section pour section.
