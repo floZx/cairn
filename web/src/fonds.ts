@@ -4,6 +4,10 @@
 /// finiraient par diverger, et se retrouver sur un fond différent selon
 /// l'écran serait déroutant.
 
+import { enregistrerLeCacheDesTuiles, viaLeCache } from "./cacheTuiles"
+
+enregistrerLeCacheDesTuiles()
+
 export type Fond = "plan" | "carte" | "satellite"
 
 type Definition = {
@@ -160,14 +164,15 @@ export function sourcesDuFond(fond: Fond) {
   return {
     fond: {
       type: "raster" as const,
-      tiles: [tuiles(fond)],
+      // Par le cache des tuiles, pour ne pas les redemander à chaque ouverture.
+      tiles: [viaLeCache(tuiles(fond))],
       tileSize: 256,
       maxzoom: 19,
       attribution: FONDS[fond].attribution,
     },
     relief: {
       type: "raster-dem" as const,
-      tiles: [ALTITUDE],
+      tiles: [viaLeCache(ALTITUDE)],
       tileSize: 256,
       // Au-delà, les tuiles d'altitude n'existent plus et MapLibre les
       // redemande en boucle ; il vaut mieux qu'il agrandisse les dernières.

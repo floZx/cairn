@@ -215,6 +215,19 @@ let cadrageRetenu: {
   bearing: number
 } | null = null
 
+/// Les traces déjà chargées, par filtre, le temps de la session.
+///
+/// Sans elles, chaque passage sur la carte redemandait les sept cents traces
+/// page par page, et la carte se remplissait sous les yeux à chaque fois —
+/// signalé. Une variable de module comme `cadrageRetenu` : elle vaut pour la
+/// session, pas pour la prochaine ouverture de l'application.
+///
+/// Montrées tout de suite, puis redemandées en silence : une sortie arrivée
+/// entre-temps apparaît quand même, sans que la carte se vide pour autant.
+/// Rien de persistant, et c'est la règle de `vite.config.ts` — une réponse de
+/// Supabase gardée d'une ouverture à l'autre serait un journal périmé.
+const tracesRetenues = new Map<string, { traits: Trait[]; total: number }>()
+
 /// Ce qu'une sortie apporte à la carte : son identité et sa trace.
 type Ligne = { uuid: string; simplified_track: string | null }
 
@@ -624,10 +637,32 @@ export function CarteGlobale({
       cadreRestaure.current = false
     }
     const teintes = teintesDesTraces()
-    traits.current = []
-    setChargees(0)
-    setTotal(null)
+    const enMemoire = tracesRetenues.get(empreinte)
     setErreur(null)
+    if (enMemoire) {
+      traits.current = enMemoire.traits
+      setTotal(enMemoire.total)
+      setChargees(enMemoire.traits.length)
+      const source = carte.current?.getSource("traces") as maplibregl.GeoJSONSource | undefined
+      source?.setData({ type: "FeatureCollection", features: traits.current })
+      if (carte.current && !cadreRestaure.current && traits.current.length > 0) {
+        const limites = filtre.zone
+          ? new maplibregl.LngLatBounds(
+              [filtre.zone.minLon, filtre.zone.minLat],
+              [filtre.zone.maxLon, filtre.zone.maxLat],
+            )
+          : cadrageUtile(traits.current)
+        if (limites) carte.current.fitBounds(limites, { padding: 32, animate: false })
+      }
+    } else {
+      traits.current = []
+      setChargees(0)
+      setTotal(null)
+    }
+    /// Ce que ce passage-ci charge. Sans rien en mémoire, c'est la carte
+    /// elle-même qui se remplit au fil des pages ; avec, le lot se prépare à
+    /// part et ne remplace ce qui est affiché qu'une fois complet.
+    const charges: Trait[] = enMemoire ? [] : traits.current
 
     ;(async () => {
       try {
@@ -640,7 +675,7 @@ export function CarteGlobale({
           filtre,
         )
         if (annule) return
-        setTotal(count ?? 0)
+        if (!enMemoire) setTotal(count ?? 0)
 
         for (let depuis = 0; ; depuis += PAR_PAGE) {
           const { data, error } = await restreindre(
@@ -661,14 +696,14 @@ export function CarteGlobale({
             // Deux points au moins : une trace d'un seul point n'est pas une
             // ligne, et MapLibre refuse la géométrie.
             if (points.length < 2) continue
-            traits.current.push({
+            charges.push({
               type: "Feature",
               properties: {
                 uuid: ligne.uuid,
                 // Le rang de la trace, pas son sport : la palette sert à
                 // séparer des voisines, et deux sorties du même sport sont
                 // justement celles qu'on risque de confondre.
-                couleur: teintes[traits.current.length % teintes.length],
+                couleur: teintes[charges.length % teintes.length],
               },
               geometry: { type: "LineString", coordinates: points },
             })
@@ -676,8 +711,10 @@ export function CarteGlobale({
           const source = carte.current?.getSource("traces") as
             | maplibregl.GeoJSONSource
             | undefined
-          source?.setData({ type: "FeatureCollection", features: traits.current })
-          setChargees(traits.current.length)
+          if (!enMemoire) {
+            source?.setData({ type: "FeatureCollection", features: traits.current })
+            setChargees(traits.current.length)
+          }
 
           // Au premier passage seulement : une fois la carte cadrée, elle
           // appartient au doigt, et la recadrer sous lui serait la lui
@@ -685,7 +722,7 @@ export function CarteGlobale({
           //
           // Et jamais quand on revient d'une fiche : le cadrage retrouvé est
           // précisément celui qu'on ne veut pas voir remplacé.
-          if (depuis === 0 && traits.current.length > 0 && carte.current && !cadreRestaure.current) {
+          if (!enMemoire && depuis === 0 && traits.current.length > 0 && carte.current && !cadreRestaure.current) {
             // Sur la zone quand il y en a une : c'est elle qu'on revient voir,
             // et cadrer sur les traces qu'elle a retenues donnerait un cadre
             // plus serré qu'elle, dont le bord sortirait de l'écran.
@@ -698,6 +735,19 @@ export function CarteGlobale({
             if (limites) carte.current.fitBounds(limites, { padding: 32, animate: false })
           }
           if (data.length < PAR_PAGE) break
+        }
+        if (annule) return
+        tracesRetenues.set(empreinte, { traits: charges, total: count ?? charges.length })
+        if (enMemoire) {
+          // La relecture silencieuse est finie : elle remplace d'un coup ce
+          // qui était affiché, sans passer par une carte vide.
+          traits.current = charges
+          const source = carte.current?.getSource("traces") as
+            | maplibregl.GeoJSONSource
+            | undefined
+          source?.setData({ type: "FeatureCollection", features: traits.current })
+          setChargees(charges.length)
+          setTotal(count ?? charges.length)
         }
       } catch (e) {
         if (!annule) setErreur((e as Error).message)

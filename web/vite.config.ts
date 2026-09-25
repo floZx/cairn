@@ -80,6 +80,23 @@ export default defineConfig({
         // faisait rien dans la PWA, ce qui est la signature d'un service
         // worker.
         navigateFallbackDenylist: [/^\/api/, /^\/strava\//],
+        // Les tuiles des vignettes du fil, elles, se gardent : ce ne sont pas
+        // des données du journal, et elles ne changent qu'au fil des mises à
+        // jour de l'IGN. Seulement celles que la page demande elle-même —
+        // celles de MapLibre passent par son worker, que ce service worker ne
+        // voit pas, et ont leur propre cache (`cacheTuiles.ts`).
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.hostname === "data.geopf.fr",
+            handler: "CacheFirst",
+            options: {
+              cacheName: "tuiles",
+              expiration: { maxEntries: 2000, maxAgeSeconds: 30 * 24 * 3600 },
+              // Une tuile en erreur ne se garde pas : on la redemandera.
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
       },
       devOptions: { enabled: false },
     }),
