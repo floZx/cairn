@@ -1,3 +1,4 @@
+import { selectionnerAuFocus } from "./saisie"
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
@@ -106,11 +107,16 @@ export function ModifAliment({
       />
       <label className="champ-quantite">
         <input
-          type="number"
+          // Du texte au clavier numérique, et non `type="number"` : Safari ne
+          // sait pas sélectionner le contenu d'un champ numérique, et la valeur
+          // est lue virgule comprise.
+          type="text"
           inputMode="decimal"
           value={grammes}
-          min={1}
           onChange={(e) => setGrammes(e.target.value)}
+          // Tout sélectionné en prenant le focus : on remplace une quantité bien
+          // plus souvent qu'on ne la corrige — demandé.
+          onFocus={selectionnerAuFocus}
         />
         <span>g</span>
       </label>
