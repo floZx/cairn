@@ -44,6 +44,8 @@ struct ActivityListView: View {
     /// — someone who prefers cards prefers them tomorrow too.
     @AppStorage(ActivityListStyle.storageKey)
     private var style: ActivityListStyle = .table
+    @AppStorage(ActivityCardThumbnail.storageKey)
+    private var thumbnail: ActivityCardThumbnail = .trace
 
     /// Set by the probe below, used to follow the keyboard cursor.
     @State private var scroller = TableScroller()
@@ -252,10 +254,20 @@ struct ActivityListView: View {
                     }
                 }
             }
+            Divider()
+            // Here rather than in the settings: it is a way of looking at
+            // these cards, beside the order they come in — Finder keeps its
+            // « Options de présentation » in the same place.
+            Picker("Vignette", selection: $thumbnail) {
+                ForEach(ActivityCardThumbnail.allCases) { option in
+                    Text(option.displayName).tag(option)
+                }
+            }
+            .pickerStyle(.inline)
         } label: {
             Label("Trier", systemImage: "arrow.up.arrow.down")
         }
-        .help("Trier les fiches")
+        .help("Trier les fiches, choisir leur vignette")
     }
 
     /// The rich presentation: one card per activity.

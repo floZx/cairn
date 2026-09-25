@@ -34,3 +34,28 @@ enum ActivityListStyle: String, CaseIterable, Identifiable, Sendable {
         }
     }
 }
+
+/// What stands at the head of a card: the shape of the outing, its sport in a
+/// round badge — the way Mail heads a message with a face — or nothing, for a
+/// list of words and figures alone.
+enum ActivityCardThumbnail: String, CaseIterable, Identifiable, Sendable {
+    case trace
+    case traceAvatar
+    case avatar
+    case avatarMono
+    case none
+
+    static let storageKey = "activityCardThumbnail"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .trace: "Aperçu de la trace"
+        case .traceAvatar: "Trace en pastille"
+        case .avatar: "Pastille du sport"
+        case .avatarMono: "Pastille monochrome"
+        case .none: "Aucune"
+        }
+    }
+}

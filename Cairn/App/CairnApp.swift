@@ -6,6 +6,8 @@ struct CairnApp: App {
     private let container: ModelContainer
     @State private var app: AppEnvironment
     @State private var backup = BackupController()
+    @AppStorage(ActivityCardThumbnail.storageKey)
+    private var cardThumbnail: ActivityCardThumbnail = .trace
 
     init() {
         let container: ModelContainer
@@ -129,6 +131,15 @@ struct CairnApp: App {
                     // shift on an AZERTY keyboard.
                     .keyboardShortcut("l", modifiers: [.option, .command])
                     .disabled(app.requestToggleListStyle == nil)
+            }
+            // Le menu Présentation, où macOS range ce qui change la façon de
+            // voir sans rien changer à ce qu'on voit.
+            CommandGroup(after: .toolbar) {
+                Picker("Vignette des fiches", selection: $cardThumbnail) {
+                    ForEach(ActivityCardThumbnail.allCases) { option in
+                        Text(option.displayName).tag(option)
+                    }
+                }
             }
             // The standard placement, so Import and Export land where macOS
             // users already look for them rather than under a menu of our own.

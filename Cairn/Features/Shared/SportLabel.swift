@@ -52,14 +52,21 @@ extension SportType {
 struct SportLabel: View {
     let title: String
     let sport: SportType
+    /// One colour for every sport — the system accent — to match the list's
+    /// monochrome badges when those are chosen.
+    var monochrome = false
 
-    init(_ title: String, sport: SportType) {
+    init(_ title: String, sport: SportType, monochrome: Bool = false) {
         self.title = title
         self.sport = sport
+        self.monochrome = monochrome
     }
 
     var body: some View {
-        GutteredLabel(title, systemImage: sport.symbolName, tint: sport.color)
+        GutteredLabel(
+            title, systemImage: sport.symbolName,
+            tint: monochrome ? .accentColor : sport.color
+        )
     }
 }
 

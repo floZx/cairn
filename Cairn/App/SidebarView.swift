@@ -88,6 +88,11 @@ struct SidebarView: View {
     /// The button that unticks them all sits *outside* the section, so a
     /// filtered list never hides why behind a closed disclosure triangle.
     @AppStorage("journalTagsExpanded") private var tagsExpanded = false
+    /// Read for the sports' colours: with the list's monochrome badges, the
+    /// filters beside it follow, or the column of blue discs would sit next
+    /// to a rainbow of the same symbols.
+    @AppStorage(ActivityCardThumbnail.storageKey)
+    private var cardThumbnail: ActivityCardThumbnail = .trace
 
     @Environment(AppEnvironment.self) private var app
     @Query private var activities: [Activity]
@@ -228,7 +233,10 @@ struct SidebarView: View {
                     ForEach(sportCounts) { entry in
                         Toggle(isOn: binding(for: entry.sport)) {
                             HStack {
-                                SportLabel(entry.sport.displayName, sport: entry.sport)
+                                SportLabel(
+                                    entry.sport.displayName, sport: entry.sport,
+                                    monochrome: cardThumbnail == .avatarMono
+                                )
                                 Spacer(minLength: 8)
                                 Text("\(entry.count)")
                                     .foregroundStyle(.secondary)

@@ -15,6 +15,8 @@ import SwiftData
 /// same fixed-height probe apply here.
 struct ActivityCard: View {
     let activity: Activity
+    @AppStorage(ActivityCardThumbnail.storageKey)
+    private var thumbnailStyle: ActivityCardThumbnail = .trace
 
     /// Three lines of text, where there were two at 42. Fixed so nothing has
     /// to be measured — see the type's own note.
@@ -36,8 +38,22 @@ struct ActivityCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            thumbnail
-                .padding(.top, 2)
+            switch thumbnailStyle {
+            case .trace:
+                thumbnail
+                    .padding(.top, 2)
+            case .traceAvatar:
+                traceAvatar
+                    .padding(.top, 3)
+            case .avatar:
+                avatar
+                    .padding(.top, 3)
+            case .avatarMono:
+                avatar(tint: .accentColor)
+                    .padding(.top, 3)
+            case .none:
+                EmptyView()
+            }
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -117,6 +133,43 @@ struct ActivityCard: View {
         // the detail pane's glow: a row is short, and the same radius would wash
         // over its neighbours instead of its own text.
         .ambientGlow(activity.sportType.color, cornerRadius: 6, blurRadius: 18)
+    }
+
+    /// The sport alone, in a round badge: Mail's face at the head of a
+    /// message. Tinted rather than filled — a column of solid discs down the
+    /// list would outshout the names beside them.
+    private var avatar: some View { avatar(tint: activity.sportType.color) }
+
+    /// The same badge in one colour for every sport — the system accent, blue
+    /// unless changed in the macOS settings. The symbol alone tells the sports
+    /// apart, and the list reads as one calm column rather than a palette.
+    private func avatar(tint color: Color) -> some View {
+        Image(systemName: activity.sportType.symbolName)
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(color)
+            .frame(width: Self.avatarSize, height: Self.avatarSize)
+            .background(color.opacity(0.14), in: .circle)
+    }
+
+    private static let avatarSize: CGFloat = 32
+
+    /// The shape of the outing inside the same round badge — the trace's
+    /// recognisability with the avatar's calm, one column of discs. The sport
+    /// symbol stands in when there is no track, as it does in `thumbnail`.
+    @ViewBuilder
+    private var traceAvatar: some View {
+        let coordinates = activity.simplifiedCoordinates
+        if coordinates.count > 1 {
+            let color = activity.sportType.color
+            TrackThumbnail(coordinates: coordinates, color: color)
+                // Inset so the stroke stays clear of the curve of the disc: a
+                // track reaching the edge of a circle reads as cut off.
+                .padding(5)
+                .frame(width: Self.avatarSize, height: Self.avatarSize)
+                .background(color.opacity(0.14), in: .circle)
+        } else {
+            avatar
+        }
     }
 
     /// Photos and labels as bare symbols at the end of the figures, where Mail
