@@ -49,6 +49,16 @@ enum PaneGeometry {
         case poids
     }
 
+    /// La largeur sous laquelle la colonne du milieu ne descend pas.
+    ///
+    /// Plus basse pour la liste des activités depuis que ses fiches empilent
+    /// leurs trois lignes à la façon de Mail : rien n'y réclame plus une
+    /// rangée de colonnes, et 480 empêchait de la serrer comme on le voulait.
+    /// Les autres écrans ont été réglés à 480 et le gardent.
+    static func minimumMiddle(for ecran: Ecran) -> Double {
+        ecran == .activites ? 320 : 480
+    }
+
     enum Colonne: String, Sendable {
         case laterale
         case detail

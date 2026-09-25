@@ -782,7 +782,7 @@ struct RootView: View {
                         .searchFocused($searchFieldFocused)
                 }
             }
-            .frame(minWidth: 480)
+            .frame(minWidth: PaneGeometry.minimumMiddle(for: ecranDesVolets))
             // Sur la colonne et non sur la fenêtre : dès que la colonne de
             // détail porte sa propre barre (le bouton du volet), SwiftUI range
             // la fenêtre après les colonnes, et ces actions passaient derrière

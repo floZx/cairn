@@ -123,7 +123,8 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
             // change de section — seule celle de droite le fait — donc rien ne
             // justifie de la faire attendre.
             SplitViewHoldingPriorities.setSidebarWidth(
-                PaneGeometry.saved(nouvel, .laterale), of: splitView
+                PaneGeometry.saved(nouvel, .laterale), of: splitView,
+                minimumMiddle: PaneGeometry.minimumMiddle(for: nouvel)
             )
             // Read now rather than when it is finally applied: the churn this
             // switch is about to cause would have had time to answer with
@@ -163,7 +164,9 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
                   splitView.arrangedSubviews[2].frame.width > 0
             else { return }
             enPose = true
-            SplitViewHoldingPriorities.setDetailWidth(width, of: splitView)
+            SplitViewHoldingPriorities.setDetailWidth(
+                width, of: splitView, minimumMiddle: PaneGeometry.minimumMiddle(for: ecran)
+            )
             enPose = false
 
             let obtenu = splitView.arrangedSubviews[2].frame.width
@@ -212,7 +215,8 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
             pendingWidth = PaneGeometry.saved(ecran, .detail)
             applyPendingWidth(to: splitView)
             SplitViewHoldingPriorities.setSidebarWidth(
-                PaneGeometry.saved(ecran, .laterale), of: splitView
+                PaneGeometry.saved(ecran, .laterale), of: splitView,
+                minimumMiddle: PaneGeometry.minimumMiddle(for: ecran)
             )
         }
 
@@ -293,7 +297,9 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
 
     /// Puts the last divider where it leaves the detail pane exactly `width`.
     @MainActor
-    static func setDetailWidth(_ width: Double, of splitView: NSSplitView) {
+    static func setDetailWidth(
+        _ width: Double, of splitView: NSSplitView, minimumMiddle: Double
+    ) {
         guard splitView.arrangedSubviews.count >= 3,
               // Nothing to reopen when the pane is deliberately shut: `RootView`
               // collapses it to zero whenever there is no selection.
@@ -305,7 +311,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
             totalWidth: splitView.bounds.width,
             dividerThickness: splitView.dividerThickness,
             sidebarWidth: splitView.arrangedSubviews[0].frame.width,
-            minimumMiddle: 480
+            minimumMiddle: minimumMiddle
         )
         guard let position else { return }
         splitView.setPosition(position, ofDividerAt: 1)
@@ -317,7 +323,9 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
     /// et la rouvrir parce qu'on change de section serait la reprendre à
     /// quelqu'un qui vient de la ranger.
     @MainActor
-    static func setSidebarWidth(_ width: Double?, of splitView: NSSplitView) {
+    static func setSidebarWidth(
+        _ width: Double?, of splitView: NSSplitView, minimumMiddle: Double
+    ) {
         guard let width, splitView.arrangedSubviews.count >= 3,
               splitView.arrangedSubviews[0].frame.width > 0
         else { return }
@@ -327,7 +335,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
             totalWidth: splitView.bounds.width,
             dividerThickness: splitView.dividerThickness,
             detailWidth: splitView.arrangedSubviews[2].frame.width,
-            minimumMiddle: 480
+            minimumMiddle: minimumMiddle
         )
         guard let position else { return }
         splitView.setPosition(position, ofDividerAt: 0)
