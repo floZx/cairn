@@ -90,6 +90,19 @@ struct VimKeys: ViewModifier {
                 }
                 return onCommand(command) ? .handled : .ignored
             }
+            // The arrows, as every Mac list answers them: the same motion as
+            // `j` and `k`. Needed because the focus sits on this wrapper, not
+            // on the list inside it, so the list's own arrow handling never
+            // hears them. A half-typed count is dropped, not applied — `5↓`
+            // is not a gesture anyone expects to mean five.
+            .onKeyPress(keys: [.upArrow, .downArrow], phases: [.down, .repeat]) { press in
+                guard enabled else { return .ignored }
+                guard press.modifiers.isDisjoint(with: [.command, .option, .shift, .control])
+                else { return .ignored }
+                buffer.reset()
+                let step = press.key == .downArrow ? 1 : -1
+                return onCommand(.move(step)) ? .handled : .ignored
+            }
             .onKeyPress(.escape) {
                 guard enabled else { return .ignored }
                 buffer.reset()
