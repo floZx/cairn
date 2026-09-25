@@ -61,7 +61,10 @@ enum SportType: String, Codable, CaseIterable, Sendable, Identifiable {
         case .swim: "figure.pool.swim"
         case .nordicSki: "figure.skiing.crosscountry"
         case .alpineSki: "figure.skiing.downhill"
-        case .rowing: "figure.rowing"
+        // `figure.outdoor.rowing` : `figure.rowing` n'existe pas dans les
+        // symboles, et l'aviron s'affichait sans icône. Relevé en rendant les
+        // symboles pour le web, le 25 septembre 2026.
+        case .rowing: "figure.outdoor.rowing"
         case .workout: "figure.strengthtraining.traditional"
         case .other: "sparkles"
         }
