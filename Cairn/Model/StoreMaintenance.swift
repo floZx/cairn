@@ -153,8 +153,72 @@ enum StoreMaintenance {
         // déjà là. Voir `JournalNoteWrite.foldDuplicateDays`.
         let recolles = JournalNoteWrite.foldDuplicateDays(in: context)
 
-        guard changed > 0 || recolles > 0 else { return 0 }
+        // Hors du compte rendu aussi : ce n'est pas une réparation d'identité,
+        // c'est un texte qu'on retouche, une seule fois.
+        let arobases = try removeMentionSigns(in: context, defaults: defaults)
+
+        guard changed > 0 || recolles > 0 || arobases > 0 else { return 0 }
         try context.save()
+        return changed
+    }
+
+    /// Set once the `@` of the mentions have been taken out of the notes.
+    static let mentionSignsRemovedKey = "mentionSignsRemoved"
+
+    /// A `@` that opens a name — « avec @Tom » — and nothing else: not an
+    /// address (`x@y.fr`, preceded by a letter), not the « à l'allure de » of
+    /// a planned session (« 3x10' @ 4:15/km », followed by a space).
+    private static let mentionSign = try! NSRegularExpression(
+        pattern: #"(?<![\w.])@(?=\p{L})"#
+    )
+
+    static func withoutMentionSigns(_ text: String) -> String {
+        mentionSign.stringByReplacingMatches(
+            in: text, range: NSRange(text.startIndex..., in: text), withTemplate: ""
+        )
+    }
+
+    /// Takes the `@` out of the mentions in every note, once.
+    ///
+    /// Asked for on 25 September 2026: the people pane that read them is
+    /// hidden, and « @Tom » in a note reads as a stray sign. The name stays,
+    /// only the sign goes — « avec Tom ».
+    ///
+    /// Through the models, not by rewriting the store: the mirror recorder is
+    /// already listening at this point of the launch, so the change reaches
+    /// the web; and an activity's note is claimed as edited, so a sync does not
+    /// bring Strava's text back over it.
+    ///
+    /// Returns the number of notes changed.
+    static func removeMentionSigns(
+        in context: ModelContext, defaults: UserDefaults
+    ) throws -> Int {
+        guard !defaults.bool(forKey: mentionSignsRemovedKey) else { return 0 }
+        var changed = 0
+
+        for activity in try context.fetch(FetchDescriptor<Activity>()) {
+            guard let note = activity.activityDescription, note.contains("@") else { continue }
+            let cleaned = withoutMentionSigns(note)
+            guard cleaned != note else { continue }
+            activity.activityDescription = cleaned
+            if activity.source.isSynced { activity.markEdited([.notes]) }
+            changed += 1
+        }
+        for mealNote in try context.fetch(FetchDescriptor<MealNote>()) {
+            let cleaned = withoutMentionSigns(mealNote.note)
+            guard cleaned != mealNote.note else { continue }
+            mealNote.note = cleaned
+            changed += 1
+        }
+        for journalNote in try context.fetch(FetchDescriptor<JournalNote>()) {
+            let cleaned = withoutMentionSigns(journalNote.text)
+            guard cleaned != journalNote.text else { continue }
+            journalNote.setText(cleaned)
+            changed += 1
+        }
+
+        if changed > 0 { try context.save() }
+        defaults.set(true, forKey: mentionSignsRemovedKey)
         return changed
     }
 

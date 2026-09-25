@@ -468,4 +468,47 @@ struct StoreMaintenanceTests {
         let notice = try #require(defaults.string(forKey: JournalSettings.importNoticeKey))
         #expect(notice.contains(missing))
     }
+
+    @Test("le @ des mentions s'en va, pas celui d'une allure ni d'une adresse")
+    func removesMentionSignsOnly() {
+        #expect(StoreMaintenance.withoutMentionSigns("Sortie avec @Tom et @Stéphanie.")
+                == "Sortie avec Tom et Stéphanie.")
+        #expect(StoreMaintenance.withoutMentionSigns("(@Céline) ravie")
+                == "(Céline) ravie")
+        // Une séance du plan : « à l'allure de », suivi d'une espace.
+        #expect(StoreMaintenance.withoutMentionSigns("Seuil - 3x10' @ 4:15-4:20/km")
+                == "Seuil - 3x10' @ 4:15-4:20/km")
+        // Une adresse : précédé d'une lettre.
+        #expect(StoreMaintenance.withoutMentionSigns("écrire à tom@exemple.fr")
+                == "écrire à tom@exemple.fr")
+    }
+
+    @Test("les notes perdent leurs @ une seule fois, la note d'une sortie devient la sienne")
+    func removesMentionSignsOnceAcrossNotes() throws {
+        let (defaults, suite) = freshDefaults()
+        defer { discard(suite) }
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let activity = Activity(stravaID: 1, name: "Sortie", sportType: .run)
+        activity.activityDescription = "Avec @Sam"
+        context.insert(activity)
+        let day = DateKey(raw: "2026-09-25")!
+        context.insert(MealNote(dateKey: day, mealSlot: nil, note: "Chez @Tom"))
+        context.insert(JournalNote(dateKey: day, text: "Vu @Christèle"))
+        try context.save()
+
+        #expect(try StoreMaintenance.removeMentionSigns(in: context, defaults: defaults) == 3)
+        #expect(activity.activityDescription == "Avec Sam")
+        // Réclamée comme écrite ici : Strava ne la reprendra pas.
+        #expect(activity.isEdited(.notes))
+        let notes = try context.fetch(FetchDescriptor<MealNote>())
+        #expect(notes.first?.note == "Chez Tom")
+        let journal = try context.fetch(FetchDescriptor<JournalNote>())
+        #expect(journal.first?.text == "Vu Christèle")
+
+        // Une seconde fois ne fait plus rien, même sur un @ écrit depuis.
+        activity.activityDescription = "Encore @Sam"
+        #expect(try StoreMaintenance.removeMentionSigns(in: context, defaults: defaults) == 0)
+        #expect(activity.activityDescription == "Encore @Sam")
+    }
+
 }
