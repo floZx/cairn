@@ -94,6 +94,8 @@ struct RootView: View {
     /// `context.save()` behind a screen that already looks correct.
     @State private var writeFailureMessage: String?
     /// Whether the keyboard map is on screen, opened with `?`.
+    /// `J` / `K` : le volet de droite défile d'un cran — voir `ActivityDetailView`.
+    @State private var paneScroll = PaneScrollRequest()
     @State private var showsKeyboardHelp = false
     /// Whether the editor about to open should start in the note field.
     ///
@@ -1020,7 +1022,16 @@ struct RootView: View {
         case .move, .first, .last, .halfPage:
             // Motions are carried out by the list, which has the sorted rows.
             break
-        case .addFood, .newWeighIn, .moveEntryUp, .moveEntryDown, .dayForward,
+        case .moveEntryDown, .moveEntryUp:
+            // `J` et `K` hors de l'alimentation, qui les prend avant nous pour
+            // déplacer un aliment : ici ils font défiler le volet de droite,
+            // pendant que `j` et `k` continuent de choisir la sortie. La
+            // répétition de la touche ne change rien — le sens est déjà posé,
+            // et c'est le volet qui défile à son rythme jusqu'au relâchement.
+            paneScroll.direction = command == .moveEntryDown ? 1 : -1
+        case .stopScroll:
+            paneScroll.direction = 0
+        case .addFood, .newWeighIn, .dayForward,
              .loadRecipe, .saveRecipe:
             // Reaching here means no journal screen intercepted them: the
             // list, map or statistics are showing, where they mean nothing.
@@ -1327,7 +1338,8 @@ struct RootView: View {
                     activity: selected,
                     onExpandMap: { expandedMap = .activity(selected.id) },
                     onEdit: { openEditor(selected, focusingNotes: true) },
-                    onSelectActivity: { selectedActivities = [$0] }
+                    onSelectActivity: { selectedActivities = [$0] },
+                    scrollRequest: paneScroll
                 )
                 .frame(minWidth: Self.detailMinWidth)
             } else {
@@ -1362,7 +1374,8 @@ struct RootView: View {
                 // The notes section is the one that asks for this, so it lands
                 // in the field it invited the user to fill.
                 onEdit: { openEditor(selected, focusingNotes: true) },
-                onSelectActivity: { selectedActivities = [$0] }
+                onSelectActivity: { selectedActivities = [$0] },
+                scrollRequest: paneScroll
             )
             .frame(minWidth: Self.detailMinWidth)
         } else if selection.count > 1 {

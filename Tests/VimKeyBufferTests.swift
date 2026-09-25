@@ -237,6 +237,9 @@ struct KeyRepeatTests {
         #expect(VimKeyBuffer.repeatsWhenHeld("k", control: false))
         #expect(VimKeyBuffer.repeatsWhenHeld("d", control: true))
         #expect(VimKeyBuffer.repeatsWhenHeld("u", control: true))
+        // `J` et `K` font défiler le volet : tenus, ils défilent d'une traite.
+        #expect(VimKeyBuffer.repeatsWhenHeld("J", control: false))
+        #expect(VimKeyBuffer.repeatsWhenHeld("K", control: false))
 
         for key: Character in ["e", "x", "f", "o", "n", "h", "g", "G", "/", "?"] {
             #expect(!VimKeyBuffer.repeatsWhenHeld(key, control: false))

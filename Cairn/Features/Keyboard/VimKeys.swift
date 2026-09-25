@@ -103,6 +103,16 @@ struct VimKeys: ViewModifier {
                 let step = press.key == .downArrow ? 1 : -1
                 return onCommand(.move(step)) ? .handled : .ignored
             }
+            // Le relâchement de `J` et `K`, que le gestionnaire du dessus ne voit
+            // pas : le volet défile tant que la touche est tenue, et s'arrête
+            // quand on la lâche — voir `ActivityDetailView`. Les minuscules
+            // aussi : Maj relâchée avant la lettre, le relâchement arrive en
+            // `j`, et le volet ne s'arrêterait plus. Pour un `j` ordinaire,
+            // rien ne défile et l'arrêt ne change rien.
+            .onKeyPress(characters: CharacterSet(charactersIn: "jJkK"), phases: .up) { _ in
+                guard enabled else { return .ignored }
+                return onCommand(.stopScroll) ? .handled : .ignored
+            }
             .onKeyPress(.escape) {
                 guard enabled else { return .ignored }
                 buffer.reset()

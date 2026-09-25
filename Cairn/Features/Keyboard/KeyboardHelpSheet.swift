@@ -20,6 +20,7 @@ struct KeyboardHelpSheet: View {
             ("5j", "cinq activités plus bas — tout mouvement prend un compte"),
             ("gg / G", "première / dernière activité"),
             ("⌃d / ⌃u", "une demi-page vers le bas / vers le haut"),
+            ("J / K", "faire défiler le volet de droite"),
         ]),
         Group(title: "Changer de vue", rows: [
             ("ga", "mes activités"),

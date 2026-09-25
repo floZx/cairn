@@ -29,6 +29,12 @@ struct ActivityDetailView: View {
     /// Jumps to another activity — the « même parcours » rows use it, so a
     /// past effort on this course is one click away.
     var onSelectActivity: ((PersistentIdentifier) -> Void)?
+    /// `J` et `K` tenus dans la liste : le volet défile, sans que la sélection
+    /// bouge — `j` et `k` choisissent la sortie, `J` et `K` la lisent.
+    var scrollRequest = PaneScrollRequest()
+    @State private var scrollPosition = ScrollPosition()
+    @State private var scrollGeometry = PaneScrollGeometry()
+    @State private var scroller = PaneScroller()
     @Environment(AppEnvironment.self) private var app
     @Environment(\.modelContext) private var modelContext
 
@@ -133,6 +139,38 @@ struct ActivityDetailView: View {
                 }
             }
             .padding()
+        }
+        .scrollPosition($scrollPosition)
+        .onScrollGeometryChange(for: PaneScrollGeometry.self) { g in
+            PaneScrollGeometry(
+                offset: g.contentOffset.y,
+                maximum: max(0, g.contentSize.height - g.containerSize.height)
+            )
+        } action: { _, new in
+            scrollGeometry = new
+        }
+        .onChange(of: scrollRequest.direction) { _, direction in
+            if direction == 0 {
+                scroller.stop { y, animated in
+                    if animated {
+                        withAnimation(.easeOut(duration: 0.2)) { scrollPosition.scrollTo(y: y) }
+                    } else {
+                        scrollPosition.scrollTo(y: y)
+                    }
+                }
+            } else {
+                scroller.start(
+                    direction: direction,
+                    from: scrollGeometry.offset,
+                    maximum: scrollGeometry.maximum
+                ) { y in scrollPosition.scrollTo(y: y) }
+            }
+        }
+        .onDisappear { scroller.cancel() }
+        // Une autre sortie s'ouvre en haut de sa fiche, pas là où l'on avait
+        // laissé la précédente.
+        .onChange(of: activity.persistentModelID) { _, _ in
+            scrollPosition.scrollTo(edge: .top)
         }
         // The sport's light on the frosted pane behind the content: the window
         // material can only blend the desktop, so on a dark wallpaper it has
@@ -494,3 +532,97 @@ struct ActivityDetailView: View {
         }
     }
 }
+
+/// Le sens dans lequel le clavier fait défiler le volet : 1 vers le bas, -1
+/// vers le haut, 0 à l'arrêt.
+struct PaneScrollRequest: Equatable {
+    var direction = 0
+}
+
+/// Le défilement du volet au clavier, image par image.
+///
+/// Continu et non par crans : une animation relancée à chaque répétition de la
+/// touche partait de la position mesurée, encore en plein mouvement, et le
+/// volet sautait par à-coups — « pas fluide », signalé. Ici la position suivie
+/// est la nôtre, avancée à chaque image d'une vitesse qui monte en quelques
+/// dixièmes de seconde, et le volet s'arrête net au relâchement — comme un
+/// défilement au trackpad.
+///
+/// Une pression brève, qui n'aurait presque rien parcouru, finit par un petit
+/// saut animé : un tap doit faire avancer quelque chose.
+@MainActor
+final class PaneScroller {
+    private var timer: Timer?
+    private var direction = 0
+    private var position: CGFloat = 0
+    private var origin: CGFloat = 0
+    private var maximum: CGFloat = 0
+    private var startedAt = Date()
+    private var lastTick = Date()
+    private var apply: ((CGFloat) -> Void)?
+
+    /// Points par seconde au départ, et au bout de la montée.
+    private static let initialSpeed: CGFloat = 700
+    private static let topSpeed: CGFloat = 1800
+    private static let rampSeconds: CGFloat = 0.35
+    /// Un tap parcourt au moins ça.
+    private static let tapDistance: CGFloat = 120
+
+    func start(
+        direction: Int, from offset: CGFloat, maximum: CGFloat,
+        apply: @escaping @MainActor (CGFloat) -> Void
+    ) {
+        cancel()
+        self.apply = apply
+        self.direction = direction
+        position = offset
+        origin = offset
+        self.maximum = maximum
+        startedAt = Date()
+        lastTick = startedAt
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    func stop(apply: (CGFloat, _ animated: Bool) -> Void) {
+        guard timer != nil else { return }
+        cancel()
+        if abs(position - origin) < Self.tapDistance {
+            let target = clamp(origin + CGFloat(direction) * Self.tapDistance)
+            position = target
+            apply(target, true)
+        }
+    }
+
+    func cancel() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func tick() {
+        let now = Date()
+        let dt = CGFloat(now.timeIntervalSince(lastTick))
+        lastTick = now
+        let elapsed = CGFloat(now.timeIntervalSince(startedAt))
+        let ramp = min(1, elapsed / Self.rampSeconds)
+        let speed = Self.initialSpeed + (Self.topSpeed - Self.initialSpeed) * ramp
+        let next = clamp(position + CGFloat(direction) * speed * dt)
+        guard next != position else { return }
+        position = next
+        apply?(next)
+    }
+
+    private func clamp(_ y: CGFloat) -> CGFloat {
+        min(max(y, 0), maximum)
+    }
+}
+
+/// Où en est le défilement du volet, et jusqu'où il peut aller.
+struct PaneScrollGeometry: Equatable {
+    var offset: CGFloat = 0
+    var maximum: CGFloat = 0
+}
+

@@ -48,6 +48,8 @@ enum VimCommand: Equatable, Sendable {
     /// a note to find the outing it talks about, and one reads an outing to
     /// write about the day it belongs to.
     case openJournalDay
+    /// `J` ou `K` relâché : le volet de droite cesse de défiler.
+    case stopScroll
 
     /// Whether the command edits, deletes or presents the *selected activity*
     /// (or the activity list's own presentation). The food journal refuses
@@ -60,7 +62,7 @@ enum VimCommand: Equatable, Sendable {
             return true
         case .move, .first, .last, .halfPage, .clear, .section, .closePane,
              .showHelp, .addFood, .newWeighIn, .moveEntryUp, .moveEntryDown,
-             .loadRecipe, .saveRecipe, .dayForward:
+             .loadRecipe, .saveRecipe, .dayForward, .stopScroll:
             return false
         }
     }
@@ -95,7 +97,9 @@ struct VimKeyBuffer: Equatable {
     /// `j`, on the other hand, is the whole point of having `j`.
     static func repeatsWhenHeld(_ key: Character, control: Bool) -> Bool {
         if control { return key == "d" || key == "u" }
-        return key == "j" || key == "k"
+        // `J` et `K` aussi : ils font défiler le volet, et une touche tenue doit
+        // le faire défiler d'une traite.
+        return key == "j" || key == "k" || key == "J" || key == "K"
     }
 
     /// Drops any half-typed sequence. Escape does this before anything else, so
