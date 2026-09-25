@@ -3123,51 +3123,43 @@ button.citation {
   text-align: right;
 }
 
-/* Le bouton qui fait passer un repas en ordre à changer, plein tant qu'on y
-   est : comme « Modifier » devenu « OK », il dit dans quel mode on se trouve. */
-.ajouter.ordonner.actif {
-  background: var(--accent);
-  color: #fff;
+/* Le glisser des aliments (`ListeGlissable`).
+
+   Pas de sélection de texte ni de menu contextuel à l'appui long : sur iOS,
+   c'est ce que le doigt immobile déclenchait avant nous. */
+.aliments li {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
-.ligne-aliment.en-ordre {
-  cursor: default;
-  grid-template-columns: 1fr auto auto;
+/* La ligne tenue se soulève : un fond, une ombre, un rien plus grande, et
+   par-dessus ses voisines. Pas de transition sur elle — elle suit le doigt. */
+.aliments li.souleve {
+  position: relative;
+  z-index: 2;
+  /* Son fond déborde un peu de la colonne, pour que le texte n'en touche pas
+     le bord — il y collait, mesuré sur capture. */
+  margin: 0 -10px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--carte);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  scale: 1.03;
 }
 
-.ligne-aliment.en-ordre:active {
+.aliments.en-glissement li.souleve {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+/* Pendant le glisser, les séparateurs s'effacent : ils sautaient d'une ligne
+   à l'autre à chaque place franchie. */
+.aliments.en-glissement li {
+  box-shadow: none;
+}
+
+.aliments.en-glissement .ligne-aliment:active {
   background: transparent;
-}
-
-.fleches {
-  display: inline-flex;
-  gap: 6px;
-}
-
-/* Trente-deux pixels et un rond : une cible qu'on vise du pouce, deux fois
-   de suite si l'aliment doit descendre de deux crans. */
-.fleche {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--champ);
-  color: var(--accent);
-  line-height: 0;
-  cursor: pointer;
-}
-
-.fleche:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.fleche:not(:disabled):active {
-  opacity: 0.6;
 }
 
 /* ---- La roue d'attente --------------------------------------------------

@@ -7,6 +7,8 @@ import { jourCourant } from "./NoteEditor"
 import { AjoutAliment } from "./AjoutAliment"
 import { ModifAliment, type AlimentAModifier } from "./ModifAliment"
 import { Feuille, Chargement } from "./Chrome"
+import { ListeGlissable } from "./ListeGlissable"
+import { Symbole } from "./IconeSport"
 import { NoteRepas, Pesee, TypeDeJournee } from "./SaisieJour"
 import { JaugeFibres, JaugeMacro } from "./JaugeMacro"
 import {
@@ -212,14 +214,10 @@ export function Nutrition({
   const [typeOuvert, setTypeOuvert] = useState(false)
   const reglages = useReglages()
   const journee = useJournee(dateKey)
-  /// Le repas dont on réordonne les aliments, s'il y en a un.
-  ///
-  /// Un repas à la fois, comme le « Modifier » d'une section de liste iOS :
-  /// les flèches n'ont de sens qu'entre voisins d'un même repas.
-  const [reordonne, setReordonne] = useState<string | null>(null)
   const client = useQueryClient()
 
-  /// Déplace un aliment d'un cran dans son repas.
+  /// Pose un nouvel ordre des aliments d'un repas — celui que le glisser vient
+  /// de donner (`ListeGlissable`).
   ///
   /// Les rangs du repas redistribués dans l'ordre voulu, plutôt que deux rangs
   /// échangés : le Mac peut laisser deux aliments au même rang, et un échange
@@ -230,17 +228,14 @@ export function Nutrition({
   const deplacement = useMutation({
     mutationFn: async ({
       lignes,
-      index,
-      sens,
+      nouvelOrdre,
     }: {
       lignes: { uuid: string; sort_order: number }[]
-      index: number
-      sens: -1 | 1
+      nouvelOrdre: string[]
     }) => {
-      const cible = index + sens
-      if (cible < 0 || cible >= lignes.length) return
-      const ordre = [...lignes]
-      ;[ordre[index], ordre[cible]] = [ordre[cible], ordre[index]]
+      const ordre = nouvelOrdre
+        .map((u) => lignes.find((l) => l.uuid === u))
+        .filter((l): l is { uuid: string; sort_order: number } => !!l)
       const rangs: number[] = []
       for (const r of lignes.map((l) => l.sort_order).sort((a, b) => a - b)) {
         rangs.push(rangs.length ? Math.max(r, rangs[rangs.length - 1] + 1) : r)
@@ -490,20 +485,9 @@ export function Nutrition({
                     onClick={() => setNoteDe({ uuid: creneau.uuid, nom: creneau.name })}
                     aria-label={`Noter ${creneau.name}`}
                   >
-<svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.9"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M4 20h4L20 8l-4-4L4 16z" />
-                    <path d="M14.5 5.5l4 4" />
-                  </svg>
+                  {/* Une note, et non un crayon : le bouton écrit la note du
+                      repas, il ne modifie rien. Le symbole `note.text` du Mac. */}
+                  <Symbole nom="note.text" taille={16} />
                   </button>
                   {objectif && (
                     <span className="attenue">{Math.round(objectif.kcal)} kcal prévues</span>
@@ -542,55 +526,14 @@ export function Nutrition({
             <h3>
               {creneau.name}
               <span>
-                {lignes.length > 1 && (
-                  <button
-                    className={
-                      reordonne === creneau.uuid ? "ajouter ordonner actif" : "ajouter ordonner"
-                    }
-                    onClick={() =>
-                      setReordonne(reordonne === creneau.uuid ? null : creneau.uuid)
-                    }
-                    aria-label={
-                      reordonne === creneau.uuid
-                        ? "Terminer"
-                        : `Réordonner ${creneau.name}`
-                    }
-                    aria-pressed={reordonne === creneau.uuid}
-                  >
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden
-                    >
-                      <path d="M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4" />
-                    </svg>
-                  </button>
-                )}
                 <button
                   className="ajouter crayon"
                   onClick={() => setNoteDe({ uuid: creneau.uuid, nom: creneau.name })}
                   aria-label={`Noter ${creneau.name}`}
                 >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.9"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M4 20h4L20 8l-4-4L4 16z" />
-                    <path d="M14.5 5.5l4 4" />
-                  </svg>
+                  {/* Une note, et non un crayon : le bouton écrit la note du
+                      repas, il ne modifie rien. Le symbole `note.text` du Mac. */}
+                  <Symbole nom="note.text" taille={16} />
                 </button>
                 <span className={"kcal-repas" + classeDe(consomme.kcal, objectif?.kcal ?? null)}>
                   {Math.round(consomme.kcal)}
@@ -618,73 +561,39 @@ export function Nutrition({
             </h3>
             <div className="carte-repas">
               {note && <p className="note-repas">{note}</p>}
-              <ul className="aliments">
-                {lignes.map((ligne, index) => {
+              {/* Un appui long sur un aliment le soulève, et on le glisse à sa
+                  place — voir `ListeGlissable`. Un appui bref l'ouvre. */}
+              <ListeGlissable
+                elements={lignes}
+                onOrdre={(nouvelOrdre) => deplacement.mutate({ lignes, nouvelOrdre })}
+                ligne={(ligne) => {
                   const m = arrondi(macrosDe(ligne))
-                  if (reordonne === creneau.uuid) {
-                    // En réordonnant, la ligne ne s'ouvre plus : deux flèches à
-                    // la place des calories, grandes comme un pouce. Monter le
-                    // premier ou descendre le dernier n'a pas de sens, et leur
-                    // flèche s'efface plutôt que de ne rien faire.
-                    return (
-                      <li key={ligne.uuid}>
-                        <div className="ligne-aliment en-ordre">
-                          <span className="nom">{ligne.food_name}</span>
-                          <span className="attenue petit">{Math.round(ligne.grams)} g</span>
-                          <span className="fleches">
-                            <button
-                              className="fleche"
-                              disabled={index === 0 || deplacement.isPending}
-                              onClick={() =>
-                                deplacement.mutate({ lignes, index, sens: -1 })
-                              }
-                              aria-label={`Monter ${ligne.food_name}`}
-                            >
-                              <Chevron sens="haut" />
-                            </button>
-                            <button
-                              className="fleche"
-                              disabled={index === lignes.length - 1 || deplacement.isPending}
-                              onClick={() =>
-                                deplacement.mutate({ lignes, index, sens: 1 })
-                              }
-                              aria-label={`Descendre ${ligne.food_name}`}
-                            >
-                              <Chevron sens="bas" />
-                            </button>
-                          </span>
-                        </div>
-                      </li>
-                    )
-                  }
                   return (
-                    <li key={ligne.uuid}>
-                      {/* Toute la ligne est le bouton : sur un téléphone, viser
-                          un nom de trois lettres pour corriger une quantité est
-                          une cible qu'on rate. */}
-                      <button
-                        className="ligne-aliment"
-                        onClick={() =>
-                          setEnModification({
-                            uuid: ligne.uuid,
-                            nom: ligne.food_name,
-                            grammes: ligne.grams,
-                            kcal100: ligne.kcal100,
-                            protein100: ligne.protein100,
-                            carbs100: ligne.carbs100,
-                            fat100: ligne.fat100,
-                          })
-                        }
-                      >
-                        <span className="nom">{ligne.food_name}</span>
-                        <span className="attenue petit">{Math.round(ligne.grams)} g</span>
-                        <span className="kcal">{m.kcal}</span>
-                      </button>
-                    </li>
+                    // Toute la ligne est le bouton : sur un téléphone, viser un
+                    // nom de trois lettres pour corriger une quantité est une
+                    // cible qu'on rate.
+                    <button
+                      className="ligne-aliment"
+                      onClick={() =>
+                        setEnModification({
+                          uuid: ligne.uuid,
+                          nom: ligne.food_name,
+                          grammes: ligne.grams,
+                          kcal100: ligne.kcal100,
+                          protein100: ligne.protein100,
+                          carbs100: ligne.carbs100,
+                          fat100: ligne.fat100,
+                        })
+                      }
+                    >
+                      <span className="nom">{ligne.food_name}</span>
+                      <span className="attenue petit">{Math.round(ligne.grams)} g</span>
+                      <span className="kcal">{m.kcal}</span>
+                    </button>
                   )
-                })}
-              </ul>
-              {deplacement.error && reordonne === creneau.uuid && (
+                }}
+              />
+              {deplacement.error && (
                 <p className="erreur">{(deplacement.error as Error).message}</p>
               )}
               {/* Les macros du repas contre celles que son objectif adaptatif
