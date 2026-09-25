@@ -247,7 +247,7 @@ export function ActivityList({
     return (
       <>
         {entete}
-        <Suspense fallback={<p className="attenue">Chargement de la carte…</p>}>
+        <Suspense fallback={<Chargement />}>
           <CarteGlobale
             filtre={filtre}
             onZone={(zone) => {

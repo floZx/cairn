@@ -239,57 +239,57 @@ function rectangle(z: Zone): GeoJSON.Feature<GeoJSON.Polygon> {
   }
 }
 
-/// Le cadrage sur la masse des traces, et non sur leurs extrêmes.
+/// Le cadrage d'ouverture : là où l'on sort le plus, pas tout ce qu'on a fait.
 ///
-/// Douze sorties de cette bibliothèque se trouvent aux îles Salomon, par
-/// 166° est : ce sont des séances Zwift, dont le monde virtuel de Watopia y
-/// est planté. Les coordonnées sont vraies, Strava ne les marque pas comme
-/// intérieures — `is_trainer` est à faux sur les douze, vérifié — et rien ne
-/// permet donc de les écarter par un drapeau.
+/// Sur le centre de chaque sortie, on garde celles qui tombent entre le 10ᵉ
+/// et le 90ᵉ centile en longitude comme en latitude — le cœur de la
+/// bibliothèque, quatre sorties sur cinq environ —, puis on cadre sur leurs
+/// traces entières, pour qu'aucune ne sorte du bord.
 ///
-/// Les inclure dans le cadrage donnait une carte allant de l'Afrique à
-/// l'Australie pour montrer un point rouge sur la France.
+/// Compté par sortie et non par point : une longue sortie de montagne pèse
+/// autant qu'un footing, et c'est la fréquence qu'on veut voir, pas la
+/// distance parcourue.
 ///
-/// Écartés sur leur distance à la médiane, et non par un centile ni par
-/// l'écart interquartile — deux pistes essayées et mesurées avant celle-ci :
-///
-/// - Les centiles échouent : ces points font 1,75 % du total, donc un centile
-///   à 1 % les garde et le 99ᵉ vaut 166,96°.
-/// - L'écart interquartile est trop serré : les sorties se concentrant autour
-///   de Saint-Étienne, il vaut 0,10°, et trois écarts s'arrêtent à 4,56° —
-///   ce qui jetterait la Bretagne, pourtant bien réelle à −1,4°.
-///
-/// Vingt degrés font deux mille kilomètres : de quoi garder les Alpes et la
-/// côte atlantique, pas de quoi garder les îles Salomon. Les traces lointaines
-/// restent tracées, il suffit de dézoomer pour les retrouver — c'est le
-/// cadrage d'ouverture qu'on choisit ici, pas ce qu'on montre.
-const RAYON_DEGRES = 20
-
+/// Ce que ça écarte du cadre, et c'est voulu : les vacances, la Bretagne, et
+/// les douze séances Zwift plantées aux îles Salomon par 166° est, que rien ne
+/// permet de reconnaître autrement (`is_trainer` est à faux sur les douze).
+/// Tout reste tracé : un pincement de doigt les retrouve. Le cadrage précédent
+/// gardait tout ce qui tenait dans vingt degrés autour de la médiane, et
+/// ouvrait sur la moitié de la France pour une masse de traces autour de
+/// Saint-Étienne — signalé, et c'est ce choix-ci qui a été retenu.
 function cadrageUtile(traits: Trait[]): maplibregl.LngLatBounds | null {
-  const lons: number[] = []
-  const lats: number[] = []
-  for (const trait of traits) {
-    for (const [lon, lat] of trait.geometry.coordinates) {
-      lons.push(lon)
-      lats.push(lat)
-    }
+  const centres = traits
+    .map((trait) => {
+      const points = trait.geometry.coordinates
+      if (points.length === 0) return null
+      let lon = 0
+      let lat = 0
+      for (const [x, y] of points) {
+        lon += x
+        lat += y
+      }
+      return { trait, lon: lon / points.length, lat: lat / points.length }
+    })
+    .filter((c): c is NonNullable<typeof c> => c !== null)
+  if (centres.length === 0) return null
+
+  const centile = (valeurs: number[], q: number) => {
+    const tries = [...valeurs].sort((x, y) => x - y)
+    return tries[Math.min(tries.length - 1, Math.floor(q * tries.length))]
   }
-  if (lons.length === 0) return null
-  const mediane = (v: number[]) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)]
-  const centreLon = mediane(lons)
-  const centreLat = mediane(lats)
+  const lons = centres.map((c) => c.lon)
+  const lats = centres.map((c) => c.lat)
+  const [lonMin, lonMax] = [centile(lons, 0.1), centile(lons, 0.9)]
+  const [latMin, latMax] = [centile(lats, 0.1), centile(lats, 0.9)]
 
   const limites = new maplibregl.LngLatBounds()
-  let retenus = 0
-  for (const trait of traits) {
-    for (const [lon, lat] of trait.geometry.coordinates) {
-      if (Math.abs(lon - centreLon) > RAYON_DEGRES) continue
-      if (Math.abs(lat - centreLat) > RAYON_DEGRES) continue
-      limites.extend([lon, lat])
-      retenus++
-    }
+  let retenues = 0
+  for (const c of centres) {
+    if (c.lon < lonMin || c.lon > lonMax || c.lat < latMin || c.lat > latMax) continue
+    for (const point of c.trait.geometry.coordinates) limites.extend(point as [number, number])
+    retenues++
   }
-  return retenus > 0 ? limites : null
+  return retenues > 0 ? limites : null
 }
 
 /// Applique au chargement les mêmes restrictions que la liste.
@@ -335,6 +335,28 @@ export function CarteGlobale({
   const [erreur, setErreur] = useState<string | null>(null)
   /// La trace touchée et tous ses autres passages.
   const [choisi, setChoisi] = useState<{ uuid: string; passages: string[] } | null>(null)
+
+  // Toute la hauteur qui reste, jusqu'au bord de l'écran : la carte passe sous
+  // la barre d'onglets comme sous celle de Plans, au lieu de s'arrêter dans une
+  // carte aux coins arrondis avec un vide dessous. Mesurée plutôt qu'écrite en
+  // CSS : ce qui la précède — titre, recherche, résumé d'un filtre — n'a pas
+  // de hauteur fixe. La page, elle, ne défile plus : la carte prend le doigt.
+  useEffect(() => {
+    const toile = conteneur.current
+    if (!toile) return
+    const poser = () => {
+      const haut = toile.getBoundingClientRect().top
+      toile.style.height = `${Math.max(240, innerHeight - haut)}px`
+      carte.current?.resize()
+    }
+    poser()
+    const image = requestAnimationFrame(poser)
+    addEventListener("resize", poser)
+    return () => {
+      cancelAnimationFrame(image)
+      removeEventListener("resize", poser)
+    }
+  }, [])
   /// Lisible depuis les rappels de la carte, montés une fois pour toutes.
   const choisiRef = useRef(choisi)
   choisiRef.current = choisi
@@ -715,7 +737,10 @@ export function CarteGlobale({
           />
         )}
       </div>
-      <div className="pied-carte">
+      {/* Une capsule de verre au-dessus des onglets, et non une ligne sous la
+          carte : la carte va maintenant jusqu'en bas. Cachée quand une trace
+          est touchée, sa fiche prend la même place. */}
+      <div className={choisi ? "pied-carte matiere cache" : "pied-carte matiere"}>
         <span className="attenue petit">
           {erreur
             ? erreur

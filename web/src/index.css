@@ -3289,3 +3289,71 @@ button.citation {
   left: 56px;
 }
 
+/* ---- La carte d'ensemble, en plein écran --------------------------------
+   Bord à bord et jusqu'au bas de l'écran, sous la barre d'onglets : la marge
+   de la colonne et la réserve du bas sont reprises ici, si bien que la page
+   ne défile plus et que la carte seule reçoit le doigt. Sa hauteur est posée
+   par `CarteGlobale`, qui mesure ce qui la précède. */
+/* `.contenu >` pour passer devant `.contenu > :last-child`, qui remet à zéro
+   la marge basse de la dernière pièce de la page : la réserve des onglets
+   restait, et la page défilait encore de 72 points. Mesuré. */
+.contenu > .carte-globale {
+  position: relative;
+  gap: 0;
+  margin: 0 -12px calc(-72px - env(safe-area-inset-bottom));
+}
+
+.carte-globale .toile-carte {
+  height: 62dvh;
+  border-radius: 0;
+}
+
+/* Au-dessus des onglets : leur capsule monte à 67 points du bord, la nôtre se
+   pose dix points plus haut. */
+.carte-globale .pied-carte {
+  position: absolute;
+  left: 50%;
+  bottom: 78px;
+  z-index: 3;
+  transform: translateX(-50%);
+  gap: 14px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--carte) 72%, transparent);
+}
+
+.carte-globale .pied-carte .lien {
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.carte-globale .pied-carte.cache {
+  display: none;
+}
+
+.carte-globale .fiche-touchee {
+  bottom: 78px;
+}
+
+/* La mention des fonds, qui passerait sous les onglets — et au-dessus de la
+   capsule, qu'elle chevauchait à la même hauteur. */
+.carte-globale .maplibregl-ctrl-bottom-right,
+.carte-globale .maplibregl-ctrl-bottom-left {
+  bottom: 128px;
+}
+
+/* Le bouton des fonds : un rond de verre comme le retour, plus opaque que la
+   barre d'onglets — il se lit sur une carte, pas sur un fond uni. */
+.carte-globale .bouton-fond {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--carte) 72%, transparent);
+}
+
+.carte-globale .choix-fond {
+  top: 12px;
+  right: 12px;
+}
+
