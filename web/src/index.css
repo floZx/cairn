@@ -2399,7 +2399,8 @@ body {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--teinte-sport) 15%, transparent);
+  /* L'accent et non la couleur du sport : la même pastille que la liste. */
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 /* `min-width: 0` : sans lui, un nom de sortie long refuse de se couper et
@@ -3355,5 +3356,62 @@ button.citation {
 .carte-globale .choix-fond {
   top: 12px;
   right: 12px;
+}
+
+/* ---- Le fil, à la façon de Strava ----------------------------------------
+   Des fiches bord à bord, sans coins ni marges, séparées par une bande du
+   fond de l'écran : la disposition sous laquelle on relit ses sorties chez
+   Strava, essayée à la place des cartes arrondies. L'en-tête en deux temps —
+   la pastille et la date, puis le nom en grand — et la carte sur toute la
+   largeur, au bas de la fiche. */
+.contenu > .fil,
+.fil {
+  gap: 8px;
+  margin: 0 -12px 24px;
+}
+
+.fiche-fil {
+  padding: 16px 16px 0;
+  border-radius: 0;
+}
+
+.fiche-fil .tete-fil {
+  align-items: center;
+}
+
+.fiche-fil .rond-sport {
+  width: 40px;
+  height: 40px;
+  margin-top: 0;
+}
+
+.fiche-fil .repere-fil {
+  margin-top: 0;
+  font-size: 15px;
+}
+
+.fiche-fil .titre-fil {
+  margin: 12px 0 0;
+  font-size: 23px;
+}
+
+.fiche-fil .chiffres-fil {
+  gap: 28px;
+  margin-top: 12px;
+  padding-bottom: 16px;
+}
+
+.fiche-fil .chiffre-fil .valeur {
+  font-size: 21px;
+  font-weight: 700;
+}
+
+/* La carte colle aux deux bords et au bas de la fiche, sur un sol neutre :
+   la trace est rouge pour tous les sports, sa teinte n'a plus à lui donner
+   de sol. */
+.fiche-fil .media-fil {
+  height: 240px;
+  margin: 0 -16px;
+  background: var(--fond);
 }
 

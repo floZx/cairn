@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
-import { IconeSport, couleurDuSport } from "./IconeSport"
-import { allureOuVitesse, dateCourte, denivele, distance, duree, heure } from "./format"
+import { Symbole, couleurDuSport, symboleDuSport } from "./IconeSport"
+import { allureOuVitesse, dateRelative, denivele, distance, duree, heure } from "./format"
 import { traceDepuisBytea } from "./track"
 import { CarteStatique } from "./CarteStatique"
+import { FONDS, fondRetenu } from "./fonds"
 import { NOMS, etiquettesDe, type SourceEtiquettes } from "./etiquettes"
 
 /// Le fil : la même sélection que la liste, une activité par fiche.
@@ -47,6 +48,10 @@ export type ActiviteDuFil = SourceEtiquettes & {
   total_elevation_gain: number
   simplified_track: string | null
   photo_count: number | null
+  /// Demandées par la liste, et donc là aussi : la séance en salle n'a que
+  /// ces deux chiffres à montrer après sa durée.
+  average_heartrate?: number | null
+  calories?: number | null
 }
 
 /// Les colonnes que la fiche ajoute à celles de la liste compacte.
@@ -145,21 +150,48 @@ function Chiffre({ valeur, etiquette }: { valeur: string; etiquette: string }) {
 /// Trois chiffres, jamais quatre.
 ///
 /// C'est ce que Strava montre, et la raison tient à la largeur d'un téléphone :
-/// au quatrième, les valeurs passent sous leurs libellés ou se coupent. Le
-/// dénivelé prend la place de l'allure quand il y en a — sur un trail, 987 m
-/// dit davantage de la sortie que la minute par kilomètre ; sur du plat, il n'y
-/// a rien à en dire et l'allure reprend la colonne.
+/// au quatrième, les valeurs passent sous leurs libellés ou se coupent.
+///
+/// Choisis par sport, comme la ligne de la liste et comme le Mac : l'allure
+/// sur la route et dans l'eau, le dénivelé en montagne et à vélo — ou la
+/// vitesse s'il n'y en a pas —, la fréquence cardiaque et les calories d'une
+/// séance en salle, qui n'a ni distance ni allure et ne montrait que sa durée.
 function chiffresDe(a: ActiviteDuFil) {
   const chiffres: { valeur: string; etiquette: string }[] = []
+  const salle = a.sport_type_raw === "workout" || a.sport_type_raw === "other"
+  if (salle) {
+    if (a.moving_time > 0) chiffres.push({ valeur: duree(a.moving_time), etiquette: "Temps" })
+    if (a.average_heartrate && a.average_heartrate > 0) {
+      chiffres.push({ valeur: `${Math.round(a.average_heartrate)} bpm`, etiquette: "Cardio" })
+    }
+    if (a.calories && a.calories > 0) {
+      chiffres.push({ valeur: `${Math.round(a.calories)} kcal`, etiquette: "Calories" })
+    }
+    return chiffres
+  }
   if (a.distance > 0) chiffres.push({ valeur: distance(a.distance), etiquette: "Distance" })
   const rythme = allureOuVitesse(a.sport_type_raw, a.distance, a.moving_time)
-  if (a.total_elevation_gain > 0) {
+  const surRoute = ["run", "swim", "rowing"].includes(a.sport_type_raw)
+  if (surRoute && rythme) {
+    // L'unité avec la valeur, comme Strava — « 5′31″ /km » —, puisque le
+    // libellé ne dit plus que « Allure ».
+    const unite = a.sport_type_raw === "swim" ? " /100 m" : a.sport_type_raw === "run" ? " /km" : ""
+    chiffres.push({ valeur: `${rythme.valeur}${unite}`, etiquette: "Allure" })
+  } else if (a.total_elevation_gain > 0) {
     chiffres.push({ valeur: denivele(a.total_elevation_gain), etiquette: "Dénivelé" })
   } else if (rythme) {
     chiffres.push(rythme)
   }
   if (a.moving_time > 0) chiffres.push({ valeur: duree(a.moving_time), etiquette: "Temps" })
   return chiffres
+}
+
+/// « hier à 18:01 », « mardi à 07:14 », « aujourd'hui à 12:36 » — la date de
+/// la liste, avec l'heure qu'une fiche a la place de dire.
+function quand(iso: string): string {
+  const relative = dateRelative(iso)
+  const aLHeure = heure(iso)
+  return relative === aLHeure ? `aujourd'hui à ${aLHeure}` : `${relative} à ${aLHeure}`
 }
 
 function Fiche({
@@ -174,6 +206,10 @@ function Fiche({
   const trace = useMemo(() => traceDepuisBytea(a.simplified_track), [a.simplified_track])
   const etiquettes = etiquettesDe(a)
   const couleur = couleurDuSport(a.sport_type_raw)
+  // La trace en rouge, et non à la couleur du sport : la même que la carte de
+  // la fiche ouverte, selon le fond retenu, pour qu'elle ne change pas de
+  // teinte en ouvrant la sortie. Demandé.
+  const rouge = FONDS[fondRetenu()].trace
 
   // Le Mac inscrit le chemin de stockage d'une photo dès qu'il connaît la
   // photo, et téléverse les octets ensuite : une fiche peut donc désigner une
@@ -193,11 +229,12 @@ function Fiche({
         {/* La pastille du sport occupe la place du portrait, et rend le service
             qu'il ne rendait pas : elle dit d'un coup d'œil, en couleur, de
             quelle sorte de sortie il s'agit. */}
+        {/* Monochrome, comme la pastille de la liste : l'accent pour tous
+            les sports, le symbole seul pour les distinguer. */}
         <span className="rond-sport">
-          <IconeSport sport={a.sport_type_raw} taille={22} />
+          <Symbole nom={symboleDuSport(a.sport_type_raw)} taille={22} couleur="var(--accent)" />
         </span>
         <div className="quoi-fil">
-          <h3 className="titre-fil">{a.name}</h3>
           {/* Après la date, l'étiquette plutôt que le sport.
               Le sport est déjà dit deux fois par la pastille — son dessin et sa
               couleur — et l'écrire une troisième ne renseignait personne. Les
@@ -209,7 +246,7 @@ function Fiche({
               quelque chose qui ne vient pas. */}
           <div className="repere-fil minuscule attenue">
             <span>
-              {dateCourte(a.start_local_date)} à {heure(a.start_local_date)}
+              {quand(a.start_local_date)}
             </span>
             {etiquettes.map((m) => (
               <span className="etiquette-tag minuscule" key={m}>
@@ -219,6 +256,10 @@ function Fiche({
           </div>
         </div>
       </header>
+
+      {/* Le nom sous l'en-tête, en grand, comme Strava : la pastille et la date
+          disent d'où et quand, le nom dit quoi — et il a toute la largeur. */}
+      <h3 className="titre-fil">{a.name}</h3>
 
       <div className="chiffres-fil">
         {chiffresDe(a).map((c) => (
@@ -252,7 +293,7 @@ function Fiche({
               <div className="vignette-trace matiere">
                 <CarteStatique
                   trace={trace}
-                  couleur={couleur}
+                  couleur={rouge}
                   marge={7}
                   epaisseur={2}
                   voile
@@ -262,7 +303,7 @@ function Fiche({
               // Sans photo, la bande est à la carte : c'est la même que la
               // fiche montre, mêmes tuiles et même fond retenu, pour qu'on ne
               // passe pas d'un plan à une photo aérienne en ouvrant la sortie.
-              <CarteStatique trace={trace} couleur={couleur} />
+              <CarteStatique trace={trace} couleur={rouge} />
             ))}
         </div>
       )}
