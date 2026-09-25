@@ -62,6 +62,9 @@ struct ActivityListView: View {
 
     /// Bumped whenever the keyboard should come back to the list.
     @State private var focusRequest = 0
+    /// The selection `onAppear` made on its own, so the change it causes is
+    /// not taken for a click — see the selection handler below.
+    @State private var automaticSelection: Set<PersistentIdentifier>?
 
     /// Which columns are shown, in which order, at which width — right-click the
     /// header to choose, drag to reorder, exactly as in the Finder. Persisted in
@@ -198,11 +201,30 @@ struct ActivityListView: View {
         // the remembered cursor is stale and the next motion re-derives it.
         .onChange(of: selection) { _, new in
             if new != cursorSelection { cursor = nil }
+            // A row picked by hand takes the keyboard with it. After a section
+            // chosen with the mouse, the list deliberately claims nothing on
+            // appearing (`vimKeysClaimentLeFocus`), and a click then made the
+            // table AppKit's first responder without telling SwiftUI's focus,
+            // which is what `onKeyPress` listens to: `j`, `k` and the arrows
+            // went nowhere until the section was left and entered by keyboard.
+            // Measured with a probe on 25 September 2026, after a round trip
+            // through the food journal.
+            //
+            // Not for the selection `onAppear` makes by itself — claiming the
+            // keyboard for that is the paling sidebar row this design avoids —
+            // nor for the ones `j` and `k` write, which already have it.
+            if new == automaticSelection {
+                automaticSelection = nil
+            } else if new != cursorSelection, !new.isEmpty {
+                focusRequest += 1
+                scroller.focusWhenAttached()
+            }
         }
         .onAppear {
             if let first = Self.initialSelection(
                 rows: rows, current: selection, hasAutoSelected: hasAutoSelected
             ) {
+                automaticSelection = [first]
                 selection = [first]
             }
             // Set even when nothing was selected — an empty library on first
