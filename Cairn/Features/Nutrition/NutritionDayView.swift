@@ -145,6 +145,9 @@ struct NutritionDayView: View {
                 journal
             }
         }
+        // Like every other section: the window says what it shows, where it
+        // used to say only « Cairn ».
+        .navigationTitle("Alimentation")
         .vimKeys(enabled: !isPresentingModal) { command in
             switch command {
             // h/l travel through days, as in suivinut. `h` arrives as
@@ -353,10 +356,13 @@ struct NutritionDayView: View {
                     header(model)
                     summary(model)
                     Divider()
-                    ForEach(
-                        Array(model.meals.enumerated()), id: \.element.slotID
-                    ) { mealIndex, meal in
-                        mealSection(meal, mealIndex: mealIndex)
+                    VStack(alignment: .leading, spacing: 20) {
+                        columnHeader
+                        ForEach(
+                            Array(model.meals.enumerated()), id: \.element.slotID
+                        ) { mealIndex, meal in
+                            mealSection(meal, mealIndex: mealIndex)
+                        }
                     }
                 }
                 // No anchor: scrolls the least it can to uncover the row,
@@ -619,7 +625,7 @@ struct NutritionDayView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(meal.slotName).font(.title3.weight(.semibold))
+                Text(meal.slotName).font(.headline)
                 Button {
                     addTargetSlot = slotModel(for: meal.slotID)
                 } label: {
@@ -647,12 +653,18 @@ struct NutritionDayView: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 Spacer()
-                mealTotals(meal)
+                // A row of zeros under an empty meal with no share of the day
+                // says nothing « Rien de consigné » does not say better.
+                if !(meal.rows.isEmpty && meal.target == nil) {
+                    mealTotals(meal)
+                }
             }
+            .padding(.horizontal, Self.rowInset)
+            .padding(.vertical, 2)
             .background(
                 cursor == DayCursor(mealIndex: mealIndex, rowIndex: nil)
                     ? Self.cursorFill : AnyShapeStyle(.clear),
-                in: RoundedRectangle(cornerRadius: 4)
+                in: RoundedRectangle(cornerRadius: 5)
             )
             // The cursor is a selection and looks like one, so it has to be
             // clickable like one: it could only be moved with j and k, which
@@ -666,115 +678,59 @@ struct NutritionDayView: View {
                 Text("Rien de consigné")
                     .font(.body)
                     .foregroundStyle(.tertiary)
+                    .padding(.horizontal, Self.rowInset)
             } else {
-                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
-                    GridRow {
-                        Text("")
-                        Text("Aliment")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text("g")
-                            .frame(width: NumericColumn.grams, alignment: .trailing)
-                        Text("kcal")
-                            .frame(width: NumericColumn.kcal, alignment: .trailing)
-                        Text("P")
-                            .frame(width: NumericColumn.macro, alignment: .trailing)
-                        Text("G")
-                            .frame(width: NumericColumn.macro, alignment: .trailing)
-                        Text("L")
-                            .frame(width: NumericColumn.macro, alignment: .trailing)
-                        Text("F")
-                            .frame(width: NumericColumn.fiber, alignment: .trailing)
-                            .help("Fibres, en grammes. Un tiret quand "
-                                  + "l'aliment ne les annonce pas.")
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                // Rows rather than a `Grid`: a grid paints each cell on its
+                // own, so the cursor and the alternating band came out as a
+                // string of separate patches with the column spacing showing
+                // between them. A row is one shape, painted edge to edge, and
+                // the fixed numeric widths keep every column aligned down the
+                // page — with the single header above the meals, too.
+                VStack(spacing: 0) {
                     ForEach(
                         Array(meal.rows.enumerated()), id: \.element.entryID
                     ) { rowIndex, row in
-                        GridRow {
-                            Button {
-                                toggleFavorite(row.entryID)
-                            } label: {
-                                Image(systemName: row.isFavorite ? "star.fill" : "star")
-                                    .foregroundStyle(
-                                        row.isFavorite ? .yellow : .secondary
-                                    )
-                            }
-                            .buttonStyle(.borderless)
-                            .help(
-                                row.isFavorite
-                                    ? "Retirer des favoris" : "Ajouter aux favoris"
+                        foodRow(row)
+                            .padding(.horizontal, Self.rowInset)
+                            .padding(.vertical, 3)
+                            .background(
+                                rowFill(
+                                    isCursor: cursor == DayCursor(
+                                        mealIndex: mealIndex, rowIndex: rowIndex
+                                    ),
+                                    rowIndex: rowIndex
+                                ),
+                                in: RoundedRectangle(cornerRadius: 5)
                             )
-                            Text(row.name).lineLimit(1)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text("\(Int(row.grams.rounded()))")
-                                .frame(width: NumericColumn.grams, alignment: .trailing)
-                            Text("\(Int(row.macros.kcal.rounded()))")
-                                .frame(width: NumericColumn.kcal, alignment: .trailing)
-                            Text("\(Int(row.macros.protein.rounded()))")
-                                .frame(width: NumericColumn.macro, alignment: .trailing)
-                            Text("\(Int(row.macros.carbs.rounded()))")
-                                .frame(width: NumericColumn.macro, alignment: .trailing)
-                            Text("\(Int(row.macros.fat.rounded()))")
-                                .frame(width: NumericColumn.macro, alignment: .trailing)
-                            // Un tiret, et non zéro : l'aliment n'a rien
-                            // annoncé, ce qui n'est pas la même chose que
-                            // n'en pas contenir. Toute la jauge du haut
-                            // repose sur cette distinction.
-                            Text(row.fiber.unknownCount > 0
-                                 ? "—" : "\(Int(row.fiber.grams))")
-                                .frame(width: NumericColumn.fiber, alignment: .trailing)
-                                .foregroundStyle(row.fiber.unknownCount > 0
-                                                 ? AnyShapeStyle(.tertiary)
-                                                 : AnyShapeStyle(.primary))
-                        }
-                        // `monospacedDigit()` is a `Text` method; on a row
-                        // the font modifier carries the same trait.
-                        .font(.title3.monospacedDigit())
-                        .background(
-                            cursor == DayCursor(
-                                mealIndex: mealIndex, rowIndex: rowIndex
-                            )
-                                ? Self.cursorFill
-                                : AnyShapeStyle(.clear),
-                            in: RoundedRectangle(cornerRadius: 4)
-                        )
-                        // Placed like the `.background` just above it: a
-                        // modifier on a `GridRow` applies to each of its
-                        // cells, so what can be clicked is exactly what the
-                        // highlight covers, no more.
-                        .contentShape(.rect)
-                        .onTapGesture {
-                            cursor = DayCursor(
-                                mealIndex: mealIndex, rowIndex: rowIndex
-                            )
-                        }
-                        // Like the `.background` above it, this lands on each
-                        // cell of the row: they share one identity and one
-                        // line, so scrolling to any of them is scrolling to
-                        // the row.
-                        .id(DayCursor(mealIndex: mealIndex, rowIndex: rowIndex))
-                        .contextMenu {
-                            Button("Éditer…") {
-                                editingEntry = entry(for: row.entryID)
+                            .contentShape(.rect)
+                            .onTapGesture {
+                                cursor = DayCursor(
+                                    mealIndex: mealIndex, rowIndex: rowIndex
+                                )
                             }
-                            Button("Monter") { move(row.entryID, direction: -1) }
-                            Button("Descendre") { move(row.entryID, direction: 1) }
-                            Button("Basculer favori") { toggleFavorite(row.entryID) }
-                            Divider()
-                            Button("Supprimer", role: .destructive) {
-                                entryPendingDeletion = entry(for: row.entryID)
+                            .id(DayCursor(mealIndex: mealIndex, rowIndex: rowIndex))
+                            .contextMenu {
+                                Button("Éditer…") {
+                                    editingEntry = entry(for: row.entryID)
+                                }
+                                Button("Monter") { move(row.entryID, direction: -1) }
+                                Button("Descendre") { move(row.entryID, direction: 1) }
+                                Button(row.isFavorite ? "Retirer des favoris" : "Ajouter aux favoris") {
+                                    toggleFavorite(row.entryID)
+                                }
+                                Divider()
+                                Button("Supprimer", role: .destructive) {
+                                    entryPendingDeletion = entry(for: row.entryID)
+                                }
                             }
-                        }
-                        .draggable(FoodEntryDragPayload(id: row.entryID))
-                        .dropDestination(for: FoodEntryDragPayload.self) {
-                            payloads, _ in
-                            guard let payload = payloads.first else {
-                                return false
+                            .draggable(FoodEntryDragPayload(id: row.entryID))
+                            .dropDestination(for: FoodEntryDragPayload.self) {
+                                payloads, _ in
+                                guard let payload = payloads.first else {
+                                    return false
+                                }
+                                return drop(payload.id, onto: row.entryID)
                             }
-                            return drop(payload.id, onto: row.entryID)
-                        }
                     }
                 }
             }
@@ -786,8 +742,77 @@ struct NutritionDayView: View {
                 MarkdownText(markdown: note, hidesTagHashes: true)
                     .italic()
                     .foregroundStyle(.secondary)
+                    .padding(.horizontal, Self.rowInset)
             }
         }
+    }
+
+    /// Inside a row, between its band and its text — and the same on the
+    /// column header and the meal headers, so all three line up.
+    private static let rowInset: CGFloat = 8
+
+    /// The column names, once, above every meal: repeated under each one they
+    /// were four headers for one table, which is how a form reads, not a list.
+    private var columnHeader: some View {
+        HStack(spacing: NumericColumn.spacing) {
+            Text("Aliment")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("g")
+                .frame(width: NumericColumn.grams, alignment: .trailing)
+            Text("kcal")
+                .frame(width: NumericColumn.kcal, alignment: .trailing)
+            Text("P")
+                .frame(width: NumericColumn.macro, alignment: .trailing)
+            Text("G")
+                .frame(width: NumericColumn.macro, alignment: .trailing)
+            Text("L")
+                .frame(width: NumericColumn.macro, alignment: .trailing)
+            Text("F")
+                .frame(width: NumericColumn.fiber, alignment: .trailing)
+                .help("Fibres, en grammes. Un tiret quand "
+                      + "l'aliment ne les annonce pas.")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, Self.rowInset)
+    }
+
+    private func foodRow(_ row: NutritionDayModel.Row) -> some View {
+        HStack(spacing: NumericColumn.spacing) {
+            Text(row.name).lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("\(Int(row.grams.rounded()))")
+                .frame(width: NumericColumn.grams, alignment: .trailing)
+            Text("\(Int(row.macros.kcal.rounded()))")
+                .frame(width: NumericColumn.kcal, alignment: .trailing)
+            Text("\(Int(row.macros.protein.rounded()))")
+                .frame(width: NumericColumn.macro, alignment: .trailing)
+            Text("\(Int(row.macros.carbs.rounded()))")
+                .frame(width: NumericColumn.macro, alignment: .trailing)
+            Text("\(Int(row.macros.fat.rounded()))")
+                .frame(width: NumericColumn.macro, alignment: .trailing)
+            // Un tiret, et non zéro : l'aliment n'a rien annoncé, ce qui
+            // n'est pas la même chose que n'en pas contenir. Toute la jauge
+            // du haut repose sur cette distinction.
+            Text(row.fiber.unknownCount > 0 ? "—" : "\(Int(row.fiber.grams))")
+                .frame(width: NumericColumn.fiber, alignment: .trailing)
+                .foregroundStyle(row.fiber.unknownCount > 0
+                                 ? AnyShapeStyle(.tertiary)
+                                 : AnyShapeStyle(.primary))
+        }
+        // The size of a macOS table, like the activities: `title3` made the
+        // day read as a poster.
+        .font(.body.monospacedDigit())
+    }
+
+    /// The cursor first; otherwise every other row banded, the way a macOS
+    /// table is, so a name on the left can be followed to its figures on the
+    /// far right of a wide window. The system's own alternating colour, so it
+    /// is exactly the band of every other table on the Mac, dark mode included.
+    private func rowFill(isCursor: Bool, rowIndex: Int) -> AnyShapeStyle {
+        if isCursor { return Self.cursorFill }
+        guard rowIndex.isMultiple(of: 2) == false else { return AnyShapeStyle(.clear) }
+        return AnyShapeStyle(Color(nsColor: NSColor.alternatingContentBackgroundColors[1]))
     }
 
     private func entry(for id: PersistentIdentifier) -> FoodEntry? {
@@ -803,8 +828,8 @@ struct NutritionDayView: View {
     /// `Grid`, not a list, and there is no list to inherit the answer from.
     ///
     /// The accent colour, then, but laid on thin: a solid selection blue wants
-    /// white labels on it, and the row carries a starred favourite and a line
-    /// of figures that are read at a glance. Tinted, the band says "here"
+    /// white labels on it, and the row carries a line of figures that are
+    /// read at a glance. Tinted, the band says "here"
     /// without repainting everything inside it.
     private static let cursorFill = AnyShapeStyle(.tint.opacity(0.28))
 
