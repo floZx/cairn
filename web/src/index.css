@@ -886,8 +886,7 @@ input, button { font: inherit; }
 }
 
 .barre-nav .retour,
-.barre-nav .action-barre,
-.barre-nav .entete-flottante.visible {
+.barre-nav .action-barre {
   pointer-events: auto;
 }
 
@@ -900,53 +899,6 @@ input, button { font: inherit; }
 
 .action-barre {
   margin-left: auto;
-}
-
-/* Vide, il partageait la marge automatique avec le sélecteur flottant, qui
-   se retrouvait au milieu de la barre au lieu d'être à droite. Mesuré. */
-.action-barre:empty {
-  display: none;
-}
-
-/* Le sélecteur de l'écran, accroché en haut à droite une fois le grand titre
-   parti. Il apparaît sans sauter : un fondu et un léger recul, la façon dont
-   les boutons de barre d'iOS se matérialisent. */
-.entete-flottante {
-  margin-left: auto;
-  border-radius: 999px;
-  opacity: 0;
-  transform: translateY(-4px) scale(0.96);
-  pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.entete-flottante.visible {
-  opacity: 1;
-  transform: none;
-  pointer-events: auto;
-}
-
-/* Plus de matière que la barre d'onglets : une capsule de boutons se lit
-   par-dessus du texte qui défile, et le verre presque clair de la barre y
-   mêlait ses icônes aux mots de dessous. Mesuré en clair sur « mardi ». */
-.entete-flottante.matiere {
-  background: color-mix(in srgb, var(--carte) 72%, transparent);
-}
-
-/* Dans le verre, le sélecteur n'a plus besoin de son propre fond gris : la
-   capsule le porte. */
-.entete-flottante .segments-vue {
-  background: transparent;
-}
-
-/* Et plus de bandeau derrière lui : la barre repliée prenait toute la largeur
-   en verre, ce qui refaisait sous l'heure la bande que le système floute déjà.
-   Seule la capsule se matérialise. */
-.barre-nav.repliee:has(.entete-flottante) {
-  background: transparent;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  border-bottom-color: transparent;
 }
 
 .defilement {

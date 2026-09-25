@@ -284,22 +284,6 @@ export function Chrome({
           </button>
         )}
         {/* Plus de titre compact ici : voir l'en-tête du fichier. */}
-        {/* Mais les réglages de l'écran, eux, restent à portée : une fois le
-            grand titre parti, le sélecteur qui l'accompagnait vient se poser
-            en haut à droite, dans une capsule de verre — comme les boutons des
-            barres d'iOS 27, qui flottent au lieu de former un bandeau. Une
-            pastille de matière reste nette dans la bande que le système floute
-            sous l'heure ; c'est le texte nu qui ne l'est pas (voir le retour).
-            Rendue en double plutôt que déplacée : le sélecteur ne tient aucun
-            état à lui, il suit ce qu'`App` lui passe. */}
-        {entete && !masquerOnglets && (
-          <div
-            className={replie ? "entete-flottante matiere visible" : "entete-flottante matiere"}
-            aria-hidden={!replie}
-          >
-            {entete}
-          </div>
-        )}
         <div className="action-barre">{action}</div>
       </header>
 
