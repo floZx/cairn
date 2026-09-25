@@ -38,8 +38,6 @@ struct NutritionDayView: View {
     private var proteinTarget = NutritionSettings.defaultProteinTargetG
     @AppStorage(NutritionSettings.fatTargetKey)
     private var fatTarget = NutritionSettings.defaultFatTargetG
-    @AppStorage(NutritionSettings.fiberTargetKey)
-    private var fiberTarget = NutritionSettings.defaultFiberTargetG
     @AppStorage(NutritionSettings.weightGoalKey)
     private var weightGoal = NutritionSettings.defaultWeightGoalKg
     @State private var importMessage: String?
@@ -521,9 +519,6 @@ struct NutritionDayView: View {
                 title: "Lipides", consumed: model.consumed.fat,
                 target: model.daily?.fat, unit: "g"
             )
-            // La cinquième, et la seule qui ne dépende pas du type de
-            // journée : les calories suivent l'entraînement, les fibres non.
-            FiberGauge(tally: model.fiber, target: fiberTarget)
         }
     }
 
@@ -536,9 +531,6 @@ struct NutritionDayView: View {
         static let grams: CGFloat = 48
         static let kcal: CGFloat = 82
         static let macro: CGFloat = 66
-        /// Plus étroite que les autres : les fibres tiennent en deux chiffres
-        /// là où les glucides en demandent trois.
-        static let fiber: CGFloat = 44
         static let spacing: CGFloat = 16
     }
 
@@ -581,14 +573,6 @@ struct NutritionDayView: View {
                 .frame(width: NumericColumn.macro, alignment: .trailing)
             pairText(meal.consumed.fat, target: meal.target?.fat)
                 .frame(width: NumericColumn.macro, alignment: .trailing)
-            // Sans cible : les fibres se visent sur la journée, pas sur un
-            // repas. Un chiffre seul, donc, là où les autres sont des paires.
-            Text(meal.fiber.grams == 0 && meal.fiber.unknownCount > 0
-                 ? "—" : "\(Int(meal.fiber.grams))")
-                .frame(width: NumericColumn.fiber, alignment: .trailing)
-                .foregroundStyle(meal.fiber.unknownCount > 0
-                                 ? AnyShapeStyle(.secondary)
-                                 : AnyShapeStyle(.primary))
         }
         .font(.body.monospacedDigit())
         .help(Self.targetExplanation(meal))
@@ -767,10 +751,6 @@ struct NutritionDayView: View {
                 .frame(width: NumericColumn.macro, alignment: .trailing)
             Text("L")
                 .frame(width: NumericColumn.macro, alignment: .trailing)
-            Text("F")
-                .frame(width: NumericColumn.fiber, alignment: .trailing)
-                .help("Fibres, en grammes. Un tiret quand "
-                      + "l'aliment ne les annonce pas.")
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -791,14 +771,6 @@ struct NutritionDayView: View {
                 .frame(width: NumericColumn.macro, alignment: .trailing)
             Text("\(Int(row.macros.fat.rounded()))")
                 .frame(width: NumericColumn.macro, alignment: .trailing)
-            // Un tiret, et non zéro : l'aliment n'a rien annoncé, ce qui
-            // n'est pas la même chose que n'en pas contenir. Toute la jauge
-            // du haut repose sur cette distinction.
-            Text(row.fiber.unknownCount > 0 ? "—" : "\(Int(row.fiber.grams))")
-                .frame(width: NumericColumn.fiber, alignment: .trailing)
-                .foregroundStyle(row.fiber.unknownCount > 0
-                                 ? AnyShapeStyle(.tertiary)
-                                 : AnyShapeStyle(.primary))
         }
         // The size of a macOS table, like the activities: `title3` made the
         // day read as a poster.

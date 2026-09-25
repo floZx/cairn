@@ -10,7 +10,7 @@ import { Feuille, Chargement } from "./Chrome"
 import { ListeGlissable } from "./ListeGlissable"
 import { Symbole } from "./IconeSport"
 import { NoteRepas, Pesee, TypeDeJournee } from "./SaisieJour"
-import { JaugeFibres, JaugeMacro } from "./JaugeMacro"
+import { JaugeMacro } from "./JaugeMacro"
 import {
   arrondi,
   dansLeMille,
@@ -19,9 +19,6 @@ import {
   objectifsAdaptatifs,
   objectifsDuJour,
   somme,
-  arrondiFibres,
-  fibresDe,
-  sommeFibres,
   type EtatRepas,
   type Macros,
 } from "./macros"
@@ -36,7 +33,8 @@ type Aliment = {
   protein100: number
   carbs100: number
   fat100: number
-  /// Nulles quand la source ne les connaît pas — voir `fibresDe`.
+  /// Nulles quand la source ne les connaît pas. Plus affichées : trop peu
+  /// renseignées pour servir, mais gardées avec l'aliment.
   fiber100: number | null
   grams: number
   sort_order: number
@@ -67,7 +65,7 @@ function useReglages() {
         // à chaque synchronisation, jamais d'ici.
         supabase
           .from("nutrition_target")
-          .select("protein_g, fat_g, fiber_g")
+          .select("protein_g, fat_g")
           .is("deleted_at", null)
           .maybeSingle(),
       ])
@@ -91,7 +89,6 @@ function useReglages() {
           : (cibles.data as {
               protein_g: number
               fat_g: number
-              fiber_g: number | null
             } | null),
       }
     },
@@ -327,9 +324,6 @@ export function Nutrition({
   const consommeDu = (uuid: string) =>
     somme(...parCreneau(uuid).map((a) => arrondi(macrosDe(a))))
   const totalJour = somme(...creneaux.map((c) => consommeDu(c.uuid)))
-  // Sur la journée entière et non par créneau : les fibres n'ont pas de cible
-  // par repas, et aucune ligne ne les montre.
-  const fibresDuJour = sommeFibres(...aliments.map((a) => arrondiFibres(fibresDe(a))))
 
   // Les glucides ne sont pas un réglage : ils se déduisent de ce que les
   // calories laissent une fois les protéines et lipides comptés. Sans la
@@ -435,11 +429,6 @@ export function Nutrition({
             objectif={cibles ? (journeeVisee?.lipides ?? null) : null}
             unite="g"
           />
-          {/* La cinquième, et la seule qui ne dépende pas du type de journée :
-              les calories suivent l'entraînement, les fibres non. Trente
-              grammes tant que le Mac n'a pas dit les siens — le repère de
-              l'ANSES, le même défaut que là-bas. */}
-          <JaugeFibres fibres={fibresDuJour} objectif={cibles?.fiber_g ?? 30} />
         </div>
       </div>
 

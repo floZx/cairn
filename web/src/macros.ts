@@ -23,45 +23,6 @@ export type Portion = {
   grams: number
 }
 
-/// Ce qu'une journée compte de fibres, et ce qu'elle ignore.
-///
-/// Porté de `FiberTally` côté Swift, à part des macros et pour les mêmes
-/// raisons : les fibres n'ont pas de cible par repas ni de part adaptative, et
-/// elles ont ce que les macros n'ont pas — des trous. Un total sans le nombre
-/// d'aliments muets est un chiffre qu'on ne peut pas lire.
-export type Fibres = {
-  grammes: number
-  /// Combien d'aliments n'annoncent pas leurs fibres.
-  inconnus: number
-}
-
-export const AUCUNE_FIBRE: Fibres = { grammes: 0, inconnus: 0 }
-
-export function fibresDe(portion: { fiber100: number | null; grams: number }): Fibres {
-  if (portion.fiber100 === null || portion.fiber100 === undefined) {
-    return { grammes: 0, inconnus: 1 }
-  }
-  return { grammes: (portion.fiber100 * portion.grams) / 100, inconnus: 0 }
-}
-
-/// Arrondi au gramme, en gardant le compte des muets.
-///
-/// Appliqué par portion avant de sommer, comme `arrondi` pour les macros et
-/// pour sa raison exacte : le tableau du Mac a désormais une colonne « F », et
-/// une colonne de chiffres doit faire le total imprimé dessous. Les deux
-/// écrans doivent en outre s'accorder — un total de fibres différent entre le
-/// Mac et le téléphone serait le même défaut que celui des macros du 17 août.
-export function arrondiFibres(f: Fibres): Fibres {
-  return { grammes: Math.round(f.grammes), inconnus: f.inconnus }
-}
-
-export function sommeFibres(...f: Fibres[]): Fibres {
-  return f.reduce(
-    (a, b) => ({ grammes: a.grammes + b.grammes, inconnus: a.inconnus + b.inconnus }),
-    AUCUNE_FIBRE,
-  )
-}
-
 export function macrosDe(portion: Portion): Macros {
   const facteur = portion.grams / 100
   return {

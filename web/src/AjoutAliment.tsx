@@ -335,16 +335,14 @@ export function AjoutAliment({
                 {a.grammesFavori !== null && a.marque === "" ? "★ " : ""}
                 {a.nom}
               </span>
-              {/* Les quatre macros et les fibres, dans la forme exacte du
-                  Mac : c'est la même question qu'on pose à la même liste, et
-                  n'afficher ici que les calories obligeait à choisir un
-                  aliment pour découvrir ce qu'il apportait vraiment.
+              {/* Les quatre macros, dans la forme exacte du Mac : c'est la
+                  même question qu'on pose à la même liste, et n'afficher ici
+                  que les calories obligeait à choisir un aliment pour
+                  découvrir ce qu'il apportait vraiment.
 
-                  Le tiret des fibres est ce qui rend le choix possible : une
-                  absence muette ne se distinguerait pas d'une colonne qu'on
-                  aurait oublié d'afficher, alors qu'elle est justement le
-                  critère — entre deux flocons équivalents, prendre celui dont
-                  la fiche est complète.
+                  Plus les fibres : la base les renseigne trop rarement pour
+                  qu'elles servent — retirées partout le 25 septembre 2026.
+                  Elles restent enregistrées avec l'aliment (`fiber100`).
 
                   « /100 g » est dit une fois au-dessus de la liste et non sur
                   chaque rang : répété, il faisait passer toutes les lignes à
@@ -353,8 +351,7 @@ export function AjoutAliment({
               <span className="attenue petit">
                 {a.marque && `${a.marque} · `}
                 {Math.round(a.kcal100)} kcal · P {Math.round(a.protein100)} · G{" "}
-                {Math.round(a.carbs100)} · L {Math.round(a.fat100)} ·{" "}
-                {a.fiber100 === null ? "F —" : `F ${Math.round(a.fiber100)}`}
+                {Math.round(a.carbs100)} · L {Math.round(a.fat100)}
               </span>
             </button>
           </li>
