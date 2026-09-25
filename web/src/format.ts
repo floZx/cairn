@@ -160,6 +160,80 @@ function minutesSecondes(secondes: number): string {
   return `${minutes}′${String(reste).padStart(2, "0")}″`
 }
 
+const jourDeLaSemaine = new Intl.DateTimeFormat("fr-FR", {
+  weekday: "long",
+  timeZone: "UTC",
+})
+
+const dateNumerique = new Intl.DateTimeFormat("fr-FR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+})
+
+/// « 06:52 », « hier », « dimanche », « 11/08/2026 » — la date comme Mail la
+/// donne en tête d'un message, et comme la liste du Mac (`Format.relativeDate`).
+///
+/// Les jours se comptent sur l'heure murale de la sortie, lue en UTC comme les
+/// autres formats de ce fichier, contre la date d'aujourd'hui **ici** : c'est
+/// le jour qu'on vit qu'on compare, pas un instant.
+export function dateRelative(iso: string, maintenant = new Date()): string {
+  const date = new Date(iso)
+  const jourSortie = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  const aujourdhui = Date.UTC(
+    maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate(),
+  )
+  const ecart = Math.round((aujourdhui - jourSortie) / 86_400_000)
+  if (ecart === 0) return heure(iso)
+  if (ecart === 1) return "hier"
+  // Sous la semaine, le jour suffit : ce dimanche ne peut pas être confondu
+  // avec le précédent, qui a sept jours et reçoit une date.
+  if (ecart >= 2 && ecart <= 6) return jourDeLaSemaine.format(date)
+  return dateNumerique.format(date)
+}
+
+/// Les chiffres d'une sortie sur une ligne, sans étiquettes — les unités
+/// suffisent : « 8,5 km · 47 min · 5′31″/km · 137 bpm ». Choisis par sport,
+/// comme sur le Mac (`ActivityCard.figures`) : l'allure sur la route et dans
+/// l'eau, le dénivelé en montagne et à vélo, les calories d'une séance en
+/// salle, qui n'a ni distance ni allure.
+export function chiffresDeLaLigne(a: {
+  sport_type_raw: string
+  distance: number
+  moving_time: number
+  total_elevation_gain: number
+  average_heartrate?: number | null
+  calories?: number | null
+}): string {
+  const parties: string[] = []
+  if (a.distance > 0) parties.push(distance(a.distance))
+  if (a.moving_time > 0) parties.push(duree(a.moving_time))
+  const salle = a.sport_type_raw === "workout" || a.sport_type_raw === "other"
+  if (["run", "swim", "rowing"].includes(a.sport_type_raw)) {
+    const rythme = allureOuVitesse(a.sport_type_raw, a.distance, a.moving_time)
+    if (rythme) {
+      const unite = a.sport_type_raw === "swim" ? "/100 m" : a.sport_type_raw === "run" ? "/km" : ""
+      parties.push(`${rythme.valeur}${unite}`)
+    }
+  } else if (!salle && a.total_elevation_gain > 0) {
+    parties.push(`${denivele(a.total_elevation_gain)} D+`)
+  }
+  if (a.average_heartrate && a.average_heartrate > 0) {
+    parties.push(`${Math.round(a.average_heartrate)} bpm`)
+  }
+  if (salle && a.calories && a.calories > 0) {
+    parties.push(`${Math.round(a.calories)} kcal`)
+  }
+  return parties.join(" · ")
+}
+
+/// La première ligne d'une note, pour l'aperçu d'une liste.
+export function premiereLigne(texte: string | null | undefined): string | null {
+  const ligne = texte?.split("\n").find((l) => l.trim() !== "")?.trim()
+  return ligne ? ligne : null
+}
+
 /// L'heure seule, pour une ligne qui porte déjà sa date.
 export function heure(iso: string): string {
   return heureExacte.format(new Date(iso))

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Chargement } from "./Chrome"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { POIDS_MASQUE } from "./masquees"
@@ -309,7 +310,7 @@ export function Stats() {
     },
   })
 
-  if (isPending) return <p className="attenue">Chargement…</p>
+  if (isPending) return <Chargement />
   if (error) return <p className="erreur">{(error as Error).message}</p>
 
   const dansLaFenetre = data.sorties.filter((a) => new Date(a.start_local_date) >= debut)

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { Symbole } from "./IconeSport"
 import { useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Feuille } from "./Chrome"
@@ -81,20 +82,7 @@ export function BoutonCompte() {
           pas un endroit où l'on reste. */}
       <button className="onglet-bas" onClick={() => setOuvert(true)}>
         <span className="dedans-onglet">
-          <svg
-            width="26"
-            height="26"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            aria-hidden
-          >
-            <circle cx="12" cy="12" r="9" />
-            <circle cx="12" cy="10" r="3.2" />
-            <path d="M5.9 19a6.4 6.4 0 0112.2 0" />
-          </svg>
+          <Symbole nom="person.crop.circle" taille={26} />
           <span>Compte</span>
         </span>
       </button>

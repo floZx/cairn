@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { SECTIONS_MASQUEES } from "./masquees"
 import { createPortal } from "react-dom"
+import { Symbole } from "./IconeSport"
 
 /// Le châssis de l'application : ce qui ne change pas d'un écran à l'autre.
 ///
@@ -22,69 +23,20 @@ import { createPortal } from "react-dom"
 
 export type Section = "activites" | "plan" | "journal" | "nutrition" | "stats"
 
-/// Les icônes, dessinées ici plutôt qu'importées.
-///
-/// Trois traits chacune, à la ligne — le style d'Apple depuis qu'il a quitté
-/// les icônes pleines. Une bibliothèque d'icônes pèserait cent fois ça pour
-/// trois symboles, et le trait se règle ici au demi-pixel près.
-function Icone({ nom, actif }: { nom: Section; actif: boolean }) {
-  const commun = {
-    width: 26,
-    height: 26,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: actif ? 2.1 : 1.7,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true,
-  }
-  switch (nom) {
-    case "activites":
-      // Un relief : deux sommets, ce que l'application raconte.
-      return (
-        <svg {...commun}>
-          <path d="M3 18l5.5-8 3.5 5 2.5-3.5L21 18z" />
-          <path d="M3 21h18" />
-        </svg>
-      )
-    case "plan":
-      // Un calendrier : le cadre, l'anneau de reliure, et une case cochée —
-      // ce que le plan raconte, du prévu qui se coche.
-      return (
-        <svg {...commun}>
-          <path d="M4 6.5A1.5 1.5 0 015.5 5h13A1.5 1.5 0 0120 6.5v12a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 18.5z" />
-          <path d="M4 9.5h16M8.5 3v4M15.5 3v4" />
-          <path d="M8.5 14.5l2 2 4-4" />
-        </svg>
-      )
-    case "journal":
-      return (
-        <svg {...commun}>
-          <path d="M5 4.5A1.5 1.5 0 016.5 3H18a1 1 0 011 1v16a1 1 0 01-1 1H6.5A1.5 1.5 0 015 19.5z" />
-          <path d="M5 17.5h14" />
-          <path d="M9 7.5h6" />
-        </svg>
-      )
-    case "nutrition":
-      // Fourchette et couteau. L'assiette vue de dessus — deux cercles
-      // concentriques — se lisait comme un bouton d'enregistrement ; le
-      // couvert est la convention, et une convention se reconnaît sans qu'on
-      // ait à la deviner.
-      return (
-        <svg {...commun}>
-          <path d="M7 3v7a2.5 2.5 0 002.5 2.5h0V21M7 3v4.5M9.5 3v4.5" />
-          <path d="M16.5 3c1.4 1 2 2.6 2 4.5s-.6 3.2-2 4v9.5" />
-        </svg>
-      )
-    default:
-      // Trois barres montantes : ce que les statistiques racontent.
-      return (
-        <svg {...commun}>
-          <path d="M5 20v-6M12 20V6M19 20v-9" />
-        </svg>
-      )
-  }
+/// Les icônes des onglets : celles de la barre latérale du Mac, les vrais
+/// symboles SF (voir `Symbole`). Les tracés faits main qui les précédaient
+/// n'étaient « pas ouf », signalé.
+function Icone({ nom }: { nom: Section; actif: boolean }) {
+  return <Symbole nom={SYMBOLES_ONGLETS[nom]} taille={26} />
+}
+
+/// Les symboles de la barre latérale du Mac, section pour section.
+const SYMBOLES_ONGLETS: Record<Section, string> = {
+  activites: "list.bullet",
+  plan: "calendar",
+  journal: "text.book.closed",
+  nutrition: "fork.knife",
+  stats: "chart.bar",
 }
 
 /// Le mot de l'onglet — court, parce que cinq onglets se partagent la capsule
@@ -332,6 +284,22 @@ export function Chrome({
           </button>
         )}
         {/* Plus de titre compact ici : voir l'en-tête du fichier. */}
+        {/* Mais les réglages de l'écran, eux, restent à portée : une fois le
+            grand titre parti, le sélecteur qui l'accompagnait vient se poser
+            en haut à droite, dans une capsule de verre — comme les boutons des
+            barres d'iOS 27, qui flottent au lieu de former un bandeau. Une
+            pastille de matière reste nette dans la bande que le système floute
+            sous l'heure ; c'est le texte nu qui ne l'est pas (voir le retour).
+            Rendue en double plutôt que déplacée : le sélecteur ne tient aucun
+            état à lui, il suit ce qu'`App` lui passe. */}
+        {entete && !masquerOnglets && (
+          <div
+            className={replie ? "entete-flottante matiere visible" : "entete-flottante matiere"}
+            aria-hidden={!replie}
+          >
+            {entete}
+          </div>
+        )}
         <div className="action-barre">{action}</div>
       </header>
 
@@ -461,3 +429,19 @@ export function Feuille({
     document.body,
   )
 }
+
+/// Ce qui se montre pendant qu'une vue attend ses données : la roue d'iOS, pas
+/// le mot « Chargement… ». Un mot se lit, et se lit comme une page web qui
+/// charge ; la roue ne demande rien, elle dit seulement « un instant ».
+///
+/// Centrée et à distance du haut, là où le contenu va arriver, pour qu'elle
+/// ne saute pas quand il arrive.
+export function Chargement({ petit = false }: { petit?: boolean }) {
+  return (
+    <div className={petit ? "chargement petit" : "chargement"} role="status">
+      <span className="roue" aria-hidden />
+      <span className="lecteur-seul">Chargement…</span>
+    </div>
+  )
+}
+

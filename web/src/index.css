@@ -329,6 +329,32 @@ input, button { font: inherit; }
 
 .ligne-tete .petit { flex: none; }
 
+/* Les deux lignes sous le nom : les chiffres à la taille qui se lit, la note
+   en retrait, une ligne chacune. */
+.chiffres-ligne {
+  margin-top: 1px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--texte-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.apercu-ligne {
+  margin-top: 1px;
+  font-size: 13px;
+  color: var(--texte-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* L'icône du sport s'aligne sur le nom, pas au milieu de trois lignes. */
+.ligne.avec-icone.ligne-mail {
+  align-items: start;
+}
+
 .carte-trace {
   width: 100%;
   height: 260px;
@@ -863,6 +889,20 @@ input, button { font: inherit; }
     -webkit-backdrop-filter 0.2s ease, backdrop-filter 0.2s ease;
 }
 
+/* La barre ne prend aucun clic à elle seule : transparente au repos, elle
+   couvrait pourtant le haut du grand titre et de son sélecteur, et la moitié
+   haute des boutons de présentation ne répondait pas — signalé, mesuré à
+   `elementFromPoint`. Seuls ses boutons reprennent la main. */
+.barre-nav {
+  pointer-events: none;
+}
+
+.barre-nav .retour,
+.barre-nav .action-barre,
+.barre-nav .entete-flottante.visible {
+  pointer-events: auto;
+}
+
 .barre-nav.repliee {
   background: color-mix(in srgb, var(--fond) 18%, transparent);
   -webkit-backdrop-filter: blur(12px) saturate(210%) brightness(1.1);
@@ -872,6 +912,53 @@ input, button { font: inherit; }
 
 .action-barre {
   margin-left: auto;
+}
+
+/* Vide, il partageait la marge automatique avec le sélecteur flottant, qui
+   se retrouvait au milieu de la barre au lieu d'être à droite. Mesuré. */
+.action-barre:empty {
+  display: none;
+}
+
+/* Le sélecteur de l'écran, accroché en haut à droite une fois le grand titre
+   parti. Il apparaît sans sauter : un fondu et un léger recul, la façon dont
+   les boutons de barre d'iOS se matérialisent. */
+.entete-flottante {
+  margin-left: auto;
+  border-radius: 999px;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.96);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.entete-flottante.visible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* Plus de matière que la barre d'onglets : une capsule de boutons se lit
+   par-dessus du texte qui défile, et le verre presque clair de la barre y
+   mêlait ses icônes aux mots de dessous. Mesuré en clair sur « mardi ». */
+.entete-flottante.matiere {
+  background: color-mix(in srgb, var(--carte) 72%, transparent);
+}
+
+/* Dans le verre, le sélecteur n'a plus besoin de son propre fond gris : la
+   capsule le porte. */
+.entete-flottante .segments-vue {
+  background: transparent;
+}
+
+/* Et plus de bandeau derrière lui : la barre repliée prenait toute la largeur
+   en verre, ce qui refaisait sous l'heure la bande que le système floute déjà.
+   Seule la capsule se matérialise. */
+.barre-nav.repliee:has(.entete-flottante) {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-bottom-color: transparent;
 }
 
 .defilement {
@@ -1549,8 +1636,19 @@ body {
   margin-bottom: 12px;
 }
 
+/* En capsule, avec sa loupe, comme le champ de recherche d'iOS 27 — le
+   rectangle à coins de dix pixels était celui d'iOS 7. La loupe en fond
+   plutôt qu'en élément : elle ne se touche pas, elle dit ce qu'est le champ.
+   Un gris neutre qui se lit sur les deux thèmes, l'image ne pouvant suivre
+   `currentColor`. */
 .barre-recherche .recherche {
   flex: 1;
+  height: 40px;
+  padding: 0 14px 0 36px;
+  border-radius: 999px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5L20 20'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 13px center;
 }
 
 .bouton-filtre {
@@ -1558,9 +1656,11 @@ body {
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 44px;
+  /* Un rond à côté de la capsule, comme les boutons d'iOS 27. */
+  width: 40px;
+  height: 40px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 50%;
   background: var(--champ);
   color: var(--accent);
   cursor: pointer;
@@ -2212,7 +2312,8 @@ body {
   flex: none;
   gap: 2px;
   padding: 3px;
-  border-radius: 12px;
+  /* En capsule, comme les sélecteurs d'iOS 27. */
+  border-radius: 999px;
   background: var(--champ);
 }
 
@@ -2233,7 +2334,7 @@ body {
   width: 42px;
   height: 30px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 999px;
   background: transparent;
   color: var(--texte-2);
   cursor: pointer;
@@ -3018,3 +3119,165 @@ button.citation {
 .tour.meilleur .rythme {
   color: var(--vert);
 }
+
+/* ---- Repas, à la façon d'une liste groupée d'iOS 27 ----------------------
+   Le nom du repas au-dessus de sa carte, comme les en-têtes de section de
+   Réglages, plutôt que dedans : la carte ne porte plus que les aliments. Un
+   créneau vide garde son en-tête, en gris, sans carte à remplir. */
+.repas {
+  margin-bottom: 20px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+.repas.vide {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.repas h3 {
+  margin: 0 0 6px;
+  padding: 0 4px 0 16px;
+  font-size: 17px;
+}
+
+.carte-repas {
+  padding: 4px 16px 10px;
+  background: var(--carte);
+  border-radius: 16px;
+}
+
+.carte-repas .note-repas {
+  margin: 6px 0 4px;
+}
+
+/* Les chevrons des jours : des ronds, comme les boutons d'iOS 27, et plus
+   deux pavés gris aux coins carrés. */
+.barre-jour .lien {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  line-height: 0;
+  color: var(--accent);
+}
+
+/* La ligne « Journée » : son libellé ne cède jamais, c'est la valeur qui se
+   raccourcit — « Journ… » ne disait plus de quelle ligne il s'agissait. */
+.reglages-jour .ligne-tete .titre {
+  flex: none;
+}
+
+.reglages-jour .ligne-tete > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* Le bouton qui fait passer un repas en ordre à changer, plein tant qu'on y
+   est : comme « Modifier » devenu « OK », il dit dans quel mode on se trouve. */
+.ajouter.ordonner.actif {
+  background: var(--accent);
+  color: #fff;
+}
+
+.ligne-aliment.en-ordre {
+  cursor: default;
+  grid-template-columns: 1fr auto auto;
+}
+
+.ligne-aliment.en-ordre:active {
+  background: transparent;
+}
+
+.fleches {
+  display: inline-flex;
+  gap: 6px;
+}
+
+/* Trente-deux pixels et un rond : une cible qu'on vise du pouce, deux fois
+   de suite si l'aliment doit descendre de deux crans. */
+.fleche {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--champ);
+  color: var(--accent);
+  line-height: 0;
+  cursor: pointer;
+}
+
+.fleche:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.fleche:not(:disabled):active {
+  opacity: 0.6;
+}
+
+/* ---- La roue d'attente --------------------------------------------------
+   Un arc qui tourne, gris, de la taille de celle d'iOS. Rien d'autre : pas
+   de texte, pas de couleur d'accent — attendre n'est pas une action. */
+.chargement {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.chargement.petit {
+  padding: 16px 0;
+}
+
+.roue {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid color-mix(in srgb, var(--texte-2) 25%, transparent);
+  border-top-color: var(--texte-2);
+  animation: roue 0.8s linear infinite;
+}
+
+@keyframes roue {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roue { animation-duration: 2.4s; }
+}
+
+.lecteur-seul {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- Les symboles du Mac -------------------------------------------------
+   Voir `Symbole` : un masque ajusté au centre d'une boîte carrée. */
+.symbole {
+  display: inline-block;
+  flex: none;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+

@@ -2,9 +2,9 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { nomDuSport } from "./sports"
-import { IconeSport } from "./IconeSport"
-import { dateCourte, denivele, distance, duree } from "./format"
-import { Feuille } from "./Chrome"
+import { IconeSport, Symbole } from "./IconeSport"
+import { chiffresDeLaLigne, dateRelative, premiereLigne } from "./format"
+import { Feuille, Chargement } from "./Chrome"
 import { Filtres } from "./Filtres"
 import { Fil, COLONNES_FIL, type ActiviteDuFil } from "./Fil"
 import { presentationRetenue, type Vue } from "./vues"
@@ -48,12 +48,16 @@ type Activite = SourceEtiquettes & {
   distance: number
   moving_time: number
   total_elevation_gain: number
+  average_heartrate: number | null
+  calories: number | null
+  activity_description: string | null
 }
 
 const COLONNES =
   "uuid, name, sport_type_raw, start_local_date, distance, moving_time, " +
   "total_elevation_gain, source_raw, workout_type, workout_label_raw, " +
-  "edited_fields, is_favorite, is_commute, is_trainer, is_manual"
+  "edited_fields, is_favorite, is_commute, is_trainer, is_manual, " +
+  "average_heartrate, calories, activity_description"
 
 /// Applique à une requête tout ce que le filtre sait dire en SQL.
 ///
@@ -227,18 +231,7 @@ export function ActivityList({
           onClick={() => setFeuilleOuverte(true)}
           aria-label="Filtres"
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.9"
-            strokeLinecap="round"
-            aria-hidden
-          >
-            <path d="M4 7h16M7 12h10M10 17h4" />
-          </svg>
+          <Symbole nom="line.3.horizontal.decrease" taille={20} />
         </button>
       </div>
       {/* Une liste raccourcie sans raison visible déroute : ce résumé dit ce
@@ -281,7 +274,7 @@ export function ActivityList({
     return (
       <>
         {entete}
-        <p className="attenue">Chargement…</p>
+        <Chargement />
       </>
     )
   }
@@ -318,9 +311,9 @@ export function ActivityList({
         {/* Les colonnes du fil ne sont dans la ligne que sous cette
             présentation — c'est la requête qui les a demandées, et le type
             d'une ligne ne peut pas dépendre d'une valeur d'exécution. */}
-        <Fil activites={activites as ActiviteDuFil[]} onOuvrir={onOuvrir} />
+        <Fil activites={activites as unknown as ActiviteDuFil[]} onOuvrir={onOuvrir} />
         <div ref={sentinelle} />
-        {isFetchingNextPage && <p className="attenue">Chargement…</p>}
+        {isFetchingNextPage && <Chargement />}
       </>
     )
   }
@@ -330,23 +323,32 @@ export function ActivityList({
       {entete}
       <ul className="liste">
         {activites.map((a) => (
-          <li key={a.uuid} className="ligne avec-icone" onClick={() => onOuvrir(a.uuid)}>
+          // Trois lignes, comme Mail et comme la liste du Mac : le nom et une
+          // date courte, les chiffres du sport, puis le début de la note. La
+          // date longue était la plus large de la ligne et coupait le nom
+          // (« Entraînement aux p… ») pour dire le moins.
+          <li
+            key={a.uuid}
+            className="ligne avec-icone ligne-mail"
+            onClick={() => onOuvrir(a.uuid)}
+            title={nomDuSport(a.sport_type_raw)}
+          >
             <IconeSport sport={a.sport_type_raw} />
             <div>
               <div className="ligne-tete">
-              <span className="titre">{a.name}</span>
-              <span className="attenue petit">{dateCourte(a.start_local_date)}</span>
-            </div>
-              <div className="attenue petit">
-                {nomDuSport(a.sport_type_raw)} · {distance(a.distance)} ·{" "}
-                {duree(a.moving_time)} · {denivele(a.total_elevation_gain)}
+                <span className="titre">{a.name}</span>
+                <span className="attenue petit">{dateRelative(a.start_local_date)}</span>
               </div>
+              <div className="chiffres-ligne">{chiffresDeLaLigne(a)}</div>
+              {premiereLigne(a.activity_description) && (
+                <div className="apercu-ligne">{premiereLigne(a.activity_description)}</div>
+              )}
             </div>
           </li>
         ))}
       </ul>
       <div ref={sentinelle} />
-      {isFetchingNextPage && <p className="attenue">Chargement…</p>}
+      {isFetchingNextPage && <Chargement />}
     </>
   )
 }

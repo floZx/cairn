@@ -15,7 +15,7 @@ import { Courbes } from "./Courbes"
 import { Tours } from "./Tours"
 import { ParcoursSimilaires } from "./ParcoursSimilaires"
 import { NoteActivite } from "./NoteActivite"
-import { Feuille } from "./Chrome"
+import { Feuille, Chargement } from "./Chrome"
 import { NOMS, etiquettesDe, type SourceEtiquettes } from "./etiquettes"
 
 type Fiche = {
@@ -91,7 +91,7 @@ export function ActivityDetail({
     [data?.simplified_track],
   )
 
-  if (isPending) return <p className="attenue">Chargement…</p>
+  if (isPending) return <Chargement />
   if (error) return <p className="erreur">{(error as Error).message}</p>
 
   const rythme = allureOuVitesse(data.sport_type_raw, data.distance, data.moving_time)

@@ -4,7 +4,7 @@ import { supabase } from "./supabase"
 import { Markdown } from "./markdown"
 import { dateLongue } from "./format"
 import { NoteEditor, jourCourant, type NoteAEditer } from "./NoteEditor"
-import { Feuille } from "./Chrome"
+import { Feuille, Chargement } from "./Chrome"
 import { IconeSport } from "./IconeSport"
 import { nomDuSport } from "./sports"
 
@@ -344,7 +344,7 @@ export function Journal({
     return () => observateur.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  if (isPending) return <p className="attenue">Chargement…</p>
+  if (isPending) return <Chargement />
   if (error) return <p className="erreur">{(error as Error).message}</p>
 
   const journees = data.pages.flatMap((p) => p.jours)
@@ -499,7 +499,7 @@ export function Journal({
       ))}
 
       <div ref={sentinelle} />
-      {isFetchingNextPage && <p className="attenue petit">Chargement…</p>}
+      {isFetchingNextPage && <Chargement petit />}
     </>
   )
 }

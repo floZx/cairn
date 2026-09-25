@@ -35,98 +35,27 @@ export function couleurDuSport(brut: string): string {
   return connus.has(brut) ? `var(--sport-${brut})` : "var(--texte-2)"
 }
 
-/// Les dessins, à la ligne comme ceux de la barre d'onglets.
+/// Le symbole du Mac pour chaque sport — `SportType.symbolName`, le même nom.
 ///
-/// Approximations des symboles du système : `figure.run`, `figure.hiking` et
-/// les autres n'existent pas hors des applications d'Apple, et un jeu d'icônes
-/// tiers pèserait plus que tout le reste de l'application pour dix symboles.
-function tracé(brut: string) {
-  switch (brut) {
-    case "ride":
-    case "eBikeRide":
-    case "mountainBikeRide":
-    case "gravelRide":
-      return (
-        <>
-          <circle cx="5.5" cy="17" r="3.5" />
-          <circle cx="18.5" cy="17" r="3.5" />
-          <path d="M5.5 17l4-8h5l4 8M9.5 9h5M12 9l2.5 8" />
-        </>
-      )
-    case "run":
-    case "trailRun":
-      return (
-        <>
-          <circle cx="14.5" cy="4.5" r="2" />
-          <path d="M13 8.5l-3.5 3 2.5 3 1 6M12 14.5l-4 1M13 8.5l4 2 1 3.5" />
-        </>
-      )
-    case "walk":
-      return (
-        <>
-          <circle cx="13" cy="4.5" r="2" />
-          <path d="M13 8v6M13 14l-2.5 7M13 14l3 7M13 10l-3.5 2M13 10l3.5 2" />
-        </>
-      )
-    case "hike":
-      return (
-        <>
-          <circle cx="12" cy="4.5" r="2" />
-          <path d="M12 8v5.5M12 13.5l-2.5 7.5M12 13.5l3 7.5M12 10l-3 2" />
-          {/* Le bâton, seul trait qui distingue la randonnée de la marche. */}
-          <path d="M18 5.5v15" />
-        </>
-      )
-    case "swim":
-      return (
-        <>
-          <circle cx="7" cy="8" r="2" />
-          <path d="M9 10l4.5 2.5 4-3.5" />
-          <path d="M2.5 18.5c1.6 0 1.6 1.5 3.2 1.5s1.6-1.5 3.2-1.5 1.6 1.5 3.2 1.5 1.6-1.5 3.2-1.5 1.6 1.5 3.2 1.5 1.6-1.5 3.2-1.5" />
-        </>
-      )
-    case "nordicSki":
-      return (
-        <>
-          <circle cx="13" cy="4" r="1.8" />
-          <path d="M12 7.5l-2 5 3 2 .5 5M10 12.5l-3.5 1M12 7.5l4 2M16.5 4v13" />
-          <path d="M3 20.5l17-4" />
-        </>
-      )
-    case "alpineSki":
-      return (
-        <>
-          <circle cx="14" cy="4" r="1.8" />
-          <path d="M13 7.5l-3 4 3.5 2.5M13 7.5l4 1.5" />
-          <path d="M3.5 17l16 3.5M6 20.5l14-4" />
-        </>
-      )
-    case "rowing":
-      return (
-        <>
-          <circle cx="9" cy="5" r="1.8" />
-          <path d="M8 8.5l3 3 4-1.5M11 11.5l-1 4" />
-          <path d="M3 19.5l18-6" />
-        </>
-      )
-    case "workout":
-      // Une barre et ses disques : le seul dessin de force qui se lise à
-      // vingt pixels.
-      return (
-        <>
-          <path d="M3 9v6M6 7v10M18 7v10M21 9v6M6 12h12" />
-        </>
-      )
-    default:
-      // Rien à dire d'un sport qu'on ne reconnaît pas : trois étincelles,
-      // comme le `sparkles` du Mac.
-      return (
-        <>
-          <path d="M12 4l1.4 3.6L17 9l-3.6 1.4L12 14l-1.4-3.6L7 9l3.6-1.4z" />
-          <path d="M18 15l.7 1.8L20.5 17.5l-1.8.7L18 20l-.7-1.8L15.5 17.5l1.8-.7z" />
-        </>
-      )
-  }
+/// Les vrais symboles SF et plus des approximations à la main : ceux-ci
+/// étaient « pas ouf », signalé. Rendus depuis AppKit en PNG à trois fois leur
+/// taille d'affichage (`public/sf`), et posés en masque pour prendre la couleur
+/// du sport — voir `Symbole`. L'aviron prend `figure.outdoor.rowing` :
+/// `figure.rowing`, que le Mac demande, n'existe pas dans les symboles.
+const SYMBOLES: Record<string, string> = {
+  ride: "bicycle",
+  eBikeRide: "bicycle",
+  mountainBikeRide: "bicycle",
+  gravelRide: "bicycle",
+  run: "figure.run",
+  trailRun: "figure.run",
+  walk: "figure.walk",
+  hike: "figure.hiking",
+  swim: "figure.pool.swim",
+  nordicSki: "figure.skiing.crosscountry",
+  alpineSki: "figure.skiing.downhill",
+  rowing: "figure.outdoor.rowing",
+  workout: "figure.strengthtraining.traditional",
 }
 
 export function IconeSport({
@@ -137,19 +66,46 @@ export function IconeSport({
   taille?: number
 }) {
   return (
-    <svg
-      width={taille}
-      height={taille}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={couleurDuSport(sport)}
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
+    <Symbole
+      nom={SYMBOLES[sport] ?? "sparkles"}
+      taille={taille}
+      couleur={couleurDuSport(sport)}
       className="icone-sport"
-    >
-      {tracé(sport)}
-    </svg>
+    />
   )
 }
+
+/// Un symbole SF du Mac, dans une boîte carrée de `taille` pixels.
+///
+/// Un masque plutôt qu'une image : le PNG est noir sur transparent, et c'est
+/// la couleur de fond de l'élément — celle du sport, ou la couleur du texte
+/// par défaut — qui passe au travers. Ajusté dans la boîte sans être déformé :
+/// un vélo est plus large que haut, un marcheur l'inverse, et tous deux se
+/// posent au centre du même carré, comme dans une colonne d'icônes du Mac.
+export function Symbole({
+  nom,
+  taille = 22,
+  couleur = "currentColor",
+  className,
+}: {
+  nom: string
+  taille?: number
+  couleur?: string
+  className?: string
+}) {
+  const url = `url("/sf/${nom}.png")`
+  return (
+    <span
+      aria-hidden
+      className={className ? `symbole ${className}` : "symbole"}
+      style={{
+        width: taille,
+        height: taille,
+        backgroundColor: couleur,
+        WebkitMaskImage: url,
+        maskImage: url,
+      }}
+    />
+  )
+}
+

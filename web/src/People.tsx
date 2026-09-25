@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef} from "react"
+import { Chargement } from "./Chrome"
 import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
@@ -148,7 +149,7 @@ export function People({
     [table, fiches.data],
   )
 
-  if (textes.isPending) return <p className="attenue">Chargement…</p>
+  if (textes.isPending) return <Chargement />
   if (textes.error) return <p className="erreur">{(textes.error as Error).message}</p>
 
   if (ouverte) {
