@@ -88,9 +88,8 @@ struct SidebarView: View {
     /// The button that unticks them all sits *outside* the section, so a
     /// filtered list never hides why behind a closed disclosure triangle.
     @AppStorage("journalTagsExpanded") private var tagsExpanded = false
-    /// Read for the sports' colours: with the list's monochrome badges, the
-    /// filters beside it follow, or the column of blue discs would sit next
-    /// to a rainbow of the same symbols.
+    /// Read for the sports' colours, which follow the list's thumbnail — see
+    /// `ActivityCardThumbnail.monochromeSidebar`.
     @AppStorage(ActivityCardThumbnail.storageKey)
     private var cardThumbnail: ActivityCardThumbnail = .trace
 
@@ -235,7 +234,7 @@ struct SidebarView: View {
                             HStack {
                                 SportLabel(
                                     entry.sport.displayName, sport: entry.sport,
-                                    monochrome: cardThumbnail == .avatarMono
+                                    monochrome: cardThumbnail.monochromeSidebar
                                 )
                                 Spacer(minLength: 8)
                                 Text("\(entry.count)")
@@ -274,7 +273,14 @@ struct SidebarView: View {
                 Section("Étiquettes") {
                     ForEach(ActivityLabel.allCases) { label in
                         Toggle(isOn: binding(for: label)) {
-                            GutteredLabel(label.displayName, systemImage: label.symbolName)
+                            // The accent, like the sections above and the
+                            // sports in monochrome: macOS colours every symbol
+                            // of a sidebar alike, and these were the only
+                            // black ones in it.
+                            GutteredLabel(
+                                label.displayName, systemImage: label.symbolName,
+                                tint: .accentColor
+                            )
                         }
                         .toggleStyle(.checkbox)
                     }

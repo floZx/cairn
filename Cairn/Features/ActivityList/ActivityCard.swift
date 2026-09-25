@@ -57,13 +57,22 @@ struct ActivityCard: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    // No sport glyph here: the thumbnail to the left already
-                    // says which sport this was, by the colour of its trace or
-                    // by the symbol standing in for one, and repeating it
+                    // No sport glyph here while there is a thumbnail: it
+                    // already says which sport this was, and repeating it
                     // beside the name only ate into the name.
-                    Text(activity.name)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        // With no thumbnail, something still has to say which
+                        // sport this was: the symbol, small and in the text's
+                        // own colour, before the name.
+                        if thumbnailStyle == .none {
+                            Image(systemName: activity.sportType.symbolName)
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                        }
+                        Text(activity.name)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                    }
                     Spacer(minLength: 0)
                     // Short and relative, as Mail heads a message: the full
                     // date was the widest thing in the row and said the least.

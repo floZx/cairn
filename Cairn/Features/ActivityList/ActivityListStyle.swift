@@ -58,4 +58,12 @@ enum ActivityCardThumbnail: String, CaseIterable, Identifiable, Sendable {
         case .none: "Aucune"
         }
     }
+
+    /// Whether the sidebar's sports drop their colours for the accent. With
+    /// the monochrome badges, so a blue column does not sit beside a rainbow
+    /// of the same symbols; and with no thumbnail at all, where the list
+    /// carries no sport colour for the sidebar to echo.
+    var monochromeSidebar: Bool {
+        self == .avatarMono || self == .none
+    }
 }
