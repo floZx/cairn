@@ -329,8 +329,7 @@ input, button { font: inherit; }
 
 .ligne-tete .petit { flex: none; }
 
-/* Les deux lignes sous le nom : les chiffres à la taille qui se lit, la note
-   en retrait, une ligne chacune. */
+/* La ligne sous le nom : les chiffres à la taille qui se lit. */
 .chiffres-ligne {
   margin-top: 1px;
   font-size: 14px;
@@ -341,19 +340,8 @@ input, button { font: inherit; }
   text-overflow: ellipsis;
 }
 
-.apercu-ligne {
-  margin-top: 1px;
-  font-size: 13px;
-  color: var(--texte-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
-/* L'icône du sport s'aligne sur le nom, pas au milieu de trois lignes. */
-.ligne.avec-icone.ligne-mail {
-  align-items: start;
-}
+
 
 .carte-trace {
   width: 100%;
@@ -3279,5 +3267,25 @@ button.citation {
   mask-position: center;
   -webkit-mask-size: contain;
   mask-size: contain;
+}
+
+/* La pastille du sport dans la liste : l'accent à peine posé, le symbole
+   dessus en plein, centrée sur les deux lignes. */
+.pastille-sport {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.ligne.avec-icone.ligne-mail {
+  grid-template-columns: 32px minmax(0, 1fr);
+}
+
+.ligne.avec-icone.ligne-mail::after {
+  left: 56px;
 }
 

@@ -58,6 +58,11 @@ const SYMBOLES: Record<string, string> = {
   workout: "figure.strengthtraining.traditional",
 }
 
+/// Le nom du symbole d'un sport, pour qui le pose lui-même.
+export function symboleDuSport(sport: string): string {
+  return SYMBOLES[sport] ?? "sparkles"
+}
+
 export function IconeSport({
   sport,
   taille = 22,

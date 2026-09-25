@@ -228,12 +228,6 @@ export function chiffresDeLaLigne(a: {
   return parties.join(" · ")
 }
 
-/// La première ligne d'une note, pour l'aperçu d'une liste.
-export function premiereLigne(texte: string | null | undefined): string | null {
-  const ligne = texte?.split("\n").find((l) => l.trim() !== "")?.trim()
-  return ligne ? ligne : null
-}
-
 /// L'heure seule, pour une ligne qui porte déjà sa date.
 export function heure(iso: string): string {
   return heureExacte.format(new Date(iso))

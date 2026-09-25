@@ -2,8 +2,8 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { nomDuSport } from "./sports"
-import { IconeSport, Symbole } from "./IconeSport"
-import { chiffresDeLaLigne, dateRelative, premiereLigne } from "./format"
+import { Symbole, symboleDuSport } from "./IconeSport"
+import { chiffresDeLaLigne, dateRelative } from "./format"
 import { Feuille, Chargement } from "./Chrome"
 import { Filtres } from "./Filtres"
 import { Fil, COLONNES_FIL, type ActiviteDuFil } from "./Fil"
@@ -50,14 +50,13 @@ type Activite = SourceEtiquettes & {
   total_elevation_gain: number
   average_heartrate: number | null
   calories: number | null
-  activity_description: string | null
 }
 
 const COLONNES =
   "uuid, name, sport_type_raw, start_local_date, distance, moving_time, " +
   "total_elevation_gain, source_raw, workout_type, workout_label_raw, " +
   "edited_fields, is_favorite, is_commute, is_trainer, is_manual, " +
-  "average_heartrate, calories, activity_description"
+  "average_heartrate, calories"
 
 /// Applique à une requête tout ce que le filtre sait dire en SQL.
 ///
@@ -323,9 +322,10 @@ export function ActivityList({
       {entete}
       <ul className="liste">
         {activites.map((a) => (
-          // Trois lignes, comme Mail et comme la liste du Mac : le nom et une
-          // date courte, les chiffres du sport, puis le début de la note. La
-          // date longue était la plus large de la ligne et coupait le nom
+          // Deux lignes : le nom et une date courte, puis les chiffres du
+          // sport. Sans la note, que le Mac montre en troisième ligne : sur
+          // un téléphone, elle alourdissait la liste — gardé à deux, demandé.
+          // La date longue était la plus large de la ligne et coupait le nom
           // (« Entraînement aux p… ») pour dire le moins.
           <li
             key={a.uuid}
@@ -333,16 +333,19 @@ export function ActivityList({
             onClick={() => onOuvrir(a.uuid)}
             title={nomDuSport(a.sport_type_raw)}
           >
-            <IconeSport sport={a.sport_type_raw} />
+            {/* En pastille monochrome, comme la vignette du même nom sur le
+                Mac : un rond teinté de l'accent, le symbole du sport dedans.
+                Une colonne de ronds bleus plutôt qu'un arc-en-ciel de
+                silhouettes — le symbole suffit à distinguer les sports. */}
+            <span className="pastille-sport">
+              <Symbole nom={symboleDuSport(a.sport_type_raw)} taille={17} couleur="var(--accent)" />
+            </span>
             <div>
               <div className="ligne-tete">
                 <span className="titre">{a.name}</span>
                 <span className="attenue petit">{dateRelative(a.start_local_date)}</span>
               </div>
               <div className="chiffres-ligne">{chiffresDeLaLigne(a)}</div>
-              {premiereLigne(a.activity_description) && (
-                <div className="apercu-ligne">{premiereLigne(a.activity_description)}</div>
-              )}
             </div>
           </li>
         ))}
