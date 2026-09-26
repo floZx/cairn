@@ -1,3 +1,4 @@
+import { selectionnerAuFocus } from "./saisie"
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
@@ -121,11 +122,7 @@ export function AjoutAliment({
 }) {
   const [query, setQuery] = useState("")
   const [choisi, setChoisi] = useState<Aliment | null>(null)
-  // Ce qui est tapé, et la quantité proposée quand rien ne l'est — celle du
-  // favori, sinon 100 g. Voir le champ plus bas.
-  const [grammes, setGrammes] = useState("")
-  const [grammesProposes, setGrammesProposes] = useState("100")
-  const quantite = grammes.trim() || grammesProposes
+  const [grammes, setGrammes] = useState("100")
   const garde = useGardeManger()
   const client = useQueryClient()
 
@@ -147,7 +144,7 @@ export function AjoutAliment({
   const enregistrement = useMutation({
     mutationFn: async () => {
       if (!choisi) return
-      const poids = Number(quantite.replace(",", "."))
+      const poids = Number(grammes.replace(",", "."))
       if (!Number.isFinite(poids) || poids <= 0) throw new Error("Quantité invalide.")
       const maintenant = new Date().toISOString()
       const { error } = await supabase.from("food_entry").insert({
@@ -221,7 +218,7 @@ export function AjoutAliment({
   })
 
   if (choisi) {
-    const apercu = macrosDe({ ...choisi, grams: Number(quantite.replace(",", ".")) || 0 })
+    const apercu = macrosDe({ ...choisi, grams: Number(grammes.replace(",", ".")) || 0 })
     return (
       <div className="feuille">
         <div className="barre-editeur">
@@ -244,19 +241,16 @@ export function AjoutAliment({
         {choisi.marque && <p className="attenue petit">{choisi.marque}</p>}
         <label className="champ-quantite">
           <input
-            // Du texte au clavier numérique, et non `type="number"` : la valeur
+            // Du texte au clavier numérique, et non `type="number"` : Safari ne
+            // sait pas sélectionner le contenu d'un champ numérique, et la valeur
             // est lue virgule comprise.
             type="text"
             inputMode="decimal"
-            // Vide, la quantité proposée en indication : on tape la sienne
-            // directement, et « Ajouter » sans rien taper prend celle-là. C'était
-            // la quantité, toute sélectionnée au focus — mais iOS dessinait la
-            // sélection et ses poignées à côté du champ quand la feuille bougeait
-            // sous le clavier, et aucun correctif n'a tenu. Sans sélection, plus
-            // rien à mal dessiner.
             value={grammes}
-            placeholder={grammesProposes}
             onChange={(e) => setGrammes(e.target.value)}
+            // Tout sélectionné en prenant le focus : on remplace une quantité bien
+            // plus souvent qu'on ne la corrige — demandé.
+            onFocus={selectionnerAuFocus}
             autoFocus
           />
           <span>g</span>
@@ -334,8 +328,7 @@ export function AjoutAliment({
             <button
               onClick={() => {
                 setChoisi(a)
-                setGrammes("")
-                setGrammesProposes(String(Math.round(a.grammesFavori ?? 100)))
+                setGrammes(String(Math.round(a.grammesFavori ?? 100)))
               }}
             >
               <span className="nom">

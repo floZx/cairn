@@ -3825,9 +3825,3 @@ button.citation {
   color: var(--texte-3);
   pointer-events: none;
 }
-
-/* La quantité proposée, en indication dans le champ vide : lisible comme une
-   valeur, mais en retrait de ce qu'on tape. */
-.champ-quantite input::placeholder {
-  color: var(--texte-2);
-}
