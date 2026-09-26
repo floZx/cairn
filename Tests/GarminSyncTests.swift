@@ -605,9 +605,19 @@ struct MarkdownPlainTextTests {
             """)
     }
 
-    @Test("un tag perd son dièse, une mention garde son arobase")
+    @Test("un tag perd son dièse, une mention son arobase et ses soulignés")
     func tagsAndMentions() {
-        #expect(MarkdownPlainText.render("Avec @sam sur le #trail") == "Avec @sam sur le trail")
+        #expect(MarkdownPlainText.render("Avec @sam sur le #trail") == "Avec sam sur le trail")
+        #expect(
+            MarkdownPlainText.render("Couru avec @nom_d_une_personne et @Jean-Pierre.")
+                == "Couru avec nom d une personne et Jean-Pierre."
+        )
+    }
+
+    @Test("le @ d'une allure ou d'une adresse reste")
+    func otherAtSignsStay() {
+        #expect(MarkdownPlainText.render("3x10' @ 4:15/km") == "3x10' @ 4:15/km")
+        #expect(MarkdownPlainText.render("écrire à sam@exemple.fr") == "écrire à sam@exemple.fr")
     }
 
     @Test("une note sans balisage passe telle quelle")
