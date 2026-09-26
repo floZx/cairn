@@ -22,6 +22,9 @@ final class AppEnvironment {
     /// pour cette raison même : un `@State` de vue redemanderait à chaque
     /// reconstruction.
     let journalLock = JournalLock()
+    /// The observers that close the journal on their own — kept so they live
+    /// as long as the app. See `watchForJournalLock()`.
+    private var lockObservers: [NSObjectProtocol] = []
 
     /// Ce que la bibliothèque dit des journées, calculé une fois par écriture
     /// et non une fois par rendu. Tenu ici parce qu'il doit survivre aux
@@ -167,6 +170,37 @@ final class AppEnvironment {
         // the network — safe to fire without making `init` wait on it, the
         // same reasoning `restoreLastSyncDate()` follows for Strava.
         Task { [mirror] in await mirror.restoreProgress() }
+
+        journalLock.avantDeVerrouiller = { [journal] in journal.saveNow() }
+        watchForJournalLock()
+    }
+
+    /// What closes the journal without anyone asking: Cairn left for a while,
+    /// the screen locking, the Mac going to sleep, the session switched away.
+    /// The rules themselves are `JournalLock`'s; this only tells it when.
+    private func watchForJournalLock() {
+        let lock = journalLock
+        let app = NotificationCenter.default
+        lockObservers.append(app.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { _ in MainActor.assumeIsolated { lock.applicationQuittee() } })
+        lockObservers.append(app.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { _ in MainActor.assumeIsolated { lock.applicationRevenue() } })
+
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [
+            NSWorkspace.screensDidSleepNotification,
+            NSWorkspace.willSleepNotification,
+            NSWorkspace.sessionDidResignActiveNotification,
+        ] {
+            lockObservers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { lock.ecranVerrouille() }
+            })
+        }
+        lockObservers.append(DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main
+        ) { _ in MainActor.assumeIsolated { lock.ecranVerrouille() } })
     }
 
     func refreshAuthenticationState() {

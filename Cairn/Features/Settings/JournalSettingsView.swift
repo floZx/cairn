@@ -29,6 +29,8 @@ struct JournalSettingsView: View {
                 Text(footer)
             }
 
+            lockSection
+
             if !importNotice.isEmpty {
                 Section {
                     Text(importNotice)
@@ -38,6 +40,31 @@ struct JournalSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private var lockSection: some View {
+        @Bindable var lock = app.journalLock
+        Section {
+            Toggle("Verrouiller le journal", isOn: $lock.isEnabled)
+            if lock.isEnabled {
+                Picker("Le refermer", selection: $lock.delay) {
+                    ForEach(JournalLockDelay.allCases) { delay in
+                        Text(delay.displayName).tag(delay)
+                    }
+                }
+            }
+        } header: {
+            Text("Verrou")
+        } footer: {
+            Text("""
+                Touch ID ou le mot de passe de votre session pour l'ouvrir ; \
+                il se referme aussi quand l'écran se verrouille ou que le Mac \
+                s'endort, et à la demande avec ⌃⌘L. Il protège d'un regard, \
+                pas davantage : les notes ne sont pas chiffrées, et le miroir \
+                les porte au web.
+                """)
+        }
     }
 
     /// La tâche 6 avait dû taire la moitié de cette phrase : l'export

@@ -156,6 +156,14 @@ struct CairnApp: App {
                     }
                     .disabled(app.requestExportJournalPDF == nil)
                 }
+                if !SidebarItem.journal.estMasquee {
+                    Divider()
+                    // Comme ⌃⌘Q verrouille l'écran : la même famille de geste,
+                    // pour la seule partie de Cairn qui en a un.
+                    Button("Verrouiller le journal") { app.journalLock.verrouiller() }
+                        .keyboardShortcut("l", modifiers: [.control, .command])
+                        .disabled(!app.journalLock.isEnabled || !app.journalLock.estOuvert)
+                }
             }
             CommandMenu("Strava") {
                 Button("Synchroniser") { app.syncNow() }

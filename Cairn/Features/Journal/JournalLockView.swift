@@ -13,7 +13,7 @@ struct JournalLockView: View {
         ContentUnavailableView {
             Label("Journal verrouillé", systemImage: "lock")
         } description: {
-            Text("Une fois par ouverture de Cairn, pour que ce qui est écrit là reste à vous.")
+            Text("Touch ID ou le mot de passe de votre session, pour que ce qui est écrit là reste à vous.")
         } actions: {
             Button("Déverrouiller") {
                 Task { await app.journalLock.ouvrir() }
