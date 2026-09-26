@@ -124,7 +124,13 @@ struct ActivityDetailView: View {
 
                 SameRouteSection(activity: activity, onSelect: onSelectActivity)
 
-                if !trackModel.series.isEmpty {
+                // Every chart runs along the distance: with none — a gym
+                // session, a pool swim logged without lengths — the whole
+                // curve collapses into a line at 0 km. Nothing then, not even
+                // the note saying why, which would read as data missing.
+                if activity.distance <= 0 {
+                    EmptyView()
+                } else if !trackModel.series.isEmpty {
                     StreamChartsView(
                         series: trackModel.series, hoverDistanceKm: $hoverDistanceKm
                     )
@@ -137,7 +143,9 @@ struct ActivityDetailView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if !activity.laps.isEmpty {
+                // One lap is the whole activity again, figure for figure, a
+                // few lines below the same figures.
+                if activity.laps.count > 1 {
                     laps
                 }
             }
