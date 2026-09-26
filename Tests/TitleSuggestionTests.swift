@@ -256,13 +256,15 @@ struct TitleSuggestionsTests {
         for name in [
             "Course à pied le matin", "Entraînement aux poids dans l'après-midi", "Morning Ride",
             "Afternoon Weight Training", "Course à pied (tapis)", "Sortie en vélo électrique en soirée",
-            "Lyon Course à pied", "Renforcement fonctionnel", "",
+            "Lyon Course à pied", "Renforcement fonctionnel", "", "Trail de nuit", "VTT le matin",
+            "Sortie en VTT électrique dans l'après-midi",
         ] {
             #expect(TitleSuggestions.isBanal(name), "\(name)")
         }
         for name in [
             "Seuil 3x12´", "Sury-le-Comtal", "Sury-le-Comtal / Bonson", "EF Sury-le-Comtal / Bonson",
             "Battue citoyenne", "Vélotaf", "Haut du corps", "Footing avec le fiston",
+            "Trail à Saint-Marcellin-en-Forez de nuit",
         ] {
             #expect(!TitleSuggestions.isBanal(name), "\(name)")
         }

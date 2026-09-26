@@ -147,7 +147,11 @@ enum TitleSuggestions {
     static func isBanal(_ name: String) -> Bool {
         let patterns = [
             #"^(Morning|Afternoon|Evening|Night|Lunch) [A-Z][A-Za-z ]+$"#,
-            #"^[^/]+ (le matin|le midi|dans l'après-midi|l'après-midi|en soirée|de nuit|la nuit)$"#,
+            // Un nom de sport seul avant le moment de la journée — minuscules
+            // après la première lettre, VTT mis à part. Un nom de lieu y met
+            // une majuscule : « Trail à Saint-Marcellin-en-Forez de nuit » a été
+            // écrit, et le ✨ s'y proposait — signalé.
+            #"^(VTT|[A-ZÀ-Ý])([\p{Ll}' -]|VTT)* (le matin|le midi|dans l'après-midi|l'après-midi|en soirée|de nuit|la nuit)$"#,
             #"^[^/]+ \(tapis\)$"#,
             #"^[A-ZÀ-Ý][\p{L}' -]+ (Course à pied|Vélo|Cyclisme|Marche|Randonnée|Natation|Trail)$"#,
             #"^(Renforcement (fonctionnel|musculaire)|Entraînement aux poids|Course à pied|Sortie vélo|Marche|Natation)$"#,
