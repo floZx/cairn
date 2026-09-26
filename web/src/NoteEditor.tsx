@@ -4,6 +4,7 @@ import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { etiquettesDe } from "./tags"
+import { estChiffre, sceller } from "./chiffre"
 import { dateLongue } from "./format"
 import { ajouterPhoto, enAjoutant } from "./photos"
 
@@ -62,13 +63,16 @@ export function NoteEditor({
       // depuis la dernière lecture. C'est celle-là que le Mac comparera pour
       // trancher entre deux versions d'une même note.
       const maintenant = new Date().toISOString()
+      const scelle = await sceller(texte)
 
       const ligne = {
         uuid: note.uuid ?? crypto.randomUUID(),
         user_id: userID,
         date_key_raw: note.dateKey,
-        text: texte,
-        tags_raw: etiquettesDe(texte),
+        // Chiffré si le journal l'est, et ses étiquettes alors tues : tirées
+        // du texte, elles en diraient une part en clair.
+        text: scelle,
+        tags_raw: estChiffre(scelle) ? [] : etiquettesDe(texte),
         note_updated_at: maintenant,
         edited_at: maintenant,
         // Vider une note, c'est la supprimer : le Mac ne garde pas de note

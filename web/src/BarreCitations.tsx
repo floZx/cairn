@@ -2,6 +2,7 @@ import { useEffect, useState, type RefObject } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import type { ChampNote } from "./ZoneNote"
+import { ouvrir as dechiffrer, useChiffre } from "./chiffre"
 import { citations, enCoursDe, propositions, type Personne } from "./citations"
 
 /// La barre de propositions qui se pose au-dessus d'un champ quand on tape `@`.
@@ -12,8 +13,9 @@ import { citations, enCoursDe, propositions, type Personne } from "./citations"
 /// figure donc pas encore, ce qui est sans conséquence — on est justement en
 /// train de taper son nom en entier.
 function useAnnuaire() {
+  const chiffre = useChiffre()
   return useQuery({
-    queryKey: ["annuaire-citations"],
+    queryKey: ["annuaire-citations", chiffre],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const [fiches, notes, sorties] = await Promise.all([
@@ -30,7 +32,10 @@ function useAnnuaire() {
         for (const qui of citations(texte)) table.set(qui.cle, qui)
       }
       for (const f of (fiches.data ?? []) as { name: string }[]) ajoute(`@${f.name}`)
-      for (const n of (notes.data ?? []) as { text: string }[]) ajoute(n.text)
+      for (const n of (notes.data ?? []) as { text: string }[]) {
+        const texte = await dechiffrer(n.text)
+        if (texte !== null) ajoute(texte)
+      }
       for (const a of (sorties.data ?? []) as { activity_description: string }[]) {
         ajoute(a.activity_description)
       }

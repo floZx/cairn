@@ -4,7 +4,8 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Markdown } from "./markdown"
 import { chiffresDeLaLigne } from "./format"
-import { CARACTERES_ETIQUETTE } from "./tags"
+import { CARACTERES_ETIQUETTE, etiquettesDe } from "./tags"
+import { estChiffre, ouvrir as dechiffrer, useChiffre } from "./chiffre"
 import { NoteEditor, jourCourant, type NoteAEditer } from "./NoteEditor"
 import { Feuille, Chargement } from "./Chrome"
 import { Symbole, couleurDuSport, symboleDuSport } from "./IconeSport"
@@ -128,13 +129,15 @@ export function useImagesDuJournal() {
 /// donnerait cinquante jours de notes ou deux jours de repas selon la table
 /// interrogée.
 function useJournees(creneaux: { uuid: string; name: string; sort_order: number }[]) {
+  // Dans la clé : la phrase saisie, les notes se relisent déchiffrées.
+  const chiffre = useChiffre()
   return useInfiniteQuery({
     // Les créneaux entrent dans la clé, et ce n'est pas décoratif : ils
     // donnent leur nom aux notes de repas et l'ordre dans lequel elles se
     // lisent. Sans eux dans la clé, la première fournée partait avant leur
     // arrivée, chaque note de repas s'affichait « Repas » et rien ne relançait
     // la requête.
-    queryKey: ["journal-journees", creneaux.map((c) => c.uuid).join(",")],
+    queryKey: ["journal-journees", creneaux.map((c) => c.uuid).join(","), chiffre],
     enabled: creneaux.length > 0,
     initialPageParam: FUTUR,
     queryFn: async ({ pageParam }) => {
@@ -211,8 +214,10 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
       }[]) {
         const j = obtenir(n.date_key_raw)
         j.noteUUID = n.uuid
-        j.texte = n.text
-        j.tags = n.tags_raw ?? []
+        // Chiffrée sans la clé : rien plutôt que du charabia. Les étiquettes
+        // d'une note chiffrée ne voyagent pas en clair, elles se relisent ici.
+        j.texte = (await dechiffrer(n.text)) ?? ""
+        j.tags = estChiffre(n.text) ? etiquettesDe(j.texte) : (n.tags_raw ?? [])
       }
 
       // Le jour d'une sortie est celui de son instant local, comme sur le Mac.
@@ -324,10 +329,12 @@ export function Journal({
         .maybeSingle()
       if (annule) return
       const ligne = data as { uuid: string; text: string } | null
+      const texte = ligne ? await dechiffrer(ligne.text) : ""
+      if (annule || texte === null) return
       setEnEdition({
         uuid: ligne?.uuid ?? null,
         dateKey: noteAOuvrir,
-        texte: ligne?.text ?? "",
+        texte,
       })
       onNoteOuverte?.()
     })()

@@ -142,7 +142,9 @@ struct MirrorRowSchemaTests {
         // il aurait suffi de l'incrémenter pour faire taire l'ajout d'une
         // table que rien n'envoie. Cette forme-ci ne se laisse pas taire : y
         // ajouter un nom est un geste qu'on ne fait pas par distraction.
-        let sansModele: Set<String> = ["nutrition_target"]
+        // `journal_crypto` : la configuration du chiffrement, posée une fois
+        // par `MirrorClient.createJournalCrypto`, sans modèle local.
+        let sansModele: Set<String> = ["nutrition_target", "journal_crypto"]
         let portees = Set(Self.allRows().map { type(of: $0).mirrorTable })
         #expect(
             Set(schema.keys) == portees.union(sansModele),

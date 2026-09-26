@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef} from "react"
+import { ouvrir as dechiffrer, useChiffre } from "./chiffre"
 import { ZoneNote, type ChampNote } from "./ZoneNote"
 import { Chargement } from "./Chrome"
 import { BarreCitations } from "./BarreCitations"
@@ -23,8 +24,9 @@ import { useImagesDuJournal } from "./Journal"
 type Fiche = { uuid: string; key: string; name: string; note: string }
 
 function useTextes() {
+  const chiffre = useChiffre()
   return useQuery({
-    queryKey: ["people-textes"],
+    queryKey: ["people-textes", chiffre],
     staleTime: 60 * 1000,
     queryFn: async () => {
       const [notes, sorties, repas, pesees, seances, creneaux] = await Promise.all([
@@ -62,7 +64,10 @@ function useTextes() {
       const textes: { dateKey: string; source: Source; contenu: string }[] = []
 
       for (const n of (notes.data ?? []) as { date_key_raw: string; text: string }[]) {
-        textes.push({ dateKey: n.date_key_raw, source: { sorte: "journal", libelle: "Journal" }, contenu: n.text })
+        // Chiffrée sans la clé : la note ne cite personne qu'on puisse lire.
+        const contenu = await dechiffrer(n.text)
+        if (contenu === null) continue
+        textes.push({ dateKey: n.date_key_raw, source: { sorte: "journal", libelle: "Journal" }, contenu })
       }
       for (const a of (sorties.data ?? []) as {
         uuid: string

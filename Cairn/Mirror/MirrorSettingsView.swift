@@ -18,6 +18,10 @@ struct MirrorSettingsView: View {
     /// a local disk write failing, not a network event, so there is no
     /// reason to poll faster than a person can reread the screen.
     @State private var outboxFailureCount = 0
+    @State private var phrase = ""
+    @State private var confirmation = ""
+    @State private var enChiffrement = false
+    @State private var messageChiffrement: String?
 
     var body: some View {
         Form {
@@ -103,6 +107,10 @@ struct MirrorSettingsView: View {
                 .foregroundStyle(.secondary)
             }
 
+            if app.isMirrorSignedIn {
+                chiffrement
+            }
+
             if let message = app.mirrorErrorMessage {
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle")
@@ -127,11 +135,78 @@ struct MirrorSettingsView: View {
             projectURL = app.store.mirrorCredentials()?.projectURL.absoluteString ?? ""
             anonKey = app.store.mirrorCredentials()?.anonKey ?? ""
         }
+        .task { await app.refreshJournalEncryption() }
         .task {
             while !Task.isCancelled {
                 outboxFailureCount = MirrorRecorder.failureCount
                 try? await Task.sleep(for: .seconds(2))
             }
         }
+    }
+
+    // MARK: - Chiffrement du journal
+
+    @ViewBuilder
+    private var chiffrement: some View {
+        Section {
+            switch app.journalEncryption {
+            case .unknown:
+                LabeledContent("État", value: "…")
+            case .unavailable:
+                Text("Passez d'abord le script supabase/012-journal-chiffre.sql dans l'éditeur SQL du projet.")
+                    .foregroundStyle(.secondary)
+            case .sealed:
+                LabeledContent("État", value: "Chiffré, clé présente sur ce Mac")
+            case .plain:
+                SecureField("Phrase secrète", text: $phrase)
+                SecureField("Confirmation", text: $confirmation)
+                boutonChiffrement(
+                    "Chiffrer le journal",
+                    actif: phrase.count >= 8 && phrase == confirmation
+                )
+            case .locked:
+                LabeledContent("État", value: "Chiffré, phrase à saisir sur ce Mac")
+                SecureField("Phrase secrète", text: $phrase)
+                boutonChiffrement("Ouvrir le journal chiffré", actif: !phrase.isEmpty)
+            }
+            if let messageChiffrement {
+                Label(messageChiffrement, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Chiffrement du journal")
+        } footer: {
+            Text("""
+                Les notes du journal partent chiffrées vers Supabase : ni l'hébergeur ni \
+                personne ayant accès au compte ne peut les lire sans la phrase. Elle se \
+                tape une fois par appareil. **Oubliée, la copie en ligne devient \
+                illisible** — les notes restent en clair sur ce Mac et dans la \
+                sauvegarde iCloud. Les photos jointes ne sont pas chiffrées.
+                """)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func boutonChiffrement(_ titre: String, actif: Bool) -> some View {
+        Button {
+            enChiffrement = true
+            messageChiffrement = nil
+            Task {
+                messageChiffrement = await app.setJournalPassphrase(phrase)
+                if messageChiffrement == nil {
+                    phrase = ""
+                    confirmation = ""
+                }
+                enChiffrement = false
+            }
+        } label: {
+            if enChiffrement {
+                ProgressView().controlSize(.small)
+            } else {
+                Text(titre)
+            }
+        }
+        .disabled(!actif || enChiffrement || app.mirrorProgress.isRunning)
     }
 }

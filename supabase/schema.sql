@@ -727,3 +727,18 @@ create policy "propriétaire seul" on person
   for all
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
+
+-- Le chiffrement du journal : voir 012-journal-chiffre.sql.
+create table journal_crypto (
+  user_id     uuid primary key references auth.users on delete cascade,
+  salt        text not null,
+  iterations  integer not null,
+  verifier    text not null,
+  created_at  timestamptz not null default now()
+);
+
+alter table journal_crypto enable row level security;
+create policy "propriétaire lit" on journal_crypto
+  for select using (user_id = auth.uid());
+create policy "propriétaire pose" on journal_crypto
+  for insert with check (user_id = auth.uid());

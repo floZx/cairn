@@ -350,6 +350,65 @@ actor MirrorClient {
         return Dictionary(lignes.map { ($0.strava_id, $0.uuid) }, uniquingKeysWith: { _, dernier in dernier })
     }
 
+    // MARK: - Chiffrement du journal
+
+    /// La clé du journal gardée sur ce Mac, s'il y en a une.
+    var journalKey: JournalKey? { store.journalKey() }
+
+    func saveJournalKey(_ key: JournalKey) throws {
+        do { try store.save(key) } catch { throw MirrorError.storageFailed(String(describing: error)) }
+    }
+
+    /// Ce que Supabase garde du chiffrement, ou `nil` si le journal y est en
+    /// clair. Une seule ligne par compte.
+    func fetchJournalCrypto() async throws -> JournalCryptoConfig? {
+        let credentials = try validCredentials()
+        let token = try await validAccessToken(credentials: credentials)
+        var components = URLComponents(
+            url: credentials.projectURL.appendingPathComponent("rest/v1/journal_crypto"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "select", value: "salt,iterations,verifier")]
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue(credentials.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await send(request)
+        try Self.checkStatus(response, data: data)
+        // Un corps vide vaut « rien » : aucune ligne.
+        guard !data.isEmpty else { return nil }
+        do {
+            return try JSONDecoder().decode([JournalCryptoConfig].self, from: data).first
+        } catch {
+            throw MirrorError.decodingFailed(String(describing: error))
+        }
+    }
+
+    /// Pose la configuration — une insertion simple, jamais une fusion : si
+    /// une autre a été posée entre-temps, elle ne doit pas être écrasée, et la
+    /// clé primaire le refuse.
+    func createJournalCrypto(_ config: JournalCryptoConfig, userID: String) async throws {
+        let credentials = try validCredentials()
+        let token = try await validAccessToken(credentials: credentials)
+        var request = URLRequest(
+            url: credentials.projectURL.appendingPathComponent("rest/v1/journal_crypto")
+        )
+        request.httpMethod = "POST"
+        request.setValue(credentials.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "user_id": userID,
+            "salt": config.salt,
+            "iterations": config.iterations,
+            "verifier": config.verifier,
+        ])
+        let (data, response) = try await send(request)
+        try Self.checkStatus(response, data: data)
+    }
+
     // MARK: - Storage
 
     func upload(bucket: String, path: String, data: Data, contentType: String) async throws {

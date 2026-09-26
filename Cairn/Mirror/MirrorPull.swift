@@ -103,6 +103,7 @@ extension MirrorEngine {
     ///   refetch at all.
     @discardableResult
     func pull() async throws -> Int {
+        journalSealingCache = nil
         do {
             guard await client.userID != nil else { throw MirrorError.notConfigured }
             var applied = 0
@@ -148,6 +149,16 @@ extension MirrorEngine {
             let body = try await client.fetchChanged(
                 table: table, since: since, limit: Self.pullPageSize, offset: offset
             )
+            // Une page portant des notes chiffrées demande l'état du
+            // chiffrement — et seulement elle : un journal en clair ne coûte
+            // aucune requête de plus. Sans la clé, la table s'arrête là, le
+            // curseur avant cette page : ces notes seront lues, déchiffrées,
+            // le jour où la phrase est saisie.
+            if table == "journal_note",
+               body.range(of: Data(JournalCipher.prefix.utf8)) != nil,
+               case .locked = try await journalSealing() {
+                return applied
+            }
             let outcome = try await apply(table: table, body: body)
             applied += outcome.applied
             await setPhase(.pulling(done: appliedSoFar + applied))
@@ -756,7 +767,16 @@ extension MirrorEngine {
             existing[note.uuid] = note
         }
 
+        // Déchiffrées avant d'appliquer quoi que ce soit : une note qu'on ne
+        // sait pas ouvrir fait échouer la page entière, curseur compris, plutôt
+        // que d'écrire du charabia — ou rien — par-dessus la note du Mac.
+        let texts = try Dictionary(
+            rows.map { ($0.uuid, try openJournalText($0.text)) },
+            uniquingKeysWith: { _, dernier in dernier }
+        )
+
         for row in rows {
+            let text = texts[row.uuid] ?? ""
             // La même comptabilité que les trois autres tables, et non un
             // `max` écrit à part : c'est elle qui tient `countAtNewest`, dont
             // dépend la pagination à travers les horodatages identiques. Une
@@ -784,15 +804,15 @@ extension MirrorEngine {
                 // comes back with the very `edited_at` it sent, and applying
                 // it would be a no-op that still counted as a change.
                 guard editedAt > local.updatedAt else { continue }
-                local.applyMirrored(text: row.text, editedAt: editedAt)
+                local.applyMirrored(text: text, editedAt: editedAt)
             } else {
                 guard let dateKey = DateKey(raw: row.date_key_raw) else { continue }
-                let note = JournalNote(dateKey: dateKey, text: row.text)
+                let note = JournalNote(dateKey: dateKey, text: text)
                 // The remote identity, not a fresh one: a note given a new
                 // `uuid` here would be pushed back as a second row, and the
                 // day would end up told twice.
                 note.uuid = row.uuid
-                note.applyMirrored(text: row.text, editedAt: editedAt)
+                note.applyMirrored(text: text, editedAt: editedAt)
                 context.insert(note)
                 existing[row.uuid] = note
             }

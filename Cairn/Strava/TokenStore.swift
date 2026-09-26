@@ -39,6 +39,11 @@ protocol SecretStore: Sendable {
     func garminTokens() -> GarminTokens?
     func save(_ tokens: GarminTokens) throws
     func clearGarminTokens() throws
+
+    /// La clé du journal chiffré, une fois la phrase saisie sur ce Mac.
+    func journalKey() -> JournalKey?
+    func save(_ key: JournalKey) throws
+    func clearJournalKey() throws
 }
 
 enum SecretStoreError: Error {
@@ -59,6 +64,7 @@ final class KeychainStore: SecretStore, Sendable {
     private static let mirrorCredentialsAccount = "mirror-credentials"
     private static let mirrorSessionAccount = "mirror-session"
     private static let garminTokensAccount = "garmin-tokens"
+    private static let journalKeyAccount = "journal-key"
 
     init(
         service: String = "com.florianmaisonnial.Cairn",
@@ -151,6 +157,18 @@ final class KeychainStore: SecretStore, Sendable {
         try delete(account: Self.garminTokensAccount)
     }
 
+    func journalKey() -> JournalKey? {
+        read(JournalKey.self, account: Self.journalKeyAccount)
+    }
+
+    func save(_ key: JournalKey) throws {
+        try write(key, account: Self.journalKeyAccount)
+    }
+
+    func clearJournalKey() throws {
+        try delete(account: Self.journalKeyAccount)
+    }
+
     private func baseQuery(account: String, service: String? = nil) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
@@ -217,6 +235,7 @@ final class InMemorySecretStore: SecretStore, @unchecked Sendable {
     private var storedMirrorCredentials: MirrorCredentials?
     private var storedMirrorSession: MirrorSession?
     private var storedGarminTokens: GarminTokens?
+    private var storedJournalKey: JournalKey?
 
     init(credentials: StravaCredentials? = nil, tokens: StravaTokens? = nil) {
         storedCredentials = credentials
@@ -287,5 +306,17 @@ final class InMemorySecretStore: SecretStore, @unchecked Sendable {
 
     func clearGarminTokens() throws {
         lock.withLock { storedGarminTokens = nil }
+    }
+
+    func journalKey() -> JournalKey? {
+        lock.withLock { storedJournalKey }
+    }
+
+    func save(_ key: JournalKey) throws {
+        lock.withLock { storedJournalKey = key }
+    }
+
+    func clearJournalKey() throws {
+        lock.withLock { storedJournalKey = nil }
     }
 }

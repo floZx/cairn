@@ -48,6 +48,11 @@ struct MirrorBootstrapCursor: Sendable {
         defaults.set(uuid, forKey: key(for: table))
     }
 
+    /// Repart du début de la table au prochain envoi complet.
+    func resetTable(_ table: String) {
+        defaults.removeObject(forKey: key(for: table))
+    }
+
     /// `nil` when the mirror has never finished a bootstrap or a push.
     /// `UserDefaults.double(forKey:)` answers `0` for a missing key —
     /// `Tests/PaneGeometryTests.swift` already documents the same trap —
@@ -124,6 +129,10 @@ actor MirrorEngine {
     let container: ModelContainer
     private let progress: MirrorProgress
     let cursor: MirrorBootstrapCursor
+    /// L'état du chiffrement du journal, lu une fois par passe — voir
+    /// `journalSealing()`. Remis à `nil` au début de chaque envoi et de chaque
+    /// lecture : la phrase a pu être saisie entre deux.
+    var journalSealingCache: JournalSealing?
 
     /// Rows per upsert, and per page fetched from SwiftData. Small enough
     /// that a batch which fails resends little on retry; large enough that
@@ -230,6 +239,7 @@ actor MirrorEngine {
     /// after a crash mid-batch — the response lost, the write already landed
     /// — overwrites itself rather than duplicating.
     func bootstrap() async throws {
+        journalSealingCache = nil
         do {
             guard let userID = await client.userID else {
                 throw MirrorError.notConfigured
@@ -313,6 +323,7 @@ actor MirrorEngine {
     }
 
     func push(nutritionTargets: NutritionTargets? = nil) async throws {
+        journalSealingCache = nil
         do {
             guard let userID = await client.userID else {
                 throw MirrorError.notConfigured
@@ -590,6 +601,9 @@ actor MirrorEngine {
         case "weight_entry":
             return try await pushRows(WeightEntry.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "journal_note":
+            // Journal chiffré sans la clé sur ce Mac : rien ne part, et les
+            // entrées restent dans l'outbox jusqu'à ce que la phrase soit saisie.
+            if case .locked = try await journalSealing() { return 0 }
             return try await pushRows(JournalNote.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "journal_attachment":
             return try await pushRows(JournalAttachment.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
@@ -718,11 +732,12 @@ actor MirrorEngine {
                 // deletion — has nothing left to send; the ones that do
                 // exist still go.
                 if !models.isEmpty {
-                    let rows = models.map { model -> [String: MirrorValue] in
+                    let rows = try models.map { model -> [String: MirrorValue] in
                         var row = model.mirrorRow(userID: userID)
                         if let changedAt = changedAtByUUID[model.uuid] {
                             row["edited_at"] = .date(changedAt)
                         }
+                        try sealIfJournal(&row, table: table)
                         return row
                     }
                     try await client.upsert(table: table, rows: rows)
@@ -1163,7 +1178,7 @@ actor MirrorEngine {
     /// over a fixed, closed list rather than a lookup table, because there is
     /// no way to spell "a `PersistentModel & MirrorRow` type" as a value in
     /// Swift — the type has to appear in source for the compiler to see it.
-    private func sendTable(_ table: String, userID: String) async throws {
+    func sendTable(_ table: String, userID: String) async throws {
         switch table {
         case "athlete": try await sendBatches(Athlete.self, table: table, userID: userID)
         case "gear": try await sendBatches(Gear.self, table: table, userID: userID)
@@ -1188,6 +1203,10 @@ actor MirrorEngine {
         case "weight_entry":
             try await sendBatches(WeightEntry.self, table: table, userID: userID)
         case "journal_note":
+            // Le curseur ne bouge pas : la table reprendra entière une fois
+            // la phrase saisie. Demandé seulement s'il y a des notes à envoyer.
+            if try ModelContext(container).fetchCount(FetchDescriptor<JournalNote>()) > 0,
+               case .locked = try await journalSealing() { return }
             try await sendBatches(JournalNote.self, table: table, userID: userID)
         case "journal_attachment":
             try await sendBatches(JournalAttachment.self, table: table, userID: userID)
@@ -1301,7 +1320,7 @@ actor MirrorEngine {
             )
             if batch.isEmpty { break }
 
-            let rows = batch.map { model -> [String: MirrorValue] in
+            let rows = try batch.map { model -> [String: MirrorValue] in
                 var row = model.mirrorRow(userID: userID)
                 // `edited_at` is the engine's to stamp, never `mirrorRow`'s —
                 // the rule `Tests/MirrorRowSchemaTests.swift` guards, and the
@@ -1319,6 +1338,7 @@ actor MirrorEngine {
                 if let activity = model as? Activity {
                     row["edited_at"] = activity.editedAt.map(MirrorValue.date) ?? .null
                 }
+                try sealIfJournal(&row, table: table)
                 return row
             }
             try await client.upsert(table: table, rows: rows)
@@ -1355,7 +1375,7 @@ actor MirrorEngine {
         await MainActor.run { progress.phase = phase }
     }
 
-    private func finish() async {
+    func finish() async {
         let now = Date()
         cursor.setLastPushAt(now)
         await MainActor.run {
