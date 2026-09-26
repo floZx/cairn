@@ -3825,3 +3825,185 @@ button.citation {
   color: var(--texte-3);
   pointer-events: none;
 }
+
+/* ---- Repas : le bilan du jour et les cartes de repas ---------------------
+   Les calories en grand, la question qu'on se pose en ouvrant l'écran ; les
+   trois macros plus petites dessous. Chaque repas est une carte qui porte son
+   titre, son total et son « + ». */
+
+.bilan {
+  margin-bottom: 16px;
+  padding: 14px 16px 16px;
+  border-radius: 18px;
+  background: var(--carte);
+}
+
+.type-journee {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--champ);
+  color: var(--texte-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.type-journee:active {
+  opacity: 0.6;
+}
+
+.bilan-kcal {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 8px;
+}
+
+.bilan-grand {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.bilan-legende {
+  color: var(--texte-2);
+  font-size: 15px;
+}
+
+.bilan-sur {
+  margin-left: auto;
+  color: var(--texte-2);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bilan-macros {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.macro-titre {
+  color: var(--texte-2);
+  font-size: 12px;
+}
+
+.macro-chiffre {
+  margin: 2px 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.macro-chiffre .attenue {
+  font-weight: 400;
+}
+
+.bilan .barre-jauge {
+  margin: 0;
+}
+
+.repas-carte {
+  margin-bottom: 12px;
+  padding: 10px 16px 10px;
+  border-radius: 16px;
+  background: var(--carte);
+}
+
+/* Vide : une ligne, en retrait, sans carte à remplir — le créneau reste dit,
+   pour que la journée ne paraisse pas plus courte qu'elle n'est. */
+.repas-carte.vide {
+  padding: 4px 16px;
+  background: transparent;
+}
+
+.tete-repas {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.tete-repas h3 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.repas-carte.vide .tete-repas h3 {
+  color: var(--texte-2);
+  font-weight: 500;
+}
+
+.tete-repas .kcal-repas {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tete-repas .ajouter {
+  margin-left: 2px;
+}
+
+/* La note d'un repas sans disque gris : un symbole qu'on touche, pas une
+   pastille qu'on prend pour une décoration. */
+.icone-repas {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--texte-2);
+  cursor: pointer;
+}
+
+.icone-repas:active {
+  opacity: 0.5;
+}
+
+.note-du-repas {
+  display: block;
+  width: 100%;
+  margin: 2px 0 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--texte-2);
+  font: inherit;
+  font-size: 14px;
+  font-style: italic;
+  text-align: left;
+  cursor: pointer;
+}
+
+.repas-carte .aliments li:not(:last-child) {
+  box-shadow: inset 0 -0.5px 0 var(--trait);
+}
+
+.repas-carte .ligne-aliment {
+  padding: 7px 0;
+}
+
+.repas-carte .sous-total {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.macro-repas {
+  margin-left: 12px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.macro-repas .lettre {
+  font-weight: 600;
+}

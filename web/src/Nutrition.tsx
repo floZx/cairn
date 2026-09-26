@@ -10,11 +10,10 @@ import { Feuille, Chargement } from "./Chrome"
 import { ListeGlissable } from "./ListeGlissable"
 import { Symbole } from "./IconeSport"
 import { NoteRepas, Pesee, TypeDeJournee } from "./SaisieJour"
-import { JaugeMacro } from "./JaugeMacro"
+import { BilanDuJour, etatDe } from "./JaugeMacro"
+import { jourRelatif } from "./Journal"
 import {
   arrondi,
-  dansLeMille,
-  depassement,
   macrosDe,
   objectifsAdaptatifs,
   objectifsDuJour,
@@ -152,11 +151,27 @@ function decale(dateKey: string, jours: number): string {
 /// puis rouge au-delà — jamais l'inverse : un journal qui ne colore que pour
 /// gronder est un journal qu'on cesse de lire.
 function classeDe(consomme: number, objectif: number | null): string {
-  if (objectif === null) return ""
-  const d = depassement(consomme, objectif)
-  if (d === "franc") return " franc"
-  if (d === "modere") return " modere"
-  return dansLeMille(consomme, objectif) ? " atteint" : ""
+  const etat = etatDe(consomme, objectif)
+  return etat ? " " + etat : ""
+}
+
+const dateSansAnnee = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" })
+const dateCourteDuJour = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" })
+
+/// « Aujourd'hui · 26 sept. », « Hier · 25 sept. », « Jeudi · 24 sept. »
+/// dans la semaine, puis « jeudi 18 septembre » — l'année seulement quand ce
+/// n'est pas celle-ci. La date entière tenait une ligne à elle seule.
+function libelleDuJour(dateKey: string): string {
+  const aujourdhui = jourCourant()
+  const [a, m, j] = dateKey.split("-").map(Number)
+  const date = new Date(a, m - 1, j)
+  const ecart = Math.round((new Date(aujourdhui + "T00:00").getTime() - date.getTime()) / 86_400_000)
+  if (ecart >= 0 && ecart <= 6) {
+    return `${jourRelatif(dateKey, aujourdhui)} · ${dateCourteDuJour.format(date)}`
+  }
+  if (String(a) !== aujourdhui.slice(0, 4)) return dateLongue(dateKey)
+  const texte = dateSansAnnee.format(date)
+  return texte.charAt(0).toUpperCase() + texte.slice(1)
 }
 
 /// `objectif` à `null` quand il n'y en a pas : le chiffre s'affiche seul,
@@ -176,17 +191,18 @@ function LigneMacros({
   // sans la moindre marque, et rien ne distingue « pas encore d'objectif » de
   // « objectif pas encore atteint ».
   const part = (valeur: number, cible: number | undefined, lettre: string) => (
-    <span className={classeDe(valeur, cible ?? null)}>
-      {valeur}
+    // La lettre d'abord, puis le chiffre : « P 40/42 » se lit comme une
+    // étiquette, là où « 40/42 P » laissait chercher à quoi le chiffre
+    // correspondait.
+    <span className={"macro-repas" + classeDe(valeur, cible ?? null)}>
+      <span className="lettre">{lettre}</span> {valeur}
       {cible !== undefined && <span className="attenue">/{Math.round(cible)}</span>}
-      {" "}
-      {lettre}
     </span>
   )
   return (
     <span className="macros">
-      {part(a.proteines, objectif?.proteines, "P")} ·{" "}
-      {part(a.glucides, objectif?.glucides, "G")} ·{" "}
+      {part(a.proteines, objectif?.proteines, "P")}
+      {part(a.glucides, objectif?.glucides, "G")}
       {part(a.lipides, objectif?.lipides, "L")}
       {sansUnite ? "" : " (g)"}
     </span>
@@ -267,7 +283,7 @@ export function Nutrition({
           reste au-dessus — `input[type=date]` affiche « 26/06/2026 », ce qui
           ne dit pas quel jour de la semaine c'était. */}
       <label className="choix-jour">
-        <span className="jour">{dateLongue(dateKey)}</span>
+        <span className="jour">{libelleDuJour(dateKey)}</span>
         <input
           type="date"
           value={dateKey}
@@ -398,55 +414,19 @@ export function Nutrition({
       )}
       {enTete}
 
-      <div className="total-jour">
-        {/* Les cinq jauges du Mac, dans son ordre : les calories d'abord,
-            puis les trois macros, les fibres en dernier. Chacune porte sa
-            ligne « reste », qui est le nombre contre lequel le prochain repas
-            se planifie vraiment — sauf celle des fibres, qui dit d'abord ce
-            qu'elle ignore. */}
-        <div className="jauges">
-          <JaugeMacro
-            titre="Calories"
-            consomme={totalJour.kcal}
-            objectif={journeeVisee?.kcal ?? null}
-            unite="kcal"
-          />
-          <JaugeMacro
-            titre="Protéines"
-            consomme={totalJour.proteines}
-            objectif={cibles ? (journeeVisee?.proteines ?? null) : null}
-            unite="g"
-          />
-          <JaugeMacro
-            titre="Glucides"
-            consomme={totalJour.glucides}
-            objectif={cibles ? (journeeVisee?.glucides ?? null) : null}
-            unite="g"
-          />
-          <JaugeMacro
-            titre="Lipides"
-            consomme={totalJour.lipides}
-            objectif={cibles ? (journeeVisee?.lipides ?? null) : null}
-            unite="g"
-          />
-        </div>
-      </div>
+      <BilanDuJour
+        typeDuJour={typeDuJour?.name ?? null}
+        onType={() => setTypeOuvert(true)}
+        kcal={{ consomme: totalJour.kcal, objectif: journeeVisee?.kcal ?? null }}
+        proteines={{ consomme: totalJour.proteines, objectif: cibles ? (journeeVisee?.proteines ?? null) : null }}
+        glucides={{ consomme: totalJour.glucides, objectif: cibles ? (journeeVisee?.glucides ?? null) : null }}
+        lipides={{ consomme: totalJour.lipides, objectif: cibles ? (journeeVisee?.lipides ?? null) : null }}
+      />
 
-      {/* Une seconde carte pour ce qui n'est pas le budget : le type de
-          journée le fixe, la pesée le commente, mais ni l'un ni l'autre n'est
-          une jauge. Les mélanger faisait un fourre-tout de trois natures de
-          choses. Sous les jauges plutôt qu'au-dessus : on ouvre cet écran pour
-          savoir où l'on en est, pas pour régler. */}
-      <ul className="liste reglages-jour">
-        <li className="ligne" onClick={() => setTypeOuvert(true)}>
-          <div className="ligne-tete">
-            <span className="titre">Journée</span>
-            <span className={typeDuJour ? "" : "attenue"}>
-              {typeDuJour ? `${typeDuJour.name} · ${typeDuJour.kcal_target} kcal` : "Choisir"}
-            </span>
-          </div>
-        </li>
-        {!POIDS_MASQUE && (
+      {/* Le type de journée est passé en tête du bilan, qu'il règle ; il ne
+          reste ici que la pesée, tant que le poids a un écran. */}
+      {!POIDS_MASQUE && (
+        <ul className="liste reglages-jour">
           <li className="ligne" onClick={() => setPeseeOuverte(true)}>
             <div className="ligne-tete">
               <span className="titre">Poids</span>
@@ -455,151 +435,107 @@ export function Nutrition({
               </span>
             </div>
           </li>
-        )}
-      </ul>
+        </ul>
+      )}
 
       {creneaux.map((creneau, i) => {
         const lignes = parCreneau(creneau.uuid)
         const note = notes.find((n) => n.meal_slot_uuid === creneau.uuid)?.note
         const consomme = consommeDu(creneau.uuid)
         const objectif = objectifs[i]
-        if (lignes.length === 0 && !note) {
-          return (
-            <section className="repas vide" key={creneau.uuid}>
-              <h3>
-                {creneau.name}
-                <span>
-                  <button
-                    className="ajouter crayon"
-                    onClick={() => setNoteDe({ uuid: creneau.uuid, nom: creneau.name })}
-                    aria-label={`Noter ${creneau.name}`}
-                  >
-                  {/* Une note, et non un crayon : le bouton écrit la note du
-                      repas, il ne modifie rien. Le symbole `note.text` du Mac. */}
-                  <Symbole nom="note.text" taille={16} />
-                  </button>
-                  {objectif && (
-                    <span className="attenue">{Math.round(objectif.kcal)} kcal prévues</span>
-                  )}
-                  <button
-                    className="ajouter"
-                    onClick={() => setAjoutDans({ uuid: creneau.uuid, nom: creneau.name })}
-                    aria-label={`Ajouter à ${creneau.name}`}
-                  >
-<svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    aria-hidden
-                  >
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  </button>
-                </span>
-              </h3>
-            </section>
-          )
-        }
+        const vide = lignes.length === 0 && !note
+        const ecrireNote = () => setNoteDe({ uuid: creneau.uuid, nom: creneau.name })
+        const ajouter = () => setAjoutDans({ uuid: creneau.uuid, nom: creneau.name })
         return (
-          <section className="repas" key={creneau.uuid}>
-            {/* L'en-tête au-dessus de la carte, pas dedans : la façon dont iOS
-                titre une section de liste groupée, comme dans Réglages. */}
-            {/* Le crayon passe devant le compteur : le chiffre se retrouve
-                ainsi collé au « + », qui est l'action qu'on vient chercher en
-                le lisant — « il me reste tant, j'ajoute ». Le crayon, lui, ne
-                répond pas au chiffre et n'a rien à faire entre les deux. */}
-            <h3>
-              {creneau.name}
-              <span>
-                <button
-                  className="ajouter crayon"
-                  onClick={() => setNoteDe({ uuid: creneau.uuid, nom: creneau.name })}
-                  aria-label={`Noter ${creneau.name}`}
-                >
-                  {/* Une note, et non un crayon : le bouton écrit la note du
-                      repas, il ne modifie rien. Le symbole `note.text` du Mac. */}
-                  <Symbole nom="note.text" taille={16} />
-                </button>
+          // Le titre, le total et les boutons dans la carte, et plus au-dessus :
+          // un repas se lit comme un tout, et le chiffre reste collé au « + »
+          // — « il me reste tant, j'ajoute ». Un créneau vide tient sur une
+          // ligne, en retrait, sans carte à remplir.
+          <section className={vide ? "repas-carte vide" : "repas-carte"} key={creneau.uuid}>
+            <div className="tete-repas">
+              <h3>{creneau.name}</h3>
+              {vide ? (
+                objectif && (
+                  <span className="attenue petit">{Math.round(objectif.kcal)} kcal prévues</span>
+                )
+              ) : (
                 <span className={"kcal-repas" + classeDe(consomme.kcal, objectif?.kcal ?? null)}>
                   {Math.round(consomme.kcal)}
                   {objectif && <span className="attenue"> / {Math.round(objectif.kcal)}</span>}
                 </span>
-                <button
-                  className="ajouter"
-                  onClick={() => setAjoutDans({ uuid: creneau.uuid, nom: creneau.name })}
-                  aria-label={`Ajouter à ${creneau.name}`}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    aria-hidden
-                  >
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
+              )}
+              {/* Seulement tant qu'il n'y a pas de note : sinon on la touche
+                  elle-même pour l'écrire, juste en dessous. */}
+              {!note && (
+                <button className="icone-repas" onClick={ecrireNote} aria-label={`Noter ${creneau.name}`}>
+                  <Symbole nom="note.text" taille={17} />
                 </button>
-              </span>
-            </h3>
-            <div className="carte-repas">
-              {note && <p className="note-repas">{note}</p>}
-              {/* Un appui long sur un aliment le soulève, et on le glisse à sa
-                  place — voir `ListeGlissable`. Un appui bref l'ouvre. */}
-              <ListeGlissable
-                elements={lignes}
-                onOrdre={(nouvelOrdre) => deplacement.mutate({ lignes, nouvelOrdre })}
-                ligne={(ligne) => {
-                  const m = arrondi(macrosDe(ligne))
-                  return (
-                    // Toute la ligne est le bouton : sur un téléphone, viser un
-                    // nom de trois lettres pour corriger une quantité est une
-                    // cible qu'on rate.
-                    <button
-                      className="ligne-aliment"
-                      onClick={() =>
-                        setEnModification({
-                          uuid: ligne.uuid,
-                          nom: ligne.food_name,
-                          grammes: ligne.grams,
-                          kcal100: ligne.kcal100,
-                          protein100: ligne.protein100,
-                          carbs100: ligne.carbs100,
-                          fat100: ligne.fat100,
-                        })
-                      }
-                    >
-                      <span className="nom">{ligne.food_name}</span>
-                      <span className="attenue petit">{Math.round(ligne.grams)} g</span>
-                      <span className="kcal">{m.kcal}</span>
-                    </button>
-                  )
-                }}
-              />
-              {deplacement.error && (
-                <p className="erreur">{(deplacement.error as Error).message}</p>
               )}
-              {/* Les macros du repas contre celles que son objectif adaptatif
-                  lui alloue — la même question que les calories juste au-dessus,
-                  posée pour les trois autres. Affichée dès qu'il y a un aliment,
-                  même un seul : savoir si ce qu'on vient de manger tient dans le
-                  repas ne dépend pas du nombre de lignes. */}
-              {lignes.length > 0 && (
-                <div className="sous-total">
-                  <LigneMacros
-                    m={consomme}
-                    objectif={cibles ? objectif : null}
-                    sansUnite
-                  />
-                </div>
-              )}
+              <button className="ajouter" onClick={ajouter} aria-label={`Ajouter à ${creneau.name}`}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  aria-hidden
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
             </div>
+            {note && (
+              <button className="note-du-repas" onClick={ecrireNote}>
+                {note}
+              </button>
+            )}
+            {lignes.length > 0 && (
+              <>
+                {/* Un appui long sur un aliment le soulève, et on le glisse à
+                    sa place — voir `ListeGlissable`. Un appui bref l'ouvre. */}
+                <ListeGlissable
+                  elements={lignes}
+                  onOrdre={(nouvelOrdre) => deplacement.mutate({ lignes, nouvelOrdre })}
+                  ligne={(ligne) => {
+                    const m = arrondi(macrosDe(ligne))
+                    return (
+                      // Toute la ligne est le bouton : sur un téléphone, viser
+                      // un nom de trois lettres pour corriger une quantité est
+                      // une cible qu'on rate.
+                      <button
+                        className="ligne-aliment"
+                        onClick={() =>
+                          setEnModification({
+                            uuid: ligne.uuid,
+                            nom: ligne.food_name,
+                            grammes: ligne.grams,
+                            kcal100: ligne.kcal100,
+                            protein100: ligne.protein100,
+                            carbs100: ligne.carbs100,
+                            fat100: ligne.fat100,
+                          })
+                        }
+                      >
+                        <span className="nom">{ligne.food_name}</span>
+                        <span className="attenue petit">{Math.round(ligne.grams)} g</span>
+                        <span className="kcal">{m.kcal}</span>
+                      </button>
+                    )
+                  }}
+                />
+                {deplacement.error && (
+                  <p className="erreur">{(deplacement.error as Error).message}</p>
+                )}
+                {/* Les macros du repas contre celles que son objectif
+                    adaptatif lui alloue — la même question que les calories
+                    de l'en-tête, posée pour les trois autres. */}
+                <div className="sous-total">
+                  <LigneMacros m={consomme} objectif={cibles ? objectif : null} sansUnite />
+                </div>
+              </>
+            )}
           </section>
         )
       })}
