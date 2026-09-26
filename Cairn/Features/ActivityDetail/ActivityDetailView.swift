@@ -222,9 +222,11 @@ struct ActivityDetailView: View {
             // is the same glyph at ten times the size, and the wash over the
             // whole pane is the same colour. Three ways of saying "trail"
             // before the name of the outing is read.
-            Text(activity.name).font(.largeTitle.weight(.semibold))
+            // The date first, above the name: when, then what — the order a
+            // journal reads in.
             Text(Format.longDate(activity.startDate, in: activity.timeZone))
                 .foregroundStyle(.secondary)
+            Text(activity.name).font(.largeTitle.weight(.semibold))
 
             if !headerLabels.isEmpty {
                 FlowLayout {
