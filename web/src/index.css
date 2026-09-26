@@ -1395,6 +1395,12 @@ input, button { font: inherit; }
   margin: 6px 16px 0;
 }
 
+/* La carte qui suit une note de bas de section s'en détache : « Se
+   déconnecter » touchait la phrase du verrou. */
+.attenue.minuscule + .liste-actions {
+  margin-top: 22px;
+}
+
 /* Une ligne de réglage, le libellé à gauche et la commande à droite, comme
    dans Réglages. Un séparateur entre deux lignes, qui commence après le texte. */
 .ligne-reglage {
