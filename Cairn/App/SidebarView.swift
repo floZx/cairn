@@ -106,9 +106,11 @@ struct SidebarView: View {
     @Environment(AppEnvironment.self) private var app
     @Query private var activities: [Activity]
 
-    /// Les quatre sports qu'on pratique le plus, et tout sport coché : un
-    /// filtre actif ne doit pas disparaître derrière « Voir plus ».
-    private static let mainSports: Set<SportType> = [.run, .trailRun, .workout, .swim]
+    /// Les sports qu'on pratique, et tout sport coché : un filtre actif ne
+    /// doit pas disparaître derrière « Voir plus ».
+    private static let mainSports: Set<SportType> = [
+        .run, .trailRun, .workout, .swim, .walk, .hike, .ride, .mountainBikeRide,
+    ]
 
     private var visibleSportCounts: [SportTally.Row] {
         guard !showsAllSports else { return sportCounts }
