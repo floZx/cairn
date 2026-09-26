@@ -100,6 +100,14 @@ final class GarminZonesFetcher {
         let weeks = Dictionary(grouping: pending) {
             calendar.dateInterval(of: .weekOfYear, for: $0.startDate)?.start ?? $0.startDate
         }
+        // Enregistré par paquets, jamais sortie par sortie : chaque
+        // enregistrement fait relire la liste des sorties et redessiner le
+        // volet, et un tous les deux secondes faisait saccader le défilement
+        // pendant tout le remplissage — signalé. Une fois par paquet de 25,
+        // soit à peu près une par minute ; un départ en cours de paquet ne
+        // perd que ce paquet, redemandé au lancement suivant.
+        var unsaved = 0
+        defer { if unsaved > 0 { try? context.save() } }
         for weekStart in weeks.keys.sorted(by: >) {
             if Task.isCancelled { return }
             let day: TimeInterval = 24 * 3600
@@ -110,23 +118,32 @@ final class GarminZonesFetcher {
             ) else { return }
             for activity in weeks[weekStart] ?? [] {
                 if Task.isCancelled { return }
-                guard await apply(to: activity, candidates: candidates, in: context) else { return }
+                guard await apply(to: activity, candidates: candidates, in: context, saving: false)
+                else { return }
+                unsaved += 1
+                if unsaved >= Self.backfillBatch {
+                    try? context.save()
+                    unsaved = 0
+                }
                 try? await Task.sleep(for: .seconds(1.5))
             }
         }
     }
 
+    static let backfillBatch = 25
+
     /// Matches, fetches, stores. False when Garmin answered with an error —
     /// the caller stops there rather than insisting.
     @discardableResult
     private func apply(
-        to activity: Activity, candidates: [GarminActivity], in context: ModelContext
+        to activity: Activity, candidates: [GarminActivity], in context: ModelContext,
+        saving: Bool = true
     ) async -> Bool {
         guard let match = GarminMatching.bestMatch(for: GarminSource(activity), among: candidates) else {
             // Not on Garmin — before the watch, or recorded without it. Noted,
             // so it is not asked again.
             activity.zonesCheckedAt = Date()
-            try? context.save()
+            if saving { try? context.save() }
             return true
         }
         guard let zones = try? await client.zones(activityID: match.id) else { return false }
@@ -135,7 +152,7 @@ final class GarminZonesFetcher {
         activity.powerZoneFloors = zones.power?.floors
         activity.powerZoneSeconds = zones.power?.seconds
         activity.zonesCheckedAt = Date()
-        try? context.save()
+        if saving { try? context.save() }
         return true
     }
 }
