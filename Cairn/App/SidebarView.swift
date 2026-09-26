@@ -90,6 +90,14 @@ struct SidebarView: View {
     /// The button that unticks them all sits *outside* the section, so a
     /// filtered list never hides why behind a closed disclosure triangle.
     @AppStorage("journalTagsExpanded") private var tagsExpanded = false
+    /// Les sports au-delà des quatre principaux, dépliés par « Voir plus ».
+    @AppStorage("sidebarAllSports") private var showsAllSports = false
+    /// Les filtres et les étiquettes des activités, repliés au départ comme les
+    /// tags du journal : ils poussaient la liste des sports hors de vue pour
+    /// des réglages qu'on touche rarement. « Réinitialiser » reste dehors, pour
+    /// qu'un filtre actif ne se cache jamais derrière un triangle fermé.
+    @AppStorage("sidebarFiltersExpanded") private var filtersExpanded = false
+    @AppStorage("sidebarLabelsExpanded") private var labelsExpanded = false
     /// Read for the sports' colours, which follow the list's thumbnail — see
     /// `ActivityCardThumbnail.monochromeSidebar`.
     @AppStorage(ActivityCardThumbnail.storageKey)
@@ -97,6 +105,17 @@ struct SidebarView: View {
 
     @Environment(AppEnvironment.self) private var app
     @Query private var activities: [Activity]
+
+    /// Les quatre sports qu'on pratique le plus, et tout sport coché : un
+    /// filtre actif ne doit pas disparaître derrière « Voir plus ».
+    private static let mainSports: Set<SportType> = [.run, .trailRun, .workout, .swim]
+
+    private var visibleSportCounts: [SportTally.Row] {
+        guard !showsAllSports else { return sportCounts }
+        return sportCounts.filter {
+            Self.mainSports.contains($0.sport) || filter.sports.contains($0.sport)
+        }
+    }
 
     private var sportCounts: [SportTally.Row] {
         SportTally.rows(for: activities.map(\.sportType))
@@ -231,7 +250,7 @@ struct SidebarView: View {
 
             if showsFilters {
                 Section("Sports") {
-                    ForEach(sportCounts) { entry in
+                    ForEach(visibleSportCounts) { entry in
                         Toggle(isOn: binding(for: entry.sport)) {
                             HStack {
                                 SportLabel(
@@ -246,9 +265,16 @@ struct SidebarView: View {
                         }
                         .toggleStyle(.checkbox)
                     }
+                    if sportCounts.count > visibleSportCounts.count || showsAllSports {
+                        Button(showsAllSports ? "Voir moins" : "Voir plus") {
+                            showsAllSports.toggle()
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
                 }
 
-                Section("Filtres") {
+                Section(isExpanded: $filtersExpanded) {
                     Picker("Période", selection: $filter.period) {
                         ForEach(DatePeriod.allCases) { period in
                             Text(period.displayName).tag(period)
@@ -270,9 +296,14 @@ struct SidebarView: View {
                         title: "D+/km min.", unit: "m/km",
                         value: $filter.minElevationPerKm
                     )
+                } header: {
+                    // Le mot ouvre aussi, comme pour les tags du journal.
+                    Text("Filtres")
+                        .contentShape(.rect)
+                        .onTapGesture { filtersExpanded.toggle() }
                 }
 
-                Section("Étiquettes") {
+                Section(isExpanded: $labelsExpanded) {
                     ForEach(ActivityLabel.allCases) { label in
                         Toggle(isOn: binding(for: label)) {
                             // The accent, like the sections above and the
@@ -286,6 +317,10 @@ struct SidebarView: View {
                         }
                         .toggleStyle(.checkbox)
                     }
+                } header: {
+                    Text("Étiquettes")
+                        .contentShape(.rect)
+                        .onTapGesture { labelsExpanded.toggle() }
                 }
 
                 if filter.isActive {
