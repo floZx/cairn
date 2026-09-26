@@ -38,83 +38,136 @@ struct SameRouteSection: View {
 
     // MARK: - Chart
 
-    /// One dot per attempt, in time — Strava's progress graph for a matched
-    /// course. The line makes the trend readable; the dots carry the story:
-    /// the open outing in the sport's colour, the record in trophy yellow.
-    ///
-    /// Past a dozen attempts the chart windows itself to roughly ten and
-    /// scrolls horizontally, opening on the most recent — forty-nine weekly
-    /// footings squeezed into one pane width were a single grey smear.
+    /// One dot per attempt, evenly spaced — Strava's progress graph for a
+    /// matched course. Spaced by attempt rather than by date: placed in time,
+    /// forty-nine weekly footings were a grey smear, then a window that had
+    /// to be scrolled; one step each, fifty fit a pane and read at a glance.
+    /// Around them, the trend and the three lines worth naming — fastest,
+    /// average, slowest — where an axis of round paces used to be.
     @ViewBuilder
     private func chart(_ matches: [Activity]) -> some View {
         let attempts = rows(matches: matches)
-            .filter { $0.movingTime > 0 }
+            .filter { $0.movingTime > 0 && $0.averageSpeed > 0 }
             .sorted { $0.startLocalDate < $1.startLocalDate }
-        if attempts.count >= 3 {
-            let span = attempts.last!.startLocalDate
-                .timeIntervalSince(attempts.first!.startLocalDate)
-            if attempts.count > 12, span > 0 {
-                // Ten *average* gaps of visible window: irregular outings mean
-                // some windows show more dots, some fewer, and that is fine.
-                let visible = span / Double(attempts.count) * 10
-                chartBase(attempts, matches: matches)
-                    .chartScrollableAxes(.horizontal)
-                    .chartXVisibleDomain(length: visible)
-                    .chartScrollPosition(initialX:
-                        attempts.last!.startLocalDate.addingTimeInterval(-visible)
-                    )
-            } else {
-                chartBase(attempts, matches: matches)
+        if let progress = RouteProgress(speeds: attempts.map(\.averageSpeed)) {
+            VStack(alignment: .leading, spacing: 6) {
+                progressChart(attempts, progress)
+                legend(attempts, progress)
             }
         }
     }
 
     /// Plotted in average speed, labelled in the sport's own tongue — pace
-    /// for a run, km/h for a ride, /100 m for a swim (what Strava's graph
-    /// shows too, not the finish time). Up is faster, which is the way a
-    /// progress chart wants to read.
-    private func chartBase(
-        _ attempts: [Activity], matches: [Activity]
-    ) -> some View {
-        let bestSpeed = attempts.map(\.averageSpeed).max()
-        return Chart(attempts, id: \.id) { attempt in
-            LineMark(
-                x: .value("Date", attempt.startLocalDate),
-                y: .value("Allure", attempt.averageSpeed)
-            )
-            .foregroundStyle(.quaternary)
-            PointMark(
-                x: .value("Date", attempt.startLocalDate),
-                y: .value("Allure", attempt.averageSpeed)
-            )
-            .foregroundStyle(pointColor(attempt, bestSpeed: bestSpeed))
-            .symbolSize(
-                attempt.persistentModelID == activity.persistentModelID ? 90 : 45
-            )
-        }
-        // From the slowest attempt, not from zero: the differences between
-        // efforts are seconds per kilometre, and a zero-based axis flattens
-        // them into one straight line.
-        .chartYScale(domain: .automatic(includesZero: false))
-        .chartYAxis {
-            AxisMarks { value in
-                AxisGridLine()
-                AxisValueLabel {
-                    if let speed = value.as(Double.self) {
-                        Text(Format.speed(speed, sport: activity.sportType))
-                            .monospacedDigit()
+    /// for a run, km/h for a ride, /100 m for a swim. Up is faster, which is
+    /// the way a progress chart wants to read.
+    private func progressChart(_ attempts: [Activity], _ progress: RouteProgress) -> some View {
+        let sport = activity.sportType
+        let color = sport.color
+        let points = Array(attempts.enumerated())
+        let current = attempts.firstIndex { $0.persistentModelID == activity.persistentModelID }
+        let best = progress.speeds.firstIndex(of: progress.fastest)
+        let pad = max((progress.fastest - progress.slowest) * 0.15, progress.average * 0.01)
+
+        return Chart {
+            // The attempts joined by a thread, faint: it says the order, the
+            // trend says the direction.
+            ForEach(points, id: \.offset) { index, attempt in
+                LineMark(
+                    x: .value("Sortie", index), y: .value("Vitesse", attempt.averageSpeed),
+                    series: .value("Série", "sorties")
+                )
+                .foregroundStyle(color.opacity(0.25))
+                .lineStyle(StrokeStyle(lineWidth: 1))
+            }
+            ForEach(Array(progress.trend.enumerated()), id: \.offset) { index, speed in
+                LineMark(
+                    x: .value("Sortie", index), y: .value("Vitesse", speed),
+                    series: .value("Série", "tendance")
+                )
+                .foregroundStyle(color)
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .interpolationMethod(.catmullRom)
+            }
+            ForEach(points, id: \.offset) { index, attempt in
+                let point = PointMark(
+                    x: .value("Sortie", index), y: .value("Vitesse", attempt.averageSpeed)
+                )
+                if index == current {
+                    point.symbolSize(110).foregroundStyle(color)
+                } else if index == best {
+                    point.symbol {
+                        Circle().strokeBorder(Color.yellow, lineWidth: 2.5)
+                            .background(Circle().fill(.background))
+                            .frame(width: 11, height: 11)
+                    }
+                } else {
+                    point.symbol {
+                        Circle().strokeBorder(color.opacity(0.7), lineWidth: 1.2)
+                            .background(Circle().fill(.background))
+                            .frame(width: 7, height: 7)
                     }
                 }
             }
         }
-        .frame(height: 110)
+        .chartXScale(domain: -0.5...(Double(attempts.count) - 0.5))
+        .chartYScale(domain: (progress.slowest - pad)...(progress.fastest + pad))
+        .chartXAxis {
+            // The first and the last day only: in between, the steps are
+            // attempts, and dates would pretend to be a time scale.
+            AxisMarks(values: [0, attempts.count - 1]) { value in
+                AxisValueLabel(anchor: value.index == 0 ? .topLeading : .topTrailing) {
+                    if let index = value.as(Int.self), attempts.indices.contains(index) {
+                        Text(Format.dateOnly(attempts[index].startLocalDate))
+                    }
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(
+                position: .trailing,
+                values: [progress.fastest, progress.average, progress.slowest]
+            ) { value in
+                let speed = value.as(Double.self) ?? 0
+                let isAverage = abs(speed - progress.average) < 1e-9
+                AxisGridLine(
+                    stroke: StrokeStyle(lineWidth: 0.8, dash: isAverage ? [] : [3, 3])
+                )
+                AxisValueLabel {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(isAverage ? "Moyenne"
+                             : abs(speed - progress.fastest) < 1e-9 ? "Le plus rapide" : "Le plus lent")
+                            .foregroundStyle(.secondary)
+                        Text(Format.speed(speed, sport: sport))
+                            .fontWeight(.semibold)
+                            .monospacedDigit()
+                    }
+                    .font(.caption2)
+                }
+            }
+        }
+        .frame(height: 170)
     }
 
-    private func pointColor(_ attempt: Activity, bestSpeed: Double?) -> Color {
-        if attempt.persistentModelID == activity.persistentModelID {
-            return activity.sportType.color
+    /// How many, what the thick line is, and where this one stands.
+    private func legend(_ attempts: [Activity], _ progress: RouteProgress) -> some View {
+        let color = activity.sportType.color
+        let comparison = RouteProgress.comparison(
+            activity.averageSpeed, average: progress.average, sport: activity.sportType
+        )
+        return HStack(spacing: 6) {
+            Text("\(attempts.count) sorties").fontWeight(.medium)
+            Capsule().fill(color).frame(width: 14, height: 3)
+                .padding(.leading, 6)
+            Text("tendance sur 5 sorties").foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            if let comparison {
+                Text("Celle-ci : \(comparison)")
+                    .foregroundStyle(
+                        activity.averageSpeed > progress.average ? .green : .secondary
+                    )
+            }
         }
-        return attempt.averageSpeed == bestSpeed ? .yellow : .secondary
+        .font(.caption)
     }
 
     /// Six rows, then the list scrolls in place: a weekly loop accumulates
