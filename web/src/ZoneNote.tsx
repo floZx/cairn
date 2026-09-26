@@ -39,9 +39,27 @@ export const ZoneNote = forwardRef<
   // Le texte vient du bloc tant qu'on tape ; il n'y est réécrit que quand la
   // valeur change d'ailleurs — une citation choisie, une photo jointe. Le
   // réécrire à chaque frappe renverrait le curseur au début.
+  //
+  // Réécrire le bloc y perd le curseur, qui retombe au début : il est remis
+  // aussitôt derrière ce qui a changé — après la citation insérée, après la
+  // photo jointe. La barre des citations le replace aussi, mais une image plus
+  // tard, et une lettre tapée entre-temps partait en tête de la note.
   useLayoutEffect(() => {
     const el = bloc.current
-    if (el && (el.textContent ?? "") !== value) el.textContent = value
+    const avant = el?.textContent ?? ""
+    if (!el || avant === value) return
+    const avaitLaMain = document.activeElement === el
+    el.textContent = value
+    if (!avaitLaMain) return
+    let fin = 0
+    while (
+      fin < avant.length &&
+      fin < value.length &&
+      avant[avant.length - 1 - fin] === value[value.length - 1 - fin]
+    ) {
+      fin++
+    }
+    placer(el, value.length - fin)
   }, [value])
 
   useEffect(() => {
@@ -66,15 +84,7 @@ export const ZoneNote = forwardRef<
         return avant.toString().length
       },
       setSelectionRange(debut: number) {
-        const el = bloc.current
-        if (!el) return
-        const [noeud, decalage] = position(el, debut)
-        const plage = document.createRange()
-        plage.setStart(noeud, decalage)
-        plage.collapse(true)
-        const sel = getSelection()
-        sel?.removeAllRanges()
-        sel?.addRange(plage)
+        if (bloc.current) placer(bloc.current, debut)
       },
       focus() {
         bloc.current?.focus()
@@ -110,6 +120,17 @@ export const ZoneNote = forwardRef<
     />
   )
 })
+
+/// Le curseur à `index` caractères du début du bloc.
+function placer(el: HTMLElement, index: number) {
+  const [noeud, decalage] = position(el, index)
+  const plage = document.createRange()
+  plage.setStart(noeud, decalage)
+  plage.collapse(true)
+  const sel = getSelection()
+  sel?.removeAllRanges()
+  sel?.addRange(plage)
+}
 
 /// Le nœud de texte et le décalage qui tombent à `index` caractères du début.
 function position(el: HTMLElement, index: number): [Node, number] {
