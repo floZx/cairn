@@ -79,7 +79,16 @@ struct ActivityEditorSheet: View {
 
             Form {
                 Section {
-                    TextField("Nom", text: $draft.name)
+                    HStack {
+                        TextField("Nom", text: $draft.name)
+                        // Only on an existing activity: a new one has no
+                        // track, no laps, nothing yet to make a title from.
+                        if #available(macOS 26.0, *), case let .edit(activity) = mode {
+                            TitleSuggestionButton(activity: activity, draft: draft) {
+                                draft.name = $0
+                            }
+                        }
+                    }
                     Picker("Sport", selection: $draft.sport) {
                         ForEach(SportType.allCases) { sport in
                             SportLabel(sport.displayName, sport: sport)

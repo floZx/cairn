@@ -234,7 +234,21 @@ struct ActivityDetailView: View {
             // journal reads in.
             Text(Format.longDate(activity.startDate, in: activity.timeZone))
                 .foregroundStyle(.secondary)
-            Text(activity.name).font(.largeTitle.weight(.semibold))
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(activity.name).font(.largeTitle.weight(.semibold))
+                // Only beside a title nobody wrote — « Course à pied le
+                // matin », « Morning Ride » — where a better one is a click
+                // away without opening the editor.
+                if #available(macOS 26.0, *), TitleSuggestions.isBanal(activity.name) {
+                    TitleSuggestionButton(
+                        activity: activity, draft: ActivityDraft(activity), onPick: rename
+                    )
+                    .font(.title2)
+                    // A fresh button for each activity: its titles are
+                    // worked out once and kept, and they belong to this one.
+                    .id(activity.uuid)
+                }
+            }
 
             if !headerLabels.isEmpty {
                 FlowLayout {
@@ -316,6 +330,34 @@ struct ActivityDetailView: View {
             case .unknown, .checking, .unavailable:
                 EmptyView()
             }
+        }
+    }
+
+    /// A title picked beside the heading: kept from the next sync and sent
+    /// on to Strava and Garmin, as a title changed in the editor would be.
+    private func rename(to title: String) {
+        guard title != activity.name else { return }
+        activity.name = title
+        if activity.source.isSynced { activity.markEdited([.name]) }
+        do {
+            try modelContext.save()
+        } catch {
+            // Undone rather than left on screen: a heading showing a title
+            // the store doesn't hold would be the silent loss this project
+            // refuses. The old one comes back and nothing is sent.
+            modelContext.rollback()
+            return
+        }
+        let source = GarminSource(activity)
+        let stravaID = activity.source.isSynced ? activity.stravaID : nil
+        let uuid = activity.uuid
+        let toStrava = app.isAuthenticated
+        let toGarmin = app.isGarminConnected
+        Task {
+            await app.edits.propagate(
+                [.name], uuid: uuid, stravaID: stravaID, source: source,
+                toStrava: toStrava, toGarmin: toGarmin
+            )
         }
     }
 
