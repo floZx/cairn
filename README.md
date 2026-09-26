@@ -34,8 +34,13 @@ xcodebuild build -project Cairn.xcodeproj -scheme Cairn -destination 'platform=m
 ```
 
 ```bash
-xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+xcodebuild test -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build/tests.noindex
 ```
+
+Les tests ont leur propre dossier, `build/tests.noindex` : ils passent par une
+build Debug de l'application, qui leur sert d'hôte, et une Debug posée à côté de
+la Release faisait proposer deux « Cairn » par Spotlight — de quoi lancer la
+mauvaise. Spotlight n'indexe pas un dossier dont le nom finit par `.noindex`.
 
 Lancer cette suite ne touche jamais votre bibliothèque : un bundle de test macOS
 s'exécute à l'intérieur de l'application hôte, et sans précaution chaque

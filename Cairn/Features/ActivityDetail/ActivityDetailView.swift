@@ -66,6 +66,7 @@ struct ActivityDetailView: View {
     /// Distance under the cursor in a chart, mirrored on the map as a marker.
     @State private var hoverDistanceKm: Double?
     @State private var showsGarminSync = false
+    @State private var showsAllLaps = false
     @AppStorage(MapStyle.storageKey) private var mapStyle: MapStyle = .standard
     @AppStorage(TrackColor.storageKey) private var trackColor: TrackColor = .accent
 
@@ -189,6 +190,7 @@ struct ActivityDetailView: View {
         // laissé la précédente.
         .onChange(of: activity.persistentModelID) { _, _ in
             scrollPosition.scrollTo(edge: .top)
+            showsAllLaps = false
         }
         // The sport's light on the frosted pane behind the content: the window
         // material can only blend the desktop, so on a dark wallpaper it has
@@ -610,20 +612,21 @@ struct ActivityDetailView: View {
     /// own normalised power, and a watch that never paused makes elapsed time
     /// the moving time again.
     static func statTiles(for activity: Activity) -> [StatTileModel] {
-        var tiles: [StatTileModel] = [
-            StatTileModel(title: "Distance", value: Format.distance(activity.distance)),
-            StatTileModel(
-                title: "Temps en mouvement", value: Format.duration(activity.movingTime)
-            ),
-        ]
+        var tiles: [StatTileModel] = []
         func add(_ title: String, _ value: String) {
             tiles.append(StatTileModel(title: title, value: value))
         }
+        // No « 0 m »: a gym session has no distance and a pool no climb, and
+        // a tile saying so read as a figure missing rather than as none.
+        if activity.distance > 0 { add("Distance", Format.distance(activity.distance)) }
+        add("Temps en mouvement", Format.duration(activity.movingTime))
 
         if activity.elapsedTime != activity.movingTime {
             add("Temps total", Format.duration(activity.elapsedTime))
         }
-        add("Dénivelé +", Format.elevation(activity.totalElevationGain))
+        if activity.totalElevationGain >= 1 {
+            add("Dénivelé +", Format.elevation(activity.totalElevationGain))
+        }
 
         // Named after what is shown: a pace for the sports read in minutes per
         // kilometre (or per 100 m), a speed for the others.
@@ -659,20 +662,67 @@ struct ActivityDetailView: View {
         return tiles
     }
 
+    /// Past this many, the laps table shows the first ones and a link.
+    static let collapsedLapCount = 8
+
+    private struct LapRow: Identifiable {
+        let id: PersistentIdentifier
+        let number: Int
+        let lap: Lap
+    }
+
+    /// A pool's pause between lengths: time on the clock, no distance.
+    static func isRest(_ lap: Lap) -> Bool {
+        lap.distance < 1 && lap.movingTime > 0
+    }
+
+    /// Every lap at its full height, in the pane's own scroll — no scroll
+    /// inside the scroll, which was the table's own at eight rows. Past
+    /// eight, the rest waits behind a link. Numbered from 1, whatever the
+    /// watch counted from; the climb column only when something climbed.
     private var laps: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let sorted = activity.laps.sorted { $0.lapIndex < $1.lapIndex }
+        let rows = sorted.enumerated().map { index, lap in
+            LapRow(id: lap.persistentModelID, number: index + 1, lap: lap)
+        }
+        let shown = showsAllLaps ? rows : Array(rows.prefix(Self.collapsedLapCount))
+        let climbs = sorted.contains { $0.totalElevationGain >= 1 }
+        return VStack(alignment: .leading, spacing: 8) {
             Text("Tours").font(.headline)
-            Table(activity.laps.sorted { $0.lapIndex < $1.lapIndex }) {
-                TableColumn("#") { Text("\($0.lapIndex)") }.width(30)
-                TableColumn("Distance") { Text(Format.distance($0.distance)) }
-                TableColumn("Temps") { Text(Format.duration($0.movingTime)) }
-                TableColumn("D+") { Text(Format.elevation($0.totalElevationGain)) }
-                TableColumn("Vitesse") {
-                    Text(Format.speed($0.averageSpeed, sport: activity.sportType))
+            Table(shown) {
+                TableColumn("#") { Text("\($0.number)") }.width(30)
+                TableColumn("Distance") { row in
+                    if Self.isRest(row.lap) {
+                        Text("Repos").foregroundStyle(.secondary)
+                    } else {
+                        Text(Format.distance(row.lap.distance))
+                    }
                 }
-                TableColumn("FC") { Text(Format.heartrate($0.averageHeartrate)) }
+                TableColumn("Temps") { Text(Format.duration($0.lap.movingTime)) }
+                if climbs {
+                    TableColumn("D+") { Text(Format.elevation($0.lap.totalElevationGain)) }
+                }
+                TableColumn("Vitesse") { row in
+                    Text(Self.isRest(row.lap)
+                        ? "" : Format.speed(row.lap.averageSpeed, sport: activity.sportType))
+                }
+                TableColumn("FC") { Text(Format.heartrate($0.lap.averageHeartrate)) }
             }
-            .frame(height: min(CGFloat(activity.laps.count) * 28 + 28, 240))
+            .scrollDisabled(true)
+            // Rebuilt from scratch when the D+ column comes or goes: a table
+            // reused from one activity to the next kept its old headers and
+            // slid the pace in under « D+ ». Seen on screen, 26 September.
+            .id("\(activity.persistentModelID.hashValue)-\(climbs)")
+            // Rows of 24 pt under a 30 pt header, measured on screen: at 28
+            // a row, eight laps left a blank strip under the table.
+            .frame(height: CGFloat(shown.count) * 24 + 30)
+            if rows.count > Self.collapsedLapCount {
+                Button(showsAllLaps ? "Afficher moins" : "Afficher les \(rows.count) tours") {
+                    withAnimation(.easeOut(duration: 0.2)) { showsAllLaps.toggle() }
+                }
+                .buttonStyle(.link)
+                .font(.callout)
+            }
         }
     }
 }

@@ -18,11 +18,12 @@ struct ActivityGearRow: View {
                     .frame(width: 26)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(gear.name).fontWeight(.medium)
-                    if let detail = Self.detail(for: gear) {
-                        Text(detail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    // Always a second line, as the weather card beside it has:
+                    // two cards of different heights side by side looked
+                    // unfinished.
+                    Text(Self.detail(for: gear) ?? (gear.isBike ? "Vélo" : "Chaussures"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 12)

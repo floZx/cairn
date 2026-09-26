@@ -103,4 +103,32 @@ struct ActivityStatTilesTests {
         titles = ActivityDetailView.statTiles(for: activity).map(\.title)
         #expect(titles.contains("Temps total"))
     }
+
+    @Test("ni distance ni dénivelé à zéro : une séance de renfo n'en montre pas")
+    func omitsZeroDistanceAndClimb() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let activity = makeActivity(in: context, id: 5, sport: .workout)
+        activity.distance = 0
+        activity.averageSpeed = 0
+        activity.totalElevationGain = 0
+
+        let titles = ActivityDetailView.statTiles(for: activity).map(\.title)
+        #expect(!titles.contains("Distance"))
+        #expect(!titles.contains("Dénivelé +"))
+        #expect(titles.first == "Temps en mouvement")
+    }
+
+    @Test("un tour sans distance mais avec du temps est un repos")
+    func restLap() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let rest = Lap(stravaID: 1, lapIndex: 0)
+        rest.movingTime = 20
+        let length = Lap(stravaID: 2, lapIndex: 1)
+        length.distance = 25
+        length.movingTime = 35
+        context.insert(rest)
+        context.insert(length)
+        #expect(ActivityDetailView.isRest(rest))
+        #expect(!ActivityDetailView.isRest(length))
+    }
 }

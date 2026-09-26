@@ -109,6 +109,26 @@ struct ActivityListView: View {
         return rows.first?.id
     }
 
+    /// The row to select so the cards never stand alone, or nil.
+    ///
+    /// Cards are a list beside a pane: with nothing selected they stretched
+    /// across the whole window, name at one end and date at the other. The
+    /// table is different — full width is where its columns show — so it
+    /// may still be left without a selection.
+    static func keptSelection(
+        style: ActivityListStyle, rows: [Activity], current: Set<PersistentIdentifier>
+    ) -> PersistentIdentifier? {
+        guard style == .cards, current.isEmpty else { return nil }
+        return rows.first?.id
+    }
+
+    private func keepCardSelection() {
+        if let first = Self.keptSelection(style: style, rows: rows, current: selection) {
+            automaticSelection = [first]
+            selection = [first]
+        }
+    }
+
     /// Runs a motion here, hands anything else to the parent.
     private func perform(_ command: VimCommand, in rows: [Activity]) {
         let delta: Int
@@ -195,6 +215,7 @@ struct ActivityListView: View {
         .onChange(of: style) { _, _ in
             focusRequest += 1
             scroller.focusWhenAttached()
+            keepCardSelection()
         }
         // A selection that is not the one we wrote came from somewhere else — a
         // click in the list, a record in the statistics, a track on the map — so
@@ -219,6 +240,7 @@ struct ActivityListView: View {
                 focusRequest += 1
                 scroller.focusWhenAttached()
             }
+            keepCardSelection()
         }
         .onAppear {
             if let first = Self.initialSelection(
@@ -303,6 +325,10 @@ struct ActivityListView: View {
     private func cards(_ rows: [Activity]) -> some View {
         List(rows, selection: $selection) { activity in
             ActivityCard(activity: activity)
+                // With the pane closed the column takes the whole window,
+                // and a card as wide put its date a screen away from its
+                // name. Past this width the card stops growing.
+                .frame(maxWidth: 720, alignment: .leading)
                 .listRowInsets(ActivityCard.rowInsets)
                 .tag(activity.id)
         }

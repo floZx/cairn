@@ -32,7 +32,7 @@ struct ActivityWeatherView: View {
         let sky = WeatherSky(code: w.weatherCode, cloudCover: w.cloudCover, isDay: w.isDay)
         var figures = [
             Self.degrees(w.temperature) + ", ressenti " + Self.degrees(w.apparentTemperature),
-            "\(Int(w.humidity.rounded())) %",
+            "humidité \(Int(w.humidity.rounded())) %",
             "vent \(Int(w.windSpeed.rounded())) km/h \(WeatherSky.compass(w.windDirection))",
         ]
         if w.precipitation >= 0.1 {

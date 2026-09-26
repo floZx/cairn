@@ -1005,7 +1005,8 @@ struct RootView: View {
         case .expandMap:
             if let selected { expandedMap = .activity(selected.id) }
         case .closePane:
-            selectedActivities = []
+            // Not in cards: they keep a selection (`keptSelection`).
+            if listStyle != .cards { selectedActivities = [] }
         case .toggleListStyle:
             listStyle = listStyle.toggled
         case .openJournalDay:
@@ -1018,7 +1019,7 @@ struct RootView: View {
             // list, and only then the selection.
             if !filter.searchText.isEmpty {
                 filter.searchText = ""
-            } else {
+            } else if listStyle != .cards {
                 selectedActivities = []
             }
             // Focus comes back to the list either way, so the very next key is
@@ -1658,7 +1659,7 @@ struct RootView: View {
                         || (showsJournal && journalSelection == nil)
                         || (showsPeople && selectedPerson == nil)
                         || (!showsNutrition && !showsJournal && !showsPeople
-                            && selection.isEmpty)
+                            && (selection.isEmpty || listStyle == .cards))
                 )
                 .help(
                     showsNutrition

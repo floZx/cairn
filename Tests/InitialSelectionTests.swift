@@ -64,4 +64,18 @@ struct InitialSelectionTests {
             ) == nil
         )
     }
+
+    @Test("en fiches, une sélection vide est toujours remplie, en tableau jamais")
+    func cardsKeepASelection() throws {
+        let (_, rows) = try makeRows()
+        #expect(
+            ActivityListView.keptSelection(style: .cards, rows: rows, current: [])
+                == rows.first?.id
+        )
+        #expect(ActivityListView.keptSelection(style: .table, rows: rows, current: []) == nil)
+        #expect(
+            ActivityListView.keptSelection(style: .cards, rows: rows, current: [rows[2].id]) == nil
+        )
+        #expect(ActivityListView.keptSelection(style: .cards, rows: [], current: []) == nil)
+    }
 }
