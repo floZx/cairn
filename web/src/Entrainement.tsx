@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef} from "react"
+import { ZoneNote, type ChampNote } from "./ZoneNote"
 import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
@@ -402,7 +403,7 @@ function SaisieSeance({
     seance?.planned_elevation != null ? String(seance.planned_elevation) : "",
   )
   const [notes, setNotes] = useState(seance?.notes ?? "")
-  const aire = useRef<HTMLTextAreaElement>(null)
+  const aire = useRef<ChampNote>(null)
   const [typeDeJour, setTypeDeJour] = useState(seance?.day_type_uuid ?? "")
   const types = useTypesDeJour()
   const client = useQueryClient()
@@ -552,13 +553,11 @@ function SaisieSeance({
 
       <BarreCitations aire={aire} texte={notes} onTexte={setNotes} />
 
-      <textarea
+      <ZoneNote
         ref={aire}
-        name="note"
-        autoComplete="off"
         className="saisie-note courte"
         value={notes}
-        onChange={(e) => setNotes(e.target.value)}
+        onChange={setNotes}
         placeholder="Séries, allures, consignes…"
       />
 

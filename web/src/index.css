@@ -3807,3 +3807,21 @@ button.citation {
   font-family: ui-serif, "New York", Georgia, serif;
   font-size: 18px;
 }
+
+/* La zone de note, un bloc éditable plutôt qu'un `textarea` — voir
+   `ZoneNote`. Les retours à la ligne s'y écrivent en texte, et le texte
+   indicatif se pose tant qu'elle est vide. */
+.zone-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.zone-note:empty::before {
+  content: attr(data-placeholder);
+  color: var(--texte-3);
+  pointer-events: none;
+}

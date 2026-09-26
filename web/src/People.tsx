@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef} from "react"
+import { ZoneNote, type ChampNote } from "./ZoneNote"
 import { Chargement } from "./Chrome"
 import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -212,7 +213,7 @@ function FichePersonne({
   urlImage: (chemin: string) => string | undefined
 }) {
   const [note, setNote] = useState(fiche?.note ?? "")
-  const aire = useRef<HTMLTextAreaElement>(null)
+  const aire = useRef<ChampNote>(null)
   const client = useQueryClient()
 
   const enregistrement = useMutation({
@@ -262,13 +263,11 @@ function FichePersonne({
 
       <BarreCitations aire={aire} texte={note} onTexte={setNote} />
 
-      <textarea
+      <ZoneNote
         ref={aire}
-        name="note"
-        autoComplete="off"
         className="saisie-note courte"
         value={note}
-        onChange={(e) => setNote(e.target.value)}
+        onChange={setNote}
         placeholder="Ce qu'il y a à retenir de cette personne…"
       />
 

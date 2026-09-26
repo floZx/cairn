@@ -1,4 +1,5 @@
 import { useState, useRef} from "react"
+import { ZoneNote, type ChampNote } from "./ZoneNote"
 import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
@@ -39,7 +40,7 @@ export function NoteRepas({
   onFerme: () => void
 }) {
   const [valeur, setValeur] = useState(texte)
-  const aireNote = useRef<HTMLTextAreaElement>(null)
+  const aireNote = useRef<ChampNote>(null)
   const client = useQueryClient()
 
   const enregistrement = useMutation({
@@ -85,13 +86,11 @@ export function NoteRepas({
         <p className="erreur">{(enregistrement.error as Error).message}</p>
       )}
       <BarreCitations aire={aireNote} texte={valeur} onTexte={setValeur} />
-      <textarea
+      <ZoneNote
         ref={aireNote}
-        name="note"
-        autoComplete="off"
         className="saisie-note courte"
         value={valeur}
-        onChange={(e) => setValeur(e.target.value)}
+        onChange={setValeur}
         placeholder={`Ce qu'il y a à dire du ${slotNom.toLowerCase()}…`}
         autoFocus
       />
@@ -118,7 +117,7 @@ export function Pesee({
 }) {
   const [poids, setPoids] = useState(kilos !== null ? String(kilos) : "")
   const [mot, setMot] = useState(commentaire)
-  const airePesee = useRef<HTMLTextAreaElement>(null)
+  const airePesee = useRef<ChampNote>(null)
   const [confirmeSuppression, setConfirmeSuppression] = useState(false)
   const client = useQueryClient()
 
@@ -193,13 +192,11 @@ export function Pesee({
         <span>kg</span>
       </label>
       <BarreCitations aire={airePesee} texte={mot} onTexte={setMot} />
-      <textarea
+      <ZoneNote
         ref={airePesee}
-        name="note"
-        autoComplete="off"
         className="saisie-note courte"
         value={mot}
-        onChange={(e) => setMot(e.target.value)}
+        onChange={setMot}
         placeholder="Un mot sur la forme du jour…"
       />
 

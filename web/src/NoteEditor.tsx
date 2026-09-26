@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { ZoneNote, type ChampNote } from "./ZoneNote"
 import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
@@ -38,7 +39,7 @@ export function NoteEditor({
   const [envoiPhoto, setEnvoiPhoto] = useState(false)
   const [erreurPhoto, setErreurPhoto] = useState<string | null>(null)
   const client = useQueryClient()
-  const zone = useRef<HTMLTextAreaElement>(null)
+  const zone = useRef<ChampNote>(null)
 
   // Le curseur en fin de texte plutôt qu'au début : on rouvre une note du jour
   // pour y ajouter quelque chose, pas pour la relire depuis le haut.
@@ -134,16 +135,11 @@ export function NoteEditor({
       )}
       {erreurPhoto && <p className="erreur">{erreurPhoto}</p>}
       <BarreCitations aire={zone} texte={texte} onTexte={setTexte} />
-      <textarea
+      <ZoneNote
         ref={zone}
-        // Une note, pas une adresse : sans le dire, Safari sur iPhone classait
-        // cette zone de plusieurs lignes parmi les champs d'adresse et
-        // proposait « Préremplir le contact » au-dessus du clavier.
-        name="note"
-        autoComplete="off"
         className="saisie-note"
         value={texte}
-        onChange={(e) => setTexte(e.target.value)}
+        onChange={setTexte}
         placeholder="Ce qu'il y a à dire d'aujourd'hui…"
       />
 

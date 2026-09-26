@@ -1,6 +1,7 @@
 import { useEffect, useState, type RefObject } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
+import type { ChampNote } from "./ZoneNote"
 import { citations, enCoursDe, propositions, type Personne } from "./citations"
 
 /// La barre de propositions qui se pose au-dessus d'un champ quand on tape `@`.
@@ -45,7 +46,7 @@ export function BarreCitations({
 }: {
   /// Le champ surveillé. Une référence plutôt qu'une valeur : c'est lui qui
   /// sait où est le curseur, et c'est toute la question.
-  aire: RefObject<HTMLTextAreaElement | null>
+  aire: RefObject<ChampNote | null>
   texte: string
   onTexte: (valeur: string) => void
 }) {
