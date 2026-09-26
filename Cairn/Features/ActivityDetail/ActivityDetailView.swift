@@ -33,7 +33,8 @@ struct ActivityDetailView: View {
     /// bouge — `j` et `k` choisissent la sortie, `J` et `K` la lisent.
     var scrollRequest = PaneScrollRequest()
     /// Beside the global map: the pane keeps what describes the route —
-    /// distance, time, climb, the altitude profile, the same-route list — and
+    /// distance, time, climb, the altitude profile, the same-route list, the
+    /// notes; neither the gear nor the weather — and
     /// leaves the rest to the activity itself, one button away. The map is
     /// gone too: the big one already shows the track, highlighted.
     var besideGlobalMap = false
@@ -131,9 +132,13 @@ struct ActivityDetailView: View {
                 // one under the other when the pane is narrow. The weather
                 // sat in the header's corner first, where Strava has it, and
                 // crowded the title as soon as the pane was dragged in.
-                FlowLayout(spacing: 8, lineSpacing: 8) {
-                    ActivityGearRow(activity: activity)
-                    ActivityWeatherView(activity: activity)
+                // Pas à côté de la carte globale : le matériel et la météo
+                // disent la sortie, pas le parcours.
+                if !besideGlobalMap {
+                    FlowLayout(spacing: 8, lineSpacing: 8) {
+                        ActivityGearRow(activity: activity)
+                        ActivityWeatherView(activity: activity)
+                    }
                 }
 
                 statistics
