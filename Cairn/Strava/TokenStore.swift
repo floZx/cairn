@@ -97,13 +97,18 @@ final class KeychainStore: SecretStore, Sendable {
         try write(tokens, account: Self.tokensAccount)
     }
 
+    /// Deletes the former service's copy too. `adopting` reads it whenever
+    /// the current one is missing, so deleting only the current one signed
+    /// nobody out: the next read copied the old tokens straight back.
     func clearTokens() throws {
         try delete(account: Self.tokensAccount)
+        try deleteLegacy(account: Self.tokensAccount)
     }
 
     func clearAll() throws {
-        try delete(account: Self.tokensAccount)
+        try clearTokens()
         try delete(account: Self.credentialsAccount)
+        try deleteLegacy(account: Self.credentialsAccount)
     }
 
     /// No `legacyService` fallback here: Supabase has no former name to
@@ -190,8 +195,13 @@ final class KeychainStore: SecretStore, Sendable {
         }
     }
 
-    private func delete(account: String) throws {
-        let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
+    private func deleteLegacy(account: String) throws {
+        guard let legacyService else { return }
+        try delete(account: account, service: legacyService)
+    }
+
+    private func delete(account: String, service: String? = nil) throws {
+        let status = SecItemDelete(baseQuery(account: account, service: service) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw SecretStoreError.keychain(status)
         }

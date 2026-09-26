@@ -13,7 +13,9 @@ import os
 actor OAuthFlow {
     private let store: SecretStore
     private let transport: HTTPTransport
-    private static let scope = "read,activity:read_all,profile:read_all"
+    /// `activity:write` for the one thing Cairn sends back: a title changed
+    /// in its editor.
+    private static let scope = "read,activity:read_all,activity:write,profile:read_all"
     /// Long enough for a real person to read a consent screen, short enough that
     /// an abandoned flow eventually releases the port.
     private static let timeout: Duration = .seconds(300)
@@ -40,7 +42,10 @@ actor OAuthFlow {
             .init(name: "client_id", value: credentials.clientID),
             .init(name: "redirect_uri", value: "http://localhost:\(port)/callback"),
             .init(name: "response_type", value: "code"),
-            .init(name: "approval_prompt", value: "auto"),
+            // « force » : with « auto », Strava skips the screen for an app
+            // already authorised and keeps the scopes it granted then — an
+            // account connected before `activity:write` would never get it.
+            .init(name: "approval_prompt", value: "force"),
             .init(name: "scope", value: Self.scope),
             .init(name: "state", value: state),
         ]

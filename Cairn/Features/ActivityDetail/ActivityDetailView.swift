@@ -247,6 +247,15 @@ struct ActivityDetailView: View {
                 // Right after Strava: the two services side by side, then what
                 // happened here.
                 garminStatus
+                if let failure = app.titles.failures[activity.uuid] {
+                    Button {
+                        retryTitle()
+                    } label: {
+                        Label("Titre non répercuté", systemImage: "exclamationmark.triangle")
+                    }
+                    .buttonStyle(.borderless)
+                    .help(failure + "\nCliquer pour réessayer.")
+                }
                 if let editedAt = activity.editedAt {
                     Label(
                         "Modifiée le \(Format.dateOnly(editedAt))",
@@ -295,6 +304,20 @@ struct ActivityDetailView: View {
             case .unknown, .checking, .unavailable:
                 EmptyView()
             }
+        }
+    }
+
+    private func retryTitle() {
+        let source = GarminSource(activity)
+        let stravaID = activity.source.isSynced ? activity.stravaID : nil
+        let uuid = activity.uuid
+        let toStrava = app.isAuthenticated
+        let toGarmin = app.isGarminConnected
+        Task {
+            await app.titles.propagate(
+                uuid: uuid, stravaID: stravaID, source: source,
+                toStrava: toStrava, toGarmin: toGarmin
+            )
         }
     }
 

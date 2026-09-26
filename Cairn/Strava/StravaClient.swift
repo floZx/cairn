@@ -123,11 +123,32 @@ actor StravaClient {
         try await get(GearDTO.self, path: "gear/\(id)", query: [:])
     }
 
+    /// Renames an activity on Strava — the only write Cairn makes there.
+    ///
+    /// A token granted before `activity:write` was asked for reads fine and
+    /// is refused here, with a 401 that says nothing a person could act on;
+    /// it becomes `.writeNotAuthorized`, which says to reconnect.
+    func updateName(id: Int64, name: String) async throws {
+        let body = try JSONSerialization.data(withJSONObject: ["name": name])
+        do {
+            _ = try await send(method: "PUT", path: "activities/\(id)", query: [:], body: body)
+        } catch StravaError.http(let status, _) where status == 401 || status == 403 {
+            throw StravaError.writeNotAuthorized
+        }
+    }
+
     // MARK: - Plumbing
 
     private func get<T: Decodable>(
         _ type: T.Type, path: String, query: [String: String]
     ) async throws -> T {
+        let data = try await send(method: "GET", path: path, query: query, body: nil)
+        return try StravaJSON.decoder.decode(type, from: data)
+    }
+
+    private func send(
+        method: String, path: String, query: [String: String], body: Data?
+    ) async throws -> Data {
         let token = try await validAccessToken()
 
         let delay = await rateLimiter.delayBeforeNextRequest()
@@ -144,7 +165,12 @@ actor StravaClient {
                 .map { URLQueryItem(name: $0.key, value: $0.value) }
         }
         var request = URLRequest(url: components.url!)
+        request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
 
         let (data, response) = try await transport.send(request)
         let headers = response.allHeaderFields.reduce(into: [String: String]()) {
@@ -156,7 +182,7 @@ actor StravaClient {
         switch response.statusCode {
         case 200..<300:
             await rateLimiter.observeSuccess(headers: headers)
-            return try StravaJSON.decoder.decode(type, from: data)
+            return data
         case 429:
             await rateLimiter.observeTooManyRequests()
             throw StravaError.http(429, "Quota d'API dépassé")

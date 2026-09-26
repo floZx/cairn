@@ -400,3 +400,111 @@ struct GarminSyncTrackerTests {
         #expect(tracker.state(uuid: "u", source: source()) == .unavailable)
     }
 }
+
+@MainActor
+@Suite("TitlePropagator")
+struct TitlePropagatorTests {
+    private static let suitePrefix = "title-propagator-tests-"
+
+    private func makeDefaults() -> UserDefaults {
+        ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
+        let defaults = UserDefaults(suiteName: "\(Self.suitePrefix)\(UUID().uuidString)")!
+        defaults.removePersistentDomain(forName: defaults.description)
+        return defaults
+    }
+
+    private func store() throws -> InMemorySecretStore {
+        let store = InMemorySecretStore(
+            credentials: StravaCredentials(clientID: "1", clientSecret: "s"),
+            tokens: StravaTokens(
+                accessToken: "strava", refreshToken: "r", expiresAt: Date().addingTimeInterval(3600)
+            )
+        )
+        try store.save(GarminTokens(accessToken: jwt(), refreshToken: "r", clientID: "C"))
+        return store
+    }
+
+    private func garminSays(name: String) -> [GarminStubTransport.Response] {
+        let item = #"{"activityId":5,"activityName":"\#(name)","activityType":{"typeKey":"running"},"startTimeGMT":"2024-05-01 07:12:33","distance":10000,"duration":3000}"#
+        return [
+            .init(status: 200, body: "[\(item)]"),
+            .init(status: 200, body: item),
+            .init(status: 200, body: "[]"),
+        ]
+    }
+
+    @Test("le nouveau titre part sur Strava et sur Garmin, et Garmin est noté à jour")
+    func renamesBoth() async throws {
+        let store = try store()
+        let stravaAPI = GarminStubTransport([.init(status: 200, body: "{}")])
+        let garminAPI = GarminStubTransport(
+            garminSays(name: "Lyon Course à pied") + [.init(status: 204, body: "")]
+                + garminSays(name: "Tour du lac")
+        )
+        let garmin = GarminClient(store: store, transport: garminAPI)
+        let tracker = GarminSyncTracker(client: garmin, defaults: makeDefaults())
+        let propagator = TitlePropagator(
+            strava: StravaClient(store: store, transport: stravaAPI),
+            garmin: garmin, garminSync: tracker
+        )
+
+        await propagator.propagate(
+            uuid: "u", stravaID: 77, source: source(), toStrava: true, toGarmin: true
+        )
+
+        #expect(propagator.failures["u"] == nil)
+        let put = try #require(stravaAPI.requests.first)
+        #expect(put.httpMethod == "PUT")
+        #expect(put.url?.path.hasSuffix("/activities/77") == true)
+        let body = try JSONSerialization.jsonObject(with: put.httpBody!) as! [String: Any]
+        #expect(body["name"] as? String == "Tour du lac")
+
+        let garminPut = garminAPI.requests[3]
+        #expect(garminPut.httpMethod == "PUT")
+        let garminBody = try JSONSerialization.jsonObject(with: garminPut.httpBody!) as! [String: Any]
+        #expect(garminBody["activityName"] as? String == "Tour du lac")
+        #expect(garminBody["description"] == nil)
+        #expect(tracker.state(uuid: "u", source: source()) == .synced)
+    }
+
+    @Test("un jeton Strava sans droit d'écriture dit de se reconnecter")
+    func stravaWithoutWriteScope() async throws {
+        let store = try store()
+        let stravaAPI = GarminStubTransport([
+            .init(status: 401, body: #"{"message":"Authorization Error"}"#),
+        ])
+        let garmin = GarminClient(store: store, transport: GarminStubTransport([]))
+        let propagator = TitlePropagator(
+            strava: StravaClient(store: store, transport: stravaAPI),
+            garmin: garmin,
+            garminSync: GarminSyncTracker(client: garmin, defaults: makeDefaults())
+        )
+
+        await propagator.propagate(
+            uuid: "u", stravaID: 77, source: source(), toStrava: true, toGarmin: false
+        )
+
+        let failure = try #require(propagator.failures["u"])
+        #expect(failure.hasPrefix("Strava : "))
+        #expect(failure.contains("reconnectez"))
+    }
+
+    @Test("une activité saisie à la main ne touche pas Strava")
+    func manualActivitySkipsStrava() async throws {
+        let store = try store()
+        let stravaAPI = GarminStubTransport([])
+        let garmin = GarminClient(store: store, transport: GarminStubTransport([.init(status: 200, body: "[]")]))
+        let propagator = TitlePropagator(
+            strava: StravaClient(store: store, transport: stravaAPI),
+            garmin: garmin,
+            garminSync: GarminSyncTracker(client: garmin, defaults: makeDefaults())
+        )
+
+        await propagator.propagate(
+            uuid: "u", stravaID: nil, source: source(), toStrava: true, toGarmin: true
+        )
+
+        #expect(stravaAPI.requests.isEmpty)
+        #expect(propagator.failures["u"] == nil)
+    }
+}

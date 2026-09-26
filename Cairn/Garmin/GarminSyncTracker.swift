@@ -39,7 +39,17 @@ final class GarminSyncTracker {
     private var synced: [String: String]
     /// What this session's checks found, for activities not in step. Kept
     /// with the signature it was found for, so it lapses on an edit.
-    private var checked: [String: (signature: String, state: GarminSyncState)] = [:]
+    ///
+    /// Each entry carries the check that wrote it, so a check overtaken by a
+    /// newer answer — a rename pushed while it was on the network — drops its
+    /// own rather than putting back what Garmin said before.
+    private var checked: [String: Entry] = [:]
+
+    private struct Entry {
+        let signature: String
+        let state: GarminSyncState
+        var token = UUID()
+    }
 
     init(client: GarminClient, defaults: UserDefaults) {
         self.client = client
@@ -59,20 +69,38 @@ final class GarminSyncTracker {
     func checkIfNeeded(uuid: String, source: GarminSource) async {
         guard state(uuid: uuid, source: source) == .unknown else { return }
         let signature = source.signature
-        checked[uuid] = (signature, .checking)
+        let entry = Entry(signature: signature, state: .checking)
+        checked[uuid] = entry
+        let stillCurrent = { self.checked[uuid]?.token == entry.token }
         do {
-            if let comparison = try await client.compare(source) {
+            let comparison = try await client.compare(source)
+            guard stillCurrent() else { return }
+            if let comparison {
                 record(comparison, uuid: uuid, source: source)
             } else {
-                checked[uuid] = (signature, .unavailable)
+                checked[uuid] = Entry(signature: signature, state: .unavailable)
             }
         } catch is CancellationError {
-            checked[uuid] = nil
+            if stillCurrent() { checked[uuid] = nil }
         } catch let error as URLError where error.code == .cancelled {
-            checked[uuid] = nil
+            if stillCurrent() { checked[uuid] = nil }
         } catch {
-            checked[uuid] = (signature, .unavailable)
+            if stillCurrent() { checked[uuid] = Entry(signature: signature, state: .unavailable) }
         }
+    }
+
+    /// Marks the activity as being checked by someone else — a rename on its
+    /// way to Garmin — so the pane's own check stays out of it rather than
+    /// reading the old title and inviting a sync about to be pointless.
+    func hold(uuid: String, source: GarminSource) -> UUID {
+        let entry = Entry(signature: source.signature, state: .checking)
+        checked[uuid] = entry
+        return entry.token
+    }
+
+    /// Lifts a hold nothing has answered since, back to « unknown ».
+    func release(uuid: String, token: UUID) {
+        if checked[uuid]?.token == token { checked[uuid] = nil }
     }
 
     /// Takes what a comparison found: nothing to change is as good as sent.
@@ -80,7 +108,7 @@ final class GarminSyncTracker {
         if comparison.proposal.isEmpty {
             markSynced(uuid: uuid, source: source)
         } else {
-            checked[uuid] = (source.signature, .needsSync)
+            checked[uuid] = Entry(signature: source.signature, state: .needsSync)
         }
     }
 

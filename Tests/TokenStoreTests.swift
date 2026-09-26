@@ -87,6 +87,35 @@ struct TokenStoreTests {
         try store.clearAll()
     }
 
+    @Test("se déconnecter efface aussi les jetons restés sous l'ancien nom")
+    func signOutClearsTheFormerService() throws {
+        let legacyService = "com.florianmaisonnial.Cairn.tests.ancien-deconnexion"
+        let service = "com.florianmaisonnial.Cairn.tests.nouveau-deconnexion"
+        let legacy = KeychainStore(service: legacyService, legacyService: nil)
+        let store = KeychainStore(service: service, legacyService: legacyService)
+        try legacy.clearAll()
+        try store.clearAll()
+
+        let credentials = StravaCredentials(clientID: "42", clientSecret: "shh")
+        let tokens = StravaTokens(
+            accessToken: "at", refreshToken: "rt",
+            expiresAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        try legacy.save(credentials)
+        try legacy.save(tokens)
+        #expect(store.tokens() == tokens)
+
+        // Signing out used to delete the new copy only: the next read fell back
+        // on the old one, copied it across, and the app was signed in again.
+        try store.clearTokens()
+        #expect(store.tokens() == nil)
+        #expect(store.credentials() == credentials)
+
+        try store.clearAll()
+        #expect(store.credentials() == nil)
+        #expect(legacy.credentials() == nil)
+    }
+
     @Test("le Keychain respecte le même contrat")
     func keychainStoreRoundTrips() throws {
         // Dedicated service name so the app's real credentials are never touched

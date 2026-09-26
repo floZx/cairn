@@ -12,6 +12,7 @@ enum StravaError: LocalizedError, Sendable, Equatable {
     case oauthTimedOut
     case browserLaunchFailed
     case loopbackUnavailable(String)
+    case writeNotAuthorized
 
     var errorDescription: String? {
         switch self {
@@ -37,6 +38,8 @@ enum StravaError: LocalizedError, Sendable, Equatable {
             "Impossible d'ouvrir le navigateur pour autoriser l'accès à Strava."
         case let .loopbackUnavailable(reason):
             "Impossible d'ouvrir le port local d'autorisation : \(reason)"
+        case .writeNotAuthorized:
+            "Strava n'autorise pas encore Cairn à modifier vos activités : déconnectez puis reconnectez Strava dans les réglages."
         }
     }
 }
