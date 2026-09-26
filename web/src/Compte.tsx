@@ -3,7 +3,16 @@ import { Symbole } from "./IconeSport"
 import { useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Feuille } from "./Chrome"
-import { activer, choisirDelai, DELAIS, desactiver, useVerrou, verrouiller } from "./verrou"
+import {
+  activer,
+  ajouterBiometrie,
+  biometrieConnue,
+  choisirDelai,
+  DELAIS,
+  desactiver,
+  useVerrou,
+  verrouiller,
+} from "./verrou"
 
 /// Le bouton de compte, et ce qu'il ouvre.
 ///
@@ -189,6 +198,13 @@ function VerrouReglage() {
                 ))}
               </select>
             </label>
+          </li>
+        )}
+        {reglage.actif && !reglage.passkey && biometrieConnue() && (
+          <li>
+            <button className="action-bleue" onClick={() => void ajouterBiometrie()}>
+              Activer Face ID
+            </button>
           </li>
         )}
         {reglage.actif && ouvert && (

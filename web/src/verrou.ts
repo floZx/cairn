@@ -117,7 +117,17 @@ function hasard(taille: number): Uint8Array<ArrayBuffer> {
   return crypto.getRandomValues(new Uint8Array(taille))
 }
 
-/// Si l'appareil sait vérifier un visage ou un doigt.
+/// Si l'appareil sait vérifier un visage ou un doigt — su dès le chargement.
+///
+/// Demandé d'avance, et non au moment d'activer : Safari n'accepte de créer
+/// une passkey que dans le geste même de l'utilisateur, et le moindre `await`
+/// avant `credentials.create` le lui fait perdre. La création échouait alors
+/// en silence, et le verrou s'activait sans Face ID.
+let biometrie = false
+export function biometrieConnue(): boolean {
+  return biometrie
+}
+
 export async function biometrieDisponible(): Promise<boolean> {
   try {
     return (
@@ -163,13 +173,19 @@ async function verifierPasskey(id: string): Promise<boolean> {
   return reponse !== null
 }
 
+void biometrieDisponible().then((oui) => {
+  biometrie = oui
+  publier()
+})
+
 // --- Gestes ---------------------------------------------------------------
 
 /// Active le verrou ; propose Face ID quand l'appareil l'a. Un refus de Face ID
 /// n'empêche pas d'activer : le mot de passe du compte suffit.
 export async function activer(): Promise<void> {
+  // Aucun `await` avant la création : voir `biometrie`.
   let passkey: string | null = null
-  if (await biometrieDisponible()) {
+  if (biometrie) {
     try {
       passkey = await creerPasskey()
     } catch {
@@ -178,6 +194,19 @@ export async function activer(): Promise<void> {
   }
   ouvert = true
   enregistrer({ ...reglage, actif: true, passkey })
+}
+
+/// Ajoute Face ID à un verrou qui ne l'a pas — activé avant ce correctif, ou
+/// quand la création avait été annulée.
+export async function ajouterBiometrie(): Promise<boolean> {
+  try {
+    const passkey = await creerPasskey()
+    if (!passkey) return false
+    enregistrer({ ...reglage, passkey })
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function desactiver() {
