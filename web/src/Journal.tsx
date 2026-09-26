@@ -537,9 +537,17 @@ function CarteJour({
           {/* Rien du poids tant qu'il est masqué : ce point bleu n'avait
               plus d'écran où se dire. */}
           {j.pesee && !POIDS_MASQUE && <span className="pastille" title="Pesée" />}
-          {j.sports.map((sport) => (
-            <PastilleSport key={sport} sport={sport} taille={20} />
-          ))}
+          {/* Les sports en pile, qui se chevauchent un peu, le premier dessus
+              — comme sur le Mac. */}
+          {j.sports.length > 0 && (
+            <span className="pile-sports">
+              {j.sports.map((sport, i) => (
+                <span key={sport} style={{ zIndex: j.sports.length - i }}>
+                  <PastilleSport sport={sport} taille={20} />
+                </span>
+              ))}
+            </span>
+          )}
         </span>
       </h2>
 

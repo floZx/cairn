@@ -4173,3 +4173,21 @@ button.citation {
 .note:not(.aujourdhui) .tuile-jour.dimanche .numero {
   color: var(--erreur);
 }
+
+/* Les pastilles de sport d'une journée en pile : un tiers de recouvrement,
+   un liseré de la couleur de la carte pour que chacune découpe la suivante. */
+.pile-sports {
+  display: inline-flex;
+  align-items: center;
+}
+
+.pile-sports > span {
+  position: relative;
+  display: inline-flex;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--carte);
+}
+
+.pile-sports > span + span {
+  margin-left: -6px;
+}

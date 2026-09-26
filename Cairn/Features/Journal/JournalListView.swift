@@ -264,9 +264,7 @@ struct JournalListView: View {
                 ForEach(day.tags.sorted()) { tag in
                     JournalTagChip(tag: tag) { onSelectTag(tag) }
                 }
-                ForEach(day.marks.sports) { sport in
-                    SportDot(sport: sport, size: 16)
-                }
+                SportDotStack(sports: day.marks.sports, size: 16)
                 if showsWeighIn(day) {
                     Image(systemName: "scalemass")
                         .font(.caption)
@@ -327,6 +325,26 @@ struct SportDot: View {
             .frame(width: size, height: size)
             .background(sport.color, in: .circle)
             .help(sport.displayName)
+    }
+}
+
+/// Several sports as a stack of dots that overlap a little, the first on top —
+/// the way a list shows who was there with a pile of faces. Each carries a
+/// thin ring of the list's own colour, so the edge of the one below reads as
+/// a cut rather than as two colours bleeding into each other.
+struct SportDotStack: View {
+    let sports: [SportType]
+    var size: CGFloat = 16
+
+    var body: some View {
+        HStack(spacing: -size * 0.3) {
+            ForEach(Array(sports.enumerated()), id: \.offset) { index, sport in
+                SportDot(sport: sport, size: size)
+                    .padding(1.5)
+                    .background(Circle().fill(Color(nsColor: .controlBackgroundColor)))
+                    .zIndex(Double(sports.count - index))
+            }
+        }
     }
 }
 
