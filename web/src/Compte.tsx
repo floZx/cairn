@@ -3,6 +3,7 @@ import { Symbole } from "./IconeSport"
 import { useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Feuille } from "./Chrome"
+import { activer, choisirDelai, DELAIS, desactiver, useVerrou, verrouiller } from "./verrou"
 
 /// Le bouton de compte, et ce qu'il ouvre.
 ///
@@ -112,6 +113,7 @@ export function BoutonCompte() {
             tracé. Le Mac la complétera à sa prochaine synchronisation, sans la
             dédoubler.
           </p>
+          <VerrouReglage />
           <ul className="liste-actions">
             <li>
               {/* Rouge, et seul de sa carte : une action qui met dehors ne se
@@ -137,6 +139,74 @@ export function BoutonCompte() {
           </p>
         </Feuille>
       )}
+    </>
+  )
+}
+
+/// Le verrou du journal, réglé pour ce téléphone : voir `verrou.ts`.
+function VerrouReglage() {
+  const { reglage, ouvert } = useVerrou()
+  const [enCours, setEnCours] = useState(false)
+
+  const basculer = async () => {
+    if (reglage.actif) {
+      desactiver()
+      return
+    }
+    setEnCours(true)
+    await activer()
+    setEnCours(false)
+  }
+
+  return (
+    <>
+      <h3 className="titre-section-feuille">Verrou du journal</h3>
+      <ul className="liste-actions liste-reglages">
+        <li>
+          <label className="ligne-reglage">
+            <span>Verrouiller le journal</span>
+            <input
+              type="checkbox"
+              className="interrupteur"
+              checked={reglage.actif}
+              disabled={enCours}
+              onChange={basculer}
+            />
+          </label>
+        </li>
+        {reglage.actif && (
+          <li>
+            <label className="ligne-reglage">
+              <span>Le refermer</span>
+              <select
+                value={reglage.delai}
+                onChange={(e) => choisirDelai(Number(e.target.value))}
+              >
+                {DELAIS.map((d) => (
+                  <option key={d.minutes} value={d.minutes}>
+                    {d.libelle}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </li>
+        )}
+        {reglage.actif && ouvert && (
+          <li>
+            <button className="action-bleue" onClick={verrouiller}>
+              Verrouiller maintenant
+            </button>
+          </li>
+        )}
+      </ul>
+      <p className="attenue minuscule">
+        {reglage.actif
+          ? reglage.passkey
+            ? "Face ID ou Touch ID pour l'ouvrir, ou le mot de passe du compte. "
+            : "Le mot de passe du compte pour l'ouvrir. "
+          : "Sur ce téléphone seulement. "}
+        Il protège d'un regard, pas davantage : les notes ne sont pas chiffrées.
+      </p>
     </>
   )
 }

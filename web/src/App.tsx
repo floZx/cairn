@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { VerrouJournal } from "./VerrouJournal"
 import type { Session } from "@supabase/supabase-js"
 import { supabase } from "./supabase"
 import { SignIn } from "./SignIn"
@@ -310,7 +311,10 @@ export function App() {
       ) : section === "plan" ? (
         <Entrainement key={jourPlan ?? "aujourd'hui"} jourInitial={jourPlan ?? undefined} onOuvrir={ouvrir} />
       ) : section === "journal" ? (
-        vueJournal === "gens" ? (
+        // Le journal et ses gens derrière le même verrou : une fiche de
+        // personne cite les notes, elle en montre autant que le journal.
+        <VerrouJournal>
+        {vueJournal === "gens" ? (
           <People
             onSource={allerALaSource}
             ouverte={personneOuverte}
@@ -345,7 +349,8 @@ export function App() {
             setSection("nutrition")
           }}
         />
-        )
+        )}
+        </VerrouJournal>
       ) : section === "nutrition" ? (
         // La clef force un remontage : le jour d'arrivée est lu à la
         // construction, et sans elle une seconde téléportation ne bougerait
