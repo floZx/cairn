@@ -43,6 +43,8 @@ enum ActivityCardThumbnail: String, CaseIterable, Identifiable, Sendable {
     case traceAvatar
     case avatar
     case avatarMono
+    /// La tuile de date du journal à gauche, la pastille du sport avant le nom.
+    case dateTile
     case none
 
     static let storageKey = "activityCardThumbnail"
@@ -55,6 +57,7 @@ enum ActivityCardThumbnail: String, CaseIterable, Identifiable, Sendable {
         case .traceAvatar: "Trace en pastille"
         case .avatar: "Pastille du sport"
         case .avatarMono: "Pastille monochrome"
+        case .dateTile: "Date et sport"
         case .none: "Aucune"
         }
     }

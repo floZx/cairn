@@ -51,6 +51,17 @@ struct ActivityCard: View {
             case .avatarMono:
                 avatar(tint: .accentColor)
                     .padding(.top, 3)
+            case .dateTile:
+                // La tuile du journal : le jour de la sortie, là où elle a eu
+                // lieu — une course du soir à New York reste celle du 12.
+                // L'heure sous la date, en petit : la tuile dit quand, entière.
+                VStack(spacing: 0) {
+                    JournalDateTile(date: localDay)
+                    Text(Format.time(activity.startDate, in: activity.timeZone))
+                        .font(.system(size: 8.5))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
             case .none:
                 EmptyView()
             }
@@ -77,13 +88,26 @@ struct ActivityCard: View {
                     // Short and relative, as Mail heads a message: the full
                     // date was the widest thing in the row and said the least.
                     // The full one is still there on hover.
-                    Text(Format.relativeDate(activity.startDate, in: activity.timeZone))
-                        .font(.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .help(Format.longDate(activity.startDate, in: activity.timeZone))
+                    // Rien ici avec la tuile de date : le jour et l'heure y sont.
+                    if thumbnailStyle != .dateTile {
+                        Text(Format.relativeDate(activity.startDate, in: activity.timeZone))
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .help(Format.longDate(activity.startDate, in: activity.timeZone))
+                    }
+                    // Avec la tuile de date, le sport en pastille au bout de la
+                    // ligne, comme les marques d'une journée du journal.
+                    if thumbnailStyle == .dateTile {
+                        // Les marques rejoignent la pastille sur une seule
+                        // ligne : empilées sous elle, elles tombaient de
+                        // travers — signalé.
+                        markers
+                        SportDot(sport: activity.sportType, size: 16)
+                            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                    }
                 }
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -91,7 +115,7 @@ struct ActivityCard: View {
                         .font(.caption.monospacedDigit())
                         .lineLimit(1)
                     Spacer(minLength: 0)
-                    markers
+                    if thumbnailStyle != .dateTile { markers }
                 }
 
                 // What Mail gives to the first words of a message. Left empty
@@ -106,6 +130,13 @@ struct ActivityCard: View {
         }
         .padding(.vertical, 3)
         .frame(height: Self.height, alignment: .top)
+    }
+
+    /// Le jour de la sortie dans son propre fuseau.
+    private var localDay: DateKey {
+        var calendar = Calendar.current
+        calendar.timeZone = activity.timeZone ?? .current
+        return DateKey(activity.startDate, calendar: calendar)
     }
 
     @ViewBuilder
