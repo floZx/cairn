@@ -75,9 +75,22 @@ struct JournalListView: View {
     }
 
     var body: some View {
-        List(days, selection: $selection) { day in
-            row(day)
-                .tag(day.date)
+        // Le mois une fois, dans un en-tête collant, et plus dans chaque
+        // ligne : la date longue en gras, identique d'une ligne à l'autre,
+        // prenait le poids qui revient à ce qui est écrit.
+        List(selection: $selection) {
+            ForEach(JournalRowLayout.months(of: days)) { month in
+                Section {
+                    ForEach(month.days) { day in
+                        row(day)
+                            .tag(day.date)
+                    }
+                } header: {
+                    Text(month.title)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .listStyle(.inset)
         // Counted like the activities' « 893 activités »: the window said
@@ -90,7 +103,12 @@ struct JournalListView: View {
         // A row that keeps its identity keeps the height AppKit measured for
         // it, and a note being typed changes under one: see `remeasureRows`.
         .onChange(of: days) { old, new in
-            scroller.remeasureRows(at: Self.changedRows(from: old, to: new))
+            // In the table's rows, which count the month headers too.
+            scroller.remeasureRows(
+                at: JournalRowLayout.tableRows(
+                    forDays: Self.changedRows(from: old, to: new), in: new
+                )
+            )
         }
         // A selection that is not the one we wrote came from somewhere else —
         // a click, the sidebar's calendar, ⌘N — so the remembered cursor is
@@ -168,7 +186,7 @@ struct JournalListView: View {
         selection = date
         // And the list follows. Without this a held `j` walks the selection off
         // the bottom of the window: the rows keep moving, but out of sight.
-        scroller.scroll(toRow: index)
+        scroller.scroll(toRow: JournalRowLayout.tableRow(forDay: index, in: days))
         return true
     }
 
@@ -198,60 +216,99 @@ struct JournalListView: View {
     }
 
     private func row(_ day: JournalDay) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .top, spacing: 10) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(Format.fullDate(day.date.date()))
-                        .font(.headline)
-                    // Rendered, not shown raw: `__« Entre Pôtes »__` in a row
-                    // is the note's typing showing through, and the reader has
-                    // no use for it. The same call the pane uses to read a
-                    // note, hashes dropped for the same reason there — the
-                    // chips below already say the tags.
-                    MarkdownText.inline(
-                        day.excerpt(matching: query) ?? day.summary,
-                        hidingTagHashes: true
-                    )
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-                Spacer(minLength: 8)
-                // Beside the words rather than under them: a row is a day, and
-                // two thumbnails at the end of its title line say there are
-                // pictures without costing the list a line per row.
-                JournalThumbnailStrip(
-                    sources: day.note.imagePaths.map { .vault(path: $0) }
-                        + day.marks.photoIDs.map { .photo(id: $0) },
-                    folder: attachmentsBase
-                )
-            }
-            if !day.tags.isEmpty || !day.marks.sports.isEmpty || showsWeighIn(day) {
-                FlowLayout(spacing: 4) {
-                    // The marks first: what the day did, then what it was
-                    // filed under. A glyph is read faster than a word, and it
-                    // is the one thing here that is true even of a day nobody
-                    // wrote a line about.
-                    ForEach(day.marks.sports) { sport in
-                        Image(systemName: sport.symbolName)
-                            .font(.caption)
-                            .foregroundStyle(sport.color)
-                            .help(sport.displayName)
-                    }
-                    if showsWeighIn(day) {
-                        Image(systemName: "scalemass")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .help("Pesée ce jour-là")
-                    }
-                    ForEach(day.tags.sorted()) { tag in
-                        JournalTagChip(tag: tag) { onSelectTag(tag) }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-            }
+        HStack(alignment: .top, spacing: 12) {
+            JournalDateTile(date: day.date)
+            prose(day)
+                // The separator starts after the tile, not at the edge: the
+                // tile is the row's anchor, as the round badge is in the
+                // activity list.
+                .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+            Spacer(minLength: 8)
+            side(day)
         }
-        .padding(.vertical, 4)
+        .frame(minHeight: 50, alignment: .top)
+        .padding(.vertical, 8)
+    }
+
+    /// One paragraph, three lines at most: the first sentence in the text's
+    /// colour, the rest after it in secondary on the same run — two blocks
+    /// would leave a hole under a note that is a single sentence. Rendered
+    /// rather than raw, mentions in the accent colour as everywhere.
+    private func prose(_ day: JournalDay) -> some View {
+        let preview = JournalRowLayout.preview(of: day, matching: query)
+        let lead = MarkdownText.inline(preview.lead, hidingTagHashes: true)
+            .fontWeight(.medium)
+            .foregroundStyle(.primary)
+        let rest = MarkdownText.inline(preview.rest, hidingTagHashes: true)
+            .foregroundStyle(.secondary)
+        return Text("\(lead) \(rest)")
+            .lineLimit(3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// What the day did and what it is filed under, top right; its pictures
+    /// under them.
+    private func side(_ day: JournalDay) -> some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            HStack(spacing: 3) {
+                ForEach(day.tags.sorted()) { tag in
+                    JournalTagChip(tag: tag) { onSelectTag(tag) }
+                }
+                ForEach(day.marks.sports) { sport in
+                    SportDot(sport: sport, size: 16)
+                }
+                if showsWeighIn(day) {
+                    Image(systemName: "scalemass")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .help("Pesée ce jour-là")
+                }
+            }
+            JournalThumbnailStrip(
+                sources: day.note.imagePaths.map { .vault(path: $0) }
+                    + day.marks.photoIDs.map { .photo(id: $0) },
+                folder: attachmentsBase
+            )
+        }
+        .padding(.top, 2)
+    }
+}
+
+/// The day's anchor at the left of a row: « SAM » over « 26 », in the accent
+/// colour for today — what the round badge is to the activity list.
+struct JournalDateTile: View {
+    let date: DateKey
+
+    var body: some View {
+        let tile = JournalRowLayout.tile(for: date)
+        let isToday = date == DateKey(Date())
+        VStack(spacing: 0) {
+            Text(tile.weekday)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(isToday ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+            Text(tile.day)
+                .font(.system(size: 21, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(isToday ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+        }
+        .frame(width: 38)
+        .padding(.top, 1)
+    }
+}
+
+/// A sport as a small coloured disc with its glyph in white — the activity
+/// list's colours, at the size of a mark.
+struct SportDot: View {
+    let sport: SportType
+    var size: CGFloat = 16
+
+    var body: some View {
+        Image(systemName: sport.symbolName)
+            .font(.system(size: size * 0.58, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(sport.color, in: .circle)
+            .help(sport.displayName)
     }
 }
 

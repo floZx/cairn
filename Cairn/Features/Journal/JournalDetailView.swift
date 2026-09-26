@@ -34,7 +34,14 @@ struct JournalDetailView: View {
     /// the pane to itself and is read for minutes at a stretch, unlike an
     /// activity's note, which is one field among the figures and keeps the
     /// system size.
-    static let noteSize: CGFloat = 15
+    static let noteSize: CGFloat = 17
+    /// About one and a half lines: a page read for minutes, not a label.
+    static let noteLineSpacing: CGFloat = 8
+    /// About sixty-four characters of New York at 17 pt: past that, the eye
+    /// loses the start of the next line.
+    static let textWidth: CGFloat = 600
+    /// The side margins of the heading, the cards and the text alike.
+    static let margin: CGFloat = 40
 
     /// The day this pane is about: the vault's note for it, and what was
     /// written about it elsewhere. The tags shown are the day's, every
@@ -106,11 +113,14 @@ struct JournalDetailView: View {
 
     var body: some View {
         photoGestures(
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                Divider()
+            // Reading scrolls the whole page, heading included; writing keeps
+            // the heading above the editor, which scrolls on its own.
+            Group {
                 if editing.isEditing(day.id) {
-                    editor
+                    VStack(alignment: .leading, spacing: 0) {
+                        header
+                        editor
+                    }
                 } else {
                     reader
                 }
@@ -168,36 +178,27 @@ struct JournalDetailView: View {
         if draft != text { draft = text }
     }
 
+    /// The day's heading, then what it did.
+    ///
+    /// The pane had no heading: a date in body type over two grey blocks and
+    /// a rule. Now the title and the line under it, on a very pale warm
+    /// wash — the activity pane's lit heading, a good deal quieter — and the
+    /// day's outings and meals as cards, as an activity shows its gear and
+    /// weather.
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(Format.fullDate(day.date.date()))
-                    .font(.title3)
-                Spacer()
-                // The one gesture that shows itself: a drop and a paste are
-                // both things one has to already know about.
-                Button(action: choosePhotos) {
-                    Image(systemName: "photo.badge.plus")
-                }
-                .buttonStyle(.borderless)
-                .help("Ajouter une photo à cette note")
-            }
-            if !day.tags.isEmpty {
-                FlowLayout(spacing: 4) {
-                    ForEach(day.tags.sorted()) { tag in
-                        JournalTagChip(tag: tag) { onSelectTag(tag) }
-                    }
-                }
-            }
-            // Under what identifies the note: the day's outings and its food
-            // journal belong with the date they happened on, not with the
-            // text somebody wrote about it.
-            JournalDayActivities(date: day.date, onSelect: onSelectActivity)
-            JournalDayNutrition(
-                date: day.date, onSelectDay: onSelectDay, onSelectWeight: onSelectWeight
+        VStack(alignment: .leading, spacing: 16) {
+            JournalDayHeading(
+                date: day.date, tags: day.tags,
+                onSelectTag: onSelectTag, onAddPhotos: choosePhotos
             )
+            JournalDayCards(
+                date: day.date,
+                onSelectActivity: onSelectActivity,
+                onSelectDay: onSelectDay,
+                onSelectWeight: onSelectWeight
+            )
+            .padding(.horizontal, Self.margin)
         }
-        .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -272,31 +273,39 @@ struct JournalDetailView: View {
     /// that turns into an editor when clicked says so nowhere.
     private var reader: some View {
         ScrollView {
-            Group {
-                if bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("Cliquez pour écrire")
-                        .font(.system(size: Self.noteSize))
-                        .foregroundStyle(.tertiary)
-                } else {
-                    MarkdownText(
-                        markdown: bodyText,
-                        baseSize: Self.noteSize,
-                        hidesTagHashes: true,
-                        attachmentsBase: attachmentsBase
-                    )
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                Group {
+                    if bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Cliquez pour écrire")
+                            .font(.system(size: Self.noteSize, design: .serif))
+                            .foregroundStyle(.tertiary)
+                    } else {
+                        MarkdownText(
+                            markdown: bodyText,
+                            baseSize: Self.noteSize,
+                            hidesTagHashes: true,
+                            attachmentsBase: attachmentsBase,
+                            design: .serif,
+                            lineSpacing: Self.noteLineSpacing
+                        )
+                    }
                 }
+                .frame(maxWidth: Self.textWidth, alignment: .leading)
+                .padding(.horizontal, Self.margin)
+                .padding(.top, 24)
+                .padding(.bottom, 12)
+                // The text itself, whatever height it happens to have…
+                .contentShape(.rect)
+                .onTapGesture { beginEditing() }
+                // …and room under it, which is most of the pane on most days.
+                Color.clear
+                    .frame(maxWidth: .infinity, minHeight: 240)
+                    .contentShape(.rect)
+                    .onTapGesture { beginEditing() }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            // The text itself, whatever height it happens to have…
-            .contentShape(.rect)
-            .onTapGesture { beginEditing() }
         }
-        // …and the space under it, which is most of the pane on most days.
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .contentShape(.rect)
-        .onTapGesture { beginEditing() }
         // A new scroll view per note: kept as one, a long note read to the end
         // would hand the next one its own offset, which opens somewhere in the
         // middle of a note one has never seen.
@@ -347,6 +356,8 @@ struct JournalDetailView: View {
             // grandirait ou rétrécirait au clic ferait de l'échange la chose
             // qu'on remarque.
             taille: Self.noteSize,
+            serif: true,
+            interligne: Self.noteLineSpacing,
             focus: $editorFocused,
             onEchappement: {
                 editorFocused = false
@@ -358,6 +369,75 @@ struct JournalDetailView: View {
                 return true
             }
         )
-        .padding(.horizontal, 4)
+        // Where the reading text stands, less the editor's own inset: the
+        // two modes swap under the pointer, and a text that jumped sideways
+        // at the click would make the swap the thing one notices.
+        .frame(maxWidth: Self.textWidth + 16)
+        .padding(.horizontal, Self.margin - 8)
+        .padding(.top, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// « Samedi 26 septembre », and under it « 2026 · aujourd'hui · 2
+/// activités » — on a wash of warm paper fading into the pane.
+private struct JournalDayHeading: View {
+    let date: DateKey
+    let tags: Set<JournalTag>
+    let onSelectTag: (JournalTag) -> Void
+    let onAddPhotos: () -> Void
+
+    @Query private var activities: [Activity]
+    @Environment(\.colorScheme) private var colorScheme
+
+    init(
+        date: DateKey, tags: Set<JournalTag>,
+        onSelectTag: @escaping (JournalTag) -> Void, onAddPhotos: @escaping () -> Void
+    ) {
+        self.date = date
+        self.tags = tags
+        self.onSelectTag = onSelectTag
+        self.onAddPhotos = onAddPhotos
+        let (start, end) = JournalDayActivities.dayRange(date)
+        _activities = Query(filter: #Predicate<Activity> { $0.startDate >= start && $0.startDate < end })
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(JournalRowLayout.title(for: date))
+                    .font(.system(size: 28, weight: .bold))
+                Spacer()
+                // The one gesture that shows itself: a drop and a paste are
+                // both things one has to already know about.
+                Button(action: onAddPhotos) {
+                    Image(systemName: "photo.badge.plus")
+                }
+                .buttonStyle(.borderless)
+                .help("Ajouter une photo à cette note")
+            }
+            HStack(spacing: 8) {
+                Text(JournalRowLayout.subtitle(for: date, activities: activities.count))
+                    .foregroundStyle(.secondary)
+                ForEach(tags.sorted()) { tag in
+                    JournalTagChip(tag: tag) { onSelectTag(tag) }
+                }
+            }
+            .font(.callout)
+        }
+        .padding(.horizontal, JournalDetailView.margin)
+        .padding(.top, 30)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(wash)
+    }
+
+    /// Paper, barely: Florian found every first version too strong, so this
+    /// one starts under what would look right, and fades to nothing.
+    private var wash: some View {
+        let paper = colorScheme == .dark
+            ? Color(red: 0.165, green: 0.149, blue: 0.129).opacity(0.55)
+            : Color(red: 0.984, green: 0.961, blue: 0.925).opacity(0.7)
+        return LinearGradient(colors: [paper, paper.opacity(0)], startPoint: .top, endPoint: .bottom)
     }
 }

@@ -27,10 +27,16 @@ struct MarkdownText: View {
     /// every line that happens to look like a link.
     var attachmentsBase: URL?
 
+    /// The type's design: `.serif` gives New York, the journal's reading face.
+    var design: Font.Design = .default
+    /// Extra room between lines, in points. The journal reads at about one and
+    /// a half lines; a note in a pane of figures keeps the default.
+    var lineSpacing: CGFloat = 0
+
     private var blocks: [MarkdownBlock] { MarkdownParser.blocks(from: markdown) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: lineSpacing > 0 ? 8 + lineSpacing : 8) {
             // Un bloc, une popover : elle s'ancre sur ce qu'on a cliqué. Posée
             // sur la note entière, elle s'ouvrait sous le dernier paragraphe,
             // à des centimètres du mot. Signalé.
@@ -38,6 +44,7 @@ struct MarkdownText: View {
                 BlocDeNote { vue(pour: block) }
             }
         }
+        .lineSpacing(lineSpacing)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -114,7 +121,7 @@ struct MarkdownText: View {
     @ViewBuilder
     private func sized(_ text: Text) -> some View {
         if let baseSize {
-            text.font(.system(size: baseSize))
+            text.font(.system(size: baseSize, design: design))
         } else {
             text
         }
@@ -133,9 +140,9 @@ struct MarkdownText: View {
             }
         }
         return switch level {
-        case 1: .system(size: baseSize + 5, weight: .bold)
-        case 2: .system(size: baseSize + 2, weight: .semibold)
-        default: .system(size: baseSize, weight: .bold)
+        case 1: .system(size: baseSize + 5, weight: .bold, design: design)
+        case 2: .system(size: baseSize + 2, weight: .semibold, design: design)
+        default: .system(size: baseSize, weight: .bold, design: design)
         }
     }
 

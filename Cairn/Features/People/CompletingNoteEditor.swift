@@ -14,6 +14,9 @@ import SwiftData
 struct CompletingNoteEditor: View {
     @Binding var texte: String
     var taille: CGFloat
+    /// Voir `NoteTextView.serif` et `interligne`.
+    var serif = false
+    var interligne: CGFloat = 0
     @Binding var focus: Bool
     /// Ce que l'échappement fait quand aucune complétion n'est ouverte.
     ///
@@ -89,6 +92,8 @@ struct CompletingNoteEditor: View {
         NoteTextView(
             texte: $texte,
             taille: taille,
+            serif: serif,
+            interligne: interligne,
             focus: $focus,
             curseurDemande: $curseurDemande,
             onCommande: commande,

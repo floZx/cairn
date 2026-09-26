@@ -17,6 +17,12 @@ import UniformTypeIdentifiers
 struct NoteTextView: NSViewRepresentable {
     @Binding var texte: String
     var taille: CGFloat
+    /// New York plutôt que le système — la face de lecture du journal, que
+    /// l'éditeur reprend pour que lire et écrire ne changent pas le texte de
+    /// place sous le pointeur.
+    var serif = false
+    /// L'espace ajouté entre les lignes, en points.
+    var interligne: CGFloat = 0
     /// Vrai quand l'éditeur doit avoir le clavier.
     @Binding var focus: Bool
     /// Où poser le curseur, en unités UTF-16, quand quelqu'un le demande —
@@ -64,8 +70,9 @@ struct NoteTextView: NSViewRepresentable {
         champ.isAutomaticQuoteSubstitutionEnabled = true
         champ.isContinuousSpellCheckingEnabled = true
         champ.textContainerInset = NSSize(width: 8, height: 8)
-        champ.font = .systemFont(ofSize: taille)
+        champ.font = police
         champ.string = texte
+        appliquerInterligne(champ)
         champ.surImage = onImageCollee
 
         context.coordinator.champ = champ
@@ -73,11 +80,33 @@ struct NoteTextView: NSViewRepresentable {
         return defilement
     }
 
+    private var police: NSFont {
+        let systeme = NSFont.systemFont(ofSize: taille)
+        guard serif, let descripteur = systeme.fontDescriptor.withDesign(.serif) else {
+            return systeme
+        }
+        return NSFont(descriptor: descripteur, size: taille) ?? systeme
+    }
+
+    /// L'interligne, sur le texte déjà là et sur celui qu'on tapera.
+    private func appliquerInterligne(_ champ: NSTextView) {
+        guard interligne > 0 else { return }
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = interligne
+        champ.defaultParagraphStyle = style
+        champ.typingAttributes[.paragraphStyle] = style
+        if let stockage = champ.textStorage, stockage.length > 0 {
+            stockage.addAttribute(
+                .paragraphStyle, value: style, range: NSRange(location: 0, length: stockage.length)
+            )
+        }
+    }
+
     func updateNSView(_ defilement: NSScrollView, context: Context) {
         guard let champ = defilement.documentView as? ChampDeNote else { return }
         context.coordinator.parent = self
         champ.surImage = onImageCollee
-        champ.font = .systemFont(ofSize: taille)
+        if champ.font != police { champ.font = police }
 
         // **Le point délicat de tout `NSViewRepresentable` de champ texte.**
         //
@@ -90,6 +119,7 @@ struct NoteTextView: NSViewRepresentable {
         if Self.doitReecrire(champ, texte: texte) {
             let selection = champ.selectedRange()
             champ.string = texte
+            appliquerInterligne(champ)
             let borne = min(selection.location, (texte as NSString).length)
             champ.setSelectedRange(NSRange(location: borne, length: 0))
         }
