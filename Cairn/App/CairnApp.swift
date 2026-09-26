@@ -63,6 +63,14 @@ struct CairnApp: App {
                 ModelContext(container),
                 cacheDirectory: JournalAttachmentCache.vaultRoot
             )
+            // Texts prepared by hand to be put back, when a file of them waits
+            // beside the store — see the function. Named here, and nowhere a
+            // test could reach.
+            _ = try? StoreMaintenance.applyPendingRestorations(
+                in: ModelContext(container),
+                file: URL.applicationSupportDirectory
+                    .appending(path: "Cairn/restaurations-mentions.json")
+            )
             // `app.journal` was built above, before this line ran, on whatever
             // the store held at that moment — nothing, on the very first launch
             // after this slice ships, since the recovery had not run yet.
