@@ -35,6 +35,10 @@ protocol SecretStore: Sendable {
     /// misconfigured, so the project URL and anon key must survive it.
     func clearMirrorSession() throws
     func clearMirror() throws
+
+    func garminTokens() -> GarminTokens?
+    func save(_ tokens: GarminTokens) throws
+    func clearGarminTokens() throws
 }
 
 enum SecretStoreError: Error {
@@ -54,6 +58,7 @@ final class KeychainStore: SecretStore, Sendable {
     private static let tokensAccount = "tokens"
     private static let mirrorCredentialsAccount = "mirror-credentials"
     private static let mirrorSessionAccount = "mirror-session"
+    private static let garminTokensAccount = "garmin-tokens"
 
     init(
         service: String = "com.florianmaisonnial.Cairn",
@@ -129,6 +134,18 @@ final class KeychainStore: SecretStore, Sendable {
         try delete(account: Self.mirrorCredentialsAccount)
     }
 
+    func garminTokens() -> GarminTokens? {
+        read(GarminTokens.self, account: Self.garminTokensAccount)
+    }
+
+    func save(_ tokens: GarminTokens) throws {
+        try write(tokens, account: Self.garminTokensAccount)
+    }
+
+    func clearGarminTokens() throws {
+        try delete(account: Self.garminTokensAccount)
+    }
+
     private func baseQuery(account: String, service: String? = nil) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
@@ -189,6 +206,7 @@ final class InMemorySecretStore: SecretStore, @unchecked Sendable {
     private var storedTokens: StravaTokens?
     private var storedMirrorCredentials: MirrorCredentials?
     private var storedMirrorSession: MirrorSession?
+    private var storedGarminTokens: GarminTokens?
 
     init(credentials: StravaCredentials? = nil, tokens: StravaTokens? = nil) {
         storedCredentials = credentials
@@ -247,5 +265,17 @@ final class InMemorySecretStore: SecretStore, @unchecked Sendable {
             storedMirrorSession = nil
             storedMirrorCredentials = nil
         }
+    }
+
+    func garminTokens() -> GarminTokens? {
+        lock.withLock { storedGarminTokens }
+    }
+
+    func save(_ tokens: GarminTokens) throws {
+        lock.withLock { storedGarminTokens = tokens }
+    }
+
+    func clearGarminTokens() throws {
+        lock.withLock { storedGarminTokens = nil }
     }
 }

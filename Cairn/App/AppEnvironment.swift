@@ -31,6 +31,14 @@ final class AppEnvironment {
 
     let mirrorClient: MirrorClient
     let mirror: MirrorEngine
+    /// Garmin Connect, written to and never read into the journal: it only
+    /// receives what Cairn already knows about an activity.
+    let garmin: GarminClient
+    let garminSync: GarminSyncTracker
+    /// Who Garmin says is signed in, nil when nobody is. Read from the
+    /// Keychain at launch, so it costs no request.
+    var garminAccountName: String?
+    var isGarminConnected: Bool
     let mirrorProgress: MirrorProgress
     /// Kept alive for the life of the app, not just through `init`: its
     /// `start()` registers a `NotificationCenter` observer whose closure
@@ -97,6 +105,12 @@ final class AppEnvironment {
         self.client = client
         self.progress = progress
         self.oauth = OAuthFlow(store: store)
+        let garmin = GarminClient(store: store)
+        self.garmin = garmin
+        self.garminSync = GarminSyncTracker(client: garmin, defaults: .standard)
+        let garminTokens = store.garminTokens()
+        self.isGarminConnected = garminTokens != nil
+        self.garminAccountName = garminTokens?.displayName
         self.engine = SyncEngine(
             source: client, container: container, progress: progress
         )
@@ -191,6 +205,21 @@ final class AppEnvironment {
         try? store.clearTokens()
         athleteName = nil
         refreshAuthenticationState()
+    }
+
+    /// After anything that may have signed in or out of Garmin — a refresh
+    /// Garmin refused clears the tokens from inside the client.
+    func refreshGarminState() {
+        let tokens = store.garminTokens()
+        isGarminConnected = tokens != nil
+        garminAccountName = tokens?.displayName
+    }
+
+    func disconnectGarmin() {
+        Task { [garmin] in
+            try? await garmin.signOut()
+            refreshGarminState()
+        }
     }
 
     /// Full sync: summaries, gear, then every pending stream.

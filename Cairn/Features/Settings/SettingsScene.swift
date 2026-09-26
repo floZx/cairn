@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The Settings window: one tab per concern.
 ///
-/// Account holds the Strava credentials and the connection; Synchronisation
+/// Account holds the Strava credentials and the connection; Garmin holds the
+/// Garmin Connect sign-in, the one service Cairn writes to; Synchronisation
 /// holds sync state and actions; Cartes holds everything about how maps look
 /// and what they store. Track colour and the tile cache used to live in the
 /// sync tab, where nobody would look for them. Nutrition holds the food
@@ -17,6 +18,8 @@ struct SettingsScene: View {
         TabView {
             AccountSettingsView()
                 .tabItem { Label("Compte", systemImage: "person.crop.circle") }
+            GarminSettingsView()
+                .tabItem { Label("Garmin", systemImage: "applewatch") }
             SyncSettingsView()
                 .tabItem {
                     Label("Synchronisation", systemImage: "arrow.triangle.2.circlepath")

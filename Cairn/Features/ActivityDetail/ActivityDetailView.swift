@@ -65,6 +65,7 @@ struct ActivityDetailView: View {
 
     /// Distance under the cursor in a chart, mirrored on the map as a marker.
     @State private var hoverDistanceKm: Double?
+    @State private var showsGarminSync = false
     @AppStorage(MapStyle.storageKey) private var mapStyle: MapStyle = .standard
     @AppStorage(TrackColor.storageKey) private var trackColor: TrackColor = .accent
 
@@ -177,6 +178,19 @@ struct ActivityDetailView: View {
         // nothing to catch and the pane stays grey whatever the outing.
         .sportWash(activity.sportType.color, strength: SportWashStrength.detail)
         .navigationTitle(activity.name)
+        .sheet(isPresented: $showsGarminSync) {
+            GarminSyncSheet(activityUUID: activity.uuid, source: GarminSource(activity))
+        }
+        .task(id: garminCheckKey) {
+            guard app.isGarminConnected else { return }
+            // A beat first: `j` held down in the list opens a dozen activities
+            // a second, and each would otherwise cost Garmin three requests.
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            await app.garminSync.checkIfNeeded(
+                uuid: activity.uuid, source: GarminSource(activity)
+            )
+        }
         .task(id: activity.stravaID) {
             app.loadDetail(stravaID: activity.stravaID)
         }
@@ -230,6 +244,9 @@ struct ActivityDetailView: View {
                             ? "Apportée par la synchronisation Strava, qui continuera de la mettre à jour"
                             : "N'existe que dans ce journal : la synchronisation Strava ne la touchera pas"
                     )
+                // Right after Strava: the two services side by side, then what
+                // happened here.
+                garminStatus
                 if let editedAt = activity.editedAt {
                     Label(
                         "Modifiée le \(Format.dateOnly(editedAt))",
@@ -247,6 +264,44 @@ struct ActivityDetailView: View {
             .foregroundStyle(.secondary)
 
         }
+    }
+
+    /// Where the activity stands with Garmin, beside where it came from.
+    ///
+    /// In step: the same glyph as Strava's, so the line reads as two
+    /// services agreeing; a click still checks again. Out of step: an
+    /// invitation, found by the background check. Anything else — not
+    /// signed in, still checking, no Garmin twin — says nothing.
+    @ViewBuilder
+    private var garminStatus: some View {
+        if app.isGarminConnected {
+            switch app.garminSync.state(uuid: activity.uuid, source: GarminSource(activity)) {
+            case .synced:
+                Button {
+                    showsGarminSync = true
+                } label: {
+                    Label("Garmin", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .buttonStyle(.plain)
+                .help("Garmin Connect dit la même chose que Cairn. Cliquer pour revérifier.")
+            case .needsSync:
+                Button {
+                    showsGarminSync = true
+                } label: {
+                    Label("Synchroniser les infos sur Garmin Connect", systemImage: "arrow.up.circle")
+                }
+                .buttonStyle(.borderless)
+                .help("Titre, type, description ou matériel diffèrent sur Garmin Connect")
+            case .unknown, .checking, .unavailable:
+                EmptyView()
+            }
+        }
+    }
+
+    /// Changes whenever the background check has something new to look at:
+    /// another activity, an edit to this one, a sign-in.
+    private var garminCheckKey: String {
+        "\(activity.uuid)|\(GarminSource(activity).signature)|\(app.isGarminConnected)"
     }
 
     /// The markers worth a chip here.
