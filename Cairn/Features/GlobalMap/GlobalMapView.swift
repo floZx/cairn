@@ -9,6 +9,8 @@ struct GlobalMapView: View {
     var onExpand: (() -> Void)?
     /// Clicking a track opens it in the detail pane.
     var onSelect: ((PersistentIdentifier) -> Void)?
+    /// The activity open in the detail pane, drawn over the others.
+    var selected: PersistentIdentifier?
 
     @State private var isSelectingRegion = false
     @AppStorage(MapStyle.storageKey) private var style: MapStyle = .standard
@@ -37,6 +39,7 @@ struct GlobalMapView: View {
             tracks: tracks,
             isSelectingRegion: isSelectingRegion,
             style: style,
+            selected: selected,
             onSelect: onSelect,
             onRegionSelected: { box in
                 region = box
@@ -71,7 +74,9 @@ struct GlobalMapView: View {
                 .mapControl()
             }
         }
-        .overlay(alignment: .bottomLeading) {
+        // Top left rather than bottom left, where it sat on Apple's logo and
+        // legal link.
+        .overlay(alignment: .topLeading) {
             Text(
                 tracks.count == 1
                     ? "1 trace affichée" : "\(tracks.count) traces affichées"
@@ -79,7 +84,7 @@ struct GlobalMapView: View {
             .font(.caption)
             .padding(6)
             .background(.regularMaterial, in: .rect(cornerRadius: 6))
-            .padding()
+            .padding(8)
         }
         .navigationTitle("Carte globale")
     }
@@ -104,6 +109,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
     let tracks: [GlobalTrack]
     let isSelectingRegion: Bool
     let style: MapStyle
+    let selected: PersistentIdentifier?
     let onSelect: ((PersistentIdentifier) -> Void)?
     let onRegionSelected: (BoundingBox) -> Void
 
@@ -143,7 +149,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
     }
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
-        mapView.apply(style, state: &context.coordinator.mapStyleState)
+        mapView.apply(style, state: &context.coordinator.mapStyleState, muted: true)
 
         // Assigned only on a real change. Writing MapKit properties on every
         // SwiftUI update — and this view is rebuilt whenever the filtered
@@ -173,8 +179,12 @@ struct TrackMapRepresentable: NSViewRepresentable {
         }
         let signature = hasher.finalize()
 
-        guard context.coordinator.renderedSignature != signature else { return }
+        guard context.coordinator.renderedSignature != signature else {
+            highlight(selected, in: mapView, context: context)
+            return
+        }
         context.coordinator.renderedSignature = signature
+        context.coordinator.highlighted = nil
 
         mapView.removeOverlays(mapView.overlays.filter { !($0 is MKTileOverlay) })
         // Kept for hit testing, which MapKit does not do for overlay renderers.
@@ -200,6 +210,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
         }
         mapView.addTrackOverlays(overlays)
         let multi = MKMultiPolyline(overlays.flatMap(\.polylines))
+        highlight(selected, in: mapView, context: context)
 
         // Opens where the user actually trains rather than framing every track:
         // one ride abroad would otherwise zoom out to a continent. Falls back to
@@ -211,6 +222,41 @@ struct TrackMapRepresentable: NSViewRepresentable {
             edgePadding: NSEdgeInsets(top: 40, left: 40, bottom: 40, right: 40),
             animated: false
         )
+    }
+
+    /// Draws the selected track over the others, and fades the rest.
+    ///
+    /// The palette keeps neighbouring routes apart, but once one of them is
+    /// open in the pane it has to be findable at a glance: in a tangle of 700
+    /// tracks, one line in one of eight colours was not. It gets a pale casing
+    /// and a full-strength stroke, and every other track steps back.
+    private func highlight(
+        _ id: PersistentIdentifier?, in mapView: MKMapView, context: Context
+    ) {
+        let coordinator = context.coordinator
+        guard coordinator.highlighted != id else { return }
+        coordinator.highlighted = id
+
+        mapView.removeOverlays(mapView.overlays.filter { $0 is HighlightPolyline })
+        let track = id.flatMap { id in tracks.first { $0.id == id } }
+
+        for overlay in mapView.overlays {
+            guard let group = overlay as? ColoredMultiPolyline,
+                  let renderer = mapView.renderer(for: group) as? MKMultiPolylineRenderer
+            else { continue }
+            renderer.strokeColor = group.color.withAlphaComponent(
+                track == nil ? Coordinator.trackAlpha : Coordinator.fadedAlpha
+            )
+            renderer.setNeedsDisplay()
+        }
+
+        guard let track else { return }
+        let points = track.coordinates.map(\.clLocation)
+        let casing = HighlightPolyline(coordinates: points, count: points.count)
+        casing.isCasing = true
+        let line = HighlightPolyline(coordinates: points, count: points.count)
+        line.color = TrackPalette.color(at: track.colorIndex)
+        mapView.addTrackOverlays([casing, line])
     }
 
     private static func mapRect(for box: BoundingBox) -> MKMapRect {
@@ -232,6 +278,9 @@ struct TrackMapRepresentable: NSViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var renderedSignature: Int?
+        var highlighted: PersistentIdentifier?
+        static let trackAlpha: CGFloat = 0.7
+        static let fadedAlpha: CGFloat = 0.3
         var isSelectingRegion: Bool?
         var mapStyleState = MapStyleState()
         weak var selectionOverlay: SelectionOverlayView?
@@ -273,6 +322,19 @@ struct TrackMapRepresentable: NSViewRepresentable {
             if let tiles = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tiles)
             }
+            if let line = overlay as? HighlightPolyline {
+                let renderer = MKPolylineRenderer(polyline: line)
+                renderer.lineCap = .round
+                renderer.lineJoin = .round
+                if line.isCasing {
+                    renderer.strokeColor = NSColor.white.withAlphaComponent(0.9)
+                    renderer.lineWidth = 7
+                } else {
+                    renderer.strokeColor = line.color
+                    renderer.lineWidth = 3.5
+                }
+                return renderer
+            }
             let renderer = MKMultiPolylineRenderer(overlay: overlay)
             // Still translucent, so repeated routes build up into a heatmap, but
             // no longer so faint that a single passage vanishes into a satellite
@@ -281,7 +343,9 @@ struct TrackMapRepresentable: NSViewRepresentable {
             // findable in the first place.
             let colour = (overlay as? ColoredMultiPolyline)?.color
                 ?? TrackPalette.colors[0]
-            renderer.strokeColor = colour.withAlphaComponent(0.7)
+            renderer.strokeColor = colour.withAlphaComponent(
+                highlighted == nil ? Self.trackAlpha : Self.fadedAlpha
+            )
             renderer.lineWidth = 2.5
             return renderer
         }
@@ -302,4 +366,11 @@ struct TrackMapRepresentable: NSViewRepresentable {
             )
         }
     }
+}
+
+/// The selected track, drawn twice over the others: a pale casing, then the
+/// line itself.
+final class HighlightPolyline: MKPolyline {
+    var isCasing = false
+    var color: NSColor = .systemRed
 }

@@ -32,6 +32,8 @@ struct ActivityDetailView: View {
     /// `J` et `K` tenus dans la liste : le volet défile, sans que la sélection
     /// bouge — `j` et `k` choisissent la sortie, `J` et `K` la lisent.
     var scrollRequest = PaneScrollRequest()
+    /// Off beside the global map, which already shows the track.
+    var showsMap = true
     @Environment(AppEnvironment.self) private var app
     @Environment(\.modelContext) private var modelContext
 
@@ -98,7 +100,7 @@ struct ActivityDetailView: View {
                 // No placeholder when there is no track: a pool swim or a gym
                 // session simply has nowhere to be drawn, and a large empty
                 // panel announcing that is worse than the map's absence.
-                if trackModel.coordinates.count > 1 {
+                if showsMap, trackModel.coordinates.count > 1 {
                     ActivityMapView(
                         coordinates: trackModel.coordinates,
                         highlight: hoverDistanceKm.flatMap(trackModel.coordinate(atKilometre:)),

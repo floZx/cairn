@@ -716,7 +716,9 @@ struct RootView: View {
                         activities: mapActivities,
                         region: regionBinding,
                         onExpand: { expandedMap = .global },
-                        onSelect: { selectedActivities = [$0] }
+                        onSelect: { selectedActivities = [$0] },
+                        selected: selectedActivities.count == 1
+                            ? selectedActivities.first : nil
                     )
                     .vimKeys(performOutsideTheList)
                 } else if showsStatistics {
@@ -1416,7 +1418,11 @@ struct RootView: View {
                 // in the field it invited the user to fill.
                 onEdit: { openEditor(selected, focusingNotes: true) },
                 onSelectActivity: { selectedActivities = [$0] },
-                scrollRequest: paneScroll
+                scrollRequest: paneScroll,
+                // Beside the global map, the track is already drawn there,
+                // large and highlighted: a second small map of the same place
+                // was the pane's biggest block, saying nothing new.
+                showsMap: !showsGlobalMap
             )
             .frame(minWidth: Self.detailMinWidth)
         } else if selection.count > 1 {

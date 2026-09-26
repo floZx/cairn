@@ -102,11 +102,21 @@ extension MKMapView {
     /// The camera is deliberately left alone. An earlier version pinned it flat
     /// under the raster layers, on the mistaken theory that MapKit would not
     /// draw a tile overlay in a pitched view; pitch and rotation work fine.
-    func apply(_ style: MapStyle, state: inout MapStyleState) {
+    ///
+    /// `muted` greys Apple's plan down, for a map whose point is what is drawn
+    /// on it — the global map, where the saturated green relief fought seven
+    /// hundred coloured tracks.
+    func apply(_ style: MapStyle, state: inout MapStyleState, muted: Bool = false) {
         guard state.applied != style else { return }
         state.applied = style
 
-        preferredConfiguration = style.configuration
+        if muted, style == .standard {
+            preferredConfiguration = MKStandardMapConfiguration(
+                elevationStyle: .realistic, emphasisStyle: .muted
+            )
+        } else {
+            preferredConfiguration = style.configuration
+        }
 
         // Both topographic providers serve paper-toned tiles whatever the system
         // appearance — there is no night PLAN IGN, the Géoplateforme
