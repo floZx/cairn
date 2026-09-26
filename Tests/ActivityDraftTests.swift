@@ -13,7 +13,8 @@ struct ActivityFieldTests {
         #expect(ActivityField.name.rawValue == "name")
         #expect(ActivityField.startDate.rawValue == "startDate")
         #expect(ActivityField.totalElevationGain.rawValue == "totalElevationGain")
-        #expect(ActivityField.allCases.count == 10)
+        #expect(ActivityField.gear.rawValue == "gear")
+        #expect(ActivityField.allCases.count == 11)
         #expect(ActivityField.allCases.allSatisfy { !$0.displayName.isEmpty })
     }
 
@@ -226,7 +227,7 @@ struct ActivityDraftTests {
         #expect(draft.validationMessage != nil)
     }
 
-    @Test("changedFields détecte les dix champs, pas seulement ceux exercés ailleurs")
+    @Test("changedFields détecte les onze champs, pas seulement ceux exercés ailleurs")
     func changedFieldsCoversEveryField() throws {
         let context = ModelContext(try AppModelContainer.inMemory())
         let activity = makeActivity(in: context)
@@ -241,12 +242,42 @@ struct ActivityDraftTests {
         draft.isCommute = !activity.isCommute
         draft.isTrainer = !activity.isTrainer
         draft.workoutLabel = .race
+        let shoes = Gear(stravaID: "g1", name: "Merrell")
+        context.insert(shoes)
+        draft.gear = shoes
 
         // Every other test in this file exercises a handful of fields.
         // Removing any one case from `changedFields` would leave those
         // green — the "mark too little" failure mode, an edit lost in
         // silence — which is exactly what this closes.
         #expect(draft.changedFields(comparedTo: activity) == Set(ActivityField.allCases))
+    }
+
+    @Test("changer le matériel le protège et garde son id Strava")
+    func gearEditIsClaimed() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let activity = makeActivity(in: context)
+        let wrong = Gear(stravaID: "g1", name: "Pegasus")
+        let right = Gear(stravaID: "g2", name: "Merrell Trail Glove 7")
+        context.insert(wrong)
+        context.insert(right)
+        activity.gear = wrong
+        activity.gearID = wrong.stravaID
+
+        var draft = ActivityDraft(activity)
+        #expect(draft.changedFields(comparedTo: activity).isEmpty)
+        draft.gear = right
+        draft.apply(to: activity)
+
+        #expect(activity.gear?.name == "Merrell Trail Glove 7")
+        #expect(activity.gearID == "g2")
+        #expect(activity.isEdited(.gear))
+
+        var removal = ActivityDraft(activity)
+        removal.gear = nil
+        removal.apply(to: activity)
+        #expect(activity.gear == nil)
+        #expect(activity.gearID == nil)
     }
 
     @Test("un brouillon neuf produit une activité locale sans identifiant Strava")

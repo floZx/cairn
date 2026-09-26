@@ -175,9 +175,13 @@ struct ImportMapper {
 
         // Strava's answer either way, a missing pair included: a pair removed
         // there because it was the wrong one must not stay here. Only set when
-        // present, it used to — the old shoes outlived the correction. Safe to
-        // clear, since the gear is not a field anyone edits in Cairn.
-        if let gearID = dto.gear_id, !gearID.isEmpty {
+        // present, it used to — the old shoes outlived the correction. Unless
+        // the gear was corrected in Cairn: Strava picks a default pair on its
+        // own, and that guess must not undo the correction if sending it back
+        // to Strava failed.
+        if activity.isEdited(.gear) {
+            // Left as the user set it.
+        } else if let gearID = dto.gear_id, !gearID.isEmpty {
             activity.gearID = gearID
             activity.gear = try existingGear(stravaID: gearID)
         } else {

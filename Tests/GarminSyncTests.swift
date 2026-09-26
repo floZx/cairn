@@ -402,9 +402,9 @@ struct GarminSyncTrackerTests {
 }
 
 @MainActor
-@Suite("TitlePropagator")
-struct TitlePropagatorTests {
-    private static let suitePrefix = "title-propagator-tests-"
+@Suite("EditPropagator")
+struct EditPropagatorTests {
+    private static let suitePrefix = "edit-propagator-tests-"
 
     private func makeDefaults() -> UserDefaults {
         ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
@@ -443,13 +443,13 @@ struct TitlePropagatorTests {
         )
         let garmin = GarminClient(store: store, transport: garminAPI)
         let tracker = GarminSyncTracker(client: garmin, defaults: makeDefaults())
-        let propagator = TitlePropagator(
+        let propagator = EditPropagator(
             strava: StravaClient(store: store, transport: stravaAPI),
             garmin: garmin, garminSync: tracker
         )
 
         await propagator.propagate(
-            uuid: "u", stravaID: 77, source: source(), toStrava: true, toGarmin: true
+            [.name], uuid: "u", stravaID: 77, source: source(), toStrava: true, toGarmin: true
         )
 
         #expect(propagator.failures["u"] == nil)
@@ -474,14 +474,14 @@ struct TitlePropagatorTests {
             .init(status: 401, body: #"{"message":"Authorization Error"}"#),
         ])
         let garmin = GarminClient(store: store, transport: GarminStubTransport([]))
-        let propagator = TitlePropagator(
+        let propagator = EditPropagator(
             strava: StravaClient(store: store, transport: stravaAPI),
             garmin: garmin,
             garminSync: GarminSyncTracker(client: garmin, defaults: makeDefaults())
         )
 
         await propagator.propagate(
-            uuid: "u", stravaID: 77, source: source(), toStrava: true, toGarmin: false
+            [.name], uuid: "u", stravaID: 77, source: source(), toStrava: true, toGarmin: false
         )
 
         let failure = try #require(propagator.failures["u"])
@@ -489,19 +489,80 @@ struct TitlePropagatorTests {
         #expect(failure.contains("reconnectez"))
     }
 
+    @Test("le matériel part sur Strava par son id, et sur Garmin par son nom")
+    func sendsGear() async throws {
+        let store = try store()
+        let stravaAPI = GarminStubTransport([.init(status: 200, body: "{}")])
+        let item = #"{"activityId":5,"activityName":"Tour du lac","activityType":{"typeKey":"running"},"startTimeGMT":"2024-05-01 07:12:33","distance":10000,"duration":3000}"#
+        let oldPair = #"{"uuid":"old","displayName":"Pegasus","gearTypeName":"Shoes"}"#
+        let newPair = #"{"uuid":"new","displayName":"Merrell Trail Glove 7","gearTypeName":"Shoes"}"#
+        let comparison: (String) -> [GarminStubTransport.Response] = { current in [
+            .init(status: 200, body: "[\(item)]"),
+            .init(status: 200, body: item),
+            .init(status: 200, body: "[\(current)]"),
+            .init(status: 200, body: #"{"id":123}"#),
+            .init(status: 200, body: "[\(oldPair),\(newPair)]"),
+        ] }
+        let garminAPI = GarminStubTransport(
+            comparison(oldPair)
+                + [.init(status: 200, body: "{}"), .init(status: 200, body: "{}")]
+                + comparison(newPair)
+        )
+        let garmin = GarminClient(store: store, transport: garminAPI)
+        let tracker = GarminSyncTracker(client: garmin, defaults: makeDefaults())
+        let propagator = EditPropagator(
+            strava: StravaClient(store: store, transport: stravaAPI),
+            garmin: garmin, garminSync: tracker
+        )
+        let withGear = source(gear: .init(name: "Merrell Trail Glove 7", isBike: false))
+
+        await propagator.propagate(
+            [.gear(stravaGearID: "g42")], uuid: "u", stravaID: 77, source: withGear,
+            toStrava: true, toGarmin: true
+        )
+
+        #expect(propagator.failures["u"] == nil)
+        let body = try JSONSerialization.jsonObject(with: stravaAPI.requests[0].httpBody!) as! [String: Any]
+        #expect(body["gear_id"] as? String == "g42")
+        #expect(body["name"] == nil)
+        let writes = garminAPI.requests.filter { $0.httpMethod == "PUT" }.map { $0.url!.path }
+        #expect(writes == [
+            "/gear-service/gear/unlink/old/activity/5", "/gear-service/gear/link/new/activity/5",
+        ])
+        #expect(tracker.state(uuid: "u", source: withGear) == .synced)
+    }
+
+    @Test("retirer le matériel envoie « none » à Strava")
+    func removesGearOnStrava() async throws {
+        let store = try store()
+        let stravaAPI = GarminStubTransport([.init(status: 200, body: "{}")])
+        let garmin = GarminClient(store: store, transport: GarminStubTransport([]))
+        let propagator = EditPropagator(
+            strava: StravaClient(store: store, transport: stravaAPI),
+            garmin: garmin,
+            garminSync: GarminSyncTracker(client: garmin, defaults: makeDefaults())
+        )
+        await propagator.propagate(
+            [.gear(stravaGearID: nil)], uuid: "u", stravaID: 77, source: source(),
+            toStrava: true, toGarmin: false
+        )
+        let body = try JSONSerialization.jsonObject(with: stravaAPI.requests[0].httpBody!) as! [String: Any]
+        #expect(body["gear_id"] as? String == "none")
+    }
+
     @Test("une activité saisie à la main ne touche pas Strava")
     func manualActivitySkipsStrava() async throws {
         let store = try store()
         let stravaAPI = GarminStubTransport([])
         let garmin = GarminClient(store: store, transport: GarminStubTransport([.init(status: 200, body: "[]")]))
-        let propagator = TitlePropagator(
+        let propagator = EditPropagator(
             strava: StravaClient(store: store, transport: stravaAPI),
             garmin: garmin,
             garminSync: GarminSyncTracker(client: garmin, defaults: makeDefaults())
         )
 
         await propagator.propagate(
-            uuid: "u", stravaID: nil, source: source(), toStrava: true, toGarmin: true
+            [.name], uuid: "u", stravaID: nil, source: source(), toStrava: true, toGarmin: true
         )
 
         #expect(stravaAPI.requests.isEmpty)

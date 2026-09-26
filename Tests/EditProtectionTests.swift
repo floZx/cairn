@@ -306,6 +306,20 @@ struct EditProtectionTests {
             let again = try mapper.upsert(summary: dto)
             #expect(again.workoutType == 1)
             #expect(again.workoutLabel == .longRun)
+
+        case .gear:
+            // Removed in Cairn — the hardest case: Strava's default pair is
+            // exactly what the reimport brings back.
+            activity.gear = nil
+            activity.gearID = nil
+            activity.markEdited([.gear])
+            let dto = try Fixture.decode(
+                SummaryActivityDTO.self, from: "summary_activity",
+                patching: ["id": 60, "gear_id": "g999"]
+            )
+            let again = try mapper.upsert(summary: dto)
+            #expect(again.gearID == nil)
+            #expect(again.gear == nil)
         }
     }
 

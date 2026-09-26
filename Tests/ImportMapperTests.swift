@@ -314,6 +314,32 @@ struct ImportMapperTests {
         #expect(again.gear == nil)
     }
 
+    @Test("un matériel corrigé dans Cairn survit à la synchro Strava")
+    func keepsGearCorrectedInCairn() throws {
+        let context = try makeContext()
+        let mapper = ImportMapper(context: context)
+        _ = try mapper.upsert(
+            gear: GearDTO(
+                id: "b1234567", name: "Vélo", brand_name: nil, model_name: nil, distance: 0
+            )
+        )
+        let other = try mapper.upsert(
+            gear: GearDTO(
+                id: "b7654321", name: "Gravel", brand_name: nil, model_name: nil, distance: 0
+            )
+        )
+        let dto = try Fixture.decode(SummaryActivityDTO.self, "summary_activity")
+        let activity = try mapper.upsert(summary: dto)
+        activity.gear = other
+        activity.gearID = other.stravaID
+        activity.markEdited([.gear])
+
+        // Strava still carries its own default.
+        let again = try mapper.upsert(summary: dto)
+        #expect(again.gear?.name == "Gravel")
+        #expect(again.gearID == "b7654321")
+    }
+
     @Test("elapsedTime dérivé n'écrase pas une durée protégée")
     func elapsedTimeFollowsMovingTimeProtection() throws {
         let context = try makeContext()

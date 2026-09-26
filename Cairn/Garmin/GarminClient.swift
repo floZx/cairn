@@ -452,6 +452,17 @@ actor GarminClient {
         _ = try await send("PUT", "/gear-service/gear/unlink/\(uuid)/activity/\(id)")
     }
 
+    /// Links and unlinks until the activity carries exactly `wanted`.
+    func setGear(_ wanted: [String], current: [GarminGear], activityID id: Int64) async throws {
+        let present = Set(current.map(\.uuid))
+        for uuid in present.subtracting(wanted) {
+            try await unlink(gear: uuid, fromActivity: id)
+        }
+        for uuid in Set(wanted).subtracting(present) {
+            try await link(gear: uuid, toActivity: id)
+        }
+    }
+
     private func getJSON(_ path: String, query: [String: String] = [:]) async throws -> Any? {
         let data = try await send("GET", path, query: query)
         return data.isEmpty ? nil : try JSONSerialization.jsonObject(with: data)

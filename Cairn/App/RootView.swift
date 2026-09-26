@@ -235,10 +235,12 @@ struct RootView: View {
         }
         .sheet(item: $editor) { mode in
             ActivityEditorSheet(mode: mode, focusesNotes: editorFocusesNotes) { draft in
-                // Read before `apply` overwrites it: only a title that
-                // actually changed goes out to Strava and Garmin.
-                var previousName: String?
-                if case let .edit(existing) = mode { previousName = existing.name }
+                // Read before `apply` overwrites the activity: only a title or
+                // gear that actually changed goes out to Strava and Garmin.
+                var changed: Set<ActivityField> = []
+                if case let .edit(existing) = mode {
+                    changed = draft.changedFields(comparedTo: existing)
+                }
                 // `Mode.apply` carries the switch that used to live here; kept
                 // out of this closure so a test can reach it directly.
                 let activity = mode.apply(draft)
@@ -248,9 +250,7 @@ struct RootView: View {
                 }
                 do {
                     try modelContext.save()
-                    if let previousName, previousName != activity.name {
-                        propagateTitle(of: activity)
-                    }
+                    propagateEdits(changed, of: activity)
                 } catch {
                     // `apply` already mutated the object in memory: the screen
                     // shows the edit whether or not this succeeds, so silence
@@ -1051,17 +1051,21 @@ struct RootView: View {
     /// One shared new value rather than a per-activity flip: toggling a mixed
     /// selection item by item would leave it just as mixed, which is not what
     /// pressing a button once means.
-    /// Sends a renamed activity's title to Strava and Garmin, in the
-    /// background: the editor has closed and Cairn already shows it.
-    private func propagateTitle(of activity: Activity) {
+    /// Sends a new title or gear to Strava and Garmin, in the background: the
+    /// editor has closed and Cairn already shows it.
+    private func propagateEdits(_ changed: Set<ActivityField>, of activity: Activity) {
+        var edits: [EditPropagator.Edit] = []
+        if changed.contains(.name) { edits.append(.name) }
+        if changed.contains(.gear) { edits.append(.gear(stravaGearID: activity.gear?.stravaID)) }
+        guard !edits.isEmpty else { return }
         let uuid = activity.uuid
         let stravaID = activity.source.isSynced ? activity.stravaID : nil
         let source = GarminSource(activity)
         let toStrava = app.isAuthenticated
         let toGarmin = app.isGarminConnected
         Task {
-            await app.titles.propagate(
-                uuid: uuid, stravaID: stravaID, source: source,
+            await app.edits.propagate(
+                edits, uuid: uuid, stravaID: stravaID, source: source,
                 toStrava: toStrava, toGarmin: toGarmin
             )
         }

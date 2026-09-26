@@ -118,6 +118,8 @@ struct ActivityDetailView: View {
 
                 notes
 
+                ActivityGearRow(activity: activity)
+
                 statistics
 
                 SameRouteSection(activity: activity, onSelect: onSelectActivity)
@@ -247,11 +249,11 @@ struct ActivityDetailView: View {
                 // Right after Strava: the two services side by side, then what
                 // happened here.
                 garminStatus
-                if let failure = app.titles.failures[activity.uuid] {
+                if let failure = app.edits.failures[activity.uuid] {
                     Button {
-                        retryTitle()
+                        retryEdit()
                     } label: {
-                        Label("Titre non répercuté", systemImage: "exclamationmark.triangle")
+                        Label(failedEditLabel, systemImage: "exclamationmark.triangle")
                     }
                     .buttonStyle(.borderless)
                     .help(failure + "\nCliquer pour réessayer.")
@@ -307,15 +309,23 @@ struct ActivityDetailView: View {
         }
     }
 
-    private func retryTitle() {
+    private var failedEditLabel: String {
+        let edits = app.edits.failedEdits[activity.uuid] ?? []
+        if edits.count > 1 { return "Modifications non répercutées" }
+        if case .gear = edits.first { return "Matériel non répercuté" }
+        return "Titre non répercuté"
+    }
+
+    private func retryEdit() {
+        let edits = app.edits.failedEdits[activity.uuid] ?? [.name]
         let source = GarminSource(activity)
         let stravaID = activity.source.isSynced ? activity.stravaID : nil
         let uuid = activity.uuid
         let toStrava = app.isAuthenticated
         let toGarmin = app.isGarminConnected
         Task {
-            await app.titles.propagate(
-                uuid: uuid, stravaID: stravaID, source: source,
+            await app.edits.propagate(
+                edits, uuid: uuid, stravaID: stravaID, source: source,
                 toStrava: toStrava, toGarmin: toGarmin
             )
         }
@@ -586,9 +596,6 @@ struct ActivityDetailView: View {
         }
         if let calories = activity.calories, calories > 0 {
             add("Calories", Format.calories(calories))
-        }
-        if let gear = activity.gear {
-            add("Matériel", gear.name)
         }
         return tiles
     }

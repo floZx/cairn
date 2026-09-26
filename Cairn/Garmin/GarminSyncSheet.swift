@@ -164,13 +164,7 @@ struct GarminSyncSheet: View {
                     type: type
                 )
                 if selected.contains(.gear), let wanted = proposal.gearUUIDs {
-                    let current = Set(currentGear.map(\.uuid))
-                    for uuid in current.subtracting(wanted) {
-                        try await garmin.unlink(gear: uuid, fromActivity: activity.id)
-                    }
-                    for uuid in Set(wanted).subtracting(current) {
-                        try await garmin.link(gear: uuid, toActivity: activity.id)
-                    }
+                    try await garmin.setGear(wanted, current: currentGear, activityID: activity.id)
                 }
                 // Read back rather than assumed: it confirms the write, and a
                 // field left unticked keeps the activity « à synchroniser ».

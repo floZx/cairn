@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// The one form for editing an activity and for creating one.
 ///
@@ -26,6 +27,7 @@ struct ActivityEditorSheet: View {
     /// tient le premier répondant, et les deux mécaniques ne se parlent pas.
     @State private var notesFocused = false
     @Environment(\.dismiss) private var dismiss
+    @Query(sort: \Gear.name) private var library: [Gear]
 
     init(
         mode: Mode, focusesNotes: Bool = false,
@@ -46,6 +48,14 @@ struct ActivityEditorSheet: View {
         guard draft.validationMessage == nil else { return }
         onSave(draft)
         dismiss()
+    }
+
+    /// What suits the sport first — bikes for a ride, shoes on foot — then
+    /// the rest, for the day a run is logged as a walk.
+    private var gearChoices: [Gear] {
+        let bike: Set<SportType> = [.ride, .mountainBikeRide, .gravelRide, .eBikeRide]
+        let wantsBike = bike.contains(draft.sport)
+        return library.filter { $0.isBike == wantsBike } + library.filter { $0.isBike != wantsBike }
     }
 
     private var title: String {
@@ -174,6 +184,19 @@ struct ActivityEditorSheet: View {
                         ForEach(ActivityLabel.workoutTypes) { label in
                             GutteredLabel(label.displayName, systemImage: label.symbolName)
                                 .tag(ActivityLabel?.some(label))
+                        }
+                    }
+                    // Only once there is gear to choose from: every item comes
+                    // from Strava, so a journal without it has nothing to list.
+                    if !library.isEmpty || draft.gear != nil {
+                        Picker("Matériel", selection: $draft.gear) {
+                            Text("Aucun").tag(Gear?.none)
+                            ForEach(gearChoices) { gear in
+                                GutteredLabel(
+                                    gear.name, systemImage: gear.isBike ? "bicycle" : "shoe"
+                                )
+                                .tag(Gear?.some(gear))
+                            }
                         }
                     }
                     Toggle("Domicile-travail", isOn: $draft.isCommute)

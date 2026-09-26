@@ -31,6 +31,9 @@ struct ActivityDraft: Equatable {
     /// Nil means "no particular type", which is a value the user can choose —
     /// not merely the absence of one.
     var workoutLabel: ActivityLabel?
+    /// Nil is « no gear », chosen or not: Strava's default pair on the wrong
+    /// run is what this field exists to correct.
+    var gear: Gear?
 
     init(_ activity: Activity) {
         name = activity.name
@@ -44,6 +47,7 @@ struct ActivityDraft: Equatable {
         isCommute = activity.isCommute
         isTrainer = activity.isTrainer
         workoutLabel = activity.workoutLabel
+        gear = activity.gear
     }
 
     /// An empty draft for a session that never went through a watch.
@@ -60,6 +64,7 @@ struct ActivityDraft: Equatable {
         isCommute = false
         isTrainer = false
         workoutLabel = nil
+        gear = nil
     }
 
     /// The name as it will actually be saved.
@@ -116,6 +121,9 @@ struct ActivityDraft: Equatable {
         if isCommute != original.isCommute { changed.insert(.isCommute) }
         if isTrainer != original.isTrainer { changed.insert(.isTrainer) }
         if workoutLabel != original.workoutLabel { changed.insert(.workoutLabel) }
+        if gear?.persistentModelID != original.gear?.persistentModelID {
+            changed.insert(.gear)
+        }
         return changed
     }
 
@@ -195,5 +203,7 @@ struct ActivityDraft: Equatable {
         activity.isCommute = isCommute
         activity.isTrainer = isTrainer
         activity.workoutLabel = workoutLabel
+        activity.gear = gear
+        activity.gearID = gear?.stravaID
     }
 }

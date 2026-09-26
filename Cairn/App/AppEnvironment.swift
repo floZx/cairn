@@ -35,7 +35,7 @@ final class AppEnvironment {
     /// receives what Cairn already knows about an activity.
     let garmin: GarminClient
     let garminSync: GarminSyncTracker
-    let titles: TitlePropagator
+    let edits: EditPropagator
     /// Who Garmin says is signed in, nil when nobody is. Read from the
     /// Keychain at launch, so it costs no request.
     var garminAccountName: String?
@@ -110,7 +110,7 @@ final class AppEnvironment {
         self.garmin = garmin
         let garminSync = GarminSyncTracker(client: garmin, defaults: .standard)
         self.garminSync = garminSync
-        self.titles = TitlePropagator(strava: client, garmin: garmin, garminSync: garminSync)
+        self.edits = EditPropagator(strava: client, garmin: garmin, garminSync: garminSync)
         let garminTokens = store.garminTokens()
         self.isGarminConnected = garminTokens != nil
         self.garminAccountName = garminTokens?.displayName

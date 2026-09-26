@@ -123,13 +123,24 @@ actor StravaClient {
         try await get(GearDTO.self, path: "gear/\(id)", query: [:])
     }
 
-    /// Renames an activity on Strava — the only write Cairn makes there.
+    /// Renames an activity on Strava. With `updateGear`, the only writes
+    /// Cairn makes there.
     ///
     /// A token granted before `activity:write` was asked for reads fine and
     /// is refused here, with a 401 that says nothing a person could act on;
     /// it becomes `.writeNotAuthorized`, which says to reconnect.
     func updateName(id: Int64, name: String) async throws {
-        let body = try JSONSerialization.data(withJSONObject: ["name": name])
+        try await update(id: id, fields: ["name": name])
+    }
+
+    /// Sets the gear on Strava, or removes it with nil — Strava's own
+    /// « none ».
+    func updateGear(id: Int64, gearID: String?) async throws {
+        try await update(id: id, fields: ["gear_id": gearID ?? "none"])
+    }
+
+    private func update(id: Int64, fields: [String: String]) async throws {
+        let body = try JSONSerialization.data(withJSONObject: fields)
         do {
             _ = try await send(method: "PUT", path: "activities/\(id)", query: [:], body: body)
         } catch StravaError.http(let status, _) where status == 401 || status == 403 {
