@@ -23,10 +23,15 @@ export type ReglageVerrou = {
   passkey: string | null
   /// Minutes hors de l'application avant qu'il se referme.
   delai: number
+  /// La forme du réglage : 2 depuis que le défaut est « dès qu'on quitte ».
+  v?: number
 }
 
 const CLEF = "cairn.verrou-journal"
-const DEFAUT: ReglageVerrou = { actif: false, passkey: null, delai: 10 }
+/// Refermé dès qu'on quitte l'application, par défaut. Dix minutes, au
+/// départ : iOS garde une application web en mémoire bien plus longtemps,
+/// on revenait avant le délai, et le journal s'ouvrait sans rien demander.
+const DEFAUT: ReglageVerrou = { actif: false, passkey: null, delai: 0, v: 2 }
 
 export const DELAIS: { minutes: number; libelle: string }[] = [
   { minutes: 0, libelle: "Dès qu'on quitte Cairn" },
@@ -39,7 +44,11 @@ export const DELAIS: { minutes: number; libelle: string }[] = [
 function lire(): ReglageVerrou {
   try {
     const brut = localStorage.getItem(CLEF)
-    return brut ? { ...DEFAUT, ...(JSON.parse(brut) as Partial<ReglageVerrou>) } : DEFAUT
+    if (!brut) return DEFAUT
+    const lu = JSON.parse(brut) as Partial<ReglageVerrou>
+    // Un réglage d'avant le nouveau défaut portait l'ancien sans l'avoir choisi.
+    if (lu.v !== 2) return { ...DEFAUT, ...lu, delai: 0, v: 2 }
+    return { ...DEFAUT, ...lu }
   } catch {
     return DEFAUT
   }
