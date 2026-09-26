@@ -80,6 +80,10 @@ struct JournalListView: View {
                 .tag(day.date)
         }
         .listStyle(.inset)
+        // Counted like the activities' « 893 activités »: the window said
+        // « Cairn » here, and the sidebar's number had nothing to say what it
+        // counted.
+        .navigationTitle(days.count == 1 ? "1 journée" : "\(days.count) journées")
         // Row heights are left alone here: a day carrying tags is taller than
         // one without, and pinning them to the first row's would clip the rest.
         .background(TableBridge(pinsRowHeight: false, scroller: scroller))

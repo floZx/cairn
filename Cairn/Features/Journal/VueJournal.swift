@@ -23,7 +23,7 @@ enum VueJournal: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .journees: "Journées"
-        case .gens: "People"
+        case .gens: "Personnes"
         }
     }
 

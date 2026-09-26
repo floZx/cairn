@@ -84,7 +84,7 @@ struct PersonPopoverCard: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(
-                                "\(Format.fullDate(citation.dateKey.date()).capitalized) · "
+                                "\(Format.fullDate(citation.dateKey.date())) · "
                                 + citation.source.libelle
                             )
                             .font(.caption)

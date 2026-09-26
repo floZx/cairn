@@ -29,6 +29,9 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     /// weigh-in last. That order is what picks the line standing for a day
     /// with no file of its own.
     let elsewhereNotes: [String]
+    /// Whose each of `elsewhereNotes` is — an outing's name, a meal, the
+    /// weigh-in — in the same order. Empty when the caller gave none.
+    let elsewhereSources: [String]
     /// What the day *did*, as opposed to what was written about it: the sports
     /// it holds and whether it was weighed. Shown as marks in the list, where
     /// a coloured glyph says at a glance what a sentence would have to spell
@@ -67,11 +70,13 @@ struct JournalDay: Identifiable, Equatable, Sendable {
 
     init(
         date: DateKey, note: JournalFileNote? = nil, elsewhereNotes: [String] = [],
+        elsewhereSources: [String] = [],
         marks: Marks = .none, elsewhereTags: Set<JournalTag>? = nil
     ) {
         self.date = date
         self.note = note ?? JournalFileNote(date: date, text: "")
         self.elsewhereNotes = elsewhereNotes
+        self.elsewhereSources = elsewhereSources
         self.marks = marks
         self.elsewhereTags = elsewhereTags
             ?? elsewhereNotes.reduce(into: []) { $0.formUnion(JournalTagScanner.tags(in: $1)) }
@@ -94,9 +99,13 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     /// weigh-in it belongs to. A day that exists only because of one of those
     /// falls back to what it said.
     var summary: String {
-        note.isEmpty
-            ? (elsewhereNotes.first.map { JournalFileNote(date: date, text: $0).summary } ?? "")
-            : note.summary
+        guard note.isEmpty else { return note.summary }
+        guard let first = elsewhereNotes.first else { return "" }
+        let said = JournalFileNote(date: date, text: first).summary
+        // Said whose it is: « Seuil 3x12′ · 3:50/km » rather than a pace
+        // standing alone in a list of days.
+        guard let source = elsewhereSources.first, !source.isEmpty else { return said }
+        return "\(source) · \(said)"
     }
 
     func matches(query: String) -> Bool {
@@ -129,26 +138,29 @@ struct JournalDay: Identifiable, Equatable, Sendable {
     /// through and weighed in silence is not a journal entry.
     static func merge(
         notes: [JournalFileNote], elsewhereNotes: [DateKey: [String]],
+        elsewhereSources: [DateKey: [String]] = [:],
         marks: [DateKey: Marks] = [:], elsewhereTags: [DateKey: Set<JournalTag>]? = nil
     ) -> [JournalDay] {
         // `elsewhereTags.map` et non `elsewhereTags?[…]` : fourni, un jour
         // absent du dictionnaire n'a pas d'étiquette, et c'est une réponse ;
         // absent, chaque journée relit ses textes, et c'est le repli.
         var days: [JournalDay] = notes.map { note in
-            JournalDay(
+            let said = spoken(elsewhereNotes[note.date], elsewhereSources[note.date])
+            return JournalDay(
                 date: note.date, note: note,
-                elsewhereNotes: spoken(elsewhereNotes[note.date]),
+                elsewhereNotes: said.texts, elsewhereSources: said.sources,
                 marks: marks[note.date] ?? .none,
                 elsewhereTags: elsewhereTags.map { $0[note.date] ?? [] }
             )
         }
         let written = Set(notes.map(\.date))
         for (date, texts) in elsewhereNotes where !written.contains(date) {
-            let said = spoken(texts)
-            guard !said.isEmpty else { continue }
+            let said = spoken(texts, elsewhereSources[date])
+            guard !said.texts.isEmpty else { continue }
             days.append(
                 JournalDay(
-                    date: date, elsewhereNotes: said, marks: marks[date] ?? .none,
+                    date: date, elsewhereNotes: said.texts, elsewhereSources: said.sources,
+                    marks: marks[date] ?? .none,
                     elsewhereTags: elsewhereTags.map { $0[date] ?? [] }
                 )
             )
@@ -156,10 +168,21 @@ struct JournalDay: Identifiable, Equatable, Sendable {
         return days.sorted { $0.date > $1.date }
     }
 
-    private static func spoken(_ texts: [String]?) -> [String] {
-        (texts ?? []).filter {
-            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    /// The texts that say something, and their sources with them — dropped
+    /// together, so the two stay side by side. Sources that don't line up
+    /// with the texts are dropped whole rather than mislabel a note.
+    private static func spoken(
+        _ texts: [String]?, _ sources: [String]?
+    ) -> (texts: [String], sources: [String]) {
+        let texts = texts ?? []
+        let sources = sources?.count == texts.count ? sources! : nil
+        var kept: (texts: [String], sources: [String]) = ([], [])
+        for (index, text) in texts.enumerated()
+        where !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            kept.texts.append(text)
+            if let sources { kept.sources.append(sources[index]) }
         }
+        return kept
     }
 
     /// Search text and ticked tags together; the order `merge` produced.

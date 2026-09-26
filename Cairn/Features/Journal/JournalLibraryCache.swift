@@ -27,6 +27,8 @@ final class JournalLibraryCache {
     /// Ce qu'une traversée rapporte.
     struct Contenu {
         var elsewhereNotes: [DateKey: [String]] = [:]
+        /// À qui est chacun de ces textes : voir `JournalDaySources.elsewhereSources`.
+        var elsewhereSources: [DateKey: [String]] = [:]
         /// Les étiquettes de ces textes, lues une fois pour toutes. Voir
         /// `JournalDay.elsewhereTags` : la barre latérale les relisait à chaque
         /// rendu pour compter ses tags.
@@ -144,6 +146,9 @@ final class JournalLibraryCache {
         )
         contenu = Contenu(
             elsewhereNotes: ailleurs,
+            elsewhereSources: JournalDaySources.elsewhereSources(
+                activities: ecrites, mealNotes: repas, weights: pesees
+            ),
             elsewhereTags: ailleurs.mapValues { textes in
                 textes.reduce(into: Set<JournalTag>()) {
                     $0.formUnion(JournalTagScanner.tags(in: $1))

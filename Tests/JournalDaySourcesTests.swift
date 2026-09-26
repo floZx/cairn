@@ -53,6 +53,14 @@ struct JournalDaySourcesTests {
             byDay[key("2026-08-11")]
                 == ["Jambes lourdes.", "Skyr.", "Sushi.", "Bien dormi."]
         )
+        // Et à qui est chacun, dans le même ordre : l'aperçu d'une journée
+        // sans note le dit.
+        let sources = JournalDaySources.elsewhereSources(
+            activities: [activity], mealNotes: [lateMeal, earlyMeal], weights: [weight]
+        )
+        #expect(sources[key("2026-08-11")]?.count == 4)
+        #expect(sources[key("2026-08-11")]?.first == activity.name)
+        #expect(sources[key("2026-08-11")]?.last == "Pesée")
     }
 
     @Test("une pesée muette n'écrit rien")

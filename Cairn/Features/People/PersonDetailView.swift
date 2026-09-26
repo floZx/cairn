@@ -129,7 +129,9 @@ struct PersonDetailView: View {
     private func citationView(_ citation: PeopleIndex.Citation) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Text(Format.fullDate(citation.dateKey.date()).capitalized)
+                // En minuscules, comme partout ailleurs : « jeudi 24 septembre
+                // 2026 », pas « Jeudi 24 Septembre 2026 ».
+                Text(Format.fullDate(citation.dateKey.date()))
                     .font(.caption.weight(.medium))
                 Text("·").foregroundStyle(.tertiary)
                 Text(citation.source.libelle)

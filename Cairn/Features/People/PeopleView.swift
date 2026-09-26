@@ -110,5 +110,6 @@ struct PeopleView: View {
                 }
             }
         }
+        .navigationTitle(lignes.count == 1 ? "1 personne" : "\(lignes.count) personnes")
     }
 }

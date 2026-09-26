@@ -107,13 +107,31 @@ enum JournalDaySources {
     static func elsewhereNotes(
         activities: [Activity], mealNotes: [MealNote], weights: [WeightEntry]
     ) -> [DateKey: [String]] {
-        var byDay: [DateKey: [String]] = [:]
+        elsewhere(activities: activities, mealNotes: mealNotes, weights: weights)
+            .mapValues { $0.map(\.text) }
+    }
 
-        func add(_ text: String?, to date: DateKey) {
+    /// What each of those texts belongs to — the outing's name, the meal, the
+    /// weigh-in — in the same order, from the same pass: a row showing an
+    /// outing's note says whose it is. « 3:50/km » alone, or « Wok », left
+    /// the reader guessing.
+    static func elsewhereSources(
+        activities: [Activity], mealNotes: [MealNote], weights: [WeightEntry]
+    ) -> [DateKey: [String]] {
+        elsewhere(activities: activities, mealNotes: mealNotes, weights: weights)
+            .mapValues { $0.map(\.source) }
+    }
+
+    private static func elsewhere(
+        activities: [Activity], mealNotes: [MealNote], weights: [WeightEntry]
+    ) -> [DateKey: [(source: String, text: String)]] {
+        var byDay: [DateKey: [(source: String, text: String)]] = [:]
+
+        func add(_ text: String?, from source: String, to date: DateKey) {
             guard let text,
                   !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             else { return }
-            byDay[date, default: []].append(text)
+            byDay[date, default: []].append((source, text))
         }
 
         // The day an outing belongs to is `DateKey` of its instant in this
@@ -122,17 +140,17 @@ enum JournalDaySources {
         // which outings are its own. Meals and weigh-ins need no such rule:
         // they are filed under a day, never under an instant.
         for activity in activities.sorted(by: { $0.startDate < $1.startDate }) {
-            add(activity.activityDescription, to: DateKey(activity.startDate))
+            add(activity.activityDescription, from: activity.name, to: DateKey(activity.startDate))
         }
         for meal in mealNotes.sorted(by: {
             ($0.mealSlot?.sortOrder ?? .max) < ($1.mealSlot?.sortOrder ?? .max)
         }) {
             guard let date = meal.dateKey else { continue }
-            add(meal.note, to: date)
+            add(meal.note, from: meal.mealSlot?.name ?? "Repas", to: date)
         }
         for weight in weights {
             guard let date = weight.dateKey else { continue }
-            add(weight.note, to: date)
+            add(weight.note, from: "Pesée", to: date)
         }
         return byDay
     }

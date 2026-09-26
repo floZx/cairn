@@ -48,7 +48,7 @@ export function SelecteurJournal({
           key={v}
           className={vue === v ? "segment actif" : "segment"}
           onClick={() => onVue(v)}
-          aria-label={v === "journees" ? "Journées" : "People"}
+          aria-label={v === "journees" ? "Journées" : "Personnes"}
           aria-pressed={vue === v}
         >
           <Icone nom={v} />

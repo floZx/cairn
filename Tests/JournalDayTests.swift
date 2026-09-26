@@ -176,4 +176,37 @@ struct JournalDayTests {
             ).map(\.date.raw) == ["2026-08-11"]
         )
     }
+
+    // MARK: - D'où vient l'aperçu
+
+    @Test("un jour sans note dit à qui est le texte qu'il montre")
+    func summarySaysWhose() {
+        let days = JournalDay.merge(
+            notes: [],
+            elsewhereNotes: [key("2026-09-22"): ["", "3:50/km"]],
+            elsewhereSources: [key("2026-09-22"): ["Muet", "Seuil 3x12′"]]
+        )
+        #expect(days[0].summary == "Seuil 3x12′ · 3:50/km")
+        #expect(days[0].elsewhereSources == ["Seuil 3x12′"])
+    }
+
+    @Test("la note du jour passe devant, sans étiquette")
+    func ownNoteHasNoSource() {
+        let days = JournalDay.merge(
+            notes: [note("2026-09-22", "Belle journée.")],
+            elsewhereNotes: [key("2026-09-22"): ["3:50/km"]],
+            elsewhereSources: [key("2026-09-22"): ["Seuil 3x12′"]]
+        )
+        #expect(days[0].summary == "Belle journée.")
+    }
+
+    @Test("des sources qui ne correspondent pas aux textes ne légendent rien")
+    func mismatchedSourcesAreDropped() {
+        let days = JournalDay.merge(
+            notes: [],
+            elsewhereNotes: [key("2026-09-22"): ["3:50/km"]],
+            elsewhereSources: [key("2026-09-22"): ["a", "b"]]
+        )
+        #expect(days[0].summary == "3:50/km")
+    }
 }

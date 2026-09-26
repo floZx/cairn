@@ -486,6 +486,7 @@ struct RootView: View {
         return JournalDay.merge(
             notes: app.journal.notes,
             elsewhereNotes: bibliotheque.elsewhereNotes,
+            elsewhereSources: bibliotheque.elsewhereSources,
             // From every outing, not only the ones that wrote something: a day
             // with a vault note and a silent run still ran.
             marks: bibliotheque.marks,
