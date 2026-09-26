@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { POIDS_MASQUE } from "./masquees"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Markdown } from "./markdown"
@@ -429,7 +430,9 @@ export function Journal({
           <h2 className="jour">
             <span>
               {dateLongue(j.dateKey)}
-              {j.pesee && <span className="pastille" title="Pesée" />}
+              {/* Rien du poids tant qu'il est masqué : ce point bleu n'avait
+                  plus d'écran où se dire. */}
+              {j.pesee && !POIDS_MASQUE && <span className="pastille" title="Pesée" />}
             </span>
             <button className="lien petit" onClick={() => ouvrir(j)}>
               {j.noteUUID ? "Modifier" : "Écrire"}

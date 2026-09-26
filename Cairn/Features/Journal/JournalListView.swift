@@ -191,6 +191,12 @@ struct JournalListView: View {
         }
     }
 
+    /// The weigh-in's glyph, only while the weight has a screen of its own:
+    /// hidden since 24 September, it left a scale on rows that led nowhere.
+    private func showsWeighIn(_ day: JournalDay) -> Bool {
+        day.marks.weighed && !SidebarItem.weight.estMasquee
+    }
+
     private func row(_ day: JournalDay) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 10) {
@@ -220,7 +226,7 @@ struct JournalListView: View {
                     folder: attachmentsBase
                 )
             }
-            if !day.tags.isEmpty || !day.marks.sports.isEmpty || day.marks.weighed {
+            if !day.tags.isEmpty || !day.marks.sports.isEmpty || showsWeighIn(day) {
                 FlowLayout(spacing: 4) {
                     // The marks first: what the day did, then what it was
                     // filed under. A glyph is read faster than a word, and it
@@ -232,7 +238,7 @@ struct JournalListView: View {
                             .foregroundStyle(sport.color)
                             .help(sport.displayName)
                     }
-                    if day.marks.weighed {
+                    if showsWeighIn(day) {
                         Image(systemName: "scalemass")
                             .font(.caption)
                             .foregroundStyle(.secondary)
