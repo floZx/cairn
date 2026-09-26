@@ -168,6 +168,13 @@ struct CompletingNoteEditor: View {
             }
             enCours = nil
             return true
+        case .validation:
+            // Fini d'écrire, propositions ouvertes ou non : c'est Échap sans
+            // l'étape de refermer la liste.
+            guard let onEchappement else { return false }
+            enCours = nil
+            onEchappement()
+            return true
         }
     }
 

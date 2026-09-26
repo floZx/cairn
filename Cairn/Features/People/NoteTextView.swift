@@ -38,7 +38,8 @@ struct NoteTextView: NSViewRepresentable {
     /// Une image collée. Rendre `true` la consomme.
     var onImageCollee: (Data) -> Bool
 
-    enum Commande { case tabulation, haut, bas, echappement }
+    /// `validation` : ⌘↩, « j'ai fini d'écrire ».
+    enum Commande { case tabulation, haut, bas, echappement, validation }
 
     func makeNSView(context: Context) -> NSScrollView {
         // Monté à la main plutôt que par `scrollableTextView()` : cette
@@ -74,6 +75,9 @@ struct NoteTextView: NSViewRepresentable {
         champ.string = texte
         appliquerInterligne(champ)
         champ.surImage = onImageCollee
+        champ.surValidation = { [weak coordinateur = context.coordinator] in
+            coordinateur?.parent.onCommande(.validation) ?? false
+        }
 
         context.coordinator.champ = champ
         context.coordinator.defilement = defilement
@@ -106,6 +110,9 @@ struct NoteTextView: NSViewRepresentable {
         guard let champ = defilement.documentView as? ChampDeNote else { return }
         context.coordinator.parent = self
         champ.surImage = onImageCollee
+        champ.surValidation = { [weak coordinateur = context.coordinator] in
+            coordinateur?.parent.onCommande(.validation) ?? false
+        }
         if champ.font != police { champ.font = police }
 
         // **Le point délicat de tout `NSViewRepresentable` de champ texte.**
@@ -253,6 +260,8 @@ struct NoteTextView: NSViewRepresentable {
 /// Rendues au champ, elles y seraient devenues du texte, ou rien.
 final class ChampDeNote: NSTextView {
     var surImage: ((Data) -> Bool)?
+    /// ⌘↩ : vrai si l'écran l'a pris pour « fini ».
+    var surValidation: (() -> Bool)?
 
     override func paste(_ sender: Any?) {
         let presse = NSPasteboard.general
@@ -276,6 +285,19 @@ final class ChampDeNote: NSTextView {
            event.charactersIgnoringModifiers?.lowercased() == "d" {
             insertText(Self.heure(), replacementRange: selectedRange())
             return true
+        }
+        // ⌘↩ referme l'écriture, comme Échap, là où l'écran le propose. Sinon
+        // il continue son chemin : dans une feuille, c'est « Enregistrer ».
+        if let window, window.firstResponder === self,
+           event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+           event.keyCode == 36 || event.keyCode == 76 {
+            if surValidation?() == true { return true }
+            // Hors d'une feuille, sans consigne de l'écran — la fiche d'une
+            // personne : rendre le clavier, ce que fait Échap au même endroit.
+            if window.sheetParent == nil {
+                window.makeFirstResponder(nil)
+                return true
+            }
         }
         return super.performKeyEquivalent(with: event)
     }
