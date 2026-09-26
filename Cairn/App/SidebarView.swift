@@ -74,9 +74,10 @@ struct SidebarView: View {
     let journalVue: VueJournal
 
     /// A calendar is a grid, not a row: on the list's own row insets it loses
-    /// a column to them.
+    /// a column to them. Room above it, too: in a section with no title, 4 pt
+    /// left its month sitting against the last item of the menu.
     private static let calendarInsets = EdgeInsets(
-        top: 4, leading: 6, bottom: 4, trailing: 6
+        top: 16, leading: 6, bottom: 4, trailing: 6
     )
     /// Whether the tag list is open, remembered between launches.
     ///

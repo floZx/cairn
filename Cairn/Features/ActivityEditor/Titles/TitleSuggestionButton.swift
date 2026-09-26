@@ -84,7 +84,12 @@ private struct SuggestionRow: View {
 
     var body: some View {
         Button(action: action) {
+            // On two lines when it must: long commune names — « Boucle bien
+            // vallonnée par Saint-Chamond » — were cut at the popover's edge.
             Text(title)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
