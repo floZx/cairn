@@ -1,3 +1,4 @@
+import { jourCourant } from "./NoteEditor"
 /// Le sélecteur du journal : les journées, ou les gens qui y sont cités.
 ///
 /// En icônes et non en mots, comme celui des activités : la ligne du titre
@@ -55,5 +56,42 @@ export function SelecteurJournal({
         </button>
       ))}
     </div>
+  )
+}
+
+/// Écrire un autre jour : le calendrier, en petit bouton rond à gauche du
+/// sélecteur — la carte d'aujourd'hui, toujours en tête du journal, a pris la
+/// place du grand bouton « Écrire aujourd'hui ».
+export function BoutonAutreJour({ onJour }: { onJour: (dateKey: string) => void }) {
+  return (
+    <label className="choix-jour bouton-autre-jour" aria-label="Écrire un autre jour">
+      <svg
+        width="19"
+        height="19"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        aria-hidden
+      >
+        <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+        <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
+      </svg>
+      {/* Le champ porte déjà la date du jour, et ce n'est pas cosmétique.
+          Vide, il valait « rien », et iOS commet aussitôt la date du jour en
+          ouvrant son sélecteur : un `change` partait avant tout choix, et le
+          premier appui ouvrait la note d'aujourd'hui. Rempli d'avance, cette
+          validation d'ouverture ne change rien, donc n'émet rien — et choisir
+          aujourd'hui n'ouvre rien non plus : c'est la carte en tête du
+          journal. */}
+      <input
+        type="date"
+        defaultValue={jourCourant()}
+        onChange={(e) => {
+          if (e.target.value) onJour(e.target.value)
+        }}
+      />
+    </label>
   )
 }

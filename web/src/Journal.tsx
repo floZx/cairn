@@ -3,11 +3,10 @@ import { POIDS_MASQUE } from "./masquees"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Markdown } from "./markdown"
-import { dateLongue } from "./format"
+import { chiffresDeLaLigne } from "./format"
 import { NoteEditor, jourCourant, type NoteAEditer } from "./NoteEditor"
 import { Feuille, Chargement } from "./Chrome"
-import { IconeSport } from "./IconeSport"
-import { nomDuSport } from "./sports"
+import { Symbole, couleurDuSport, symboleDuSport } from "./IconeSport"
 
 /// Une journée du journal, telle que le Mac la compose.
 ///
@@ -39,6 +38,10 @@ type Journee = {
     sport?: string
     kg?: number
     activite?: string
+    /// Pour une sortie : son nom et ses chiffres, le titre et la ligne de
+    /// sa carte.
+    nom?: string
+    chiffres?: string
   }[]
   /// Les sports du jour, pour la pastille — une journée sans un mot mais avec
   /// une sortie doit tout de même se voir.
@@ -149,7 +152,9 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
           .lte("date_key_raw", fin),
         supabase
           .from("activity")
-          .select("uuid, start_local_date, sport_type_raw, activity_description")
+          .select(
+            "uuid, name, start_local_date, sport_type_raw, activity_description, distance, moving_time, total_elevation_gain, average_heartrate, calories",
+          )
           .is("deleted_at", null)
           .gte("start_local_date", debut)
           .lte("start_local_date", fin + "T23:59:59")
@@ -192,7 +197,7 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
         j: Journee,
         source: string,
         texte: string | null,
-        extra?: { sport?: string; kg?: number; activite?: string },
+        extra?: { sport?: string; kg?: number; activite?: string; nom?: string; chiffres?: string },
       ) => {
         if (texte?.trim()) j.ailleurs.push({ source, texte, ...extra })
       }
@@ -210,17 +215,29 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
       }
 
       // Le jour d'une sortie est celui de son instant local, comme sur le Mac.
+      // Chaque sortie a sa carte, même sans un mot : son nom et ses chiffres
+      // disent déjà ce que la journée a été.
       for (const a of activites.data as {
         uuid: string
+        name: string
         start_local_date: string
         sport_type_raw: string
         activity_description: string | null
+        distance: number
+        moving_time: number
+        total_elevation_gain: number
+        average_heartrate: number | null
+        calories: number | null
       }[]) {
         const j = obtenir(a.start_local_date.slice(0, 10))
         if (!j.sports.includes(a.sport_type_raw)) j.sports.push(a.sport_type_raw)
-        ajouter(j, "Sortie", a.activity_description, {
+        j.ailleurs.push({
+          source: "Sortie",
+          texte: a.activity_description?.trim() ? a.activity_description : "",
           sport: a.sport_type_raw,
           activite: a.uuid,
+          nom: a.name,
+          chiffres: chiffresDeLaLigne(a),
         })
       }
 
@@ -354,6 +371,24 @@ export function Journal({
   const ouvrir = (j: Journee) =>
     setEnEdition({ uuid: j.noteUUID, dateKey: j.dateKey, texte: j.texte })
 
+  // La carte du jour toujours en tête, même vide : c'est elle qu'on touche
+  // pour écrire, à la place du bouton « Écrire aujourd'hui ».
+  const aujourdhui = jourCourant()
+  const avecAujourdhui = journees.some((j) => j.dateKey === aujourdhui)
+    ? journees
+    : [
+        {
+          dateKey: aujourdhui,
+          noteUUID: null,
+          texte: "",
+          tags: [],
+          ailleurs: [],
+          sports: [],
+          pesee: false,
+        } satisfies Journee,
+        ...journees,
+      ].sort((x, y) => y.dateKey.localeCompare(x.dateKey))
+
   return (
     <>
       {enEdition && (
@@ -362,109 +397,154 @@ export function Journal({
         </Feuille>
       )}
 
-      {/* Écrire un jour que rien n'a encore marqué — un dimanche sans sortie
-          ni repas noté n'apparaît dans aucune source, et sans ce champ il
-          n'existait aucun chemin pour y écrire depuis le téléphone. */}
-      <div className="barre-jour">
-        <button
-          className="note-du-jour"
-          onClick={() => {
-            const aujourdhui = jourCourant()
-            const j = journees.find((x) => x.dateKey === aujourdhui)
-            setEnEdition({
-              uuid: j?.noteUUID ?? null,
-              dateKey: aujourdhui,
-              texte: j?.texte ?? "",
-            })
-          }}
-        >
-          Écrire aujourd'hui
-        </button>
-        <label className="choix-jour bouton-date" aria-label="Écrire un autre jour">
-          {/* Dessiné plutôt qu'un emoji : « 📅 » arrive en couleurs, avec le
-              rendu de la police système, et jure à côté de traits monochromes
-              réglés au demi-pixel. */}
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            aria-hidden
-          >
-            <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
-            <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
-          </svg>
-          {/* Le champ porte déjà la date du jour, et ce n'est pas cosmétique.
-              Vide, il valait « rien », et iOS commet aussitôt la date du jour
-              en ouvrant son sélecteur : un `change` partait avant tout choix,
-              et le premier appui sur le calendrier ouvrait la note
-              d'aujourd'hui — le bouton d'à côté, exactement.
+      {parMois(avecAujourdhui).map((mois) => (
+        <section key={mois.cle}>
+          {/* Le mois dit une fois, et collé en haut en défilant : les cartes
+              n'ont plus à porter la date longue. */}
+          <h2 className="mois-journal">{mois.titre}</h2>
+          {mois.jours.map((j) => (
+            <CarteJour
+              key={j.dateKey}
+              j={j}
+              aujourdhui={aujourdhui}
+              urlImage={urlImage}
+              onEcrire={() => ouvrir(j)}
+              onActivite={onActivite}
+              onRepas={onRepas}
+            />
+          ))}
+        </section>
+      ))}
 
-              Rempli d'avance, cette validation d'ouverture ne change rien,
-              donc n'émet rien. Choisir aujourd'hui depuis le calendrier
-              n'ouvre alors plus rien non plus, et c'est voulu : « Écrire
-              aujourd'hui » est le bouton d'à côté. */}
-          <input
-            type="date"
-            defaultValue={jourCourant()}
-            onChange={(e) => {
-              if (!e.target.value) return
-              const j = journees.find((x) => x.dateKey === e.target.value)
-              setEnEdition({
-                uuid: j?.noteUUID ?? null,
-                dateKey: e.target.value,
-                texte: j?.texte ?? "",
-              })
-            }}
-          />
-        </label>
-      </div>
+      <div ref={sentinelle} />
+      {isFetchingNextPage && <Chargement petit />}
+    </>
+  )
+}
 
-      {journees.length === 0 && <p className="attenue">Aucune note pour l'instant.</p>}
+const nomDuMois = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" })
+const jourAbrege = new Intl.DateTimeFormat("fr-FR", { weekday: "short" })
+const jourEnToutes = new Intl.DateTimeFormat("fr-FR", { weekday: "long" })
+const jourEtMois = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" })
 
-      {journees.map((j) => (
-        <article className="note" key={j.dateKey} id={`jour-${j.dateKey}`}>
-          <h2 className="jour">
-            <span>
-              {dateLongue(j.dateKey)}
-              {/* Rien du poids tant qu'il est masqué : ce point bleu n'avait
-                  plus d'écran où se dire. */}
-              {j.pesee && !POIDS_MASQUE && <span className="pastille" title="Pesée" />}
+/// Une clé de jour en date locale — découpée à la main, voir `dateLongue`.
+function enDate(dateKey: string): Date {
+  const [a, m, j] = dateKey.split("-").map(Number)
+  return new Date(a, m - 1, j)
+}
+
+function capitale(texte: string): string {
+  return texte.charAt(0).toUpperCase() + texte.slice(1)
+}
+
+/// Les journées rangées par mois, dans l'ordre où elles viennent.
+function parMois(jours: Journee[]) {
+  const mois: { cle: string; titre: string; jours: Journee[] }[] = []
+  for (const j of jours) {
+    const cle = j.dateKey.slice(0, 7)
+    const dernier = mois[mois.length - 1]
+    if (dernier?.cle === cle) dernier.jours.push(j)
+    else mois.push({ cle, titre: nomDuMois.format(enDate(j.dateKey)), jours: [j] })
+  }
+  return mois
+}
+
+/// « Aujourd'hui », « Hier », le jour dans la semaine, puis « 18 sept. » —
+/// les mots de la liste du Mac.
+export function jourRelatif(dateKey: string, aujourdhui: string): string {
+  const ecart = Math.round(
+    (enDate(aujourdhui).getTime() - enDate(dateKey).getTime()) / 86_400_000,
+  )
+  if (ecart === 0) return "Aujourd'hui"
+  if (ecart === 1) return "Hier"
+  if (ecart >= 2 && ecart <= 6) return capitale(jourEnToutes.format(enDate(dateKey)))
+  return jourEtMois.format(enDate(dateKey))
+}
+
+/// Le sport en pastille : le symbole blanc sur sa couleur, comme sur le Mac.
+function PastilleSport({ sport, taille }: { sport: string; taille: number }) {
+  return (
+    <span
+      className="rond-sport"
+      style={{ width: taille, height: taille, background: couleurDuSport(sport) }}
+    >
+      <Symbole nom={symboleDuSport(sport)} taille={Math.round(taille * 0.6)} couleur="#fff" />
+    </span>
+  )
+}
+
+function CarteJour({
+  j,
+  aujourdhui,
+  urlImage,
+  onEcrire,
+  onActivite,
+  onRepas,
+}: {
+  j: Journee
+  aujourdhui: string
+  urlImage: (chemin: string) => string | undefined
+  onEcrire: () => void
+  onActivite: (uuid: string) => void
+  onRepas: (dateKey: string) => void
+}) {
+  const estAujourdhui = j.dateKey === aujourdhui
+  const date = enDate(j.dateKey)
+  return (
+    <article
+      className={estAujourdhui ? "note aujourdhui" : "note"}
+      id={`jour-${j.dateKey}`}
+      // Toucher la carte, c'est écrire ce jour-là — sauf sur ce qui mène
+      // ailleurs : une sortie, un repas, une personne citée, un lien.
+      onClick={(e) => {
+        if ((e.target as Element).closest("a, button, .carte-ailleurs")) return
+        onEcrire()
+      }}
+    >
+      <h2 className="jour">
+        <span className="tuile-jour">
+          <span className="abrege">{jourAbrege.format(date).replace(".", "")}</span>
+          <span className="numero">{date.getDate()}</span>
+        </span>
+        <span className="relatif">{jourRelatif(j.dateKey, aujourdhui)}</span>
+        <span className="marques">
+          {j.tags.map((tag) => (
+            <span className="etiquette-tag" key={tag}>
+              {tag}
             </span>
-            <button className="lien petit" onClick={() => ouvrir(j)}>
-              {j.noteUUID ? "Modifier" : "Écrire"}
-            </button>
-          </h2>
+          ))}
+          {/* Rien du poids tant qu'il est masqué : ce point bleu n'avait
+              plus d'écran où se dire. */}
+          {j.pesee && !POIDS_MASQUE && <span className="pastille" title="Pesée" />}
+          {j.sports.map((sport) => (
+            <PastilleSport key={sport} sport={sport} taille={20} />
+          ))}
+        </span>
+      </h2>
 
-          {j.tags.length > 0 && (
-            <div className="etiquettes">
-              {j.tags.map((tag) => (
-                <span className="etiquette-tag" key={tag}>
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
+      {j.texte.trim() ? (
+        <div className="texte-jour">
+          <Markdown texte={j.texte} imageURL={urlImage} premierePhrase />
+        </div>
+      ) : (
+        estAujourdhui && (
+          <p className="invite-jour">Qu'est-ce qui s'est passé aujourd'hui ?</p>
+        )
+      )}
 
-          {j.texte.trim() && <Markdown texte={j.texte} imageURL={urlImage} />}
-
-          {/* Ce qui vient d'ailleurs, cité et attribué : une description de
-              sortie et une note de repas ne se lisent pas comme la note du
-              jour, et les fondre toutes ensemble ferait croire qu'on a écrit
-              d'un seul trait. */}
+      {/* Ce qui vient d'ailleurs, en cartes : une sortie et une note de repas
+          ne se lisent pas comme la note du jour, et les fondre toutes
+          ensemble ferait croire qu'on a écrit d'un seul trait. Chacune mène
+          là d'où elle vient. */}
+      {j.ailleurs.length > 0 && (
+        <div className="cartes-ailleurs">
           {j.ailleurs.map((a, i) => {
-            // Une citation renvoie à l'endroit d'où elle vient : la fiche de
-            // la sortie, ou la journée de repas. C'est la question que pose
-            // une phrase reprise ailleurs — « c'était laquelle, celle-là ? ».
             const aller = a.activite
               ? () => onActivite(a.activite as string)
               : () => onRepas(j.dateKey)
             return (
-              <blockquote
-                className="ailleurs cliquable"
+              <div
+                className="carte-ailleurs"
                 key={i}
                 role="button"
                 tabIndex={0}
@@ -476,33 +556,31 @@ export function Journal({
                   }
                 }}
               >
-                <span className="source">
-                  {a.sport ? (
-                    <>
-                      <IconeSport sport={a.sport} taille={15} />
-                      {nomDuSport(a.sport)}
-                    </>
-                  ) : (
-                    a.source
-                  )}
-                  <span className="fin-source">
-                    {a.kg !== undefined && (
-                      <span className="poids-source">
-                        {a.kg.toLocaleString("fr-FR")} kg
-                      </span>
-                    )}
-                    <span aria-hidden>›</span>
+                {a.sport ? (
+                  <PastilleSport sport={a.sport} taille={28} />
+                ) : (
+                  <span className="rond-icone">
+                    <Symbole nom={a.kg !== undefined ? "scalemass" : "fork.knife"} taille={15} />
                   </span>
+                )}
+                <div className="corps">
+                  <b>{a.nom ?? a.source}</b>
+                  {a.chiffres && <small>{a.chiffres}</small>}
+                  {a.kg !== undefined && <small>{a.kg.toLocaleString("fr-FR")} kg</small>}
+                  {a.texte && (
+                    <div className="texte">
+                      <Markdown texte={a.texte} imageURL={urlImage} />
+                    </div>
+                  )}
+                </div>
+                <span className="chevron" aria-hidden>
+                  ›
                 </span>
-                <Markdown texte={a.texte} imageURL={urlImage} />
-              </blockquote>
+              </div>
             )
           })}
-        </article>
-      ))}
-
-      <div ref={sentinelle} />
-      {isFetchingNextPage && <Chargement petit />}
-    </>
+        </div>
+      )}
+    </article>
   )
 }

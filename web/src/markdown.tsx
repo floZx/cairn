@@ -167,16 +167,22 @@ export function enLigne(texte: string): ReactNode[] {
 export function Markdown({
   texte,
   imageURL,
+  premierePhrase = false,
 }: {
   texte: string
   /// Résout `pieces-jointes/x.jpg` en URL affichable. Rendue séparément parce
   /// que ces octets vivent dans Storage, derrière une URL signée, et qu'aucun
   /// chemin relatif ne pourrait les atteindre.
   imageURL?: (chemin: string) => string | undefined
+  /// La première phrase du premier paragraphe en avant — ce qui mène la
+  /// journée, comme dans la liste du Mac.
+  premierePhrase?: boolean
 }) {
+  const blocs = enBlocs(texte)
+  const premier = premierePhrase ? blocs.findIndex((b) => b.sorte === "paragraphe") : -1
   return (
     <>
-      {enBlocs(texte).map((bloc, i) => {
+      {blocs.map((bloc, i) => {
         switch (bloc.sorte) {
           case "titre": {
             const Balise = `h${Math.min(bloc.niveau + 2, 6)}` as "h3"
@@ -195,8 +201,19 @@ export function Markdown({
             if (!url) return null
             return <img key={i} className="image-note" src={url} alt={bloc.alt} />
           }
-          default:
+          default: {
+            // Coupée à un `.`, `!`, `?` ou `…` suivi d'une espace.
+            const phrase = i === premier ? bloc.texte.match(/^(.+?[.!?…])(\s+[\s\S]*)$/) : null
+            if (i === premier) {
+              return (
+                <p key={i}>
+                  <span className="premiere-phrase">{enLigne(phrase ? phrase[1] : bloc.texte)}</span>
+                  {phrase && enLigne(phrase[2])}
+                </p>
+              )
+            }
             return <p key={i}>{enLigne(bloc.texte)}</p>
+          }
         }
       })}
     </>

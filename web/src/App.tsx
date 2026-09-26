@@ -7,7 +7,8 @@ import { ActivityList } from "./ActivityList"
 import { ActivityDetail } from "./ActivityDetail"
 import { Journal } from "./Journal"
 import { People } from "./People"
-import { SelecteurJournal, type VueJournal } from "./SelecteurJournal"
+import { BoutonAutreJour, SelecteurJournal, type VueJournal } from "./SelecteurJournal"
+import { useVerrou } from "./verrou"
 import type { Citation } from "./citations"
 import { Entrainement } from "./Entrainement"
 import { Nutrition } from "./Nutrition"
@@ -168,6 +169,7 @@ export function App() {
   /// raisons que `jourRepas`, mêmes effacements à main levée.
   const [jourPlan, setJourPlan] = useState<string | null>(null)
   const [noteAOuvrir, setNoteAOuvrir] = useState<string | null>(null)
+  const verrou = useVerrou()
   /// Vrai le temps d'un retour qu'on a soi-même déclenché pour fermer une
   /// fiche. L'entrée retrouvée porte l'écran d'où l'on venait, et le restaurer
   /// annulerait l'onglet qu'on vient de choisir — on a demandé à partir, pas à
@@ -285,7 +287,14 @@ export function App() {
         surUneFiche ? undefined : section === "activites" ? (
           <SelecteurVue vue={vue} onVue={setVue} />
         ) : section === "journal" ? (
-          <SelecteurJournal vue={vueJournal} onVue={setVueJournal} />
+          <div className="outils-journal">
+            {/* Seulement devant les journées, et le journal ouvert : fermé,
+                il n'y a rien où écrire. */}
+            {vueJournal === "journees" && verrou.ouvert && (
+              <BoutonAutreJour onJour={setNoteAOuvrir} />
+            )}
+            <SelecteurJournal vue={vueJournal} onVue={setVueJournal} />
+          </div>
         ) : undefined
       }
       dernierOnglet={<BoutonCompte />}
