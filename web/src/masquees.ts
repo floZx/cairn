@@ -3,10 +3,10 @@ import type { Section } from "./Chrome"
 /// Ce qui est mis de côté : le code reste, rien ne s'affiche.
 ///
 /// Retirés le 24 septembre 2026 — le journal (et les gens, qui en sont une
-/// vue), le plan d'entraînement et le poids. Vider l'ensemble et repasser
-/// `POIDS_MASQUE` à faux remet tout. Le Mac a son pendant :
-/// `SidebarItem.masquees`.
-export const SECTIONS_MASQUEES: ReadonlySet<Section> = new Set<Section>(["plan", "journal"])
+/// vue), le plan d'entraînement et le poids ; le journal est revenu le 26.
+/// Vider l'ensemble et repasser `POIDS_MASQUE` à faux remet tout. Le Mac a
+/// son pendant : `SidebarItem.masquees`.
+export const SECTIONS_MASQUEES: ReadonlySet<Section> = new Set<Section>(["plan"])
 
 export const POIDS_MASQUE = true
 

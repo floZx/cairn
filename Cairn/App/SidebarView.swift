@@ -15,10 +15,11 @@ extension SidebarItem {
     /// Les sections mises de côté : le code reste, rien ne s'affiche.
     ///
     /// Retirées le 24 septembre 2026 — le journal (et les gens, qui en sont
-    /// une vue), le plan d'entraînement et le poids. Vider cet ensemble les
-    /// remet toutes : la barre latérale, les raccourcis, les menus et les
-    /// réglages le lisent, et `RootView.allerA` refuse d'y mener.
-    static let masquees: Set<SidebarItem> = [.training, .journal, .weight]
+    /// une vue), le plan d'entraînement et le poids ; le journal est revenu
+    /// le 26. Vider cet ensemble les remet toutes : la barre latérale, les
+    /// raccourcis, les menus et les réglages le lisent, et `RootView.allerA`
+    /// refuse d'y mener.
+    static let masquees: Set<SidebarItem> = [.training, .weight]
 
     var estMasquee: Bool { Self.masquees.contains(self) }
 }
