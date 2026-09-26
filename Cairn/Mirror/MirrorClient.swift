@@ -225,11 +225,17 @@ actor MirrorClient {
         request.setValue(credentials.anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let row: [String: MirrorValue] = [
+        var row: [String: MirrorValue] = [
             "uuid": .string(uuid),
             "user_id": .string(userID),
             "deleted_at": .date(deletedAt),
         ]
+        // Une note supprimée ne garde pas son texte : marquée seulement, elle
+        // restait lisible en clair sur Supabase — vu sur le journal chiffré.
+        if table == "journal_note" {
+            row["text"] = .string("")
+            row["tags_raw"] = .stringArray([])
+        }
         do {
             request.httpBody = try JSONSerialization.data(
                 withJSONObject: row.mapValues { $0.jsonValue }
@@ -383,6 +389,31 @@ actor MirrorClient {
         } catch {
             throw MirrorError.decodingFailed(String(describing: error))
         }
+    }
+
+    /// Vide le texte des notes supprimées qui en gardent encore un — celles
+    /// d'avant que la suppression ne le fasse elle-même. Ne touche que les
+    /// lignes non vides : repassée, elle ne change plus rien.
+    func blankDeletedJournalNotes() async throws {
+        let credentials = try validCredentials()
+        let token = try await validAccessToken(credentials: credentials)
+        var components = URLComponents(
+            url: credentials.projectURL.appendingPathComponent("rest/v1/journal_note"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "deleted_at", value: "not.is.null"),
+            URLQueryItem(name: "text", value: "neq."),
+        ]
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "PATCH"
+        request.setValue(credentials.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["text": "", "tags_raw": [String]()])
+        let (data, response) = try await send(request)
+        try Self.checkStatus(response, data: data)
     }
 
     /// Pose la configuration — une insertion simple, jamais une fusion : si

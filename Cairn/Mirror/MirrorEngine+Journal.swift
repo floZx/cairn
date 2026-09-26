@@ -35,6 +35,10 @@ extension MirrorEngine {
             resolved = .plain
         }
         journalSealingCache = resolved
+        // Le ménage des notes supprimées d'avant, une fois par passe où le
+        // journal est chiffré : une ligne marquée supprimée gardait son texte
+        // en clair. Sans effet une fois fait, et jamais bloquant.
+        if case .sealed = resolved { try? await client.blankDeletedJournalNotes() }
         return resolved
     }
 
@@ -82,6 +86,7 @@ extension MirrorEngine {
         }
         cursor.resetTable("journal_note")
         try await sendTable("journal_note", userID: userID)
+        try await client.blankDeletedJournalNotes()
         await finish()
     }
 }

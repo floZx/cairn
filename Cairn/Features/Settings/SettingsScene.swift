@@ -37,6 +37,10 @@ struct SettingsScene: View {
             MirrorSettingsView()
                 .tabItem { Label("Miroir", systemImage: "icloud.and.arrow.up") }
         }
-        .frame(width: 520, height: 460)
+        // Assez large pour les huit onglets. À 520, le retour du Journal
+        // avait poussé « Miroir » derrière un menu » où il ne s'ouvrait plus
+        // — signalé, capture à l'appui. Plus haute aussi : le miroir porte
+        // désormais le chiffrement du journal sous l'amorçage.
+        .frame(width: 780, height: 540)
     }
 }
