@@ -3063,9 +3063,14 @@ button.citation {
 
 /* ---- People --------------------------------------------------------------- */
 
+/* Une liste encartée, comme le journal à côté et le compte : la seule de
+   l'application à courir d'un bord à l'autre, traits compris. */
 .liste-gens {
   display: flex;
   flex-direction: column;
+  background: var(--carte);
+  border-radius: 16px;
+  overflow: hidden;
 }
 
 /* Une ligne par personne : le pseudo, un point quand une note existe, et le
@@ -3075,9 +3080,8 @@ button.citation {
   align-items: baseline;
   gap: 8px;
   width: 100%;
-  padding: 13px 4px;
+  padding: 13px 16px;
   border: 0;
-  border-bottom: 1px solid var(--trait);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -3097,6 +3101,19 @@ button.citation {
 .ligne-personne .compte {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
+}
+
+/* Le trait entre deux personnes commence après le texte, comme dans les
+   listes d'iOS ; et un chevron dit que la ligne s'ouvre. */
+.ligne-personne + .ligne-personne {
+  box-shadow: inset 16px 0 0 var(--carte), inset 0 0.5px 0 var(--trait);
+}
+
+.ligne-personne::after {
+  content: "›";
+  color: var(--texte-3);
+  font-size: 20px;
+  line-height: 1;
 }
 
 .titre-section {
