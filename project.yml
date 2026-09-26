@@ -63,6 +63,18 @@ targets:
       - path: Cairn/Mirror/MirrorRows+Journal.swift
       - path: Cairn/Mirror/MirrorOutbox.swift
       - path: Cairn/Mirror/MirrorRecorder.swift
+      # La poussée vers Supabase, faite par l'outil lui-même plutôt qu'au
+      # prochain lancement de Cairn : le client, et le trousseau où
+      # l'application range la session. `TokenStore` déclare aussi les jetons
+      # Strava et Garmin, d'où les deux fichiers qui les définissent.
+      - path: Cairn/Mirror/MirrorClient.swift
+      - path: Cairn/Mirror/MirrorCredentials.swift
+      # Le chiffrement du journal : une note ne part jamais en clair vers un
+      # miroir où le journal est chiffré.
+      - path: Cairn/Mirror/JournalCipher.swift
+      - path: Cairn/Strava/TokenStore.swift
+      - path: Cairn/Strava/StravaError.swift
+      - path: Cairn/Garmin/GarminTokens.swift
       # `Activity` et sa trace : la géométrie vient avec le modèle.
       - path: Cairn/Geo
       - path: Cairn/Features/Journal/JournalTag.swift

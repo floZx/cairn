@@ -392,6 +392,18 @@ note. Il démarre aussi `MirrorRecorder`, sans quoi sa note resterait sur le Mac
 — l'outbox du miroir est alimentée par un observateur de `willSave` que seule
 l'application installait jusqu'ici.
 
+**La note part vers Supabase dès la sortie de l'éditeur**, sans attendre le
+prochain lancement de Cairn : l'outil envoie lui-même la part `journal_note` de
+l'outbox (`JournalPush`), celle du jour écrit et celles qu'un passage précédent
+n'avait pas pu envoyer. Si le journal est chiffré sur Supabase, la note part
+chiffrée. Si la clé n'est pas sur ce Mac, ou si le réseau ne répond pas dans
+les quinze secondes, rien ne part : l'outil le dit, et Cairn enverra la note à
+son prochain lancement, comme avant. La session Supabase est lue dans le
+trousseau de l'application. Au premier passage, macOS demande donc d'y
+autoriser `cairn-note`. Répondre « Toujours autoriser » : l'outil a parfois
+besoin de réécrire la session quand il la rafraîchit. L'outil est signé
+localement, et la question revient après chaque recompilation.
+
 Il se construit comme le reste, et n'est pas installé pour vous :
 
 ```bash

@@ -90,7 +90,8 @@ do {
 
 // Without this the note would be written locally and never leave the Mac: the
 // outbox is fed by an observer of `ModelContext.willSave`, and until now only
-// the application installed one. Started before the context is touched.
+// the application installed one. Started before the context is touched. The
+// outbox is also what `JournalPush` sends, at the end.
 let recorder = MirrorRecorder(container: container)
 recorder.start()
 
@@ -200,9 +201,31 @@ do {
     fail("écriture refusée : \(error.localizedDescription)")
 }
 
+let said: String
 switch outcome {
-case .created: done("\(date.raw) : note créée.")
-case .updated: done("\(date.raw) : note mise à jour.")
-case .deleted: done("\(date.raw) : note supprimée.")
+case .created: said = "\(date.raw) : note créée"
+case .updated: said = "\(date.raw) : note mise à jour"
+case .deleted: said = "\(date.raw) : note supprimée"
 case .nothing: done("\(date.raw) : rien à garder.")
+}
+
+// Straight to Supabase, rather than leaving the outbox for Cairn's next
+// launch. The note is already safe on the Mac whatever happens here, so a
+// failure is said and not fatal: the entry stays in the outbox, and the
+// application sends it as before.
+//
+// Fifteen seconds rather than `URLSession`'s sixty: someone is waiting at a
+// prompt, and a mirror that does not answer in that time will be caught up
+// by the application anyway.
+let configuration = URLSessionConfiguration.default
+configuration.timeoutIntervalForRequest = 15
+let client = MirrorClient(
+    store: KeychainStore(),
+    transport: URLSessionTransport(session: URLSession(configuration: configuration))
+)
+do {
+    _ = try await JournalPush.run(client: client, container: container)
+    done("\(said), envoyée.")
+} catch {
+    done("\(said) ; pas envoyée (\(error.localizedDescription)). Cairn l'enverra à son prochain lancement.")
 }
