@@ -3800,3 +3800,10 @@ button.citation {
   background: var(--champ);
   color: var(--accent);
 }
+
+/* Le texte du jour en serif — New York sur iPhone, comme sur le Mac. À part,
+   pour se retirer d'un seul revert. */
+.texte-jour {
+  font-family: ui-serif, "New York", Georgia, serif;
+  font-size: 18px;
+}
