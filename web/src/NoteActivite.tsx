@@ -72,6 +72,8 @@ export function NoteActivite({
       <BarreCitations aire={aire} texte={valeur} onTexte={setValeur} />
       <textarea
         ref={aire}
+        name="note"
+        autoComplete="off"
         className="saisie-note"
         value={valeur}
         onChange={(e) => setValeur(e.target.value)}

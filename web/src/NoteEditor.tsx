@@ -136,6 +136,11 @@ export function NoteEditor({
       <BarreCitations aire={zone} texte={texte} onTexte={setTexte} />
       <textarea
         ref={zone}
+        // Une note, pas une adresse : sans le dire, Safari sur iPhone classait
+        // cette zone de plusieurs lignes parmi les champs d'adresse et
+        // proposait « Préremplir le contact » au-dessus du clavier.
+        name="note"
+        autoComplete="off"
         className="saisie-note"
         value={texte}
         onChange={(e) => setTexte(e.target.value)}

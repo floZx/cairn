@@ -264,6 +264,8 @@ function FichePersonne({
 
       <textarea
         ref={aire}
+        name="note"
+        autoComplete="off"
         className="saisie-note courte"
         value={note}
         onChange={(e) => setNote(e.target.value)}

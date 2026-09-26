@@ -554,6 +554,8 @@ function SaisieSeance({
 
       <textarea
         ref={aire}
+        name="note"
+        autoComplete="off"
         className="saisie-note courte"
         value={notes}
         onChange={(e) => setNotes(e.target.value)}

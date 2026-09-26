@@ -87,6 +87,8 @@ export function NoteRepas({
       <BarreCitations aire={aireNote} texte={valeur} onTexte={setValeur} />
       <textarea
         ref={aireNote}
+        name="note"
+        autoComplete="off"
         className="saisie-note courte"
         value={valeur}
         onChange={(e) => setValeur(e.target.value)}
@@ -193,6 +195,8 @@ export function Pesee({
       <BarreCitations aire={airePesee} texte={mot} onTexte={setMot} />
       <textarea
         ref={airePesee}
+        name="note"
+        autoComplete="off"
         className="saisie-note courte"
         value={mot}
         onChange={(e) => setMot(e.target.value)}
