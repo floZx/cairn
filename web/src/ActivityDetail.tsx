@@ -121,59 +121,69 @@ export function ActivityDetail({
               {NOMS[m]}
             </span>
           ))}
-          {/* D'où vient cette sortie : le Mac le dit aussi, et cela distingue
-              une activité importée d'une saisie à la main. */}
-          <span className="etiquette-tag attenue">
-            {data.source_raw === "strava" ? "Strava" : "Manuelle"}
-          </span>
+          {/* La source ne se dit plus que pour une saisie à la main : « Strava »
+              sur presque chaque fiche ne disait rien. */}
+          {data.source_raw !== "strava" && (
+            <span className="etiquette-tag attenue">Manuelle</span>
+          )}
         </div>
       </div>
 
-      <div className="chiffres carte-groupe">
-        <Chiffre valeur={distance(data.distance)} etiquette="Distance" />
-        <Chiffre valeur={duree(data.moving_time)} etiquette="Temps" />
-        <Chiffre valeur={denivele(data.total_elevation_gain)} etiquette="D+" />
-        {rythme && <Chiffre valeur={rythme.valeur} etiquette={rythme.etiquette} />}
-        {data.average_heartrate != null && (
-          <Chiffre
-            valeur={`${Math.round(data.average_heartrate)} bpm`}
-            etiquette="Cardio moyen"
-          />
-        )}
-        {data.average_watts != null && (
-          <Chiffre valeur={`${Math.round(data.average_watts)} W`} etiquette="Puissance" />
-        )}
-        {data.average_cadence != null && data.average_cadence > 0 && (
-          <Chiffre
-            valeur={(() => {
-              const { facteur, unite } = cadenceDuSport(data.sport_type_raw)
-              return `${Math.round(data.average_cadence * facteur)} ${unite}`
-            })()}
-            etiquette="Cadence"
-          />
-        )}
-        {data.calories != null && (
-          <Chiffre valeur={`${Math.round(data.calories)} kcal`} etiquette="Calories" />
-        )}
-      </div>
-
+      {/* La carte d'abord : c'est ce qui dit la sortie d'un coup d'œil, et
+          huit chiffres en gros la repoussaient sous le premier écran. */}
       <Suspense fallback={<div className="carte-trace" />}>
         <Carte trace={trace} />
       </Suspense>
 
-      <div className="description carte-groupe">
-        <div className="tete-description">
-          <span className="attenue petit">Note</span>
-          <button className="lien petit" onClick={() => setEnEdition(true)}>
-            {data.activity_description ? "Modifier" : "Écrire"}
-          </button>
+      {/* Les trois chiffres qui résument une sortie en grand, les autres en
+          petit dessous. */}
+      <div className="chiffres-sortie carte-groupe">
+        <div className="chiffres-principaux">
+          <Chiffre valeur={distance(data.distance)} etiquette="Distance" />
+          <Chiffre valeur={duree(data.moving_time)} etiquette="Temps" />
+          {rythme && <Chiffre valeur={rythme.valeur} etiquette={rythme.etiquette} />}
         </div>
-        {data.activity_description ? (
-          <Markdown texte={data.activity_description} />
-        ) : (
-          <p className="attenue">Rien de noté sur cette sortie.</p>
-        )}
+        <div className="chiffres-secondaires">
+          {data.total_elevation_gain >= 1 && (
+            <Chiffre valeur={denivele(data.total_elevation_gain)} etiquette="D+" />
+          )}
+          {data.average_heartrate != null && (
+            <Chiffre valeur={`${Math.round(data.average_heartrate)} bpm`} etiquette="FC moyenne" />
+          )}
+          {data.average_watts != null && (
+            <Chiffre valeur={`${Math.round(data.average_watts)} W`} etiquette="Puissance" />
+          )}
+          {data.average_cadence != null && data.average_cadence > 0 && (
+            <Chiffre
+              valeur={(() => {
+                const { facteur, unite } = cadenceDuSport(data.sport_type_raw)
+                return `${Math.round(data.average_cadence * facteur)} ${unite}`
+              })()}
+              etiquette="Cadence"
+            />
+          )}
+          {data.calories != null && (
+            <Chiffre valeur={`${Math.round(data.calories)} kcal`} etiquette="Calories" />
+          )}
+        </div>
       </div>
+
+      {/* Une note vide tient sur une ligne, qu'on touche pour écrire. */}
+      {data.activity_description ? (
+        <div className="description carte-groupe">
+          <div className="tete-description">
+            <span className="attenue petit">Note</span>
+            <button className="lien petit" onClick={() => setEnEdition(true)}>
+              Modifier
+            </button>
+          </div>
+          <Markdown texte={data.activity_description} />
+        </div>
+      ) : (
+        <button className="ecrire-note carte-groupe" onClick={() => setEnEdition(true)}>
+          Écrire une note
+        </button>
+      )}
 
       <ParcoursSimilaires
         uuid={uuid}

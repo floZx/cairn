@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 @testable import Cairn
 
@@ -36,5 +37,44 @@ struct ActivityZonesTests {
         #expect(rows.map(\.percent) == [0, 0, 17, 74, 7])
         #expect(ZoneTable.duration(2106.69) == "35:07")
         #expect(ZoneTable.duration(3760) == "1:02:40")
+    }
+}
+
+@Suite("Zones : rien d'avant la montre")
+@MainActor
+struct ZonesAvantLaMontreTests {
+    @Test func uneSortieDAvantNEstPasDemandee() {
+        let avant = Activity(stravaID: 1, name: "Avant", sportType: .run)
+        avant.startDate = GarminZonesFetcher.firstWatchDay.addingTimeInterval(-3600)
+        avant.averageHeartrate = 140
+        let apres = Activity(stravaID: 2, name: "Après", sportType: .run)
+        apres.startDate = GarminZonesFetcher.firstWatchDay.addingTimeInterval(3600)
+        apres.averageHeartrate = 140
+        #expect(!GarminZonesFetcher.needsZones(avant))
+        #expect(GarminZonesFetcher.needsZones(apres))
+    }
+
+    @Test func lesZonesDeLImportSontEffacees() throws {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let avant = Activity(stravaID: 1, name: "Avant", sportType: .run)
+        avant.startDate = GarminZonesFetcher.firstWatchDay.addingTimeInterval(-86400)
+        avant.hrZoneFloors = [106, 133, 149, 156, 168]
+        avant.hrZoneSeconds = [1, 2, 3, 4, 5]
+        avant.zonesCheckedAt = Date()
+        let apres = Activity(stravaID: 2, name: "Après", sportType: .run)
+        apres.startDate = GarminZonesFetcher.firstWatchDay.addingTimeInterval(86400)
+        apres.hrZoneFloors = [103, 131, 144, 153, 167]
+        apres.hrZoneSeconds = [1, 2, 3, 4, 5]
+        context.insert(avant)
+        context.insert(apres)
+        try context.save()
+
+        GarminZonesFetcher.clearImportedZones(in: context)
+
+        #expect(avant.hrZoneFloors == nil)
+        #expect(avant.hrZoneSeconds == nil)
+        #expect(avant.zonesCheckedAt != nil)
+        #expect(apres.hrZoneFloors == [103, 131, 144, 153, 167])
     }
 }

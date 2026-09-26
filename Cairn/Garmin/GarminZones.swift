@@ -57,10 +57,23 @@ final class GarminZonesFetcher {
         self.client = client
     }
 
+    /// Le premier jour de la montre Garmin. Avant, les sorties sont arrivées
+    /// chez Garmin par un import depuis Strava, et Garmin les a toutes
+    /// recalculées d'un coup avec les zones du jour de l'import : seize mois
+    /// aux mêmes bornes à un battement près, mesuré. Ce ne sont pas celles de
+    /// l'époque — tout ce que ces zones ont pour elles —, donc rien avant.
+    static let firstWatchDay: Date = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
+        return calendar.date(from: DateComponents(year: 2026, month: 1, day: 1))!
+    }()
+
     /// Whether an activity is worth asking about: something with a heart
-    /// rate or a power reading, old enough for Garmin to have it.
+    /// rate or a power reading, old enough for Garmin to have it, and
+    /// recorded by the watch.
     static func needsZones(_ activity: Activity, now: Date = Date()) -> Bool {
         activity.zonesCheckedAt == nil
+            && activity.startDate >= firstWatchDay
             && (activity.averageHeartrate != nil || activity.averageWatts != nil)
             && activity.startDate < now.addingTimeInterval(-3600)
     }
@@ -88,8 +101,28 @@ final class GarminZonesFetcher {
         }
     }
 
+    /// Efface les zones récupérées avant `firstWatchDay` — celles de l'import,
+    /// d'avant que la règle existe. En un seul enregistrement ; sans effet une
+    /// fois fait.
+    static func clearImportedZones(in context: ModelContext) {
+        let limite = firstWatchDay
+        guard let anciennes = try? context.fetch(FetchDescriptor<Activity>(
+            predicate: #Predicate { $0.startDate < limite }
+        )) else { return }
+        var changed = false
+        for activity in anciennes where activity.hrZoneFloors != nil || activity.powerZoneFloors != nil {
+            activity.hrZoneFloors = nil
+            activity.hrZoneSeconds = nil
+            activity.powerZoneFloors = nil
+            activity.powerZoneSeconds = nil
+            changed = true
+        }
+        if changed { try? context.save() }
+    }
+
     private func backfill(container: ModelContainer) async {
         let context = ModelContext(container)
+        Self.clearImportedZones(in: context)
         let now = Date()
         guard let all = try? context.fetch(
             FetchDescriptor<Activity>(sortBy: [SortDescriptor(\.startDate, order: .reverse)])

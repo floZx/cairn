@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 
@@ -32,13 +33,11 @@ function duree(secondes: number): string {
 }
 
 function Tableau({
-  titre,
   planchers,
   secondes,
   unite,
   noms,
 }: {
-  titre: string
   planchers: number[]
   secondes: number[]
   unite: string
@@ -49,8 +48,7 @@ function Tableau({
   const total = secondes.slice(0, n).reduce((a, b) => a + b, 0)
   const lignes = Array.from({ length: n }, (_, i) => i).reverse()
   return (
-    <section className="zones">
-      <h3>{titre}</h3>
+    <>
       {lignes.map((i) => {
         const bas = Math.round(planchers[i])
         const plage =
@@ -72,11 +70,12 @@ function Tableau({
           </div>
         )
       })}
-    </section>
+    </>
   )
 }
 
 export function Zones({ uuid }: { uuid: string }) {
+  const [vue, setVue] = useState<"fc" | "puissance">("fc")
   const { data } = useQuery({
     queryKey: ["zones", uuid],
     staleTime: 10 * 60 * 1000,
@@ -92,26 +91,47 @@ export function Zones({ uuid }: { uuid: string }) {
     },
   })
   if (!data) return null
+  const fc = data.hr_zone_floors && data.hr_zone_seconds
+  const puissance = data.power_zone_floors && data.power_zone_seconds
+  if (!fc && !puissance) return null
+  // Une seule carte, et le choix entre les deux quand les deux existent :
+  // deux tableaux de cinq lignes l'un sous l'autre prenaient deux écrans.
+  const montre = fc && (vue === "fc" || !puissance) ? "fc" : "puissance"
   return (
-    <>
-      {data.hr_zone_floors && data.hr_zone_seconds && (
+    <section className="zones carte-groupe">
+      <div className="tete-description">
+        <span className="attenue petit">Zones</span>
+        {fc && puissance ? (
+          <div className="choix-zones" role="group" aria-label="Zones">
+            <button className={montre === "fc" ? "actif" : ""} onClick={() => setVue("fc")}>
+              FC
+            </button>
+            <button
+              className={montre === "puissance" ? "actif" : ""}
+              onClick={() => setVue("puissance")}
+            >
+              Puissance
+            </button>
+          </div>
+        ) : (
+          <span className="attenue petit">{fc ? "FC" : "Puissance"}</span>
+        )}
+      </div>
+      {montre === "fc" ? (
         <Tableau
-          titre="Zones de fréquence cardiaque"
-          planchers={data.hr_zone_floors}
-          secondes={data.hr_zone_seconds}
+          planchers={data.hr_zone_floors!}
+          secondes={data.hr_zone_seconds!}
           unite="bpm"
           noms={NOMS.fc}
         />
-      )}
-      {data.power_zone_floors && data.power_zone_seconds && (
+      ) : (
         <Tableau
-          titre="Zones de puissance"
-          planchers={data.power_zone_floors}
-          secondes={data.power_zone_seconds}
+          planchers={data.power_zone_floors!}
+          secondes={data.power_zone_seconds!}
           unite="W"
           noms={NOMS.puissance}
         />
       )}
-    </>
+    </section>
   )
 }

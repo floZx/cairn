@@ -56,7 +56,7 @@ export function Tours({ uuid, sport }: { uuid: string; sport: string }) {
         <span className="attenue petit">Tours</span>
         <span className="attenue petit">{data.length}</span>
       </div>
-      {data.map((tour) => {
+      {data.map((tour, rang) => {
         const rythme = allureOuVitesse(sport, tour.distance, tour.moving_time)
         // Le plus rapide se marque, comme le record d'un parcours : dans une
         // série de six côtes, savoir laquelle on a tenue le mieux est la
@@ -67,7 +67,9 @@ export function Tours({ uuid, sport }: { uuid: string; sport: string }) {
           tour.moving_time / tour.distance === meilleur
         return (
           <div className={leMeilleur ? "tour meilleur" : "tour"} key={tour.uuid}>
-            <span className="numero">{tour.lap_index}</span>
+            {/* Numérotés à partir de 1, comme sur le Mac, quel que soit
+                le compte de la montre. */}
+            <span className="numero">{rang + 1}</span>
             <span className="mesure">{distance(tour.distance)}</span>
             <span className="mesure">{dureePrecise(tour.moving_time)}</span>
             <span className="mesure rythme">{rythme?.valeur ?? "—"}</span>
