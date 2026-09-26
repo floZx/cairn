@@ -1441,10 +1441,10 @@ struct RootView: View {
                 onEdit: { openEditor(selected, focusingNotes: true) },
                 onSelectActivity: { selectedActivities = [$0] },
                 scrollRequest: paneScroll,
-                // Beside the global map, the track is already drawn there,
-                // large and highlighted: a second small map of the same place
-                // was the pane's biggest block, saying nothing new.
-                showsMap: !showsGlobalMap
+                // Beside the global map, the pane keeps the route and sends to
+                // the activity for the rest — see `besideGlobalMap`.
+                besideGlobalMap: showsGlobalMap,
+                onOpenActivity: { openActivity(selected.id) }
             )
             .frame(minWidth: Self.detailMinWidth)
         } else if selection.count > 1 {

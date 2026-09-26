@@ -32,8 +32,13 @@ struct ActivityDetailView: View {
     /// `J` et `K` tenus dans la liste : le volet défile, sans que la sélection
     /// bouge — `j` et `k` choisissent la sortie, `J` et `K` la lisent.
     var scrollRequest = PaneScrollRequest()
-    /// Off beside the global map, which already shows the track.
-    var showsMap = true
+    /// Beside the global map: the pane keeps what describes the route —
+    /// distance, time, climb, the altitude profile, the same-route list — and
+    /// leaves the rest to the activity itself, one button away. The map is
+    /// gone too: the big one already shows the track, highlighted.
+    var besideGlobalMap = false
+    /// « Voir l'activité », beside the global map.
+    var onOpenActivity: (() -> Void)?
     @Environment(AppEnvironment.self) private var app
     @Environment(\.modelContext) private var modelContext
 
@@ -100,7 +105,7 @@ struct ActivityDetailView: View {
                 // No placeholder when there is no track: a pool swim or a gym
                 // session simply has nowhere to be drawn, and a large empty
                 // panel announcing that is worse than the map's absence.
-                if showsMap, trackModel.coordinates.count > 1 {
+                if !besideGlobalMap, trackModel.coordinates.count > 1 {
                     ActivityMapView(
                         coordinates: trackModel.coordinates,
                         highlight: hoverDistanceKm.flatMap(trackModel.coordinate(atKilometre:)),
@@ -133,6 +138,14 @@ struct ActivityDetailView: View {
 
                 statistics
 
+                if besideGlobalMap, let onOpenActivity {
+                    Button(action: onOpenActivity) {
+                        Label("Voir l'activité", systemImage: "arrow.up.right")
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Ouvrir la sortie dans Mes activités, avec ses courbes et ses tours")
+                }
+
                 SameRouteSection(activity: activity, onSelect: onSelectActivity)
 
                 // Every chart runs along the distance: with none — a gym
@@ -141,9 +154,9 @@ struct ActivityDetailView: View {
                 // the note saying why, which would read as data missing.
                 if activity.distance <= 0 {
                     EmptyView()
-                } else if !trackModel.series.isEmpty {
+                } else if !chartSeries.isEmpty {
                     StreamChartsView(
-                        series: trackModel.series, hoverDistanceKm: $hoverDistanceKm
+                        series: chartSeries, hoverDistanceKm: $hoverDistanceKm
                     )
                 } else if let message = Self.missingChartsMessage(
                     hasStreams: activity.streams != nil,
@@ -156,7 +169,7 @@ struct ActivityDetailView: View {
 
                 // One lap is the whole activity again, figure for figure, a
                 // few lines below the same figures.
-                if activity.laps.count > 1 {
+                if !besideGlobalMap, activity.laps.count > 1 {
                     laps
                 }
             }
@@ -559,12 +572,26 @@ struct ActivityDetailView: View {
         }
     }
 
+    /// The curves shown: all of them, or only the altitude beside the global
+    /// map — the one that describes the route rather than the effort.
+    private var chartSeries: [StreamSeries] {
+        besideGlobalMap ? trackModel.series.filter { $0.id == "altitude" } : trackModel.series
+    }
+
+    /// The figures of the route itself, beside the global map.
+    static let routeTileTitles: Set<String> = ["Distance", "Temps en mouvement", "Dénivelé +"]
+
     private var statistics: some View {
-        LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 4),
+        let tiles = Self.statTiles(for: activity)
+            .filter { !besideGlobalMap || Self.routeTileTitles.contains($0.title) }
+        return LazyVGrid(
+            columns: Array(
+                repeating: GridItem(.flexible(), alignment: .leading),
+                count: besideGlobalMap ? 3 : 4
+            ),
             spacing: 16
         ) {
-            ForEach(Self.statTiles(for: activity)) { tile in
+            ForEach(tiles) { tile in
                 StatTile(tile.title, tile.value)
             }
         }
