@@ -162,6 +162,74 @@ enum StoreMaintenance {
         return changed
     }
 
+    /// Texts to put back, prepared by hand outside the app and dropped beside
+    /// the store: `restaurations-mentions.json` in Cairn's folder.
+    ///
+    /// Born of the mentions: taken out on 25 September while the journal was
+    /// hidden, wanted back on the 26th when it returned and the people view
+    /// came up nearly empty. The notes' texts before that day are in an
+    /// iCloud backup; comparing them with today's gives, note by note, the
+    /// text to restore. That list is private writing — it stays on this Mac,
+    /// in a file, and never in the source.
+    ///
+    /// Each entry is applied only if the note still reads exactly as
+    /// `expected`: one edited in the meantime is left alone. Through the
+    /// models, like `removeMentionSigns`, so the mirror carries the change to
+    /// the web and a synced activity's note is claimed as written here. The
+    /// file is then renamed, never read twice.
+    ///
+    /// - Returns: the number of notes restored.
+    @discardableResult
+    static func applyPendingRestorations(in context: ModelContext, file: URL) throws -> Int {
+        struct Pending: Decodable {
+            struct Entry: Decodable {
+                let kind: String
+                let uuid: String
+                let text: String
+                let expected: String
+            }
+            let restorations: [Entry]
+        }
+        guard let data = try? Data(contentsOf: file) else { return 0 }
+        let pending = try JSONDecoder().decode(Pending.self, from: data)
+        var restored = 0
+
+        for entry in pending.restorations {
+            let uuid = entry.uuid
+            switch entry.kind {
+            case "activity":
+                var descriptor = FetchDescriptor<Activity>(predicate: #Predicate { $0.uuid == uuid })
+                descriptor.fetchLimit = 1
+                guard let activity = try context.fetch(descriptor).first,
+                      activity.activityDescription == entry.expected
+                else { continue }
+                activity.activityDescription = entry.text
+                if activity.source.isSynced { activity.markEdited([.notes]) }
+            case "journal":
+                var descriptor = FetchDescriptor<JournalNote>(predicate: #Predicate { $0.uuid == uuid })
+                descriptor.fetchLimit = 1
+                guard let note = try context.fetch(descriptor).first, note.text == entry.expected
+                else { continue }
+                note.setText(entry.text)
+            case "meal":
+                var descriptor = FetchDescriptor<MealNote>(predicate: #Predicate { $0.uuid == uuid })
+                descriptor.fetchLimit = 1
+                guard let note = try context.fetch(descriptor).first, note.note == entry.expected
+                else { continue }
+                note.note = entry.text
+            default:
+                continue
+            }
+            restored += 1
+        }
+
+        if restored > 0 { try context.save() }
+        let done = file.deletingPathExtension().appendingPathExtension("appliquee.json")
+        try? FileManager.default.removeItem(at: done)
+        try FileManager.default.moveItem(at: file, to: done)
+        return restored
+    }
+
     /// Set once the `@` of the mentions have been taken out of the notes.
     static let mentionSignsRemovedKey = "mentionSignsRemoved"
 
