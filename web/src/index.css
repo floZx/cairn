@@ -3598,9 +3598,13 @@ button.citation {
   }
 }
 
+/* Collé sous la barre du haut, et non sous le bord : le défilement réserve
+   déjà l'encoche plus 8 px (`.sans-bouton-haut`), la barre en mesure 34 de
+   plus que l'encoche — 26 px restent à franchir. Mesuré : à zéro, le mois
+   passait sous la barre repliée. */
 .mois-journal {
   position: sticky;
-  top: var(--haut-mois, 0px);
+  top: 26px;
   z-index: 2;
   margin: 0;
   padding: 10px 4px 8px;

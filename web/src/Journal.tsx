@@ -4,6 +4,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Markdown } from "./markdown"
 import { chiffresDeLaLigne } from "./format"
+import { CARACTERES_ETIQUETTE } from "./tags"
 import { NoteEditor, jourCourant, type NoteAEditer } from "./NoteEditor"
 import { Feuille, Chargement } from "./Chrome"
 import { Symbole, couleurDuSport, symboleDuSport } from "./IconeSport"
@@ -427,6 +428,18 @@ const jourAbrege = new Intl.DateTimeFormat("fr-FR", { weekday: "short" })
 const jourEnToutes = new Intl.DateTimeFormat("fr-FR", { weekday: "long" })
 const jourEtMois = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" })
 
+/// Le texte du jour sans ses lignes faites seulement d'étiquettes — « #PI »
+/// seul en tête de note : l'étiquette est déjà dans l'en-tête de la carte, et
+/// elle devenait sinon la « première phrase », en gras, sous elle.
+const LIGNE_D_ETIQUETTES = new RegExp(`^\\s*(#[${CARACTERES_ETIQUETTE}]+\\s*)+$`, "u")
+
+function sansLignesDEtiquettes(texte: string): string {
+  return texte
+    .split("\n")
+    .filter((ligne) => !LIGNE_D_ETIQUETTES.test(ligne))
+    .join("\n")
+}
+
 /// Une clé de jour en date locale — découpée à la main, voir `dateLongue`.
 function enDate(dateKey: string): Date {
   const [a, m, j] = dateKey.split("-").map(Number)
@@ -490,6 +503,7 @@ function CarteJour({
 }) {
   const estAujourdhui = j.dateKey === aujourdhui
   const date = enDate(j.dateKey)
+  const texte = sansLignesDEtiquettes(j.texte)
   return (
     <article
       className={estAujourdhui ? "note aujourdhui" : "note"}
@@ -522,9 +536,9 @@ function CarteJour({
         </span>
       </h2>
 
-      {j.texte.trim() ? (
+      {texte.trim() ? (
         <div className="texte-jour">
-          <Markdown texte={j.texte} imageURL={urlImage} premierePhrase />
+          <Markdown texte={texte} imageURL={urlImage} premierePhrase />
         </div>
       ) : (
         estAujourdhui && (
@@ -548,7 +562,13 @@ function CarteJour({
                 key={i}
                 role="button"
                 tabIndex={0}
-                onClick={aller}
+                // Une personne citée, un lien dans la note : ils mènent chez
+                // eux, pas à la sortie ni au repas — sans ce filtre, @Tom
+                // ouvrait sa fiche puis partait aussitôt dans Repas.
+                onClick={(e) => {
+                  if ((e.target as Element).closest("a, button")) return
+                  aller()
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
