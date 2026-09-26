@@ -78,10 +78,7 @@ export const ZoneNote = forwardRef<
         if (!el || !sel || sel.rangeCount === 0) return el?.textContent?.length ?? 0
         const plage = sel.getRangeAt(0)
         if (!el.contains(plage.startContainer)) return el.textContent?.length ?? 0
-        const avant = document.createRange()
-        avant.selectNodeContents(el)
-        avant.setEnd(plage.startContainer, plage.startOffset)
-        return avant.toString().length
+        return decalage(el, plage.startContainer, plage.startOffset)
       },
       setSelectionRange(debut: number) {
         if (bloc.current) placer(bloc.current, debut)
@@ -109,6 +106,24 @@ export const ZoneNote = forwardRef<
       aria-label={placeholder}
       data-placeholder={placeholder}
       suppressContentEditableWarning
+      // Le collage fait à la main : inséré par le navigateur, un texte de
+      // plusieurs lignes y perdait ses retours à la ligne — mesuré, « x\ny »
+      // arrivait « xy ».
+      onPaste={(e) => {
+        const el = e.currentTarget
+        const colle = e.clipboardData.getData("text/plain")
+        const sel = getSelection()
+        if (!colle || !sel || sel.rangeCount === 0) return
+        e.preventDefault()
+        const plage = sel.getRangeAt(0)
+        const debut = decalage(el, plage.startContainer, plage.startOffset)
+        const fin = decalage(el, plage.endContainer, plage.endOffset)
+        const texte = el.textContent ?? ""
+        const suivant = texte.slice(0, debut) + colle.replace(/\r\n?/g, "\n") + texte.slice(fin)
+        el.textContent = suivant
+        placer(el, suivant.length - (texte.length - fin))
+        onChange(suivant)
+      }}
       onInput={(e) => {
         const el = e.currentTarget
         const texte = el.textContent ?? ""
@@ -120,6 +135,14 @@ export const ZoneNote = forwardRef<
     />
   )
 })
+
+/// Combien de caractères du bloc précèdent ce point.
+function decalage(el: HTMLElement, noeud: Node, offset: number): number {
+  const avant = document.createRange()
+  avant.selectNodeContents(el)
+  avant.setEnd(noeud, offset)
+  return avant.toString().length
+}
 
 /// Le curseur à `index` caractères du début du bloc.
 function placer(el: HTMLElement, index: number) {
