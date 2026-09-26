@@ -90,6 +90,9 @@ struct StreamChartsView: View {
     let series: [StreamSeries]
     /// Distance under the cursor, shared with the map so it can mark the spot.
     @Binding var hoverDistanceKm: Double?
+    /// Where the pointer was last seen, in a box: remembering it must not
+    /// rebuild the charts.
+    @State private var pointer = PointerMemory()
 
     private var maxDistanceKm: Double {
         series.compactMap { $0.points.last?.distanceKm }.max() ?? 0
@@ -177,6 +180,12 @@ struct StreamChartsView: View {
                         guard let plotFrame = proxy.plotFrame else { return }
                         switch phase {
                         case let .active(location):
+                            // Only when the pointer itself moved. Scrolling
+                            // slides the charts under a still pointer, and
+                            // each frame reported a new « hover »: the marker
+                            // moved, the whole pane was rebuilt with the map
+                            // under it — 166 times in a few seconds of wheel.
+                            guard pointer.moved(to: NSEvent.mouseLocation) else { return }
                             let x = location.x - geometry[plotFrame].origin.x
                             hoverDistanceKm = proxy.value(atX: x, as: Double.self)
                         case .ended:
@@ -206,5 +215,17 @@ struct StreamChartsView: View {
         return serie.points
             .min { abs($0.distanceKm - distanceKm) < abs($1.distanceKm - distanceKm) }?
             .value
+    }
+}
+
+/// The pointer's last position on screen, to tell a pointer that moved from
+/// content that moved under it.
+@MainActor
+final class PointerMemory {
+    private var last: CGPoint?
+
+    func moved(to location: CGPoint) -> Bool {
+        defer { last = location }
+        return location != last
     }
 }

@@ -32,9 +32,6 @@ struct ActivityDetailView: View {
     /// `J` et `K` tenus dans la liste : le volet défile, sans que la sélection
     /// bouge — `j` et `k` choisissent la sortie, `J` et `K` la lisent.
     var scrollRequest = PaneScrollRequest()
-    @State private var scrollPosition = ScrollPosition()
-    @State private var scrollGeometry = PaneScrollGeometry()
-    @State private var scroller = PaneScroller()
     @Environment(AppEnvironment.self) private var app
     @Environment(\.modelContext) private var modelContext
 
@@ -78,7 +75,11 @@ struct ActivityDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
+        // The scrolling lives in its own view: its position changes on every
+        // frame of a `J` held down, and here it rebuilt the whole pane each
+        // time — 845 times in one probe — so a late frame now and then made
+        // the pane jump. There, only the scroll view itself is redrawn.
+        PaneScrollView(resetKey: activity.persistentModelID, request: scrollRequest) {
             VStack(alignment: .leading, spacing: 20) {
                 // Lit by the sport's own colour, so opening an activity says
                 // what kind it is before a word is read. A wider blur than the
@@ -159,37 +160,7 @@ struct ActivityDetailView: View {
             }
             .padding()
         }
-        .scrollPosition($scrollPosition)
-        .onScrollGeometryChange(for: PaneScrollGeometry.self) { g in
-            PaneScrollGeometry(
-                offset: g.contentOffset.y,
-                maximum: max(0, g.contentSize.height - g.containerSize.height)
-            )
-        } action: { _, new in
-            scrollGeometry = new
-        }
-        .onChange(of: scrollRequest.direction) { _, direction in
-            if direction == 0 {
-                scroller.stop { y, animated in
-                    if animated {
-                        withAnimation(.easeOut(duration: 0.2)) { scrollPosition.scrollTo(y: y) }
-                    } else {
-                        scrollPosition.scrollTo(y: y)
-                    }
-                }
-            } else {
-                scroller.start(
-                    direction: direction,
-                    from: scrollGeometry.offset,
-                    maximum: scrollGeometry.maximum
-                ) { y in scrollPosition.scrollTo(y: y) }
-            }
-        }
-        .onDisappear { scroller.cancel() }
-        // Une autre sortie s'ouvre en haut de sa fiche, pas là où l'on avait
-        // laissé la précédente.
         .onChange(of: activity.persistentModelID) { _, _ in
-            scrollPosition.scrollTo(edge: .top)
             showsAllLaps = false
         }
         // The sport's light on the frosted pane behind the content: the window
@@ -742,8 +713,8 @@ struct PaneScrollRequest: Equatable {
 /// dixièmes de seconde, et le volet s'arrête net au relâchement — comme un
 /// défilement au trackpad.
 ///
-/// Une pression brève, qui n'aurait presque rien parcouru, finit par un petit
-/// saut animé : un tap doit faire avancer quelque chose.
+/// Une pression brève, qui n'aurait presque rien parcouru, finit en glissant
+/// jusqu'à la longueur d'un tap : un tap doit faire avancer quelque chose.
 @MainActor
 final class PaneScroller {
     private var timer: Timer?
@@ -754,6 +725,11 @@ final class PaneScroller {
     private var startedAt = Date()
     private var lastTick = Date()
     private var apply: ((CGFloat) -> Void)?
+    /// After a short press: the glide to the tap's end, run by this same
+    /// timer. It used to be a SwiftUI animation, and a press made while one
+    /// was still running fought it for the position — the pane jumped back
+    /// 23 pt before going on, measured with a probe on 26 September.
+    private var settle: (from: CGFloat, to: CGFloat, at: Date)?
 
     /// Points par seconde au départ, et au bout de la montée.
     private static let initialSpeed: CGFloat = 700
@@ -761,17 +737,27 @@ final class PaneScroller {
     private static let rampSeconds: CGFloat = 0.35
     /// Un tap parcourt au moins ça.
     private static let tapDistance: CGFloat = 120
+    private static let settleSeconds: Double = 0.18
+    /// No step longer than a frame's worth: the first tick could come 40 ms
+    /// after the key, and the pane leapt 28 pt at once.
+    private static let longestStep: CGFloat = 1.0 / 60
 
+    /// Starts, or carries on from where a motion still running has got to:
+    /// the pane's reported offset lags the timer by a frame or two, and
+    /// restarting from it went backwards.
     func start(
         direction: Int, from offset: CGFloat, maximum: CGFloat,
         apply: @escaping @MainActor (CGFloat) -> Void
     ) {
-        cancel()
+        let running = timer != nil
+        timer?.invalidate()
+        timer = nil
+        settle = nil
         self.apply = apply
         self.direction = direction
-        position = offset
-        origin = offset
         self.maximum = maximum
+        position = running ? clamp(position) : clamp(offset)
+        origin = position
         startedAt = Date()
         lastTick = startedAt
         let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] _ in
@@ -781,24 +767,36 @@ final class PaneScroller {
         self.timer = timer
     }
 
-    func stop(apply: (CGFloat, _ animated: Bool) -> Void) {
-        guard timer != nil else { return }
-        cancel()
+    /// A long press stops where it is; a short one glides on to a tap's
+    /// length, so a tap always moves something.
+    func stop() {
+        guard timer != nil, settle == nil else { return }
         if abs(position - origin) < Self.tapDistance {
             let target = clamp(origin + CGFloat(direction) * Self.tapDistance)
-            position = target
-            apply(target, true)
+            settle = (position, target, Date())
+        } else {
+            cancel()
         }
     }
 
     func cancel() {
         timer?.invalidate()
         timer = nil
+        settle = nil
     }
 
     private func tick() {
         let now = Date()
-        let dt = CGFloat(now.timeIntervalSince(lastTick))
+        if let settle {
+            let t = min(1, now.timeIntervalSince(settle.at) / Self.settleSeconds)
+            // Ease-out: fast at first, carrying the press's speed, then soft.
+            let eased = 1 - pow(1 - t, 3)
+            position = settle.from + (settle.to - settle.from) * CGFloat(eased)
+            apply?(position)
+            if t >= 1 { cancel() }
+            return
+        }
+        let dt = min(CGFloat(now.timeIntervalSince(lastTick)), Self.longestStep)
         lastTick = now
         let elapsed = CGFloat(now.timeIntervalSince(startedAt))
         let ramp = min(1, elapsed / Self.rampSeconds)
@@ -811,6 +809,70 @@ final class PaneScroller {
 
     private func clamp(_ y: CGFloat) -> CGFloat {
         min(max(y, 0), maximum)
+    }
+}
+
+/// The pane's scroll view, with the keyboard scrolling that drives it.
+///
+/// Apart from the pane on purpose: everything that changes while scrolling —
+/// the position, the geometry, the key scroller — is state of this view, so a
+/// frame of scrolling redraws this and not the content, which was built once
+/// by the pane and is only handed over.
+struct PaneScrollView<Content: View>: View {
+    /// Another activity opens at the top of its pane, not where the last one
+    /// was left.
+    let resetKey: PersistentIdentifier
+    let request: PaneScrollRequest
+    @ViewBuilder let content: Content
+
+    @State private var position = ScrollPosition()
+    /// Written on every frame and read only when a key goes down: in a box,
+    /// so writing it redraws nothing.
+    @State private var geometry = GeometryBox()
+    @State private var scroller = PaneScroller()
+
+    @MainActor
+    final class GeometryBox {
+        var value = PaneScrollGeometry()
+    }
+
+    var body: some View {
+        ScrollView {
+            content
+        }
+        .scrollPosition($position)
+        // In the coordinates `scrollTo(y:)` takes, which start below the
+        // toolbar: the content offset starts above it, 51 pt higher. Handed
+        // the raw offset, `J` began every press by jumping back those 51 pt
+        // — the bounce each tap made, measured with a probe on 26 September.
+        .onScrollGeometryChange(for: PaneScrollGeometry.self) { g in
+            PaneScrollGeometry(
+                offset: g.contentOffset.y + g.contentInsets.top,
+                maximum: max(
+                    0,
+                    g.contentSize.height + g.contentInsets.top + g.contentInsets.bottom
+                        - g.containerSize.height
+                )
+            )
+        } action: { _, new in
+            geometry.value = new
+        }
+        .onChange(of: request.direction) { _, direction in
+            if direction == 0 {
+                scroller.stop()
+            } else {
+                scroller.start(
+                    direction: direction,
+                    from: geometry.value.offset,
+                    maximum: geometry.value.maximum
+                ) { y in position.scrollTo(y: y) }
+            }
+        }
+        .onChange(of: resetKey) { _, _ in
+            scroller.cancel()
+            position.scrollTo(edge: .top)
+        }
+        .onDisappear { scroller.cancel() }
     }
 }
 
