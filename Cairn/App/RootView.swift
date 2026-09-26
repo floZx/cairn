@@ -912,6 +912,14 @@ struct RootView: View {
         // has to flush it, not race it.
         .onChange(of: journalSelection) { _, _ in app.journal.saveNow() }
         .onChange(of: sidebarSelection) { _, _ in app.journal.saveNow() }
+        // La recherche quittée — Échap, Entrée — le clavier revient à la liste.
+        // Sans ça il n'allait à personne, et un clic dans la liste ne suffisait
+        // pas à le lui rendre : `j` et `k` restaient morts. Mesuré par une
+        // sonde : plus aucune touche n'atteignait la liste après la recherche.
+        .onChange(of: searchFieldFocused) { _, cherche in
+            guard !cherche else { return }
+            if showsJournal { journalListFocus += 1 } else { demandeDeFocusDuContenu += 1 }
+        }
         // Le verrou ouvert, le clavier va à la liste : arrivée par un clic dans
         // la barre latérale, elle ne le prend pas d'elle-même, et le Touch ID
         // ne le lui rendait pas — `j`, `k` et Entrée ne répondaient plus
