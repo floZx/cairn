@@ -103,6 +103,16 @@ struct JournalListView: View {
         // A row that keeps its identity keeps the height AppKit measured for
         // it, and a note being typed changes under one: see `remeasureRows`.
         .onChange(of: days) { old, new in
+            // Toujours une journée ouverte : celle qui l'était a pu disparaître
+            // de la liste — sa note supprimée, une recherche ou une étiquette
+            // qui l'écarte — et le volet se refermait sur rien.
+            if let current = selection, !new.contains(where: { $0.date == current }) {
+                // Sa voisine, là où elle était, plutôt que le haut de la liste.
+                let place = old.firstIndex { $0.date == current } ?? 0
+                selection = new.isEmpty ? nil : new[min(place, new.count - 1)].date
+            } else if selection == nil, let first = new.first {
+                selection = first.date
+            }
             // In the table's rows, which count the month headers too.
             scroller.remeasureRows(
                 at: JournalRowLayout.tableRows(

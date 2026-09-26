@@ -296,8 +296,9 @@ struct RootView: View {
         ) {
             Button("Supprimer", role: .destructive) {
                 if let date = journalPendingDeletion {
+                    // La sélection reste : si la journée disparaît avec sa note,
+                    // la liste passe d'elle-même à sa voisine.
                     app.journal.delete(date)
-                    if journalSelection == date { selectJournalNote(nil) }
                 }
                 journalPendingDeletion = nil
             }
@@ -992,18 +993,18 @@ struct RootView: View {
             return true
         case .clear:
             // One layer at a time, in the order the screen was narrowed.
+            // Jamais la sélection : le volet du journal reste ouvert, toujours
+            // sur une journée — comme celui des gens.
             if !journalQuery.isEmpty {
                 journalQuery = ""
             } else if !journalTags.isEmpty {
                 journalTags = []
-            } else {
-                selectJournalNote(nil)
             }
             searchFieldFocused = false
             return true
         case .closePane:
-            selectJournalNote(nil)
-            return true
+            // Pas de volet à fermer ici : il reste ouvert sur une journée.
+            return false
         default:
             return performOutsideActivities(command)
         }
@@ -1674,12 +1675,8 @@ struct RootView: View {
                         // celui du journal suit la note.
                         selectedPerson = nil
                     } else if showsJournal {
-                        // The journal's pane follows the note selection, and
-                        // the activity selection it would otherwise clear is
-                        // invisible here: without this branch the button — and
-                        // the ⌥⌘I the key map calls good "depuis n'importe
-                        // quelle vue" — left the note pane exactly where it was.
-                        selectJournalNote(nil)
+                        // Le volet du journal reste ouvert : le bouton y est
+                        // grisé, et rien ne se fait si ⌥⌘I passe quand même.
                     } else {
                         selectedActivities = []
                     }
@@ -1696,8 +1693,9 @@ struct RootView: View {
                 // a selected activity anywhere else.
                 .disabled(
                     showsWeight
-                        || (showsJournal && journalSelection == nil)
-                        // Les gens gardent toujours quelqu'un d'ouvert.
+                        // Le journal et les gens gardent toujours leur volet
+                        // ouvert, sur une journée ou sur quelqu'un.
+                        || showsJournal
                         || showsPeople
                         || (!showsNutrition && !showsJournal && !showsPeople
                             && (selection.isEmpty || listStyle == .cards))
