@@ -912,6 +912,19 @@ struct RootView: View {
         // has to flush it, not race it.
         .onChange(of: journalSelection) { _, _ in app.journal.saveNow() }
         .onChange(of: sidebarSelection) { _, _ in app.journal.saveNow() }
+        // Le verrou ouvert, le clavier va à la liste : arrivée par un clic dans
+        // la barre latérale, elle ne le prend pas d'elle-même, et le Touch ID
+        // ne le lui rendait pas — `j`, `k` et Entrée ne répondaient plus
+        // jusqu'au premier clic dans la liste.
+        .onChange(of: app.journalLock.estOuvert) { _, ouvert in
+            // Un instant plus tard : la liste naît à l'ouverture même, et une
+            // demande qui arrive avec elle n'est pas un changement qu'elle voie.
+            guard ouvert, showsJournal else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(80))
+                journalListFocus += 1
+            }
+        }
     }
 
     /// Removes an activity from the journal: from the current selection so the
