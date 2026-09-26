@@ -523,7 +523,7 @@ function CarteJour({
       }}
     >
       <h2 className="jour">
-        <span className="tuile-jour">
+        <span className={date.getDay() === 0 ? "tuile-jour dimanche" : "tuile-jour"}>
           <span className="abrege">{jourAbrege.format(date).replace(".", "")}</span>
           <span className="numero">{date.getDate()}</span>
         </span>

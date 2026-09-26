@@ -4167,3 +4167,9 @@ button.citation {
 .ecrire-note {
   margin-bottom: 16px;
 }
+
+/* Les dimanches en rouge, comme sur le Mac ; aujourd'hui garde l'accent. */
+.note:not(.aujourdhui) .tuile-jour.dimanche .abrege,
+.note:not(.aujourdhui) .tuile-jour.dimanche .numero {
+  color: var(--erreur);
+}

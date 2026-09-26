@@ -292,14 +292,22 @@ struct JournalDateTile: View {
     var body: some View {
         let tile = JournalRowLayout.tile(for: date)
         let isToday = date == DateKey(Date())
+        // Les dimanches en rouge, comme dans un agenda de papier : la semaine
+        // se découpe d'un coup d'œil. Aujourd'hui garde la couleur d'accent,
+        // même un dimanche.
+        let isSunday = Calendar(identifier: .gregorian).component(.weekday, from: date.date()) == 1
+        let weekdayStyle: AnyShapeStyle = isToday
+            ? AnyShapeStyle(.tint) : isSunday ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary)
+        let dayStyle: AnyShapeStyle = isToday
+            ? AnyShapeStyle(.tint) : isSunday ? AnyShapeStyle(.red) : AnyShapeStyle(.primary)
         VStack(spacing: 0) {
             Text(tile.weekday)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(isToday ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                .foregroundStyle(weekdayStyle)
             Text(tile.day)
                 .font(.system(size: 21, weight: .semibold))
                 .monospacedDigit()
-                .foregroundStyle(isToday ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+                .foregroundStyle(dayStyle)
         }
         .frame(width: 38)
         .padding(.top, 1)
