@@ -38,6 +38,21 @@ final class Activity {
     var averageCadence: Double?
     var calories: Double?
 
+    /// Garmin's heart-rate and power zones for this outing, as they stood on
+    /// the day: the lower bound of each of the five zones — bpm, watts — and
+    /// the seconds spent in each, zone 1 first. Zones move over the months,
+    /// and an outing read against today's would be read against the wrong
+    /// ones; Garmin keeps the day's, so they are copied once and kept.
+    ///
+    /// Nil where Garmin had nothing: no such outing there, or no sensor.
+    var hrZoneFloors: [Double]?
+    var hrZoneSeconds: [Double]?
+    var powerZoneFloors: [Double]?
+    var powerZoneSeconds: [Double]?
+    /// When Garmin was asked for them, found or not — nil means not yet. See
+    /// `GarminZonesFetcher`.
+    var zonesCheckedAt: Date?
+
     /// Marked by hand in Cairn and nowhere else: Strava has no equivalent, so
     /// there is nothing for a sync to overwrite and nothing to protect.
     var isFavorite: Bool = false

@@ -34,6 +34,11 @@ extension Activity: MirrorRow {
             "kilojoules": .from(kilojoules),
             "average_cadence": .from(averageCadence),
             "calories": .from(calories),
+            "hr_zone_floors": .from(hrZoneFloors),
+            "hr_zone_seconds": .from(hrZoneSeconds),
+            "power_zone_floors": .from(powerZoneFloors),
+            "power_zone_seconds": .from(powerZoneSeconds),
+            "zones_checked_at": .from(zonesCheckedAt),
 
             "is_favorite": .bool(isFavorite),
             "is_commute": .bool(isCommute),

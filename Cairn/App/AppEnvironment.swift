@@ -38,6 +38,10 @@ final class AppEnvironment {
     /// receives what Cairn already knows about an activity.
     let garmin: GarminClient
     let garminSync: GarminSyncTracker
+    /// Les zones de FC et de puissance de chaque sortie, copiées de Garmin.
+    let garminZones: GarminZonesFetcher
+    /// Gardé pour le remplissage des zones, qui travaille dans son propre contexte.
+    private let zonesContainer: ModelContainer
     let edits: EditPropagator
     /// Who Garmin says is signed in, nil when nobody is. Read from the
     /// Keychain at launch, so it costs no request.
@@ -117,6 +121,8 @@ final class AppEnvironment {
         self.garmin = garmin
         let garminSync = GarminSyncTracker(client: garmin, defaults: .standard)
         self.garminSync = garminSync
+        self.garminZones = GarminZonesFetcher(client: garmin)
+        self.zonesContainer = container
         self.edits = EditPropagator(strava: client, garmin: garmin, garminSync: garminSync)
         let garminTokens = store.garminTokens()
         self.isGarminConnected = garminTokens != nil
@@ -306,6 +312,8 @@ final class AppEnvironment {
         restoreLastSyncDate()
         pushMirrorOnLaunch()
         startMirrorPolling()
+        // Les zones des anciennes sorties, doucement, en fond.
+        if isGarminConnected { garminZones.startBackfill(container: zonesContainer) }
         guard syncsOnLaunch, isAuthenticated else { return }
         syncSummariesOnly()
     }

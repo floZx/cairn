@@ -356,7 +356,7 @@ actor GarminClient {
     // MARK: - API
 
     /// Activities started between the two days, newest first.
-    func activities(from start: Date, to end: Date) async throws -> [GarminActivity] {
+    func activities(from start: Date, to end: Date, limit: Int = 50) async throws -> [GarminActivity] {
         let day = DateFormatter()
         day.locale = Locale(identifier: "en_US_POSIX")
         day.dateFormat = "yyyy-MM-dd"
@@ -364,7 +364,7 @@ actor GarminClient {
             "/activitylist-service/activities/search/activities",
             query: [
                 "startDate": day.string(from: start), "endDate": day.string(from: end),
-                "start": "0", "limit": "50",
+                "start": "0", "limit": String(limit),
             ]
         )
         return (json as? [[String: Any]] ?? []).compactMap(GarminActivity.init(json:))
@@ -375,6 +375,14 @@ actor GarminClient {
               let activity = GarminActivity(json: json)
         else { throw GarminError.invalidResponse }
         return activity
+    }
+
+    /// The heart-rate and power zones Garmin applied to one activity, as they
+    /// stood that day — not today's, which is the whole point.
+    func zones(activityID id: Int64) async throws -> GarminZones {
+        let hr = try await getJSON("/activity-service/activity/\(id)/hrTimeInZones")
+        let power = try await getJSON("/activity-service/activity/\(id)/powerTimeInZones")
+        return GarminZones(heartRateJSON: hr, powerJSON: power)
     }
 
     func activityTypes() async throws -> [GarminActivityType] {

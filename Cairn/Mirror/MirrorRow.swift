@@ -59,4 +59,8 @@ extension MirrorValue {
     static func from(_ value: Date?) -> MirrorValue {
         value.map(MirrorValue.date) ?? .null
     }
+
+    static func from(_ value: [Double]?) -> MirrorValue {
+        value.map(MirrorValue.doubleArray) ?? .null
+    }
 }

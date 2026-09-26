@@ -60,6 +60,14 @@ create table activity (
   kilojoules      double precision,
   average_cadence double precision,
   calories        double precision,
+  -- Les zones de FC et de puissance du jour de la sortie, prises chez Garmin :
+  -- la borne basse de chaque zone et les secondes passées dedans, zone 1
+  -- d'abord. Voir 013-zones.sql.
+  hr_zone_floors      double precision[],
+  hr_zone_seconds     double precision[],
+  power_zone_floors   double precision[],
+  power_zone_seconds  double precision[],
+  zones_checked_at    timestamptz,
 
   is_favorite     boolean not null default false,
   is_commute      boolean not null default false,

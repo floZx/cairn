@@ -11,6 +11,7 @@ enum MirrorValue: Sendable, Equatable {
     case date(Date)
     case data(Data)
     case stringArray([String])
+    case doubleArray([Double])
     case null
 
     /// The `JSONSerialization`-compatible form. A `Date` becomes an ISO 8601
@@ -40,6 +41,7 @@ enum MirrorValue: Sendable, Equatable {
         case .date(let value): MirrorValue.iso8601.string(from: value)
         case .data(let value): Self.postgresHex(value)
         case .stringArray(let values): values
+        case .doubleArray(let values): values.map { $0.isFinite ? $0 : 0 }
         case .null: NSNull()
         }
     }

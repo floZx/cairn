@@ -172,6 +172,12 @@ struct ActivityDetailView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                // Les zones du jour de la sortie, prises chez Garmin — voir
+                // `Activity.hrZoneFloors`. Rien quand Garmin n'en avait pas.
+                if !besideGlobalMap {
+                    ActivityZonesView(activity: activity)
+                }
+
                 // One lap is the whole activity again, figure for figure, a
                 // few lines below the same figures.
                 if !besideGlobalMap, activity.laps.count > 1 {
@@ -203,6 +209,15 @@ struct ActivityDetailView: View {
         }
         .task(id: activity.stravaID) {
             app.loadDetail(stravaID: activity.stravaID)
+        }
+        // Les zones de la sortie ouverte, tout de suite plutôt qu'au tour du
+        // remplissage en fond. Après un temps, comme la vérification Garmin :
+        // `j` tenu ouvre une douzaine de sorties par seconde.
+        .task(id: activity.uuid) {
+            guard app.isGarminConnected else { return }
+            try? await Task.sleep(for: .milliseconds(800))
+            guard !Task.isCancelled else { return }
+            await app.garminZones.fetchIfNeeded(activity, in: modelContext)
         }
     }
 

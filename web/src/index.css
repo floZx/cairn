@@ -4007,3 +4007,64 @@ button.citation {
 .macro-repas .lettre {
   font-weight: 600;
 }
+
+/* ---- Zones de FC et de puissance -----------------------------------------
+   Le tableau de Garmin : zone 5 en haut, ses couleurs de gris à rouge. */
+:root {
+  --zone-1: #9a9aa0;
+  --zone-2: #3b8ff0;
+  --zone-3: #3fbf5a;
+  --zone-4: #f39a3c;
+  --zone-5: #e5484d;
+}
+
+.zones {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--carte);
+}
+
+.zones h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+
+.zone {
+  margin-bottom: 10px;
+}
+
+.zone:last-child {
+  margin-bottom: 0;
+}
+
+.zone-titre {
+  font-size: 14px;
+}
+
+.zone-ligne {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.2em 3em;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.zone-barre {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--champ);
+}
+
+.zone-barre > div {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.zone-temps,
+.zone-part {
+  text-align: right;
+}
