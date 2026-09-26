@@ -139,7 +139,9 @@ struct GarminSource: Sendable, Equatable {
     init(_ activity: Activity) {
         self.init(
             name: activity.name,
-            description: activity.activityDescription ?? "",
+            // Garmin shows its description as typed: the note goes there
+            // without its Markdown, as it reads on screen.
+            description: MarkdownPlainText.render(activity.activityDescription ?? ""),
             sport: activity.sportType,
             isTrainer: activity.isTrainer,
             start: activity.startDate,

@@ -569,3 +569,50 @@ struct EditPropagatorTests {
         #expect(propagator.failures["u"] == nil)
     }
 }
+
+@Suite("Notes vers Garmin : texte brut")
+struct MarkdownPlainTextTests {
+    @Test("gras, italique, code et liens perdent leurs signes")
+    func inlineMarks() {
+        #expect(
+            MarkdownPlainText.render("**Seuil** tenu, *jambes* lourdes, `3x12`, [parcours](https://x.fr)")
+                == "Seuil tenu, jambes lourdes, 3x12, parcours"
+        )
+    }
+
+    @Test("titres, listes et paragraphes gardent leur place, sans leurs marques")
+    func blocks() {
+        let note = """
+            # Sensations
+            Bonne séance.
+
+            - échauffement 20 min
+            - 3x12 au seuil
+            1. retour au calme
+
+            > à refaire
+            """
+        #expect(MarkdownPlainText.render(note) == """
+            Sensations
+
+            Bonne séance.
+
+            • échauffement 20 min
+            • 3x12 au seuil
+            1. retour au calme
+
+            à refaire
+            """)
+    }
+
+    @Test("un tag perd son dièse, une mention garde son arobase")
+    func tagsAndMentions() {
+        #expect(MarkdownPlainText.render("Avec @sam sur le #trail") == "Avec @sam sur le trail")
+    }
+
+    @Test("une note sans balisage passe telle quelle")
+    func plainStaysPlain() {
+        #expect(MarkdownPlainText.render("Pas de douleur au mollet cette fois")
+                == "Pas de douleur au mollet cette fois")
+    }
+}
