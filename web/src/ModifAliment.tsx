@@ -1,4 +1,3 @@
-import { selectionnerAuFocus } from "./saisie"
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
@@ -35,7 +34,10 @@ export function ModifAliment({
   onFerme: () => void
 }) {
   const [nom, setNom] = useState(aliment.nom)
-  const [grammes, setGrammes] = useState(String(Math.round(aliment.grammes)))
+  // Ce qui est tapé ; vide, la quantité actuelle vaut — voir le champ.
+  const [grammes, setGrammes] = useState("")
+  const grammesActuels = String(Math.round(aliment.grammes))
+  const quantite = grammes.trim() || grammesActuels
   const [confirmeSuppression, setConfirmeSuppression] = useState(false)
   const client = useQueryClient()
 
@@ -47,7 +49,7 @@ export function ModifAliment({
 
   const enregistrement = useMutation({
     mutationFn: async () => {
-      const poids = Number(grammes.replace(",", "."))
+      const poids = Number(quantite.replace(",", "."))
       if (!Number.isFinite(poids) || poids <= 0) throw new Error("Quantité invalide.")
       if (!nom.trim()) throw new Error("Un aliment a besoin d'un nom.")
       const { error } = await supabase
@@ -78,7 +80,7 @@ export function ModifAliment({
   const occupe = enregistrement.isPending || suppression.isPending
   const apercu = macrosDe({
     ...aliment,
-    grams: Number(grammes.replace(",", ".")) || 0,
+    grams: Number(quantite.replace(",", ".")) || 0,
   })
   const erreur = enregistrement.error ?? suppression.error
 
@@ -107,16 +109,15 @@ export function ModifAliment({
       />
       <label className="champ-quantite">
         <input
-          // Du texte au clavier numérique, et non `type="number"` : Safari ne
-          // sait pas sélectionner le contenu d'un champ numérique, et la valeur
+          // Du texte au clavier numérique, et non `type="number"` : la valeur
           // est lue virgule comprise.
           type="text"
           inputMode="decimal"
+          // Vide, la quantité actuelle en indication, comme à l'ajout : la
+          // sélection au focus se dessinait à côté du champ sur iPhone.
           value={grammes}
+          placeholder={grammesActuels}
           onChange={(e) => setGrammes(e.target.value)}
-          // Tout sélectionné en prenant le focus : on remplace une quantité bien
-          // plus souvent qu'on ne la corrige — demandé.
-          onFocus={selectionnerAuFocus}
         />
         <span>g</span>
       </label>
