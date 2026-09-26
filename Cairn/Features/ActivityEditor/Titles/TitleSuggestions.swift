@@ -36,9 +36,9 @@ enum TitleSuggestions {
         if i.isIndoor {
             switch i.sport {
             case .ride, .gravelRide, .mountainBikeRide, .eBikeRide:
-                titles.append("Home-trainer du \(i.weekday) \(i.partOfDay.rawValue)")
+                titles.append("Home-trainer du \(i.dayAndMoment)")
             case .run, .trailRun:
-                titles.append("Tapis du \(i.weekday) \(i.partOfDay.rawValue)")
+                titles.append("Tapis du \(i.dayAndMoment)")
             default:
                 titles.append("\(noun.text) en intérieur")
             }
@@ -48,8 +48,8 @@ enum TitleSuggestions {
             let ride: Set<SportType> = [.ride, .gravelRide, .eBikeRide]
             titles.append(
                 ride.contains(i.sport)
-                    ? "Vélotaf du \(i.weekday) \(i.partOfDay.rawValue)"
-                    : "Trajet du \(i.weekday) \(i.partOfDay.rawValue)"
+                    ? "Vélotaf du \(i.dayAndMoment)"
+                    : "Trajet du \(i.dayAndMoment)"
             )
         }
 
@@ -65,7 +65,7 @@ enum TitleSuggestions {
                 } else if let start {
                     titles.append(word == "EF" ? "EF \(start)" : "Footing à \(start)")
                 } else {
-                    titles.append("\(word) du \(i.weekday) \(i.partOfDay.rawValue)")
+                    titles.append("\(word) du \(i.dayAndMoment)")
                 }
             }
         }
@@ -75,7 +75,7 @@ enum TitleSuggestions {
             titles += wayTitles(i, noun: noun, start: start, via: via)
         }
 
-        titles.append("\(noun.text) du \(i.weekday) \(i.partOfDay.rawValue)")
+        titles.append("\(noun.text) du \(i.dayAndMoment)")
 
         if i.hasDistance {
             var figures = TitleIngredients.kilometres(i.distanceKm)

@@ -68,6 +68,19 @@ struct TitleIngredients: Sendable, Equatable {
     var averageHeartrate: Double?
 
     var hasDistance: Bool { distanceKm >= 0.1 }
+
+    /// « mercredi midi », « jeudi soir », « samedi matin » — the day and the
+    /// moment the way they are said together. « Du mercredi le midi » read
+    /// as two phrases stuck end to end.
+    var dayAndMoment: String {
+        let moment = switch partOfDay {
+        case .earlyMorning, .morning: "matin"
+        case .noon: "midi"
+        case .afternoon: "après-midi"
+        case .evening, .night: "soir"
+        }
+        return "\(weekday) \(moment)"
+    }
 }
 
 // MARK: - Pure rules

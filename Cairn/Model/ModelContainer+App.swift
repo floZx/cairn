@@ -26,6 +26,9 @@ enum AppModelContainer {
         // Les fiches des personnes citées — voir `Person`, qui explique
         // pourquoi la liste des gens, elle, n'est pas stockée.
         Person.self,
+        // La météo au départ de chaque sortie, lue une fois chez Open-Meteo —
+        // un modèle à part, hors miroir : voir `ActivityWeather`.
+        ActivityWeather.self,
     ])
 
     /// True inside a test run, and the one place that question is asked.

@@ -165,7 +165,7 @@ struct TitleSuggestionsTests {
             "Boucle par Précieux",
             "Vélo vers Précieux",
             "Sury-le-Comtal / Précieux",
-            "Vélo du mercredi en soirée",
+            "Vélo du mercredi soir",
             "32 km et 180 m D+ par Précieux",
         ])
     }
@@ -214,17 +214,17 @@ struct TitleSuggestionsTests {
         var trainer = ride()
         trainer.isIndoor = true
         trainer.places = []
-        #expect(TitleSuggestions.make(trainer).first == "Home-trainer du mercredi en soirée")
+        #expect(TitleSuggestions.make(trainer).first == "Home-trainer du mercredi soir")
 
         var commute = ride()
         commute.isCommute = true
-        #expect(TitleSuggestions.make(commute).first == "Vélotaf du mercredi en soirée")
+        #expect(TitleSuggestions.make(commute).first == "Vélotaf du mercredi soir")
 
         let gym = TitleIngredients(
             sport: .workout, weekday: "jeudi", partOfDay: .evening,
             distanceKm: 0, movingMinutes: 45, elevationGain: 0
         )
-        #expect(TitleSuggestions.make(gym) == ["Renfo du jeudi en soirée", "Renfo · 45 min"])
+        #expect(TitleSuggestions.make(gym) == ["Renfo du jeudi soir", "Renfo · 45 min"])
     }
 
     @Test("une course sous 145 de moyenne se propose en Footing et en EF")

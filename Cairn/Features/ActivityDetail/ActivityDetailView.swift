@@ -118,7 +118,14 @@ struct ActivityDetailView: View {
 
                 notes
 
-                ActivityGearRow(activity: activity)
+                // What the outing was done in and with, side by side, the
+                // one under the other when the pane is narrow. The weather
+                // sat in the header's corner first, where Strava has it, and
+                // crowded the title as soon as the pane was dragged in.
+                FlowLayout(spacing: 8, lineSpacing: 8) {
+                    ActivityGearRow(activity: activity)
+                    ActivityWeatherView(activity: activity)
+                }
 
                 statistics
 
