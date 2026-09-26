@@ -42,6 +42,11 @@ struct AmbientGlow: ViewModifier {
                 // outside the content instead.
                 .padding(-blurRadius / 2)
                 .blur(radius: blurRadius)
+                // Une lumière ne prend pas de clic. Débordant de son contenu,
+                // elle recouvrait le sélecteur FC / Puissance / Cadence posé
+                // juste au-dessus de la courbe, et le rendait incliquable à la
+                // souris — signalé ; seule l'accessibilité passait.
+                .allowsHitTesting(false)
         }
     }
 }

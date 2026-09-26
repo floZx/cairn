@@ -98,14 +98,66 @@ struct StreamChartsView: View {
         series.compactMap { $0.points.last?.distanceKm }.max() ?? 0
     }
 
+    /// La courbe de l'effort montrée, retenue d'une sortie à l'autre.
+    @AppStorage("streamChartShown") private var shownID = "heartrate"
+
     var body: some View {
+        // L'altitude à part — c'est le parcours —, puis FC, puissance et
+        // cadence en une seule courbe, avec le choix entre elles : trois
+        // courbes l'une sous l'autre prenaient la hauteur du volet. Comme les
+        // zones, juste en dessous.
+        let profile = series.filter { $0.id == "altitude" }
+        let effort = series.filter { $0.id != "altitude" }
+        let shown = effort.first { $0.id == shownID } ?? effort.first
         VStack(alignment: .leading, spacing: 16) {
-            ForEach(series) { serie in
+            ForEach(profile) { serie in
                 VStack(alignment: .leading, spacing: 4) {
                     header(for: serie)
                     chart(for: serie)
                 }
             }
+            if let shown {
+                VStack(alignment: .leading, spacing: 4) {
+                    if effort.count > 1 {
+                        HStack {
+                            Picker("Courbe", selection: Binding(
+                                get: { shown.id }, set: { shownID = $0 }
+                            )) {
+                                ForEach(effort) { serie in
+                                    Text(Self.shortLabel(serie)).tag(serie.id)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .fixedSize()
+                            Spacer()
+                            reading(for: shown)
+                        }
+                    } else {
+                        header(for: shown)
+                    }
+                    chart(for: shown)
+                }
+            }
+        }
+    }
+
+    /// « FC », « Puissance », « Cadence » : le nom court, pour le sélecteur.
+    static func shortLabel(_ serie: StreamSeries) -> String {
+        switch serie.id {
+        case "heartrate": "FC"
+        default: serie.label
+        }
+    }
+
+    /// La valeur sous le curseur, avec son unité.
+    @ViewBuilder
+    private func reading(for serie: StreamSeries) -> some View {
+        if let value = value(of: serie, at: hoverDistanceKm) {
+            Text("\(Int(value.rounded())) \(serie.unit)")
+                .monospacedDigit()
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

@@ -1,4 +1,6 @@
+import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { cadenceDuSport } from "./sports"
 import { supabase } from "./supabase"
 
 /// Les courbes d'une sortie, dessinées à la main.
@@ -72,16 +74,35 @@ type Courbe = {
   remplir: boolean
 }
 
-/// Ce qu'on regarde d'une sortie, dans cet ordre : le relief la raconte,
-/// le cardio dit ce qu'elle a coûté, la puissance ne concerne que le vélo et
-/// disparaît d'elle-même quand le flux est absent.
+/// Ce qu'on regarde d'une sortie : le relief la raconte, puis l'effort — FC,
+/// puissance, cadence —, chacun absent de lui-même quand son flux l'est. Les
+/// couleurs du Mac : rouge pour la FC, orange la puissance, violet la cadence.
 const COURBES: Courbe[] = [
   { clef: "altitude", titre: "Altitude", unite: "m", couleur: "#8e8e93", remplir: true },
-  { clef: "heartrate", titre: "Cardio", unite: "bpm", couleur: "#ff3b30", remplir: false },
-  { clef: "watts", titre: "Puissance", unite: "W", couleur: "#af52de", remplir: false },
+  { clef: "heartrate", titre: "FC", unite: "bpm", couleur: "#ff3b30", remplir: false },
+  { clef: "watts", titre: "Puissance", unite: "W", couleur: "#ff9500", remplir: false },
+  { clef: "cadence", titre: "Cadence", unite: "", couleur: "#af52de", remplir: false },
 ]
 
-export function Courbes({ activiteUUID }: { activiteUUID: string }) {
+const CLEF_CHOIX = "cairn.courbe-effort"
+
+export function Courbes({ activiteUUID, sport }: { activiteUUID: string; sport: string }) {
+  // La courbe d'effort montrée, retenue d'une sortie à l'autre sur cet appareil.
+  const [choix, setChoix] = useState<string>(() => {
+    try {
+      return localStorage.getItem(CLEF_CHOIX) ?? "heartrate"
+    } catch {
+      return "heartrate"
+    }
+  })
+  const choisir = (clef: string) => {
+    setChoix(clef)
+    try {
+      localStorage.setItem(CLEF_CHOIX, clef)
+    } catch {
+      // Navigation privée : le choix vaut pour la séance.
+    }
+  }
   const { data, error, isPending } = useQuery({
     queryKey: ["courbes", activiteUUID],
     // Pour toujours quand on les a, tout de suite quand on ne les a pas.
@@ -133,19 +154,47 @@ export function Courbes({ activiteUUID }: { activiteUUID: string }) {
   if (error) return <p className="erreur">{(error as Error).message}</p>
   if (!data) return null
 
-  const presentes = COURBES.filter((c) => data[c.clef]?.length)
+  // La cadence dans l'unité du sport : pas par minute à pied, tours à vélo.
+  const { facteur, unite } = cadenceDuSport(sport)
+  const presentes = COURBES.filter((c) => data[c.clef]?.length).map((c) =>
+    c.clef === "cadence"
+      ? { ...c, unite, valeurs: data[c.clef].map((v) => v * facteur) }
+      : { ...c, valeurs: data[c.clef] },
+  )
   if (presentes.length === 0) return null
+
+  // L'altitude seule, puis une seule courbe d'effort et le choix entre elles :
+  // trois courbes l'une sous l'autre prenaient deux écrans. Comme les zones.
+  const relief = presentes.filter((c) => c.clef === "altitude")
+  const effort = presentes.filter((c) => c.clef !== "altitude")
+  const montree = effort.find((c) => c.clef === choix) ?? effort[0]
+  const affichees = montree ? [...relief, montree] : relief
 
   return (
     <div className="courbes carte-groupe">
-      {presentes.map((courbe) => {
-        const valeurs = data[courbe.clef]
+      {affichees.map((courbe) => {
+        const valeurs = courbe.valeurs
         const min = Math.round(Math.min(...valeurs))
         const max = Math.round(Math.max(...valeurs))
+        const avecChoix = courbe.clef !== "altitude" && effort.length > 1
         return (
           <div className="courbe" key={courbe.clef}>
             <div className="tete-courbe">
-              <span>{courbe.titre}</span>
+              {avecChoix ? (
+                <div className="choix-zones" role="group" aria-label="Courbe">
+                  {effort.map((c) => (
+                    <button
+                      key={c.clef}
+                      className={c.clef === courbe.clef ? "actif" : ""}
+                      onClick={() => choisir(c.clef)}
+                    >
+                      {c.titre}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span>{courbe.titre}</span>
+              )}
               <span className="attenue petit">
                 {min}–{max} {courbe.unite}
               </span>

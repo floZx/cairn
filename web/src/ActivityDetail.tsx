@@ -196,7 +196,7 @@ export function ActivityDetail({
         onOuvrir={onOuvrir}
       />
 
-      <Courbes activiteUUID={uuid} />
+      <Courbes activiteUUID={uuid} sport={data.sport_type_raw} />
 
       <Zones uuid={uuid} />
 

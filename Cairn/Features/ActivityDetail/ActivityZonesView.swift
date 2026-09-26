@@ -78,16 +78,45 @@ enum ZoneTable {
 /// appliquait ce jour-là. Rien du tout quand Garmin n'en avait pas.
 struct ActivityZonesView: View {
     let activity: Activity
+    /// FC ou puissance, retenu d'une sortie à l'autre : on compare les
+    /// sorties sur la même mesure.
+    @AppStorage("zonesShowPower") private var showsPower = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            if let floors = activity.hrZoneFloors, let seconds = activity.hrZoneSeconds {
-                table(ZoneTable.rows(floors: floors, seconds: seconds, kind: .heartRate), kind: .heartRate)
-            }
-            if let floors = activity.powerZoneFloors, let seconds = activity.powerZoneSeconds {
-                table(ZoneTable.rows(floors: floors, seconds: seconds, kind: .power), kind: .power)
+        let heartRate = zip(activity.hrZoneFloors, activity.hrZoneSeconds)
+        let power = zip(activity.powerZoneFloors, activity.powerZoneSeconds)
+        // Une seule section, et le choix entre les deux quand les deux
+        // existent : deux tableaux de cinq lignes l'un sous l'autre prenaient
+        // la hauteur du volet — le téléphone l'a fait en premier.
+        if heartRate != nil || power != nil {
+            let showing: ZoneTable.Kind = power != nil && (showsPower || heartRate == nil)
+                ? .power : .heartRate
+            let data = showing == .power ? power! : heartRate!
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Zones").font(.headline)
+                    Spacer()
+                    if heartRate != nil, power != nil {
+                        Picker("Zones", selection: $showsPower) {
+                            Text("FC").tag(false)
+                            Text("Puissance").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                    } else {
+                        Text(showing == .power ? "Puissance" : "FC")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                rows(ZoneTable.rows(floors: data.0, seconds: data.1, kind: showing))
             }
         }
+    }
+
+    private func zip(_ floors: [Double]?, _ seconds: [Double]?) -> ([Double], [Double])? {
+        guard let floors, let seconds, !floors.isEmpty else { return nil }
+        return (floors, seconds)
     }
 
     /// Les couleurs de Garmin, de la zone 1 à la 5 : gris, bleu, vert,
@@ -102,38 +131,34 @@ struct ActivityZonesView: View {
         }
     }
 
-    @ViewBuilder
-    private func table(_ rows: [ZoneTable.Row], kind: ZoneTable.Kind) -> some View {
-        if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(kind.title).font(.headline)
-                ForEach(rows) { row in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Text("Zone \(row.zone)").fontWeight(.semibold)
-                            Text("\(row.range) · \(row.name)").foregroundStyle(.secondary)
-                        }
-                        .font(.callout)
-                        HStack(spacing: 10) {
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    Capsule().fill(.quaternary)
-                                    Capsule()
-                                        .fill(Self.color(zone: row.zone))
-                                        .frame(width: geo.size.width * row.share)
-                                }
-                            }
-                            .frame(height: 8)
-                            Text(ZoneTable.duration(row.seconds))
-                                .monospacedDigit()
-                                .frame(width: 58, alignment: .trailing)
-                            Text("\(row.percent) %")
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                                .frame(width: 42, alignment: .trailing)
-                        }
-                        .font(.callout)
+    private func rows(_ rows: [ZoneTable.Row]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(rows) { row in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text("Zone \(row.zone)").fontWeight(.semibold)
+                        Text("\(row.range) · \(row.name)").foregroundStyle(.secondary)
                     }
+                    .font(.callout)
+                    HStack(spacing: 10) {
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(.quaternary)
+                                Capsule()
+                                    .fill(Self.color(zone: row.zone))
+                                    .frame(width: geo.size.width * row.share)
+                            }
+                        }
+                        .frame(height: 8)
+                        Text(ZoneTable.duration(row.seconds))
+                            .monospacedDigit()
+                            .frame(width: 58, alignment: .trailing)
+                        Text("\(row.percent) %")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 42, alignment: .trailing)
+                    }
+                    .font(.callout)
                 }
             }
         }
