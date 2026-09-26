@@ -54,9 +54,15 @@ enum PaneGeometry {
     /// Plus basse pour la liste des activités depuis que ses fiches empilent
     /// leurs trois lignes à la façon de Mail : rien n'y réclame plus une
     /// rangée de colonnes, et 480 empêchait de la serrer comme on le voulait.
+    /// La liste des personnes descend plus bas encore : un nom et un nombre
+    /// par ligne, et le volet de la personne ouverte qui veut la place.
     /// Les autres écrans ont été réglés à 480 et le gardent.
     static func minimumMiddle(for ecran: Ecran) -> Double {
-        ecran == .activites ? 320 : 480
+        switch ecran {
+        case .activites: 320
+        case .people: 240
+        default: 480
+        }
     }
 
     enum Colonne: String, Sendable {

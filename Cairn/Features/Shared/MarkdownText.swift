@@ -252,10 +252,41 @@ struct MarkdownText: View {
     /// a `#` opening the run, the allowed characters, and the two exclusions
     /// (`# ` is a heading, `#2026` is a year). A second copy of those rules
     /// would drift from the tags the sidebar actually lists.
-    static func withoutTagHashes(_ attributed: AttributedString) -> AttributedString {
+    nonisolated static func withoutTagHashes(_ attributed: AttributedString) -> AttributedString {
         var result = attributed
-        var found: [Range<AttributedString.Index>] = []
-        let characters = result.characters
+        // Held as character offsets, not indices: setting an attribute or
+        // removing a character leaves an `AttributedString`'s indices
+        // invalid, and reusing one crashed the suite. Back to front, so the
+        // offsets still to come all lie before the text being changed.
+        let start = result.characters.startIndex
+        let found = tagRanges(in: result).map { found in
+            (
+                hash: result.characters.distance(from: start, to: found.hash.lowerBound),
+                end: result.characters.distance(from: start, to: found.tag.end),
+                tag: found.tag.value
+            )
+        }
+        func index(_ offset: Int) -> AttributedString.Index {
+            result.characters.index(result.characters.startIndex, offsetBy: offset)
+        }
+        for tag in found.reversed() {
+            // Coloured again since 26 September: taken off on 11 August
+            // because it looked clickable when nothing was, it now is — a
+            // click filters the journal on the tag.
+            let whole = index(tag.hash)..<index(tag.end)
+            result[whole].foregroundColor = .accentColor
+            if let url = lien(pour: tag.tag) { result[whole].link = url }
+            result.removeSubrange(index(tag.hash)..<index(tag.hash + 1))
+        }
+        return result
+    }
+
+    /// Each tag's `#`, and where its name ends, with the tag itself.
+    nonisolated private static func tagRanges(
+        in attributed: AttributedString
+    ) -> [(hash: Range<AttributedString.Index>, tag: (end: AttributedString.Index, value: JournalTag))] {
+        var found: [(Range<AttributedString.Index>, (AttributedString.Index, JournalTag))] = []
+        let characters = attributed.characters
         var previous: Character?
         var index = characters.startIndex
 
@@ -273,18 +304,31 @@ struct MarkdownText: View {
             while end < characters.endIndex, JournalTag.isAllowed(characters[end]) {
                 end = characters.index(after: end)
             }
-            guard JournalTag(name: String(characters[nameStart..<end])) != nil
+            guard let tag = JournalTag(name: String(characters[nameStart..<end]))
             else { continue }
-            found.append(index..<nameStart)
+            found.append((index..<nameStart, (end, tag)))
         }
-
-        // Back to front: removing a hash shifts everything after it, so the
-        // ranges still to come must all lie before the one being edited.
-        for hash in found.reversed() {
-            result.removeSubrange(hash)
-        }
-        return result
+        return found.map { (hash: $0.0, tag: (end: $0.1.0, value: $0.1.1)) }
     }
+
+    /// L'adresse d'un tag, qu'`openURL` reconnaîtra — comme celle d'une
+    /// mention, et pour la même raison : un lien est la seule plage cliquable
+    /// d'un `Text`.
+    nonisolated static func lien(pour tag: JournalTag) -> URL? {
+        tag.name
+            .addingPercentEncoding(withAllowedCharacters: .alphanumerics)
+            .flatMap { URL(string: "\(schemaDesTags):\($0)") }
+    }
+
+    /// Le tag qu'une adresse désigne, ou nil quand ce n'en est pas un.
+    nonisolated static func tag(dans url: URL) -> JournalTag? {
+        guard url.scheme == schemaDesTags else { return nil }
+        let corps = url.absoluteString.dropFirst(schemaDesTags.count + 1)
+        guard let ecrit = corps.removingPercentEncoding else { return nil }
+        return JournalTag(name: ecrit)
+    }
+
+    nonisolated private static let schemaDesTags = "cairn-tag"
 }
 
 
@@ -308,6 +352,10 @@ private struct BlocDeNote<Contenu: View>: View {
             // Les liens ordinaires d'une note gardent leur sens : seule une
             // adresse de mention est détournée, le reste part au navigateur.
             .environment(\.openURL, OpenURLAction { url in
+                if let tag = MarkdownText.tag(dans: url) {
+                    montrer(tag)
+                    return .handled
+                }
                 guard let handle = MarkdownText.mention(dans: url) else {
                     return .systemAction
                 }
@@ -317,6 +365,16 @@ private struct BlocDeNote<Contenu: View>: View {
             .popover(item: $personneOuverte) { handle in
                 PersonPopoverCard(handle: handle)
             }
+    }
+
+    /// Mène au journal filtré sur ce tag — par le même verrou qu'une fiche :
+    /// c'est la liste de ce qu'on a écrit.
+    private func montrer(_ tag: JournalTag) {
+        guard let app else { return }
+        Task {
+            if !app.journalLock.estOuvert { await app.journalLock.ouvrir() }
+            if app.journalLock.estOuvert { app.requestShowJournalTag?(tag) }
+        }
     }
 
     /// Ouvre la fiche, en demandant d'abord la clé du journal s'il est fermé.

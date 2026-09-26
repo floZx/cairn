@@ -22,6 +22,8 @@ struct PersonDetailView: View {
     /// du fichier en toutes lettres — « pieces-jointes/2026-08-12-1.png » —
     /// au lieu de la photo. Signalé.
     let attachmentsBase: URL?
+    /// Change quand la liste demande la note : Entrée ou `e` sur une personne.
+    var focusRequest = 0
 
     @Environment(\.modelContext) private var context
     @Query private var people: [Person]
@@ -64,7 +66,10 @@ struct PersonDetailView: View {
 
     var body: some View {
         guard let handle else { return AnyView(EmptyView()) }
-        return AnyView(contenu(handle))
+        return AnyView(
+            contenu(handle)
+                .onChange(of: focusRequest) { _, _ in noteFocus = true }
+        )
     }
 
     private func contenu(_ handle: PersonHandle) -> some View {

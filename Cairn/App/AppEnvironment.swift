@@ -82,6 +82,8 @@ final class AppEnvironment {
     var requestImportGPX: (() -> Void)?
     var requestExportGPX: (() -> Void)?
     var requestExportJournalPDF: (() -> Void)?
+    /// Un tag cliqué dans une note : le journal, filtré sur lui.
+    var requestShowJournalTag: ((JournalTag) -> Void)?
     var requestToggleListStyle: (() -> Void)?
 
     /// `store`, `mirrorTransport` and `mirrorCursor` default to the real

@@ -9,6 +9,10 @@ import SwiftData
 /// `PeopleIndex.lignes`.
 struct PeopleView: View {
     @Binding var selection: String?
+    /// Entrée ou `e` : le curseur dans la note de la personne ouverte.
+    var onEdit: () -> Void = {}
+    /// Ce que la liste ne traite pas elle-même — changer de section, l'aide.
+    var onCommand: (VimCommand) -> Bool = { _ in false }
 
     @Query private var journalNotes: [JournalNote]
     @Query private var activities: [Activity]
@@ -83,6 +87,7 @@ struct PeopleView: View {
                     )
                 }
             } else {
+                ScrollViewReader { defilement in
                 List(lignes, selection: $selection) { ligne in
                     HStack(spacing: 8) {
                         Text(ligne.handle.displayName)
@@ -107,9 +112,59 @@ struct PeopleView: View {
                     }
                     .padding(.vertical, 2)
                     .tag(ligne.handle.key)
+                    .id(ligne.handle.key)
+                }
+                // Au clavier, comme la liste du journal : `j` et `k` passent
+                // d'une personne à l'autre, Entrée ou `e` ouvre sa note.
+                .vimKeys { commande in
+                    let cles = lignes.map(\.handle.key)
+                    let actuel = selection.flatMap { cles.firstIndex(of: $0) } ?? 0
+                    let cible: Int?
+                    switch commande {
+                    case let .move(delta): cible = actuel + delta
+                    case .first: cible = 0
+                    case .last: cible = cles.count - 1
+                    case let .halfPage(bas): cible = actuel + (bas ? 1 : -1) * VimMotion.halfPageRows
+                    case .edit, .editNotes:
+                        guard selection != nil else { return false }
+                        onEdit()
+                        return true
+                    default:
+                        return onCommand(commande)
+                    }
+                    guard let cible, !cles.isEmpty else { return false }
+                    let borne = min(max(cible, 0), cles.count - 1)
+                    selection = cles[borne]
+                    defilement.scrollTo(cles[borne])
+                    return true
+                }
+                .onKeyPress(.return) {
+                    guard selection != nil else { return .ignored }
+                    onEdit()
+                    return .handled
+                }
                 }
             }
         }
         .navigationTitle(lignes.count == 1 ? "1 personne" : "\(lignes.count) personnes")
+        // Toujours quelqu'un d'ouvert, comme les fiches des activités : sans
+        // sélection, la liste s'étalait sur toute la fenêtre, deux noms à un
+        // bout et leur compte à l'autre.
+        .onAppear { garder(lignes) }
+        .onChange(of: selection) { _, _ in garder(lignes) }
+        .onChange(of: lignes.map(\.handle.key)) { _, _ in garder(lignes) }
+    }
+
+    private func garder(_ lignes: [PeopleIndex.Ligne]) {
+        if let cle = Self.selectionGardee(cles: lignes.map(\.handle.key), actuelle: selection) {
+            selection = cle
+        }
+    }
+
+    /// La personne à ouvrir pour que le volet ne reste jamais vide, ou nil
+    /// quand celle qui l'est encore fait l'affaire.
+    static func selectionGardee(cles: [String], actuelle: String?) -> String? {
+        if let actuelle, cles.contains(actuelle) { return nil }
+        return cles.first
     }
 }

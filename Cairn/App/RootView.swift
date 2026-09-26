@@ -69,6 +69,8 @@ struct RootView: View {
     /// la sélection doit survivre à une note qui écrit « @Sam » au lieu de
     /// « @sam ».
     @State private var selectedPerson: String?
+    /// Entrée sur une personne : son éditeur de note prend le clavier.
+    @State private var personNoteRequest = 0
     @State private var filter = ActivityFilter.none
     // See the comment on `ActivityListView.selection`: `Activity.ID` can't be
     // named from this file, so `PersistentIdentifier` is used directly.
@@ -364,6 +366,12 @@ struct RootView: View {
             app.requestToggleFavorite = { toggleFavorite() }
             app.requestImportGPX = { chooseGPXFilesToImport() }
             app.requestExportGPX = { exportGPX(selection) }
+            app.requestShowJournalTag = { tag in
+                allerA(.journal)
+                vueJournal = .journees
+                journalQuery = ""
+                journalTags = [tag]
+            }
             app.requestExportJournalPDF = {
                 // Un livre du journal est le journal : il attend la même clé.
                 guard app.journalLock.estOuvert else { return }
@@ -749,8 +757,11 @@ struct RootView: View {
                     // be a second thing for `/` to aim at.
                     .searchFocused($searchFieldFocused)
                 } else if showsPeople {
-                    PeopleView(selection: $selectedPerson)
-                        .vimKeys(performOutsideTheList)
+                    PeopleView(
+                        selection: $selectedPerson,
+                        onEdit: { personNoteRequest += 1 },
+                        onCommand: performOutsideTheList
+                    )
                 } else if showsTraining {
                     // Le plan prend toute la colonne : une grille de mois n'a
                     // rien à gagner à cohabiter avec une liste.
@@ -1383,7 +1394,8 @@ struct RootView: View {
                 PersonDetailView(
                     cle: cle,
                     onOuvrirLaSource: { ouvrirLaSource($0) },
-                    attachmentsBase: app.journal.attachmentsBase
+                    attachmentsBase: app.journal.attachmentsBase,
+                    focusRequest: personNoteRequest
                 )
                 .frame(minWidth: Self.detailMinWidth)
             } else {
@@ -1658,7 +1670,8 @@ struct RootView: View {
                 .disabled(
                     showsWeight
                         || (showsJournal && journalSelection == nil)
-                        || (showsPeople && selectedPerson == nil)
+                        // Les gens gardent toujours quelqu'un d'ouvert.
+                        || showsPeople
                         || (!showsNutrition && !showsJournal && !showsPeople
                             && (selection.isEmpty || listStyle == .cards))
                 )

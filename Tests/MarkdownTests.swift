@@ -149,12 +149,21 @@ struct MarkdownTaggedTests {
         #expect(rendered(source) == source)
     }
 
-    @Test("le rendu ne pose aucune couleur")
-    func nothingIsColoured() {
-        // Tried and taken back out on 11 August 2026: the accent colour made a
-        // tag look like something one could click, in a note where it is not.
+    @Test("un tag est coloré et mène au journal filtré sur lui")
+    func tagsAreLinks() throws {
+        // Taken out on 11 August 2026 because a coloured tag looked clickable
+        // when nothing was; back on 26 September, now that a click filters
+        // the journal on it. The colour says something true again.
         let result = MarkdownText.withoutTagHashes(AttributedString("Vu #Sam hier."))
-        #expect(result.runs.allSatisfy { $0.foregroundColor == nil })
+        #expect(String(result.characters) == "Vu Sam hier.")
+        let tagged = result.runs.filter { $0.link != nil }
+        #expect(tagged.count == 1)
+        let run = try #require(tagged.first)
+        #expect(String(result[run.range].characters) == "Sam")
+        #expect(run.foregroundColor != nil)
+        #expect(MarkdownText.tag(dans: try #require(run.link))?.name == "Sam")
+        // Le reste du texte n'est ni coloré ni lié.
+        #expect(result.runs.filter { $0.foregroundColor != nil }.count == 1)
     }
 }
 
