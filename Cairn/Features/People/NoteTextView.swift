@@ -263,4 +263,27 @@ final class ChampDeNote: NSTextView {
         }
         super.paste(sender)
     }
+
+    /// ⌘D pendant qu'on écrit : l'heure, « 15h20 : », là où est le curseur —
+    /// de quoi dater un passage de la note au fil de la journée.
+    ///
+    /// Pris ici, avant le menu : ⌘D y est « Favori », et une fenêtre offre
+    /// d'abord le raccourci à ses vues. Seulement quand ce champ a le clavier,
+    /// sans quoi n'importe quelle note affichée le volerait à la liste.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if window?.firstResponder === self,
+           event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+           event.charactersIgnoringModifiers?.lowercased() == "d" {
+            insertText(Self.heure(), replacementRange: selectedRange())
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    /// « 9h05 : » — l'heure sans zéro devant, les minutes sur deux chiffres.
+    nonisolated static func heure(_ date: Date = Date(), calendar: Calendar = .current) -> String {
+        let h = calendar.component(.hour, from: date)
+        let m = calendar.component(.minute, from: date)
+        return String(format: "%dh%02d : ", h, m)
+    }
 }

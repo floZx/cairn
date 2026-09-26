@@ -69,3 +69,15 @@ struct JournalHeadingTests {
         #expect(JournalRowLayout.subtitle(for: key("2026-09-08"), activities: 0, today: today) == "2026")
     }
 }
+
+@Suite("Note : l'heure insérée par ⌘D")
+struct HeureDeNoteTests {
+    @Test func heureSansZeroDevantMinutesSurDeuxChiffres() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
+        let matin = calendar.date(from: DateComponents(year: 2026, month: 9, day: 26, hour: 9, minute: 5))!
+        let apresMidi = calendar.date(from: DateComponents(year: 2026, month: 9, day: 26, hour: 15, minute: 20))!
+        #expect(ChampDeNote.heure(matin, calendar: calendar) == "9h05 : ")
+        #expect(ChampDeNote.heure(apresMidi, calendar: calendar) == "15h20 : ")
+    }
+}
