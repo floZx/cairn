@@ -50,6 +50,12 @@ struct ActivityDetailView: View {
     /// so the pane opens rendered — and writing costs one click rather than a
     /// link, a sheet and a form with eight other fields in it.
     @State private var isEditingNote = false
+    /// What Garmin is compared against while the note is being written: the
+    /// activity as it stood when the editor opened. The note saves itself a
+    /// second after each pause, and every save changed the signature — a new
+    /// check, and the header flickering between states at each sentence. The
+    /// comparison waits for Échap or ⌘↩.
+    @State private var garminSourceWhileEditing: GarminSource?
     /// Held here while it is being typed, exactly as the journal's pane holds
     /// its own: bound straight to the model, every keystroke would be a write
     /// and a re-read, and `TextEditor` loses its selection to a value replaced
@@ -207,9 +213,7 @@ struct ActivityDetailView: View {
             // a second, and each would otherwise cost Garmin three requests.
             try? await Task.sleep(for: .milliseconds(600))
             guard !Task.isCancelled else { return }
-            await app.garminSync.checkIfNeeded(
-                uuid: activity.uuid, source: GarminSource(activity)
-            )
+            await app.garminSync.checkIfNeeded(uuid: activity.uuid, source: garminSource)
         }
         .task(id: activity.stravaID) {
             app.loadDetail(stravaID: activity.stravaID)
@@ -329,7 +333,7 @@ struct ActivityDetailView: View {
     @ViewBuilder
     private var garminStatus: some View {
         if app.isGarminConnected {
-            switch app.garminSync.state(uuid: activity.uuid, source: GarminSource(activity)) {
+            switch app.garminSync.state(uuid: activity.uuid, source: garminSource) {
             case .synced:
                 Button {
                     showsGarminSync = true
@@ -405,7 +409,11 @@ struct ActivityDetailView: View {
     /// Changes whenever the background check has something new to look at:
     /// another activity, an edit to this one, a sign-in.
     private var garminCheckKey: String {
-        "\(activity.uuid)|\(GarminSource(activity).signature)|\(app.isGarminConnected)"
+        "\(activity.uuid)|\(garminSource.signature)|\(app.isGarminConnected)"
+    }
+
+    private var garminSource: GarminSource {
+        garminSourceWhileEditing ?? GarminSource(activity)
     }
 
     /// The markers worth a chip here.
@@ -549,6 +557,7 @@ struct ActivityDetailView: View {
     private func beginEditingNote() {
         noteDraft = activity.activityDescription ?? ""
         noteFailure = nil
+        garminSourceWhileEditing = GarminSource(activity)
         isEditingNote = true
         noteFocused = true
     }
@@ -556,6 +565,7 @@ struct ActivityDetailView: View {
     private func endEditingNote() {
         noteSaveTask?.cancel()
         saveNote()
+        garminSourceWhileEditing = nil
         isEditingNote = false
         noteFocused = false
     }
