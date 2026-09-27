@@ -32,6 +32,10 @@ function duree(secondes: number): string {
   return h > 0 ? `${h}:${deux(m)}:${deux(r)}` : `${m}:${deux(r)}`
 }
 
+/// Le donut et sa légende : la zone 1 part du haut, dans le sens des
+/// aiguilles ; au centre, la durée et la zone où la sortie s'est passée. La
+/// légende porte tout — plage, temps, part — et garde les zones vides,
+/// atténuées, pour que l'échelle reste entière.
 function Tableau({
   planchers,
   secondes,
@@ -46,31 +50,71 @@ function Tableau({
   const n = Math.min(planchers.length, secondes.length)
   if (n === 0) return null
   const total = secondes.slice(0, n).reduce((a, b) => a + b, 0)
-  const lignes = Array.from({ length: n }, (_, i) => i).reverse()
+  const rayon = 46
+  const tour = 2 * Math.PI * rayon
+  const ecart = 1.2
+  let depart = 0
+  const arcs = Array.from({ length: n }, (_, i) => {
+    const longueur = total > 0 ? (secondes[i] / total) * tour : 0
+    const arc = { i, longueur, depart }
+    depart += longueur
+    return arc
+  }).filter((a) => a.longueur > 0)
+  const dominante = Array.from({ length: n }, (_, i) => i).reduce((m, i) =>
+    secondes[i] > secondes[m] ? i : m, 0)
+  const plage = (i: number) => {
+    const bas = Math.round(planchers[i])
+    return i + 1 < n ? `${bas} - ${Math.round(planchers[i + 1]) - 1} ${unite}` : `> ${bas - 1} ${unite}`
+  }
   return (
-    <>
-      {lignes.map((i) => {
-        const bas = Math.round(planchers[i])
-        const plage =
-          i + 1 < n ? `${bas} - ${Math.round(planchers[i + 1]) - 1} ${unite}` : `> ${bas - 1} ${unite}`
-        const part = total > 0 ? secondes[i] / total : 0
-        return (
-          <div className="zone" key={i}>
-            <div className="zone-titre">
-              <b>Zone {i + 1}</b> <span className="attenue">{plage} · {noms[i] ?? ""}</span>
-            </div>
-            <div className="zone-ligne">
-              <div className="zone-barre">
-                <div style={{ width: `${part * 100}%`, background: COULEURS[i] }} />
+    <div className="donut-zones">
+      <svg viewBox="0 0 120 120" role="img" aria-label="Répartition par zone">
+        <circle cx="60" cy="60" r={rayon} fill="none" stroke="var(--champ)" strokeWidth="14" />
+        {arcs.map((a) => (
+          <circle
+            key={a.i}
+            cx="60"
+            cy="60"
+            r={rayon}
+            fill="none"
+            stroke={COULEURS[a.i]}
+            strokeWidth="14"
+            strokeDasharray={`${Math.max(a.longueur - ecart, 0.8)} ${tour}`}
+            strokeDashoffset={-a.depart}
+            transform="rotate(-90 60 60)"
+          />
+        ))}
+        <text x="60" y="58" textAnchor="middle" className="donut-total">
+          {duree(total)}
+        </text>
+        {total > 0 && (
+          <text x="60" y="74" textAnchor="middle" className="donut-sous">
+            {Math.floor((secondes[dominante] / total) * 100)} % en Z{dominante + 1}
+          </text>
+        )}
+      </svg>
+      <div className="legende-zones">
+        {Array.from({ length: n }, (_, i) => i)
+          .reverse()
+          .map((i) => {
+            const part = total > 0 ? secondes[i] / total : 0
+            return (
+              <div className={secondes[i] > 0 ? "legende-zone" : "legende-zone vide"} key={i}>
+                <span className="legende-point" style={{ background: COULEURS[i] }} />
+                <div className="legende-nom">
+                  <b>Z{i + 1}</b> {noms[i] ?? ""}
+                  <div className="attenue">{plage(i)}</div>
+                </div>
+                <div className="legende-valeur">
+                  {duree(secondes[i])}
+                  {/* Tronqué, comme Garmin : 74,9 % s'y lit « 74 % ». */}
+                  <div className="attenue">{Math.floor(part * 100)} %</div>
+                </div>
               </div>
-              <span className="zone-temps">{duree(secondes[i])}</span>
-              {/* Tronqué, comme Garmin : 74,9 % s'y lit « 74 % ». */}
-              <span className="zone-part attenue">{Math.floor(part * 100)} %</span>
-            </div>
-          </div>
-        )
-      })}
-    </>
+            )
+          })}
+      </div>
+    </div>
   )
 }
 

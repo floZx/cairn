@@ -4198,3 +4198,68 @@ button.citation {
   border: 0;
   border-top: 0.5px solid var(--trait);
 }
+
+/* Le donut des zones et sa légende. */
+.donut-zones {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.donut-zones svg {
+  flex: none;
+  width: 120px;
+  height: 120px;
+}
+
+.donut-total {
+  font-size: 16px;
+  font-weight: 600;
+  fill: var(--texte);
+  font-variant-numeric: tabular-nums;
+}
+
+.donut-sous {
+  font-size: 10px;
+  fill: var(--texte-2);
+}
+
+.legende-zones {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.legende-zone {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.legende-zone.vide {
+  opacity: 0.45;
+}
+
+.legende-point {
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 50%;
+}
+
+.legende-nom b {
+  font-weight: 600;
+}
+
+.legende-nom .attenue,
+.legende-valeur .attenue {
+  font-size: 11px;
+}
+
+.legende-valeur {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

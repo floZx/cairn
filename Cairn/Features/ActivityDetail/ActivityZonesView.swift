@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 /// Les lignes d'un tableau de zones, à la façon de Garmin : zone 5 en haut,
 /// sa plage, son nom, le temps passé et sa part.
@@ -131,34 +132,63 @@ struct ActivityZonesView: View {
         }
     }
 
+    /// Le donut et sa légende : la zone 1 part du haut, dans le sens des
+    /// aiguilles ; au centre, la durée et la zone où la sortie s'est passée.
+    /// La légende porte tout ce que portait le tableau — plage, temps, part —
+    /// et garde les zones vides, atténuées, pour que l'échelle reste entière.
     private func rows(_ rows: [ZoneTable.Row]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(rows) { row in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text("Zone \(row.zone)").fontWeight(.semibold)
-                        Text("\(row.range) · \(row.name)").foregroundStyle(.secondary)
-                    }
-                    .font(.callout)
-                    HStack(spacing: 10) {
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(.quaternary)
-                                Capsule()
-                                    .fill(Self.color(zone: row.zone))
-                                    .frame(width: geo.size.width * row.share)
-                            }
-                        }
-                        .frame(height: 8)
-                        Text(ZoneTable.duration(row.seconds))
-                            .monospacedDigit()
-                            .frame(width: 58, alignment: .trailing)
-                        Text("\(row.percent) %")
-                            .monospacedDigit()
+        let ordered = rows.sorted { $0.zone < $1.zone }
+        let total = ordered.reduce(0) { $0 + $1.seconds }
+        let dominant = ordered.max { $0.seconds < $1.seconds }
+        return HStack(alignment: .center, spacing: 18) {
+            ZStack {
+                Chart(ordered) { row in
+                    SectorMark(
+                        angle: .value("Temps", row.seconds),
+                        innerRadius: .ratio(0.72),
+                        angularInset: 1.2
+                    )
+                    .foregroundStyle(Self.color(zone: row.zone))
+                    .cornerRadius(2)
+                }
+                .chartLegend(.hidden)
+                VStack(spacing: 1) {
+                    Text(ZoneTable.duration(total))
+                        .font(.system(size: 16, weight: .semibold))
+                        .monospacedDigit()
+                    if let dominant, total > 0 {
+                        Text("\(dominant.percent) % en Z\(dominant.zone)")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
-                            .frame(width: 42, alignment: .trailing)
+                    }
+                }
+            }
+            .frame(width: 130, height: 130)
+
+            VStack(alignment: .leading, spacing: 7) {
+                ForEach(rows) { row in
+                    HStack(alignment: .top, spacing: 8) {
+                        Circle()
+                            .fill(Self.color(zone: row.zone))
+                            .frame(width: 9, height: 9)
+                            .padding(.top, 4)
+                        VStack(alignment: .leading, spacing: 0) {
+                            (Text("Z\(row.zone) ").fontWeight(.semibold) + Text(row.name))
+                            Text(row.range)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text(ZoneTable.duration(row.seconds)).monospacedDigit()
+                            Text("\(row.percent) %")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
                     }
                     .font(.callout)
+                    .opacity(row.seconds > 0 ? 1 : 0.45)
                 }
             }
         }
