@@ -283,7 +283,9 @@ final class ChampDeNote: NSTextView {
         if window?.firstResponder === self,
            event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
            event.charactersIgnoringModifiers?.lowercased() == "d" {
-            insertText(Self.heure(), replacementRange: selectedRange())
+            let range = selectedRange()
+            let avant = (string as NSString).substring(to: range.location)
+            insertText(Self.insertionHeure(avant: avant), replacementRange: range)
             return true
         }
         // ⌘↩ referme l'écriture, comme Échap, là où l'écran le propose. Sinon
@@ -300,6 +302,19 @@ final class ChampDeNote: NSTextView {
             }
         }
         return super.performKeyEquivalent(with: event)
+    }
+
+    /// Ce que ⌘D insère : un séparateur puis l'heure, pour ouvrir un nouveau
+    /// moment de la journée. Le trait entre deux lignes vides : collé sous une
+    /// ligne de texte, un `---` en fait un titre en Markdown standard — un
+    /// « titre Setext », CommonMark 4.3 — et l'export Markdown de la
+    /// sauvegarde doit se relire partout. En tête d'une note vide, rien à
+    /// séparer : l'heure seule.
+    nonisolated static func insertionHeure(avant: String, date: Date = Date(), calendar: Calendar = .current) -> String {
+        let heure = heure(date, calendar: calendar)
+        guard !avant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return heure }
+        let sauts = avant.reversed().prefix { $0 == "\n" }.count
+        return String(repeating: "\n", count: max(0, 2 - sauts)) + "---\n\n" + heure
     }
 
     /// « 9h05 : » — l'heure sans zéro devant, les minutes sur deux chiffres.

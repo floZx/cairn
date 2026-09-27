@@ -40,6 +40,33 @@ struct ActivityZonesTests {
     }
 }
 
+@Suite("Note : ⌘D ouvre un nouveau moment")
+struct InsertionHeureTests {
+    private static let date: Date = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Europe/Paris")!
+        return c.date(from: DateComponents(year: 2026, month: 9, day: 27, hour: 7, minute: 5))!
+    }()
+    private static var calendar: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Europe/Paris")!
+        return c
+    }
+
+    @Test func surUneNoteVideLHeureSeule() {
+        #expect(ChampDeNote.insertionHeure(avant: "", date: Self.date, calendar: Self.calendar) == "7h05 : ")
+    }
+
+    @Test func apresUnTexteLeTraitEntreDeuxLignesVides() {
+        #expect(ChampDeNote.insertionHeure(avant: "Réveil.", date: Self.date, calendar: Self.calendar)
+            == "\n\n---\n\n7h05 : ")
+        #expect(ChampDeNote.insertionHeure(avant: "Réveil.\n", date: Self.date, calendar: Self.calendar)
+            == "\n---\n\n7h05 : ")
+        #expect(ChampDeNote.insertionHeure(avant: "Réveil.\n\n", date: Self.date, calendar: Self.calendar)
+            == "---\n\n7h05 : ")
+    }
+}
+
 @Suite("Zones : rien d'avant la montre")
 @MainActor
 struct ZonesAvantLaMontreTests {
