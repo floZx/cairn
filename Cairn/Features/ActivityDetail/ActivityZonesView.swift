@@ -191,6 +191,11 @@ struct ActivityZonesView: View {
                     .opacity(row.seconds > 0 ? 1 : 0.45)
                 }
             }
+            // Bornée, puis centrée dans la place qui reste : étirée jusqu'au
+            // bord du volet, elle mettait les temps à une main de leur zone,
+            // au-delà d'un grand vide.
+            .frame(maxWidth: 250)
+            .frame(maxWidth: .infinity)
         }
     }
 }
