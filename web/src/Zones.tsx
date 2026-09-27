@@ -21,7 +21,7 @@ const NOMS = {
   fc: ["Échauffement", "Facile", "Aérobie", "Seuil", "Maximum"],
   puissance: ["Facile", "Modéré", "Tempo", "Intervalle long", "Intervalle court"],
 }
-const COULEURS = ["var(--zone-1)", "var(--zone-2)", "var(--zone-3)", "var(--zone-4)", "var(--zone-5)"]
+export const COULEURS_ZONES = ["var(--zone-1)", "var(--zone-2)", "var(--zone-3)", "var(--zone-4)", "var(--zone-5)"]
 
 function duree(secondes: number): string {
   const s = Math.round(secondes)
@@ -77,7 +77,7 @@ function Tableau({
             cy="60"
             r={rayon}
             fill="none"
-            stroke={COULEURS[a.i]}
+            stroke={COULEURS_ZONES[a.i]}
             strokeWidth="14"
             strokeDasharray={`${Math.max(a.longueur - ecart, 0.8)} ${tour}`}
             strokeDashoffset={-a.depart}
@@ -100,7 +100,7 @@ function Tableau({
             const part = total > 0 ? secondes[i] / total : 0
             return (
               <div className={secondes[i] > 0 ? "legende-zone" : "legende-zone vide"} key={i}>
-                <span className="legende-point" style={{ background: COULEURS[i] }} />
+                <span className="legende-point" style={{ background: COULEURS_ZONES[i] }} />
                 <div className="legende-nom">
                   <b>Z{i + 1}</b> {noms[i] ?? ""}
                   <div className="attenue">{plage(i)}</div>
@@ -118,9 +118,10 @@ function Tableau({
   )
 }
 
-export function Zones({ uuid }: { uuid: string }) {
-  const [vue, setVue] = useState<"fc" | "puissance">("fc")
-  const { data } = useQuery({
+/// Les zones d'une sortie — partagées avec les courbes, qui s'en colorent :
+/// une même clef de requête, une seule demande à Supabase.
+export function useZones(uuid: string) {
+  return useQuery({
     queryKey: ["zones", uuid],
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
@@ -134,6 +135,21 @@ export function Zones({ uuid }: { uuid: string }) {
       return data as unknown as Ligne
     },
   })
+}
+
+/// La zone d'une valeur, de 1 à 5 : la plus haute dont elle atteint le
+/// plancher — la règle de `StreamChartsView.zone(of:floors:)` sur le Mac.
+export function zoneDe(valeur: number, planchers: number[]): number {
+  let zone = 1
+  planchers.forEach((p, i) => {
+    if (valeur >= p) zone = i + 1
+  })
+  return zone
+}
+
+export function Zones({ uuid }: { uuid: string }) {
+  const [vue, setVue] = useState<"fc" | "puissance">("fc")
+  const { data } = useZones(uuid)
   if (!data) return null
   const fc = data.hr_zone_floors && data.hr_zone_seconds
   const puissance = data.power_zone_floors && data.power_zone_seconds

@@ -161,7 +161,11 @@ struct ActivityDetailView: View {
                     EmptyView()
                 } else if !chartSeries.isEmpty {
                     StreamChartsView(
-                        series: chartSeries, hoverDistanceKm: $hoverDistanceKm
+                        series: chartSeries, hoverDistanceKm: $hoverDistanceKm,
+                        zoneFloors: [
+                            "heartrate": activity.hrZoneFloors,
+                            "watts": activity.powerZoneFloors,
+                        ].compactMapValues { $0 }
                     )
                 } else if let message = Self.missingChartsMessage(
                     hasStreams: activity.streams != nil,

@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { cadenceDuSport } from "./sports"
 import { supabase } from "./supabase"
+import { COULEURS_ZONES, useZones, zoneDe } from "./Zones"
 
 /// Les courbes d'une sortie, dessinées à la main.
 ///
@@ -55,15 +56,41 @@ const HAUTEUR = 72
 ///
 /// `viewBox` et non des pixels : le SVG s'étire à la largeur qu'on lui donne,
 /// et le tracé reste net quelle que soit la densité de l'écran.
-function chemin(valeurs: number[], remplir: boolean): string {
+function repere(valeurs: number[]) {
   const min = Math.min(...valeurs)
   const max = Math.max(...valeurs)
   const amplitude = max - min || 1
   const x = (i: number) => (i / (valeurs.length - 1)) * LARGEUR
   const y = (v: number) => HAUTEUR - ((v - min) / amplitude) * (HAUTEUR - 4) - 2
-  const trace = valeurs.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
+  return (i: number) => `${x(i).toFixed(1)} ${y(valeurs[i]).toFixed(1)}`
+}
+
+function chemin(valeurs: number[], remplir: boolean): string {
+  const point = repere(valeurs)
+  const trace = valeurs.map((_, i) => `${i ? "L" : "M"}${point(i)}`)
   if (!remplir) return trace.join(" ")
   return `${trace.join(" ")} L${LARGEUR} ${HAUTEUR} L0 ${HAUTEUR} Z`
+}
+
+/// La courbe aux couleurs des zones : un tronçon par passage dans une zone,
+/// de la couleur du donut. Chaque tronçon part du dernier point du précédent,
+/// pour que la ligne ne se casse pas — comme sur le Mac.
+function troncons(valeurs: number[], planchers: number[]): { zone: number; d: string }[] {
+  const point = repere(valeurs)
+  const sortie: { zone: number; d: string }[] = []
+  let zone = zoneDe(valeurs[0], planchers)
+  let d = `M${point(0)}`
+  for (let i = 1; i < valeurs.length; i++) {
+    const z = zoneDe(valeurs[i], planchers)
+    d += ` L${point(i)}`
+    if (z !== zone) {
+      sortie.push({ zone, d })
+      zone = z
+      d = `M${point(i)}`
+    }
+  }
+  sortie.push({ zone, d })
+  return sortie
 }
 
 type Courbe = {
@@ -150,6 +177,14 @@ export function Courbes({ activiteUUID, sport }: { activiteUUID: string; sport: 
     },
   })
 
+  const { data: zones } = useZones(activiteUUID)
+  const planchersDe = (clef: string): number[] | null =>
+    clef === "heartrate"
+      ? (zones?.hr_zone_floors ?? null)
+      : clef === "watts"
+        ? (zones?.power_zone_floors ?? null)
+        : null
+
   if (isPending) return <p className="attenue petit">Chargement des courbes…</p>
   if (error) return <p className="erreur">{(error as Error).message}</p>
   if (!data) return null
@@ -177,6 +212,7 @@ export function Courbes({ activiteUUID, sport }: { activiteUUID: string; sport: 
         const min = Math.round(Math.min(...valeurs))
         const max = Math.round(Math.max(...valeurs))
         const avecChoix = courbe.clef !== "altitude" && effort.length > 1
+        const planchers = planchersDe(courbe.clef)
         return (
           <div className="courbe" key={courbe.clef}>
             <div className="tete-courbe">
@@ -205,18 +241,33 @@ export function Courbes({ activiteUUID, sport }: { activiteUUID: string; sport: 
               role="img"
               aria-label={`${courbe.titre}, de ${min} à ${max} ${courbe.unite}`}
             >
-              <path
-                d={chemin(valeurs, courbe.remplir)}
-                fill={courbe.remplir ? courbe.couleur : "none"}
-                fillOpacity={courbe.remplir ? 0.22 : undefined}
-                stroke={courbe.couleur}
-                strokeWidth={courbe.remplir ? 1 : 1.6}
-                strokeLinejoin="round"
-                // Sans cela, `preserveAspectRatio="none"` étirerait aussi
-                // l'épaisseur du trait, épais à l'horizontale et fin à la
-                // verticale.
-                vectorEffect="non-scaling-stroke"
-              />
+              {planchers?.length ? (
+                troncons(valeurs, planchers).map((t, i) => (
+                  <path
+                    key={i}
+                    d={t.d}
+                    fill="none"
+                    stroke={COULEURS_ZONES[t.zone - 1]}
+                    strokeWidth={1.6}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ))
+              ) : (
+                <path
+                  d={chemin(valeurs, courbe.remplir)}
+                  fill={courbe.remplir ? courbe.couleur : "none"}
+                  fillOpacity={courbe.remplir ? 0.22 : undefined}
+                  stroke={courbe.couleur}
+                  strokeWidth={courbe.remplir ? 1 : 1.6}
+                  strokeLinejoin="round"
+                  // Sans cela, `preserveAspectRatio="none"` étirerait aussi
+                  // l'épaisseur du trait, épais à l'horizontale et fin à la
+                  // verticale.
+                  vectorEffect="non-scaling-stroke"
+                />
+              )}
             </svg>
           </div>
         )

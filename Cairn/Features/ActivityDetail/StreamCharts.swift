@@ -90,6 +90,9 @@ struct StreamChartsView: View {
     let series: [StreamSeries]
     /// Distance under the cursor, shared with the map so it can mark the spot.
     @Binding var hoverDistanceKm: Double?
+    /// Les bornes basses des zones de la sortie, par courbe — `heartrate`,
+    /// `watts` —, pour colorer la ligne selon la zone où elle passe.
+    var zoneFloors: [String: [Double]] = [:]
     /// Where the pointer was last seen, in a box: remembering it must not
     /// rebuild the charts.
     @State private var pointer = PointerMemory()
@@ -198,9 +201,16 @@ struct StreamChartsView: View {
                     .foregroundStyle(serie.color)
                     .opacity(0.15)
                 }
-                LineMark(x: .value("km", point.distanceKm),
-                         y: .value(serie.label, point.value))
-                    .foregroundStyle(serie.color)
+                if zoneFloors[serie.id] == nil {
+                    LineMark(x: .value("km", point.distanceKm),
+                             y: .value(serie.label, point.value))
+                        .foregroundStyle(serie.color)
+                }
+            }
+            // La ligne aux couleurs des zones — voir `zoneLine`. Chaque tronçon
+            // reprend le dernier point du précédent : la ligne ne se casse pas.
+            if let floors = zoneFloors[serie.id] {
+                zoneLine(for: serie, floors: floors)
             }
             if let hoverDistanceKm {
                 RuleMark(x: .value("km", hoverDistanceKm))
@@ -279,5 +289,57 @@ final class PointerMemory {
     func moved(to location: CGPoint) -> Bool {
         defer { last = location }
         return location != last
+    }
+}
+
+extension StreamChartsView {
+    /// Un morceau de courbe passé dans une même zone.
+    struct ZoneSegment: Identifiable {
+        let id: Int
+        let zone: Int
+        let points: [StreamPoint]
+    }
+
+    /// La zone d'une valeur : la plus haute dont la borne basse est atteinte ;
+    /// sous la zone 1, la zone 1 encore.
+    static func zone(of value: Double, floors: [Double]) -> Int {
+        max(1, floors.lastIndex { value >= $0 }.map { $0 + 1 } ?? 1)
+    }
+
+    /// La courbe découpée aux changements de zone.
+    static func zoneSegments(_ points: [StreamPoint], floors: [Double]) -> [ZoneSegment] {
+        var segments: [ZoneSegment] = []
+        var current: [StreamPoint] = []
+        var currentZone = 0
+        for point in points {
+            let zone = zone(of: point.value, floors: floors)
+            if zone != currentZone, !current.isEmpty {
+                segments.append(ZoneSegment(id: segments.count, zone: currentZone, points: current))
+                // Le point de passage appartient aux deux tronçons.
+                current = [current[current.count - 1]]
+            }
+            currentZone = zone
+            current.append(point)
+        }
+        if !current.isEmpty {
+            segments.append(ZoneSegment(id: segments.count, zone: currentZone, points: current))
+        }
+        return segments
+    }
+
+    /// La ligne aux couleurs des zones : un tronçon par passage dans une
+    /// zone, chacun de la couleur du donut.
+    @ChartContentBuilder
+    func zoneLine(for serie: StreamSeries, floors: [Double]) -> some ChartContent {
+        ForEach(Self.zoneSegments(serie.points, floors: floors)) { segment in
+            ForEach(segment.points) { point in
+                LineMark(
+                    x: .value("km", point.distanceKm),
+                    y: .value(serie.label, point.value),
+                    series: .value("tronçon", segment.id)
+                )
+                .foregroundStyle(ActivityZonesView.color(zone: segment.zone))
+            }
+        }
     }
 }
