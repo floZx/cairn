@@ -19,6 +19,9 @@ enum MarkdownBlock: Equatable, Identifiable, Sendable {
     /// A picture on a line of its own. Only there: an image inside a sentence
     /// is a sentence, and this parser recognises nothing it was not asked to.
     case image(path: String, alt: String)
+    /// `---` seul sur sa ligne : un trait de séparation. Il porte son rang
+    /// parmi les blocs, pour que deux traits d'une même note restent deux.
+    case rule(Int)
 
     /// What the block says, without the marker that made it one.
     ///
@@ -34,6 +37,7 @@ enum MarkdownBlock: Equatable, Identifiable, Sendable {
         case let .quote(text): text
         // The alt text: what a renderer with no picture to show must write.
         case let .image(_, alt): alt
+        case .rule: ""
         }
     }
 
@@ -45,6 +49,7 @@ enum MarkdownBlock: Equatable, Identifiable, Sendable {
         case let .numbered(number, text): "o\(number)-\(text)"
         case let .quote(text): "q-\(text)"
         case let .image(path, _): "img-\(path)"
+        case let .rule(index): "hr-\(index)"
         }
     }
 }
@@ -75,6 +80,13 @@ enum MarkdownParser {
 
             if line.isEmpty {
                 flushParagraph()
+                continue
+            }
+            // Trois tirets, étoiles ou soulignés et rien d'autre : un trait,
+            // comme en Markdown. Avant les puces, que `- ` ouvre.
+            if line.range(of: #"^(-\s*){3,}$|^(\*\s*){3,}$|^(_\s*){3,}$"#, options: .regularExpression) != nil {
+                flushParagraph()
+                blocks.append(.rule(blocks.count))
                 continue
             }
             if let heading = heading(in: line) {

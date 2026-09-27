@@ -31,6 +31,10 @@ enum MarkdownPlainText {
                 isItem = true
             case .image:
                 continue
+            case .rule:
+                // Un trait qui reste un trait, là où le Markdown ne se lit pas.
+                line = "———"
+                isItem = false
             }
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
             // One line between the items of a list, a blank one between

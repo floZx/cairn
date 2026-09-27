@@ -4191,3 +4191,10 @@ button.citation {
 .pile-sports > span + span {
   margin-left: -6px;
 }
+
+/* `---` dans une note : un trait fin, avec de l'air autour. */
+.trait-note {
+  margin: 14px 0;
+  border: 0;
+  border-top: 0.5px solid var(--trait);
+}

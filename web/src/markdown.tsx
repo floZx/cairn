@@ -42,6 +42,7 @@ type Bloc =
   | { sorte: "paragraphe"; texte: string }
   | { sorte: "liste"; items: string[] }
   | { sorte: "image"; chemin: string; alt: string }
+  | { sorte: "trait" }
 
 const imageSeule = /^!\[([^\]]*)\]\(([^)]+)\)$/
 
@@ -73,6 +74,14 @@ export function enBlocs(markdown: string): Bloc[] {
     if (image) {
       viderListe()
       blocs.push({ sorte: "image", alt: image[1], chemin: image[2] })
+      coupe = true
+      continue
+    }
+    // Trois tirets, étoiles ou soulignés, et rien d'autre : un trait, comme
+    // en Markdown et comme sur le Mac. Avant les puces, que `- ` ouvre.
+    if (/^(-\s*){3,}$|^(\*\s*){3,}$|^(_\s*){3,}$/.test(nette)) {
+      viderListe()
+      blocs.push({ sorte: "trait" })
       coupe = true
       continue
     }
@@ -196,6 +205,8 @@ export function Markdown({
                 ))}
               </ul>
             )
+          case "trait":
+            return <hr key={i} className="trait-note" />
           case "image": {
             const url = imageURL?.(bloc.chemin)
             if (!url) return null

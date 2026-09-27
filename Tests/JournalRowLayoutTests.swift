@@ -81,3 +81,17 @@ struct HeureDeNoteTests {
         #expect(ChampDeNote.heure(apresMidi, calendar: calendar) == "15h20 : ")
     }
 }
+
+@Suite("Markdown : le trait de séparation")
+struct MarkdownRuleTests {
+    @Test func troisTiretsFontUnTrait() {
+        let blocs = MarkdownParser.blocks(from: "Avant\n\n---\n\nAprès\n\n***\n\n- une puce")
+        #expect(blocs == [
+            .paragraph("Avant"), .rule(1), .paragraph("Après"), .rule(3), .bullet("une puce"),
+        ])
+    }
+
+    @Test func leTexteSimpleGardeLeTrait() {
+        #expect(MarkdownPlainText.render("Avant\n\n---\n\nAprès") == "Avant\n\n———\n\nAprès")
+    }
+}

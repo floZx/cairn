@@ -65,6 +65,10 @@ struct MarkdownText: View {
             marker("\(number).", text)
         case let .image(path, alt):
             image(path: path, alt: alt)
+        case .rule:
+            // `---` : un trait fin, avec de l'air, comme entre deux parties.
+            Divider()
+                .padding(.vertical, 6)
         case let .quote(text):
             HStack(alignment: .top, spacing: 8) {
                 // A rule rather than an indent: an indent alone is

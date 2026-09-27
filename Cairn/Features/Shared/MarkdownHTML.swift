@@ -66,6 +66,9 @@ enum MarkdownHTML {
             case .quote:
                 closeList()
                 html += "<blockquote>\(text)</blockquote>"
+            case .rule:
+                closeList()
+                html += "<hr>"
             case .bullet:
                 if openList != "ul" {
                     closeList()

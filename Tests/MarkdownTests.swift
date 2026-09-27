@@ -83,9 +83,11 @@ struct MarkdownTests {
         // there is a separator someone meant to see. Only the journal, whose
         // notes are files in an Obsidian vault, drops the block — through
         // `JournalFileNote.body(of:)`, on the way to the renderer.
+        // Un `---` y est maintenant un trait de séparation : l'en-tête reste à
+        // retirer par l'appelant, et s'il ne l'est pas, il se voit en traits.
         #expect(
             MarkdownParser.blocks(from: "---\ntags: [sam]\n---\nPromenade.")
-                == [.paragraph("--- tags: [sam] --- Promenade.")]
+                == [.rule(0), .paragraph("tags: [sam]"), .rule(2), .paragraph("Promenade.")]
         )
     }
 
