@@ -605,18 +605,48 @@ struct ActivityDetailView: View {
     /// The figures of the route itself, beside the global map.
     static let routeTileTitles: Set<String> = ["Distance", "Temps en mouvement", "Dénivelé +"]
 
+    /// The three figures that sum an outing up, shown large: how far, how
+    /// long, how fast. Beside the global map, the route's own three instead.
+    static func isHeadline(_ tile: StatTileModel) -> Bool {
+        ["Distance", "Temps en mouvement", "Allure moyenne", "Vitesse moyenne"]
+            .contains(tile.title)
+    }
+
+    /// The figures as the phone shows them: the headline large, a hairline,
+    /// then the rest smaller in three columns. Eleven tiles of one size said
+    /// nothing about which ones matter.
     private var statistics: some View {
         let tiles = Self.statTiles(for: activity)
-            .filter { !besideGlobalMap || Self.routeTileTitles.contains($0.title) }
-        return LazyVGrid(
-            columns: Array(
-                repeating: GridItem(.flexible(), alignment: .leading),
-                count: besideGlobalMap ? 3 : 4
-            ),
-            spacing: 16
-        ) {
-            ForEach(tiles) { tile in
-                StatTile(tile.title, tile.value)
+        let headline = besideGlobalMap
+            ? tiles.filter { Self.routeTileTitles.contains($0.title) }
+            : tiles.filter(Self.isHeadline)
+        let rest = besideGlobalMap ? [] : tiles.filter { !Self.isHeadline($0) }
+        let columns = Array(repeating: GridItem(.flexible(), alignment: .topLeading), count: 3)
+        return VStack(alignment: .leading, spacing: 14) {
+            LazyVGrid(columns: columns, spacing: 16) {
+                ForEach(headline) { tile in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tile.value)
+                            .font(.system(size: 26, weight: .bold).monospacedDigit())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Text(tile.title).font(.callout).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if !rest.isEmpty {
+                Divider()
+                LazyVGrid(columns: columns, spacing: 14) {
+                    ForEach(rest) { tile in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tile.value)
+                                .font(.title3.weight(.semibold).monospacedDigit())
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                            Text(tile.title).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
         }
     }
