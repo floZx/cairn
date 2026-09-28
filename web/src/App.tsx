@@ -366,7 +366,7 @@ export function App() {
         // rien.
         <Nutrition key={jourRepas ?? "aujourd'hui"} jourInitial={jourRepas ?? undefined} />
       ) : (
-        <Stats />
+        <Stats onOuvrir={ouvrir} />
       )}
     </Chrome>
     </SurUneMention.Provider>
