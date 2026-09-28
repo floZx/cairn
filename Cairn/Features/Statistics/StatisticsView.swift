@@ -69,6 +69,20 @@ struct StatisticsView: View {
                         count: daily.count
                     )
                     RegularityCard(regularity: regularity)
+                    IntensityCard(
+                        intensity: Intensity.compute(
+                            activities,
+                            slotStarts: stats.slots.map(\.start),
+                            unit: period.granularity.component
+                        ),
+                        granularity: period.granularity
+                    )
+                    ProgressionCard(
+                        activities: activities,
+                        sports: SportProgress.sports(in: activities, since: stats.periodStart ?? Date()),
+                        periodStart: stats.periodStart ?? Date(),
+                        onSelect: onSelect
+                    )
                     // Two columns once the window has room for them: the
                     // volume and the week read side by side, the table and the
                     // records likewise.
@@ -370,31 +384,42 @@ struct StatisticsView: View {
     private func records(_ stats: ActivityStatistics) -> some View {
         StatsCard("Records", subtitle: "Cliquer pour ouvrir la sortie") {
             ForEach(stats.records) { record in
-                Button {
-                    onSelect(record.activityID)
-                } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(record.kind.label)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 150, alignment: .leading)
-                        Text(record.formattedValue)
-                            .font(.body.monospacedDigit())
-                            .frame(width: 90, alignment: .leading)
-                        SportLabel(record.activityName, sport: record.sport)
-                            .lineLimit(1)
-                        Spacer(minLength: 8)
-                        Text(record.formattedDate)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    // The whole row, not just the name: a target the width of an
-                    // activity's title is a target you have to aim at.
-                    .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .help("Ouvrir « \(record.activityName) »")
+                RecordRow(record: record, onSelect: onSelect)
             }
         }
+    }
+}
+
+/// One record: what it measures, the figure, the outing and its date. The
+/// whole row opens the outing.
+struct RecordRow: View {
+    let record: ActivityStatistics.Record
+    let onSelect: (PersistentIdentifier) -> Void
+
+    var body: some View {
+        Button {
+            onSelect(record.activityID)
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(record.kind.label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 150, alignment: .leading)
+                Text(record.formattedValue)
+                    .font(.body.monospacedDigit())
+                    .frame(width: 90, alignment: .leading)
+                SportLabel(record.activityName, sport: record.sport)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text(record.formattedDate)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            // The whole row, not just the name: a target the width of an
+            // activity's title is a target you have to aim at.
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .help("Ouvrir « \(record.activityName) »")
     }
 }

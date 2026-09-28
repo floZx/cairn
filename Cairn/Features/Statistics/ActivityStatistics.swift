@@ -61,14 +61,21 @@ struct ActivityStatistics: Equatable {
         case distance
         case elevation
         case duration
+        /// Per sport only — a fastest outing across sports would be the
+        /// e-bike's every time. Left out of `global`.
+        case speed
 
         var id: String { rawValue }
+
+        /// The records that make sense across sports.
+        static let global: [RecordKind] = [.distance, .elevation, .duration]
 
         var label: String {
             switch self {
             case .distance: "La plus longue"
             case .elevation: "La plus grimpante"
             case .duration: "La plus longue en temps"
+            case .speed: "La plus rapide"
             }
         }
 
@@ -77,6 +84,7 @@ struct ActivityStatistics: Equatable {
             case .distance: Format.distance(value)
             case .elevation: Format.elevation(value)
             case .duration: Format.durationCompact(Int(value))
+            case .speed: Format.speed(value, sport: .ride)
             }
         }
 
@@ -86,6 +94,7 @@ struct ActivityStatistics: Equatable {
             case .distance: activity.distance
             case .elevation: activity.totalElevationGain
             case .duration: Double(activity.movingTime)
+            case .speed: activity.averageSpeed
             }
         }
     }
@@ -107,7 +116,9 @@ struct ActivityStatistics: Equatable {
 
         var id: String { kind.rawValue }
         var formattedDate: String { Format.dateOnly(date, in: timeZone) }
-        var formattedValue: String { kind.formatted(value) }
+        var formattedValue: String {
+            kind == .speed ? Format.speed(value, sport: sport) : kind.formatted(value)
+        }
     }
 
     /// One slot of the period, beside its counterpart in the one before.
@@ -261,7 +272,7 @@ struct ActivityStatistics: Equatable {
     }
 
     private static func records(for activities: [Activity]) -> [Record] {
-        RecordKind.allCases.compactMap { kind in
+        RecordKind.global.compactMap { kind in
             guard let best = activities.max(by: {
                 kind.value(of: $0) < kind.value(of: $1)
             }), kind.value(of: best) > 0 else { return nil }
