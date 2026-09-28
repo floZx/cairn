@@ -3369,11 +3369,42 @@ button.citation {
 }
 
 .ligne.avec-icone.ligne-mail {
-  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  padding-right: 34px;
 }
 
 .ligne.avec-icone.ligne-mail::after {
-  left: 56px;
+  left: 64px;
+}
+
+/* La tuile d'une sortie : celle du journal, un peu plus petite pour tenir
+   sur deux lignes, l'heure en dessous. */
+.tuile-sortie .numero {
+  font-size: 20px;
+}
+
+.tuile-sortie .abrege {
+  font-size: 10px;
+}
+
+.tuile-sortie .heure-tuile {
+  color: var(--texte-2);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tuile-sortie.aujourdhui .abrege,
+.tuile-sortie.aujourdhui .numero {
+  color: var(--accent);
+}
+
+.tuile-sortie.dimanche .abrege,
+.tuile-sortie.dimanche .numero {
+  color: var(--erreur);
+}
+
+.ligne-mail .rond-sport {
+  margin-top: 0;
 }
 
 /* ---- La carte d'ensemble, en plein écran --------------------------------

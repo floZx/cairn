@@ -2,8 +2,8 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { nomDuSport } from "./sports"
-import { Symbole, symboleDuSport } from "./IconeSport"
-import { chiffresDeLaLigne, dateRelative } from "./format"
+import { PastilleSport, Symbole } from "./IconeSport"
+import { chiffresDeLaLigne, heure } from "./format"
 import { Feuille, Chargement } from "./Chrome"
 import { Filtres } from "./Filtres"
 import { Fil, COLONNES_FIL, type ActiviteDuFil } from "./Fil"
@@ -322,8 +322,7 @@ export function ActivityList({
       {entete}
       <ul className="liste">
         {activites.map((a) => (
-          // Deux lignes : le nom et une date courte, puis les chiffres du
-          // sport. Sans la note, que le Mac montre en troisième ligne : sur
+          // Deux lignes : le nom, puis les chiffres du sport. Sans la note, que le Mac montre en troisième ligne : sur
           // un téléphone, elle alourdissait la liste — gardé à deux, demandé.
           // La date longue était la plus large de la ligne et coupait le nom
           // (« Entraînement aux p… ») pour dire le moins.
@@ -333,25 +332,43 @@ export function ActivityList({
             onClick={() => onOuvrir(a.uuid)}
             title={nomDuSport(a.sport_type_raw)}
           >
-            {/* En pastille monochrome, comme la vignette du même nom sur le
-                Mac : un rond teinté de l'accent, le symbole du sport dedans.
-                Une colonne de ronds bleus plutôt qu'un arc-en-ciel de
-                silhouettes — le symbole suffit à distinguer les sports. */}
-            <span className="pastille-sport">
-              <Symbole nom={symboleDuSport(a.sport_type_raw)} taille={17} couleur="var(--accent)" />
-            </span>
+            {/* La tuile du journal à gauche — le jour, son numéro, l'heure
+                dessous —, le sport en pastille de couleur à droite : la
+                présentation « Calendrier » du Mac. */}
+            <TuileSortie iso={a.start_local_date} />
             <div>
-              <div className="ligne-tete">
-                <span className="titre">{a.name}</span>
-                <span className="attenue petit">{dateRelative(a.start_local_date)}</span>
-              </div>
+              <div className="titre">{a.name}</div>
               <div className="chiffres-ligne">{chiffresDeLaLigne(a)}</div>
             </div>
+            <PastilleSport sport={a.sport_type_raw} taille={24} />
           </li>
         ))}
       </ul>
       <div ref={sentinelle} />
       {isFetchingNextPage && <Chargement />}
     </>
+  )
+}
+
+const jourAbrege = new Intl.DateTimeFormat("fr-FR", { weekday: "short", timeZone: "UTC" })
+
+/// « DIM » sur « 27 », l'heure dessous. En UTC, comme `heure` : la date
+/// enregistrée est déjà l'heure du lieu de la sortie.
+function TuileSortie({ iso }: { iso: string }) {
+  const date = new Date(iso)
+  const maintenant = new Date()
+  const aujourdhui =
+    date.getUTCFullYear() === maintenant.getFullYear() &&
+    date.getUTCMonth() === maintenant.getMonth() &&
+    date.getUTCDate() === maintenant.getDate()
+  const classes = ["tuile-jour", "tuile-sortie"]
+  if (aujourdhui) classes.push("aujourdhui")
+  else if (date.getUTCDay() === 0) classes.push("dimanche")
+  return (
+    <span className={classes.join(" ")}>
+      <span className="abrege">{jourAbrege.format(date).replace(".", "")}</span>
+      <span className="numero">{date.getUTCDate()}</span>
+      <span className="heure-tuile">{heure(iso)}</span>
+    </span>
   )
 }

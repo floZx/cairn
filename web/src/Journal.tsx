@@ -8,7 +8,7 @@ import { CARACTERES_ETIQUETTE, etiquettesDe } from "./tags"
 import { estChiffre, ouvrir as dechiffrer, useChiffre } from "./chiffre"
 import { NoteEditor, jourCourant, type NoteAEditer } from "./NoteEditor"
 import { Feuille, Chargement } from "./Chrome"
-import { Symbole, couleurDuSport, symboleDuSport } from "./IconeSport"
+import { PastilleSport, Symbole } from "./IconeSport"
 
 /// Une journée du journal, telle que le Mac la compose.
 ///
@@ -482,17 +482,6 @@ export function jourRelatif(dateKey: string, aujourdhui: string): string {
 }
 
 /// Le sport en pastille : le symbole blanc sur sa couleur, comme sur le Mac.
-function PastilleSport({ sport, taille }: { sport: string; taille: number }) {
-  return (
-    <span
-      className="rond-sport"
-      style={{ width: taille, height: taille, background: couleurDuSport(sport) }}
-    >
-      <Symbole nom={symboleDuSport(sport)} taille={Math.round(taille * 0.6)} couleur="#fff" />
-    </span>
-  )
-}
-
 function CarteJour({
   j,
   aujourdhui,

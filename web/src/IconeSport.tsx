@@ -114,3 +114,15 @@ export function Symbole({
   )
 }
 
+/// Le sport en rond plein de sa couleur, le symbole en blanc dedans — la
+/// pastille du journal et de la liste des activités.
+export function PastilleSport({ sport, taille }: { sport: string; taille: number }) {
+  return (
+    <span
+      className="rond-sport"
+      style={{ width: taille, height: taille, background: couleurDuSport(sport) }}
+    >
+      <Symbole nom={symboleDuSport(sport)} taille={Math.round(taille * 0.6)} couleur="#fff" />
+    </span>
+  )
+}
