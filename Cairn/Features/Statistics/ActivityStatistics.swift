@@ -116,6 +116,13 @@ struct ActivityStatistics: Equatable {
 
         var id: String { kind.rawValue }
         var formattedDate: String { Format.dateOnly(date, in: timeZone) }
+        /// « La plus rapide (km-effort) » where the speed counts the climbing,
+        /// so the figure is not read as a plain pace.
+        var label: String {
+            kind == .speed && SportProgress.usesEffortDistance(sport)
+                ? "La plus rapide (km-effort)" : kind.label
+        }
+
         var formattedValue: String {
             kind == .speed ? Format.speed(value, sport: sport) : kind.formatted(value)
         }

@@ -173,15 +173,20 @@ struct SportProgress: Equatable {
         }
         let longest = activities.max { $0.distance < $1.distance }
         let climbing = activities.max { $0.totalElevationGain < $1.totalElevationGain }
-        let distances = activities.map(\.distance).filter { $0 > 0 }.sorted()
+        // In effort-kilometres where the sport counts them, like the chart:
+        // otherwise the fastest trail is simply the flattest one.
+        func effortSpeed(_ activity: Activity) -> Double {
+            effortDistance(of: activity) / Double(activity.movingTime)
+        }
+        let distances = activities.map(effortDistance(of:)).filter { $0 > 0 }.sorted()
         let median = distances.isEmpty ? 0 : distances[distances.count / 2]
         let fastest = activities
-            .filter { $0.distance >= median / 2 && $0.movingTime > 0 }
-            .max { $0.averageSpeed < $1.averageSpeed }
+            .filter { effortDistance(of: $0) >= median / 2 && $0.movingTime > 0 }
+            .max { effortSpeed($0) < effortSpeed($1) }
         return [
             record(.distance, longest, longest?.distance),
             record(.elevation, climbing, climbing?.totalElevationGain),
-            record(.speed, fastest, fastest?.averageSpeed),
+            record(.speed, fastest, fastest.map(effortSpeed)),
         ].compactMap { $0 }
     }
 

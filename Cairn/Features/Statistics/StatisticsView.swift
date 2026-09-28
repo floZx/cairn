@@ -401,7 +401,7 @@ struct RecordRow: View {
             onSelect(record.activityID)
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(record.kind.label)
+                Text(record.label)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 150, alignment: .leading)

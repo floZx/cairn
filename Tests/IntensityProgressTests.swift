@@ -122,6 +122,23 @@ struct IntensityProgressTests {
         #expect(byKind[.speed] == "Sortie 2")
     }
 
+    @Test("en trail, la plus rapide se juge en km-effort")
+    func trailFastestUsesEffortKilometres() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let activities = [
+            // Flat and quicker on the watch: 10 km in 50 min.
+            makeActivity(in: context, id: 1, sport: .trailRun, distance: 10_000, movingTime: 3000),
+            // Steeper and slower on the watch, faster in effort: 20 km-effort in 80 min.
+            makeActivity(in: context, id: 2, sport: .trailRun, distance: 10_000, movingTime: 4800, elevation: 1000),
+            makeActivity(in: context, id: 3, sport: .trailRun, distance: 10_000, movingTime: 3600, elevation: 100),
+        ]
+        let progress = SportProgress.compute(activities, sport: .trailRun, since: reference)
+        let fastest = try #require(progress.records.first { $0.kind == .speed })
+        #expect(fastest.activityName == "Sortie 2")
+        #expect(abs(fastest.value - 20_000.0 / 4800) < 1e-9)
+        #expect(fastest.label == "La plus rapide (km-effort)")
+    }
+
     @Test("un sport n'a de progression qu'à partir de trois sorties sur la période")
     func sportsWorthAProgression() throws {
         let context = ModelContext(try AppModelContainer.inMemory())
