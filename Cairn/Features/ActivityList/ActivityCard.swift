@@ -98,16 +98,6 @@ struct ActivityCard: View {
                             .fixedSize()
                             .help(Format.longDate(activity.startDate, in: activity.timeZone))
                     }
-                    // Avec la tuile de date, le sport en pastille au bout de la
-                    // ligne, comme les marques d'une journée du journal.
-                    if thumbnailStyle == .dateTile {
-                        // Les marques rejoignent la pastille sur une seule
-                        // ligne : empilées sous elle, elles tombaient de
-                        // travers — signalé.
-                        markers
-                        SportDot(sport: activity.sportType, size: 16)
-                            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
-                    }
                 }
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -126,6 +116,24 @@ struct ActivityCard: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
+            }
+
+            // Avec la tuile de date, la colonne de droite d'une journée du
+            // journal : les photos en vignettes plutôt qu'un symbole, puis le
+            // sport en pastille, les marques en dessous.
+            if thumbnailStyle == .dateTile {
+                JournalThumbnailStrip(
+                    sources: activity.orderedPhotos.map { .photo(id: $0.persistentModelID) },
+                    // Sans objet : le dossier ne sert qu'aux images d'une
+                    // note, et une sortie n'a que ses photos.
+                    folder: URL.temporaryDirectory
+                )
+                .padding(.top, 2)
+                VStack(alignment: .trailing, spacing: 5) {
+                    SportDot(sport: activity.sportType, size: 16)
+                    markers(showsPhotos: false)
+                }
+                .padding(.top, 1)
             }
         }
         .padding(.vertical, 3)
@@ -216,9 +224,11 @@ struct ActivityCard: View {
     /// puts its paperclip: known at a glance, and out of the way of the text.
     /// The names move to the tooltips — these symbols are learned in a day,
     /// but not in a second.
-    private var markers: some View {
+    private var markers: some View { markers(showsPhotos: true) }
+
+    private func markers(showsPhotos: Bool) -> some View {
         HStack(spacing: 5) {
-            if !activity.photos.isEmpty {
+            if showsPhotos, !activity.photos.isEmpty {
                 Image(systemName: "photo")
                     .help(
                         activity.photos.count == 1
