@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// The gear an activity was done with, on a line of its own.
 ///
@@ -8,6 +9,7 @@ import SwiftUI
 /// other field of the activity.
 struct ActivityGearRow: View {
     let activity: Activity
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         if let gear = activity.gear {
@@ -21,7 +23,8 @@ struct ActivityGearRow: View {
                     // Always a second line, as the weather card beside it has:
                     // two cards of different heights side by side looked
                     // unfinished.
-                    Text(Self.detail(for: gear) ?? (gear.isBike ? "Vélo" : "Chaussures"))
+                    Text((Self.detail(for: gear) ?? (gear.isBike ? "Vélo" : "Chaussures"))
+                         + " · " + Format.distance(totalDistance(of: gear)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -35,9 +38,17 @@ struct ActivityGearRow: View {
         }
     }
 
-    /// Brand and model when the name doesn't already say them. No total:
-    /// Cairn only learns it the first time the gear appears, and a figure a
-    /// year behind Strava's is worse than none — Strava keeps the count.
+    /// The kilometres the gear carries, summed over every outing in the
+    /// store — the same count as the statistics' « Matériel ». Not Strava's
+    /// own total: it drifted, 1 043 km for a pair that has run 1 405.
+    private func totalDistance(of gear: Gear) -> Double {
+        let id = gear.stravaID
+        let descriptor = FetchDescriptor<Activity>(predicate: #Predicate { $0.gearID == id })
+        let activities = (try? modelContext.fetch(descriptor)) ?? []
+        return activities.reduce(0) { $0 + $1.distance }
+    }
+
+    /// Brand and model when the name doesn't already say them.
     static func detail(for gear: Gear) -> String? {
         let name = gear.name.lowercased()
         let make = [gear.brandName, gear.modelName]
