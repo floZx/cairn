@@ -95,7 +95,7 @@ export function index(
       entree.citations.push({
         dateKey: texte.dateKey,
         source: texte.source,
-        texte: propre,
+        texte: extrait(propre, qui.cle),
       })
       table.set(qui.cle, entree)
     }
@@ -108,6 +108,50 @@ export function index(
     )
   }
   return table
+}
+
+/// Ce qu'on montre d'un texte sur la fiche de quelqu'un : les passages où elle
+/// est nommée, et rien d'autre. Porté de `PeopleIndex.extrait(de:citant:)`,
+/// qui dit pourquoi.
+///
+/// Plusieurs passages citants sont recollés, séparés par une ligne vide ; le
+/// texte entier quand le découpage ne trouve rien.
+export function extrait(texte: string, cle: string): string {
+  const citants = unites(texte).filter((u) =>
+    citations(u).some((p) => p.cle === cle),
+  )
+  return citants.length === 0 ? texte : citants.join("\n\n")
+}
+
+/// Les unités de lecture d'un texte : les blocs séparés par une ligne vide, et
+/// chaque item de liste pour son compte. Porté de `PeopleIndex.unites(de:)`.
+export function unites(texte: string): string[] {
+  const sorties: string[] = []
+  let courante: string[] = []
+  const clore = () => {
+    if (courante.length > 0) sorties.push(courante.join("\n"))
+    courante = []
+  }
+  // Les mêmes fins de ligne que `CharacterSet.newlines`.
+  for (const ligne of texte.split(/[\n\r\u000B\u000C\u0085\u2028\u2029]/)) {
+    if (ligne.replace(/[ \t]/g, "") === "") {
+      clore()
+      continue
+    }
+    if (courante.length > 0 && ouvreUneUnite(ligne)) clore()
+    courante.push(ligne)
+  }
+  clore()
+  return sorties
+}
+
+/// Ce qui ouvre une unité au milieu d'un bloc : un item de liste — `-`, `*`,
+/// `+`, `1.`, `1)` — ou un titre. L'espace après la puce est exigé.
+function ouvreUneUnite(ligne: string): boolean {
+  const nu = ligne.replace(/^[ \t]+/, "")
+  if (nu.startsWith("#")) return true
+  if (/^[-*+] /.test(nu)) return true
+  return /^\p{N}+[.)] /u.test(nu)
 }
 
 /// La liste, la plus récemment citée d'abord.
