@@ -78,4 +78,17 @@ struct InitialSelectionTests {
         )
         #expect(ActivityListView.keptSelection(style: .cards, rows: [], current: []) == nil)
     }
+
+    @Test("en fiches, une sélection que la recherche cache est remplacée par la première ligne")
+    func cardsReplaceAHiddenSelection() throws {
+        let (_, rows) = try makeRows()
+        let visible = Array(rows.dropFirst())
+        #expect(
+            ActivityListView.keptSelection(style: .cards, rows: visible, current: [rows[0].id])
+                == visible.first?.id
+        )
+        #expect(
+            ActivityListView.keptSelection(style: .table, rows: visible, current: [rows[0].id]) == nil
+        )
+    }
 }

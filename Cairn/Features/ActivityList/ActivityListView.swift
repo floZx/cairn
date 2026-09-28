@@ -115,10 +115,16 @@ struct ActivityListView: View {
     /// across the whole window, name at one end and date at the other. The
     /// table is different — full width is where its columns show — so it
     /// may still be left without a selection.
+    ///
+    /// A selection the search hides counts as none: the pane only shows the
+    /// rows the list shows, so a stored id the filter keeps out closed it —
+    /// typing a search in cards emptied the right-hand pane.
     static func keptSelection(
         style: ActivityListStyle, rows: [Activity], current: Set<PersistentIdentifier>
     ) -> PersistentIdentifier? {
-        guard style == .cards, current.isEmpty else { return nil }
+        guard style == .cards, !rows.contains(where: { current.contains($0.id) }) else {
+            return nil
+        }
         return rows.first?.id
     }
 
@@ -217,6 +223,8 @@ struct ActivityListView: View {
             scroller.focusWhenAttached()
             keepCardSelection()
         }
+        // A search or a sport picked in the sidebar can hide the open row.
+        .onChange(of: filter) { _, _ in keepCardSelection() }
         // A selection that is not the one we wrote came from somewhere else — a
         // click in the list, a record in the statistics, a track on the map — so
         // the remembered cursor is stale and the next motion re-derives it.
