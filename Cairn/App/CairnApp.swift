@@ -143,7 +143,7 @@ struct CairnApp: App {
             // Le menu Présentation, où macOS range ce qui change la façon de
             // voir sans rien changer à ce qu'on voit.
             CommandGroup(after: .toolbar) {
-                Picker("Vignette des fiches", selection: $cardThumbnail) {
+                Picker("Présentation des fiches", selection: $cardThumbnail) {
                     ForEach(ActivityCardThumbnail.allCases) { option in
                         Text(option.displayName).tag(option)
                     }

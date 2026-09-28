@@ -309,7 +309,7 @@ struct ActivityListView: View {
             // Here rather than in the settings: it is a way of looking at
             // these cards, beside the order they come in — Finder keeps its
             // « Options de présentation » in the same place.
-            Picker("Vignette", selection: $thumbnail) {
+            Picker("Présentation des fiches", selection: $thumbnail) {
                 ForEach(ActivityCardThumbnail.allCases) { option in
                     Text(option.displayName).tag(option)
                 }
@@ -318,7 +318,7 @@ struct ActivityListView: View {
         } label: {
             Label("Trier", systemImage: "arrow.up.arrow.down")
         }
-        .help("Trier les fiches, choisir leur vignette")
+        .help("Trier les fiches, choisir leur présentation")
     }
 
     /// The rich presentation: one card per activity.

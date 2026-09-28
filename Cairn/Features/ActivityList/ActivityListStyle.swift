@@ -53,12 +53,14 @@ enum ActivityCardThumbnail: String, CaseIterable, Identifiable, Sendable {
 
     var displayName: String {
         switch self {
-        case .trace: "Aperçu de la trace"
-        case .traceAvatar: "Trace en pastille"
-        case .avatar: "Pastille du sport"
-        case .avatarMono: "Pastille monochrome"
-        case .dateTile: "Date et sport"
-        case .none: "Aucune"
+        // Le nom de ce qu'on voit, pas de la pièce qui le montre : « Trace en
+        // pastille » ou « Aucune » décrivaient un réglage, pas une liste.
+        case .trace: "Tracé"
+        case .traceAvatar: "Tracé en médaillon"
+        case .avatar: "Sport en couleur"
+        case .avatarMono: "Sport monochrome"
+        case .dateTile: "Calendrier"
+        case .none: "Texte seul"
         }
     }
 
