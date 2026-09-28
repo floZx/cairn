@@ -184,9 +184,20 @@ export function App() {
     // le chevron le ferait. Sans ça, la barre étant désormais visible depuis
     // une fiche, on changeait d'onglet sans rien voir changer — la fiche
     // restant devant.
-    if (ouverte !== null || personneOuverte !== null) {
+    //
+    // Jusqu'à l'entrée de départ, et pas d'un seul cran : une sortie ouverte
+    // depuis la fiche d'une personne est deux pages au-dessus, et un seul
+    // retour retombait sur la personne au lieu de la liste. Signalé.
+    const profondeur = profondeurDeLaFiche()
+    if (profondeur > 0) {
       retourProvoque.current = true
-      history.back()
+      history.go(-profondeur)
+    } else if (ouverte !== null || personneOuverte !== null) {
+      // Arrivé directement sur une fiche par son adresse : rien en dessous où
+      // revenir, et reculer quitterait l'application.
+      history.replaceState(null, "", location.pathname)
+      setOuverte(null)
+      setPersonneOuverte(null)
     }
     setSection(s)
   }
@@ -200,7 +211,7 @@ export function App() {
   const [vue, setVue] = useState<Vue>(presentationRetenue)
 
   function ouvrir(uuid: string) {
-    history.pushState(null, "", `?activite=${uuid}`)
+    pousserUneFiche(`?activite=${uuid}`)
     setOuverte(uuid)
   }
 
@@ -212,7 +223,7 @@ export function App() {
   /// quel onglet regardait celui qui l'a quittée.
   function retenirLEcran() {
     history.replaceState(
-      { section, vueJournal, note: noteAOuvrir },
+      { ...history.state, section, vueJournal, note: noteAOuvrir },
       "",
       location.search,
     )
@@ -225,7 +236,7 @@ export function App() {
   /// l'on vient — pas à la liste des gens, où l'on n'est jamais passé.
   function ouvrirLaPersonne(cle: string) {
     retenirLEcran()
-    history.pushState(null, "", `?personne=${encodeURIComponent(cle)}`)
+    pousserUneFiche(`?personne=${encodeURIComponent(cle)}`)
     setPersonneOuverte(cle)
     // La fiche d'activité passe derrière : c'est une page poussée elle aussi,
     // et elle resterait devant. Le retour la remet, puisqu'elle est dans
@@ -280,7 +291,11 @@ export function App() {
       onSection={changerDeSection}
       masquerOnglets={surUneFiche}
       identite={personneOuverte ?? ouverte ?? undefined}
-      retour={surUneFiche ? () => history.back() : undefined}
+      // Sur la fiche d'une personne seulement. Sur celle d'une sortie, le
+      // chevron ramenait d'où l'on venait — la fiche d'une personne quand on
+      // y était passé — là où l'on attendait la liste ; les onglets restent
+      // visibles pour en sortir, et le geste de retour pour remonter.
+      retour={personneOuverte !== null ? () => history.back() : undefined}
       // Seulement sur les activités : c'est la seule section qui se regarde de
       // trois façons.
       entete={
@@ -332,7 +347,7 @@ export function App() {
               // ramène à la liste. C'est le même geste, il mérite la même
               // mécanique.
               retenirLEcran()
-              history.pushState(null, "", `?personne=${encodeURIComponent(cle)}`)
+              pousserUneFiche(`?personne=${encodeURIComponent(cle)}`)
               setPersonneOuverte(cle)
             }}
             // « ‹ Tous » mène à la liste, puisque c'est ce qu'il annonce — le
@@ -344,7 +359,11 @@ export function App() {
             // page de plus par-dessus la fiche, c'est celle qu'on regarde à sa
             // place.
             onFermer={() => {
-              history.replaceState({ section, vueJournal }, "", location.pathname)
+              history.replaceState(
+                { ...history.state, section, vueJournal },
+                "",
+                location.pathname,
+              )
               setPersonneOuverte(null)
             }}
           />
@@ -371,4 +390,18 @@ export function App() {
     </Chrome>
     </SurUneMention.Provider>
   )
+}
+
+/// Combien de fiches sont empilées au-dessus de l'écran de départ.
+///
+/// Rangé dans l'entrée même de l'historique, parce que le navigateur ne dit
+/// pas de combien on a reculé : c'est ce qui permet à un onglet de tout
+/// refermer d'un coup.
+function profondeurDeLaFiche(): number {
+  const etat = history.state as { fiche?: number } | null
+  return etat?.fiche ?? 0
+}
+
+function pousserUneFiche(adresse: string) {
+  history.pushState({ fiche: profondeurDeLaFiche() + 1 }, "", adresse)
 }
