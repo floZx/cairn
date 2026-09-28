@@ -67,7 +67,9 @@ struct SportProgress: Equatable {
 
     struct GearUse: Identifiable, Equatable {
         let name: String
-        /// Everything it has done, as Strava counts it.
+        /// Everything it has done, summed over Cairn's own outings. Not
+        /// Strava's `distance` for the gear, which drifts from them: one pair
+        /// of shoes read 1 043 km there against 1 405 km of outings here.
         let totalDistance: Double
         /// Outings of this sport with it, over the period.
         let count: Int
@@ -102,8 +104,22 @@ struct SportProgress: Equatable {
             .map(\.key)
     }
 
+    /// Kilometres per gear id over every outing in the store, whatever the
+    /// sidebar filters: a pair of shoes wears on all its runs, not only on
+    /// those the filters keep.
+    static func gearDistances(in context: ModelContext) -> [String: Double] {
+        let descriptor = FetchDescriptor<Activity>(predicate: #Predicate { $0.gearID != nil })
+        let activities = (try? context.fetch(descriptor)) ?? []
+        return activities.reduce(into: [:]) { totals, activity in
+            if let id = activity.gearID { totals[id, default: 0] += activity.distance }
+        }
+    }
+
     static func compute(
-        _ activities: [Activity], sport: SportType, since start: Date
+        _ activities: [Activity],
+        sport: SportType,
+        since start: Date,
+        gearDistances: [String: Double] = [:]
     ) -> SportProgress {
         let ofSport = activities.filter { $0.sportType == sport }
         let inPeriod = ofSport.filter {
@@ -124,10 +140,14 @@ struct SportProgress: Equatable {
             }
             .sorted { $0.day < $1.day }
 
-        let gear = Dictionary(grouping: inPeriod.filter { $0.gear != nil }) { $0.gear!.name }
-            .compactMap { name, group -> GearUse? in
+        let gear = Dictionary(grouping: inPeriod.filter { $0.gearID != nil }) { $0.gearID! }
+            .compactMap { id, group -> GearUse? in
                 guard let item = group.first?.gear else { return nil }
-                return GearUse(name: name, totalDistance: item.totalDistance, count: group.count)
+                return GearUse(
+                    name: item.name,
+                    totalDistance: gearDistances[id] ?? 0,
+                    count: group.count
+                )
             }
             .sorted { $0.count > $1.count }
 

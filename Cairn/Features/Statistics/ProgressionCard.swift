@@ -15,6 +15,7 @@ struct ProgressionCard: View {
     @AppStorage("statsProgressionSport") private var storedSport = ""
     @State private var measure: SportProgress.Measure = .speed
     @State private var hoveredDay: Date?
+    @Environment(\.modelContext) private var modelContext
 
     private var sport: SportType? {
         sports.first { $0.rawValue == storedSport } ?? sports.first
@@ -39,7 +40,10 @@ struct ProgressionCard: View {
             }
         } content: {
             if let sport {
-                content(SportProgress.compute(activities, sport: sport, since: periodStart))
+                content(SportProgress.compute(
+                    activities, sport: sport, since: periodStart,
+                    gearDistances: SportProgress.gearDistances(in: modelContext)
+                ))
             } else {
                 Text("Pas assez de sorties d'un même sport sur la période.")
                     .foregroundStyle(.secondary)
@@ -87,7 +91,7 @@ struct ProgressionCard: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    Text("Distance totale de chaque matériel, toutes activités.")
+                    Text("Distance de toutes les sorties faites avec, recalculée dans Cairn.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

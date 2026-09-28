@@ -131,3 +131,36 @@ struct IntensityProgressTests {
         #expect(SportProgress.sports(in: activities, since: since) == [.run])
     }
 }
+
+@Suite("SportProgress — matériel")
+@MainActor
+struct SportProgressGearTests {
+    @Test("les km d'un matériel se recalculent sur toutes les sorties, pas ceux de Strava")
+    func gearDistanceIsRecomputed() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let shoes = Gear(stravaID: "g1", name: "Peregrine")
+        shoes.totalDistance = 1_000  // Strava's figure, stale.
+        context.insert(shoes)
+        let now = Date()
+        for (index, sport) in [SportType.run, .trailRun, .run].enumerated() {
+            let activity = Activity(stravaID: Int64(index), name: "S\(index)", sportType: sport)
+            activity.distance = 10_000
+            activity.movingTime = 3000
+            activity.gearID = "g1"
+            activity.gear = shoes
+            activity.startDate = now
+            activity.startLocalDate = now
+            context.insert(activity)
+        }
+        try context.save()
+        let distances = SportProgress.gearDistances(in: context)
+        #expect(distances["g1"] == 30_000)
+
+        let runs = try context.fetch(FetchDescriptor<Activity>()).filter { $0.sportType == .run }
+        let progress = SportProgress.compute(
+            runs, sport: .run, since: now.addingTimeInterval(-86_400), gearDistances: distances
+        )
+        #expect(progress.gear.first?.totalDistance == 30_000)
+        #expect(progress.gear.first?.count == 2)
+    }
+}
