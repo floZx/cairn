@@ -211,6 +211,10 @@ export function App() {
   const [vue, setVue] = useState<Vue>(presentationRetenue)
 
   function ouvrir(uuid: string) {
+    // Comme pour une personne : sans cette marque, l'entrée de départ gardait
+    // l'écran d'une visite précédente, et le retour depuis une sortie ouverte
+    // dans la liste menait au journal. Signalé.
+    retenirLEcran()
     pousserUneFiche(`?activite=${uuid}`)
     setOuverte(uuid)
   }
