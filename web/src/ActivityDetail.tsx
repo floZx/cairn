@@ -16,6 +16,7 @@ import { Tours } from "./Tours"
 import { Zones } from "./Zones"
 import { ParcoursSimilaires } from "./ParcoursSimilaires"
 import { NoteActivite } from "./NoteActivite"
+import { MaterielEtMeteo } from "./Materiel"
 import { Feuille, Chargement } from "./Chrome"
 import { NOMS, etiquettesDe, type SourceEtiquettes } from "./etiquettes"
 
@@ -42,6 +43,10 @@ type Fiche = {
   is_trainer: boolean
   is_manual: boolean
   simplified_track: string | null
+  gear_id: string | null
+  start_date: string
+  start_latitude: number | null
+  start_longitude: number | null
 }
 
 function Chiffre({ valeur, etiquette }: { valeur: string; etiquette: string }) {
@@ -71,7 +76,8 @@ export function ActivityDetail({
             "total_elevation_gain, average_heartrate, max_heartrate, average_watts, " +
             "average_cadence, calories, activity_description, edited_fields, " +
             "source_raw, workout_type, workout_label_raw, is_favorite, is_commute, " +
-            "is_trainer, is_manual, simplified_track",
+            "is_trainer, is_manual, simplified_track, gear_id, start_date, " +
+            "start_latitude, start_longitude",
         )
         .eq("uuid", uuid)
         .single()
@@ -184,6 +190,21 @@ export function ActivityDetail({
           Écrire une note
         </button>
       )}
+
+      {/* Avec quoi et dans quoi, sous la note comme sur le Mac. Le départ de
+          Strava, ou le premier point de la trace quand lui seul est connu. */}
+      <MaterielEtMeteo
+        gearID={data.gear_id}
+        depart={
+          data.start_latitude != null && data.start_longitude != null
+            ? [data.start_latitude, data.start_longitude]
+            : trace.length > 0
+              ? [trace[0][1], trace[0][0]]
+              : null
+        }
+        debut={data.start_date}
+        homeTrainer={data.is_trainer}
+      />
 
       <ParcoursSimilaires
         uuid={uuid}

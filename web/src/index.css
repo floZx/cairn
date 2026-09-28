@@ -4562,3 +4562,28 @@ button.citation {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- Matériel et météo d'une sortie -------------------------------------- */
+
+.materiel-meteo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.ligne-contexte {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ligne-contexte .titre {
+  font-weight: 500;
+}
+
+.ligne-contexte .detail {
+  color: var(--texte-2);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
