@@ -22,12 +22,28 @@ struct ActivityStatistics: Equatable {
     /// One entry per slot of the period — a week or a month, per its granularity
     /// — each carrying its counterpart from the preceding period.
     let slots: [SlotTotals]
+    /// The first day the period covers.
+    let periodStart: Date?
+    /// The same three figures over the preceding period, *to date*: the
+    /// comparison window stops as far into itself as the current one has
+    /// come, so a period that is still running is not measured against one
+    /// that has finished.
+    let comparison: Totals
+
+    struct Totals: Equatable {
+        let count: Int
+        let movingTime: Int
+        let elevationGain: Double
+
+        static let zero = Totals(count: 0, movingTime: 0, elevationGain: 0)
+    }
 
     /// Nothing at all, for a window that could not be built. Not the same as an
     /// empty period, which still lays its months out as zeros.
     static let empty = ActivityStatistics(
         count: 0, movingTime: 0, elevationGain: 0,
-        sports: [], records: [], slots: []
+        sports: [], records: [], slots: [],
+        periodStart: nil, comparison: .zero
     )
 
     struct SportTotals: Identifiable, Equatable {
@@ -112,7 +128,7 @@ struct ActivityStatistics: Equatable {
 
     /// Monday-first, per French usage: a training week that began on Sunday would
     /// split every weekend across two bars.
-    private static let calendar: Calendar = {
+    static let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.firstWeekday = 2
         return calendar
@@ -148,6 +164,20 @@ struct ActivityStatistics: Equatable {
             return slot >= firstSlot && slot <= currentSlot
         }
 
+        // The comparison window, to date.
+        let comparisonActivities: [Activity]
+        if let comparisonFirst = calendar.date(byAdding: shiftUnit, value: -shift, to: firstSlot),
+           let shiftedNow = calendar.date(byAdding: shiftUnit, value: -shift, to: now),
+           // Noon, like the days it is compared with: today counts whole.
+           let comparisonNow = TrainingLoad.noon(of: shiftedNow, calendar: calendar) {
+            comparisonActivities = activities.filter { activity in
+                guard let day = day(of: activity) else { return false }
+                return day >= comparisonFirst && day <= comparisonNow
+            }
+        } else {
+            comparisonActivities = []
+        }
+
         return ActivityStatistics(
             count: inPeriod.count,
             movingTime: inPeriod.reduce(0) { $0 + $1.movingTime },
@@ -173,7 +203,13 @@ struct ActivityStatistics: Equatable {
                     comparisonElevationGain: previous.elevation,
                     comparisonMovingTime: previous.movingTime
                 )
-            }
+            },
+            periodStart: firstSlot,
+            comparison: Totals(
+                count: comparisonActivities.count,
+                movingTime: comparisonActivities.reduce(0) { $0 + $1.movingTime },
+                elevationGain: comparisonActivities.reduce(0) { $0 + $1.totalElevationGain }
+            )
         )
     }
 

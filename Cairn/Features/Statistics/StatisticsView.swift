@@ -45,8 +45,13 @@ struct StatisticsView: View {
 
     var body: some View {
         let stats = ActivityStatistics.compute(for: activities, period: period)
+        let daily = TrainingLoad.daily(activities)
+        let form = TrainingLoad.series(daily, calendar: ActivityStatistics.calendar)
+        let regularity = Regularity.compute(
+            activities, daily: daily, periodStart: stats.periodStart ?? Date()
+        )
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 16) {
                 periodPicker
                 if stats.count == 0 {
                     ContentUnavailableView(
@@ -56,14 +61,27 @@ struct StatisticsView: View {
                     )
                     .padding(.top, 30)
                 } else {
-                    totals(stats)
-                    Divider()
-                    volumeChart(stats)
-                    weekChart(ActivityStatistics.weekProgress(for: activities))
-                    Divider()
-                    bySport(stats)
-                    Divider()
-                    records(stats)
+                    totals(stats, regularity: regularity)
+                    FormCard(
+                        points: form,
+                        periodStart: stats.periodStart,
+                        estimatedCount: daily.estimatedCount,
+                        count: daily.count
+                    )
+                    RegularityCard(regularity: regularity)
+                    // Two columns once the window has room for them: the
+                    // volume and the week read side by side, the table and the
+                    // records likewise.
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 440), spacing: 16, alignment: .top)],
+                        alignment: .leading,
+                        spacing: 16
+                    ) {
+                        volumeChart(stats)
+                        weekChart(ActivityStatistics.weekProgress(for: activities))
+                        bySport(stats)
+                        records(stats)
+                    }
                 }
             }
             .padding(20)
@@ -93,38 +111,56 @@ struct StatisticsView: View {
 
     // MARK: - Totals
 
-    private func totals(_ stats: ActivityStatistics) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("Cumuls")
+    private func totals(_ stats: ActivityStatistics, regularity: Regularity) -> some View {
+        StatsCard(
+            "Cumuls",
+            subtitle: "La distance se lit par sport : additionner des sports différents n'aurait pas de sens."
+        ) {
             // No total distance here on purpose: summing a swim, a ride and a
             // run gives a number that means nothing. It lives per sport below.
-            HStack(alignment: .top, spacing: 32) {
-                StatTile("Activités", "\(stats.count)")
-                StatTile("Temps en mouvement", Format.duration(stats.movingTime))
-                StatTile("Dénivelé positif", Format.elevation(stats.elevationGain))
+            HStack(alignment: .top, spacing: 24) {
+                KeyFigure(
+                    title: "Activités",
+                    value: "\(stats.count)",
+                    change: ChangeBadge.percent(Double(stats.count), Double(stats.comparison.count))
+                )
+                KeyFigure(
+                    title: "Temps en mouvement",
+                    value: Format.durationCompact(stats.movingTime),
+                    change: ChangeBadge.percent(
+                        Double(stats.movingTime), Double(stats.comparison.movingTime)
+                    )
+                )
+                KeyFigure(
+                    title: "Dénivelé positif",
+                    value: Format.elevation(stats.elevationGain),
+                    change: ChangeBadge.percent(stats.elevationGain, stats.comparison.elevationGain)
+                )
+                KeyFigure(
+                    title: "Par semaine",
+                    value: Format.durationCompact(Int(regularity.weeklyHours * 3600)),
+                    detail: "\(regularity.activeDays) jours actifs"
+                )
             }
-            Text("La distance se lit par sport : additionner des sports différents n'aurait pas de sens.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
     // MARK: - Volume
 
     private func volumeChart(_ stats: ActivityStatistics) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                sectionTitle(period.granularity.sectionTitle)
-                Spacer()
-                Picker("Mesure", selection: $measure) {
-                    ForEach(ChartMeasure.allCases) { measure in
-                        Text(measure.label).tag(measure)
-                    }
+        StatsCard(
+            period.granularity.sectionTitle,
+            subtitle: "En trait, \(period.comparisonName.lowercased())"
+        ) {
+            Picker("Mesure", selection: $measure) {
+                ForEach(ChartMeasure.allCases) { measure in
+                    Text(measure.label).tag(measure)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+        } content: {
 
             Chart(stats.slots) { slot in
                 BarMark(
@@ -206,8 +242,7 @@ struct StatisticsView: View {
     /// answers is "am I ahead or behind", and two lines that start together
     /// answer it without adding anything up.
     private func weekChart(_ progress: ActivityStatistics.WeekProgress) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("Cette semaine")
+        StatsCard("Cette semaine", subtitle: "Cumul jour par jour, contre la semaine dernière") {
 
             Chart {
                 ForEach(progress.lastWeek) { point in
@@ -301,8 +336,7 @@ struct StatisticsView: View {
     // MARK: - By sport
 
     private func bySport(_ stats: ActivityStatistics) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("Par sport")
+        StatsCard("Par sport") {
             Table(stats.sports) {
                 TableColumn("Sport") { row in
                     SportLabel(row.sport.displayName, sport: row.sport)
@@ -326,6 +360,7 @@ struct StatisticsView: View {
             }
             // Sized to its contents: a scrolling table inside a scrolling page
             // traps the wheel in whichever the cursor happens to be over.
+            .scrollContentBackground(.hidden)
             .frame(height: CGFloat(stats.sports.count) * 28 + 28)
         }
     }
@@ -333,8 +368,7 @@ struct StatisticsView: View {
     // MARK: - Records
 
     private func records(_ stats: ActivityStatistics) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("Records")
+        StatsCard("Records", subtitle: "Cliquer pour ouvrir la sortie") {
             ForEach(stats.records) { record in
                 Button {
                     onSelect(record.activityID)
@@ -362,9 +396,5 @@ struct StatisticsView: View {
                 .help("Ouvrir « \(record.activityName) »")
             }
         }
-    }
-
-    private func sectionTitle(_ text: String) -> some View {
-        Text(text).font(.headline)
     }
 }
