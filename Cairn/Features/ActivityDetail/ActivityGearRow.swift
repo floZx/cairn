@@ -24,7 +24,7 @@ struct ActivityGearRow: View {
                     // two cards of different heights side by side looked
                     // unfinished.
                     Text((Self.detail(for: gear) ?? (gear.isBike ? "Vélo" : "Chaussures"))
-                         + " · " + Format.distance(totalDistance(of: gear)))
+                         + " · " + distanceLabel(of: gear))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -38,14 +38,29 @@ struct ActivityGearRow: View {
         }
     }
 
-    /// The kilometres the gear carries, summed over every outing in the
-    /// store — the same count as the statistics' « Matériel ». Not Strava's
-    /// own total: it drifted, 1 043 km for a pair that has run 1 405.
-    private func totalDistance(of gear: Gear) -> Double {
+    /// The gear's odometer at the finish of this outing, then today's, when
+    /// they differ: « 876 km · 1 203 km aujourd'hui ». Today's total alone
+    /// said nothing about an old outing. Not « 876 / 1 203 km », which reads
+    /// as a lifespan to be worn through.
+    private func distanceLabel(of gear: Gear) -> String {
+        let (then, now) = distances(of: gear)
+        let thenLabel = Format.distance(then)
+        let nowLabel = Format.distance(now)
+        return thenLabel == nowLabel ? thenLabel : thenLabel + " · " + nowLabel + " aujourd'hui"
+    }
+
+    /// The kilometres the gear carries, summed over the outings in the
+    /// store — up to and including this one, and over all of them — the same
+    /// count as the statistics' « Matériel ». Not Strava's own total: it
+    /// drifted, 1 043 km for a pair that has run 1 405.
+    private func distances(of gear: Gear) -> (then: Double, now: Double) {
         let id = gear.stravaID
         let descriptor = FetchDescriptor<Activity>(predicate: #Predicate { $0.gearID == id })
         let activities = (try? modelContext.fetch(descriptor)) ?? []
-        return activities.reduce(0) { $0 + $1.distance }
+        let start = activity.startDate
+        return activities.reduce((0, 0)) { sum, a in
+            (sum.then + (a.startDate <= start ? a.distance : 0), sum.now + a.distance)
+        }
     }
 
     /// Brand and model when the name doesn't already say them.

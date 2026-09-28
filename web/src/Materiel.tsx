@@ -27,9 +27,9 @@ export function MaterielEtMeteo({
   homeTrainer: boolean
 }) {
   const materiel = useQuery({
-    queryKey: ["materiel", gearID],
+    queryKey: ["materiel", gearID, debut],
     enabled: gearID != null,
-    queryFn: () => chargerMateriel(gearID!),
+    queryFn: () => chargerMateriel(gearID!, debut),
   })
 
   // Seulement une fois la sortie passée, avec une heure de marge : l'archive
@@ -56,7 +56,7 @@ export function MaterielEtMeteo({
               {detail(materiel.data.materiel) ??
                 (materiel.data.materiel.is_bike ? "Vélo" : "Chaussures")}
               {" · "}
-              {distance(materiel.data.total)}
+              {kilometrage(materiel.data.alors, materiel.data.total)}
             </div>
           </div>
         </div>
@@ -88,8 +88,9 @@ export function MaterielEtMeteo({
 
 /// Les kilomètres sont ceux des sorties de la bibliothèque, pas le
 /// `total_distance` que Strava tient : il dérivait, 1 043 km pour une paire
-/// qui en porte 1 405. Le même compte que le Mac et les statistiques.
-async function chargerMateriel(gearID: string) {
+/// qui en porte 1 405. Le même compte que le Mac et les statistiques —
+/// jusqu'à cette sortie comprise, et sur toutes.
+async function chargerMateriel(gearID: string, debut: string) {
   const [materiel, sorties] = await Promise.all([
     supabase
       .from("gear")
@@ -97,13 +98,25 @@ async function chargerMateriel(gearID: string) {
       .eq("strava_id", gearID)
       .is("deleted_at", null)
       .maybeSingle(),
-    supabase.from("activity").select("distance").eq("gear_id", gearID).is("deleted_at", null),
+    supabase.from("activity").select("distance, start_date").eq("gear_id", gearID).is("deleted_at", null),
   ])
   if (materiel.error) throw materiel.error
   if (sorties.error) throw sorties.error
   if (!materiel.data) return null
-  const total = (sorties.data as { distance: number }[]).reduce((s, a) => s + a.distance, 0)
-  return { materiel: materiel.data as Materiel, total }
+  const lignes = sorties.data as { distance: number; start_date: string }[]
+  const fin = new Date(debut).getTime()
+  const total = lignes.reduce((s, a) => s + a.distance, 0)
+  const alors = lignes.reduce((s, a) => s + (new Date(a.start_date).getTime() <= fin ? a.distance : 0), 0)
+  return { materiel: materiel.data as Materiel, alors, total }
+}
+
+/// Le compteur à l'arrivée de cette sortie, puis celui d'aujourd'hui quand
+/// ils diffèrent : « 876 km · 1 203 km aujourd'hui ». Pas « 876 / 1 203 km »,
+/// qui se lit comme une durée de vie à user.
+function kilometrage(alors: number, total: number): string {
+  const a = distance(alors)
+  const t = distance(total)
+  return a === t ? a : `${a} · ${t} aujourd'hui`
 }
 
 /// La marque et le modèle quand le nom ne les dit pas déjà.
