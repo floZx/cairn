@@ -7,8 +7,7 @@ import Foundation
 /// for blocks, `AttributedString` for bold, italic, code and links, the tags
 /// without their `#` — and written back as lines of prose: a heading is a
 /// line, a list keeps a « • », a picture is left out. A mention loses its
-/// `@` as the notes did once already (`StoreMaintenance.withoutMentionSigns`),
-/// and the underscores that join a handle's words: « @nom_d_une_personne »
+/// `@`, and the underscores that join a handle's words: « @nom_d_une_personne »
 /// goes out as « nom d une personne ».
 enum MarkdownPlainText {
     static func render(_ markdown: String) -> String {
