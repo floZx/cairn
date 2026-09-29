@@ -898,6 +898,18 @@ input, button { font: inherit; }
   border-bottom-color: var(--trait);
 }
 
+/* Dans le journal, la barre repliée est pleine, de la couleur de la page :
+   l'en-tête du mois se colle juste dessous, et le texte qui passait sous le
+   voile, flou mais visible, le faisait paraître posé trop bas — signalé,
+   capture à l'appui. Sans filet non plus : barre et mois ne font qu'un bloc.
+   Rien de lisible n'y est posé, la bande qu'iOS 27 floute reste vide. */
+.dans-le-journal .barre-nav.repliee {
+  background: var(--fond);
+  -webkit-backdrop-filter: blur(0) saturate(100%) brightness(1);
+  backdrop-filter: blur(0) saturate(100%) brightness(1);
+  border-bottom-color: transparent;
+}
+
 .action-barre {
   margin-left: auto;
 }

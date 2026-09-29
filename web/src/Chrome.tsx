@@ -244,7 +244,16 @@ export function Chrome({
   return (
     // Sans retour, la barre du haut ne porte rien — le compte est descendu dans
     // les onglets. Rien à lui réserver.
-    <div className={retour ? "chassis" : "chassis sans-bouton-haut"}>
+    <div
+      className={[
+        "chassis",
+        retour ? "" : "sans-bouton-haut",
+        // Pour le journal seul : sa barre repliée est pleine, voir le CSS.
+        section === "journal" && !masquerOnglets ? "dans-le-journal" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <header
         className={replie && !masquerOnglets ? "barre-nav repliee" : "barre-nav"}
       >
