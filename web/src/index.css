@@ -668,7 +668,8 @@ input, button { font: inherit; }
   cursor: pointer;
 }
 
-.choix-jour input {
+.choix-jour input,
+.choix-jour select {
   position: absolute;
   inset: 0;
   width: 100%;

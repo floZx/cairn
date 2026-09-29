@@ -7,7 +7,8 @@ import { ActivityList } from "./ActivityList"
 import { ActivityDetail } from "./ActivityDetail"
 import { Journal } from "./Journal"
 import { People } from "./People"
-import { BoutonAutreJour, SelecteurJournal, type VueJournal } from "./SelecteurJournal"
+import { BoutonAutreJour, BoutonTri, SelecteurJournal, type VueJournal } from "./SelecteurJournal"
+import type { Tri } from "./citations"
 import { useVerrou } from "./verrou"
 import type { Citation } from "./citations"
 import { Nutrition } from "./Nutrition"
@@ -156,6 +157,24 @@ export function App() {
   /// sont cités. Un sixième onglet ne tenait pas dans la capsule — c'est déjà
   /// pour ça qu'« Entraînement » s'y appelle « Plan » — et People est de toute
   /// façon une façon de lire le journal, pas un ailleurs.
+  // L'ordre de la liste des gens, retenu sur cet appareil : une façon de
+  // lire, comme la présentation des fiches sur le Mac.
+  const [triGens, setTriGens] = useState<Tri>(() => {
+    try {
+      const retenu = localStorage.getItem("cairn.tri-gens")
+      return retenu === "alphabetique" || retenu === "nombre" ? retenu : "recentes"
+    } catch {
+      return "recentes"
+    }
+  })
+  const changerDeTri = (tri: Tri) => {
+    setTriGens(tri)
+    try {
+      localStorage.setItem("cairn.tri-gens", tri)
+    } catch {
+      /* sans mémoire, tant pis */
+    }
+  }
   const [vueJournal, setVueJournal] = useState<VueJournal>(
     surUnePersonne ? "gens" : "journees",
   )
@@ -303,6 +322,9 @@ export function App() {
             {vueJournal === "journees" && verrou.ouvert && (
               <BoutonAutreJour onJour={setNoteAOuvrir} />
             )}
+            {vueJournal === "gens" && verrou.ouvert && (
+              <BoutonTri tri={triGens} onTri={changerDeTri} />
+            )}
             <SelecteurJournal vue={vueJournal} onVue={setVueJournal} />
           </div>
         ) : undefined
@@ -333,6 +355,7 @@ export function App() {
         <VerrouJournal>
         {vueJournal === "gens" ? (
           <People
+            tri={triGens}
             onSource={allerALaSource}
             ouverte={personneOuverte}
             onOuvrir={(cle) => {

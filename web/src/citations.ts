@@ -194,6 +194,24 @@ function ouvreUneUnite(ligne: string): boolean {
   return /^\p{N}+[.)] /u.test(nu)
 }
 
+/// Les ordres que la liste des gens propose. Porté de `PeopleIndex.Tri`.
+export type Tri = "recentes" | "alphabetique" | "nombre"
+
+export const TRIS: { tri: Tri; libelle: string }[] = [
+  { tri: "recentes", libelle: "Récentes" },
+  { tri: "alphabetique", libelle: "Alphabétique" },
+  { tri: "nombre", libelle: "Nombre de notes" },
+]
+
+/// La liste remise dans un autre ordre ; à égalité de notes, l'alphabet
+/// départage. Porté de `PeopleIndex.trier(_:par:)`.
+export function trier(liste: Ligne[], tri: Tri): Ligne[] {
+  const alpha = (a: Ligne, b: Ligne) => a.personne.nom.localeCompare(b.personne.nom, "fr")
+  if (tri === "alphabetique") return [...liste].sort(alpha)
+  if (tri === "nombre") return [...liste].sort((a, b) => b.compte - a.compte || alpha(a, b))
+  return liste
+}
+
 /// La liste, la plus récemment citée d'abord.
 ///
 /// Les personnes dont la fiche existe mais qu'aucune note ne cite plus y

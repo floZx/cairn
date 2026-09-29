@@ -221,6 +221,45 @@ enum PeopleIndex {
         var id: String { handle.key }
     }
 
+    /// Les ordres que la liste des gens propose.
+    enum Tri: String, CaseIterable, Identifiable, Sendable {
+        /// La plus récemment citée d'abord — l'ordre de toujours.
+        case recentes
+        case alphabetique
+        /// La plus citée d'abord.
+        case nombre
+
+        static let storageKey = "peopleSort"
+
+        var id: String { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .recentes: "Récentes"
+            case .alphabetique: "Alphabétique"
+            case .nombre: "Nombre de notes"
+            }
+        }
+    }
+
+    /// La liste remise dans un autre ordre.
+    ///
+    /// À égalité — même nombre de notes —, l'ordre alphabétique départage :
+    /// une liste qui change d'ordre d'une ouverture à l'autre pour deux
+    /// personnes ex æquo ferait douter du tri lui-même.
+    static func trier(_ lignes: [Ligne], par tri: Tri) -> [Ligne] {
+        switch tri {
+        case .recentes:
+            return lignes
+        case .alphabetique:
+            return lignes.sorted { $0.handle < $1.handle }
+        case .nombre:
+            return lignes.sorted {
+                $0.compte != $1.compte ? $0.compte > $1.compte : $0.handle < $1.handle
+            }
+        }
+    }
+
     /// La liste, la plus récemment citée d'abord.
     ///
     /// Les personnes dont la fiche existe mais qu'aucune note ne cite plus y

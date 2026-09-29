@@ -21,6 +21,9 @@ struct PeopleView: View {
     @Query private var slots: [MealSlot]
     @Query private var people: [Person]
     @Environment(\.modelContext) private var context
+    /// L'ordre de la liste, retenu d'une fois sur l'autre comme la présentation
+    /// des fiches : c'est une façon de lire, pas un moment.
+    @AppStorage(PeopleIndex.Tri.storageKey) private var tri: PeopleIndex.Tri = .recentes
 
     /// Tous les textes de la bibliothèque, réduits à ce que l'index lit.
     ///
@@ -98,8 +101,11 @@ struct PeopleView: View {
             // dans la liste, leurs notes s'ajoutent aux siennes.
             annuaire: PeopleIndex.Annuaire(people: people)
         )
-        let lignes = PeopleIndex.lignes(
-            citations: citations, fiches: people.map { (key: $0.key, name: $0.name) }
+        let lignes = PeopleIndex.trier(
+            PeopleIndex.lignes(
+                citations: citations, fiches: people.map { (key: $0.key, name: $0.name) }
+            ),
+            par: tri
         )
 
         Group {
@@ -155,6 +161,22 @@ struct PeopleView: View {
             }
         }
         .navigationTitle(lignes.count == 1 ? "1 personne" : "\(lignes.count) personnes")
+        // Le même bouton que le tri des fiches d'activités.
+        .toolbar {
+            ToolbarItem {
+                Menu {
+                    Picker("Trier par", selection: $tri) {
+                        ForEach(PeopleIndex.Tri.allCases) { option in
+                            Text(option.displayName).tag(option)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Label("Trier", systemImage: "arrow.up.arrow.down")
+                }
+                .help("Trier la liste des personnes")
+            }
+        }
         // Toujours quelqu'un d'ouvert, comme les fiches des activités : sans
         // sélection, la liste s'étalait sur toute la fenêtre, deux noms à un
         // bout et leur compte à l'autre.

@@ -10,6 +10,8 @@ import {
   annuaire as annuaireDesFiches,
   index,
   lignes,
+  trier,
+  type Tri,
   personne,
   type Annuaire,
   type Citation,
@@ -122,11 +124,13 @@ function useFiches() {
 }
 
 export function People({
+  tri,
   onSource,
   ouverte,
   onOuvrir,
   onFermer,
 }: {
+  tri: Tri
   onSource: (citation: Citation) => void
   /// La fiche ouverte, tenue par l'App : c'est une page poussée dans
   /// l'historique, et le geste de retour doit la refermer — depuis la liste
@@ -146,8 +150,12 @@ export function People({
   const qui = useMemo(() => annuaireDesFiches(fiches.data ?? []), [fiches.data])
   const table = useMemo(() => index(textes.data ?? [], qui), [textes.data, qui])
   const liste = useMemo(
-    () => lignes(table, (fiches.data ?? []).map((f) => ({ key: f.key, name: f.name }))),
-    [table, fiches.data],
+    () =>
+      trier(
+        lignes(table, (fiches.data ?? []).map((f) => ({ key: f.key, name: f.name }))),
+        tri,
+      ),
+    [table, fiches.data, tri],
   )
 
   if (textes.isPending) return <Chargement />

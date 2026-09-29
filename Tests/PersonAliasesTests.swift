@@ -110,3 +110,30 @@ struct PersonAliasesTests {
         #expect(colores == ["Chris"])
     }
 }
+
+@Suite("Tri des personnes")
+struct PeopleSortTests {
+    private func ligne(_ nom: String, _ compte: Int, _ jour: String?) -> PeopleIndex.Ligne {
+        .init(
+            handle: PersonHandle(name: nom)!, compte: compte,
+            derniere: jour.flatMap { DateKey(raw: $0) }, aUneNote: false
+        )
+    }
+
+    private var lignes: [PeopleIndex.Ligne] {
+        [ligne("Tom", 20, "2026-09-01"), ligne("Céline", 5, "2026-09-29"), ligne("Béa", 5, "2026-08-01")]
+    }
+
+    @Test func alphabetique() {
+        #expect(PeopleIndex.trier(lignes, par: .alphabetique).map(\.handle.name) == ["Béa", "Céline", "Tom"])
+    }
+
+    /// À égalité, l'ordre alphabétique départage.
+    @Test func nombre() {
+        #expect(PeopleIndex.trier(lignes, par: .nombre).map(\.handle.name) == ["Tom", "Béa", "Céline"])
+    }
+
+    @Test func recentesNeTouchePas() {
+        #expect(PeopleIndex.trier(lignes, par: .recentes).map(\.handle.name) == ["Tom", "Céline", "Béa"])
+    }
+}

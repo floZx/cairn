@@ -1,4 +1,5 @@
 import { jourCourant } from "./NoteEditor"
+import { TRIS, type Tri } from "./citations"
 /// Le sélecteur du journal : les journées, ou les gens qui y sont cités.
 ///
 /// En icônes et non en mots, comme celui des activités : la ligne du titre
@@ -92,6 +93,35 @@ export function BoutonAutreJour({ onJour }: { onJour: (dateKey: string) => void 
           if (e.target.value) onJour(e.target.value)
         }}
       />
+    </label>
+  )
+}
+
+/// Trier la liste des gens : un bouton rond comme celui du calendrier, et le
+/// sélecteur natif par-dessus — sur iPhone, la roue ou le menu du système.
+export function BoutonTri({ tri, onTri }: { tri: Tri; onTri: (t: Tri) => void }) {
+  return (
+    <label className="choix-jour bouton-autre-jour" aria-label="Trier la liste">
+      <svg
+        width="19"
+        height="19"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M17 20V4m-3.5 3.5L17 4l3.5 3.5" />
+      </svg>
+      <select value={tri} onChange={(e) => onTri(e.target.value as Tri)}>
+        {TRIS.map((t) => (
+          <option key={t.tri} value={t.tri}>
+            {t.libelle}
+          </option>
+        ))}
+      </select>
     </label>
   )
 }
