@@ -80,7 +80,6 @@ enum StoreMaintenance {
         repair(WeightEntry.self, \.uuid),
         repair(JournalNote.self, \.uuid),
         repair(JournalAttachment.self, \.uuid),
-        repair(PlannedSession.self, \.uuid),
         repair(Person.self, \.uuid),
     ]
 

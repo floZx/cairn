@@ -20,9 +20,6 @@ enum AppModelContainer {
         // is purely local, and it stays that way until a later tranche makes
         // them cross.
         JournalNote.self, JournalAttachment.self,
-        // Le plan d'entraînement — un modèle de plus, donc une migration
-        // légère de plus, et rien à toucher aux données existantes.
-        PlannedSession.self,
         // Les fiches des personnes citées — voir `Person`, qui explique
         // pourquoi la liste des gens, elle, n'est pas stockée.
         Person.self,

@@ -91,7 +91,7 @@ extension RootView {
         case .expandMap:
             if let selected { expandedMap = .activity(selected.id) }
         case .closePane:
-            if showsStatistics || showsTraining {
+            if showsStatistics {
                 // Le volet s'y ouvre par le drapeau, pas par la sélection :
                 // c'est lui qu'on baisse — voir `sortieOuverteDepuisLEcran`.
                 sortieOuverteDepuisLEcran = false

@@ -61,7 +61,7 @@ export function citations(texte: string): Personne[] {
 /// n'avait aucun moyen de mener au repas — seule celle d'une sortie savait où
 /// aller, et la même carte se comportait de deux façons.
 export type Source = {
-  sorte: "journal" | "sortie" | "repas" | "pesee" | "seance"
+  sorte: "journal" | "sortie" | "repas" | "pesee"
   libelle: string
   activite?: string
 }

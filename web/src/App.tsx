@@ -10,7 +10,6 @@ import { People } from "./People"
 import { BoutonAutreJour, SelecteurJournal, type VueJournal } from "./SelecteurJournal"
 import { useVerrou } from "./verrou"
 import type { Citation } from "./citations"
-import { Entrainement } from "./Entrainement"
 import { Nutrition } from "./Nutrition"
 import { Stats } from "./Stats"
 import { Chrome, type Section } from "./Chrome"
@@ -165,9 +164,8 @@ export function App() {
   // journal. Effacé dès qu'on choisit un onglet à la main : sans quoi revenir
   // sur « Repas » trois jours plus tard rouvrirait la journée d'alors.
   const [jourRepas, setJourRepas] = useState<string | null>(null)
-  /// Le jour d'arrivée dans le plan, et la note du journal à ouvrir — mêmes
-  /// raisons que `jourRepas`, mêmes effacements à main levée.
-  const [jourPlan, setJourPlan] = useState<string | null>(null)
+  /// La note du journal à ouvrir — mêmes raisons que `jourRepas`, mêmes
+  /// effacements à main levée.
   const [noteAOuvrir, setNoteAOuvrir] = useState<string | null>(null)
   const verrou = useVerrou()
   /// Vrai le temps d'un retour qu'on a soi-même déclenché pour fermer une
@@ -178,7 +176,6 @@ export function App() {
 
   const changerDeSection = (s: Section) => {
     setJourRepas(null)
-    setJourPlan(null)
     setNoteAOuvrir(null)
     // Une fiche est une page poussée : partir vers un onglet la referme, comme
     // le chevron le ferait. Sans ça, la barre étant désormais visible depuis
@@ -266,10 +263,6 @@ export function App() {
         setJourRepas(citation.dateKey)
         setSection("nutrition")
         return
-      case "seance":
-        setJourPlan(citation.dateKey)
-        setSection("plan")
-        return
       case "journal":
         setVueJournal("journees")
         setNoteAOuvrir(citation.dateKey)
@@ -336,8 +329,6 @@ export function App() {
           vue={vue}
           onVue={setVue}
         />
-      ) : section === "plan" ? (
-        <Entrainement key={jourPlan ?? "aujourd'hui"} jourInitial={jourPlan ?? undefined} onOuvrir={ouvrir} />
       ) : section === "journal" ? (
         // Le journal et ses gens derrière le même verrou : une fiche de
         // personne cite les notes, elle en montre autant que le journal.

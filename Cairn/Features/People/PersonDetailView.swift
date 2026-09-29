@@ -11,7 +11,7 @@ struct PersonDetailView: View {
     /// La personne ouverte, par sa clé repliée.
     let cle: String
     /// Aller là d'où vient une citation — la sortie, la journée du journal,
-    /// celle des repas, la pesée, la séance.
+    /// celle des repas, la pesée.
     ///
     /// Une seule fermeture pour les cinq : c'est l'écran qui sait comment on
     /// s'y rend, et la page n'a qu'à dire de quelle citation il s'agit.
@@ -31,7 +31,6 @@ struct PersonDetailView: View {
     @Query private var activities: [Activity]
     @Query private var mealNotes: [MealNote]
     @Query private var weights: [WeightEntry]
-    @Query private var sessions: [PlannedSession]
     @Query private var slots: [MealSlot]
 
     /// Les citations de cette personne, et d'elle seule.
@@ -40,8 +39,7 @@ struct PersonDetailView: View {
         return PeopleIndex.citations(
             dans: PeopleView.textes(
                 journalNotes: journalNotes, activities: activities,
-                mealNotes: mealNotes, weights: weights,
-                sessions: sessions, slots: slots
+                mealNotes: mealNotes, weights: weights, slots: slots
             )
         )[handle] ?? []
     }

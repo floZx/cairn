@@ -5,7 +5,6 @@ enum SidebarItem: Hashable {
     case all
     case globalMap
     case statistics
-    case training
     case journal
     case nutrition
     case weight
@@ -16,10 +15,10 @@ extension SidebarItem {
     ///
     /// Retirées le 24 septembre 2026 — le journal (et les gens, qui en sont
     /// une vue), le plan d'entraînement et le poids ; le journal est revenu
-    /// le 26. Vider cet ensemble les remet toutes : la barre latérale, les
-    /// raccourcis, les menus et les réglages le lisent, et `RootView.allerA`
-    /// refuse d'y mener.
-    static let masquees: Set<SidebarItem> = [.training, .weight]
+    /// le 26, le plan a été supprimé le 29. Vider cet ensemble remet le
+    /// poids : la barre latérale, les raccourcis, les menus et les réglages le
+    /// lisent, et `RootView.allerA` refuse d'y mener.
+    static let masquees: Set<SidebarItem> = [.weight]
 
     var estMasquee: Bool { Self.masquees.contains(self) }
 }
@@ -145,10 +144,6 @@ struct SidebarView: View {
                     .tag(SidebarItem.globalMap)
                 Label("Statistiques", systemImage: "chart.bar")
                     .tag(SidebarItem.statistics)
-                if !SidebarItem.training.estMasquee {
-                    Label("Entraînement", systemImage: "figure.run.square.stack")
-                        .tag(SidebarItem.training)
-                }
                 if !SidebarItem.journal.estMasquee {
                     Label("Journal", systemImage: "text.book.closed")
                         .badge(journalDayKeys.count)

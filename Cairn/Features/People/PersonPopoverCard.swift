@@ -31,7 +31,6 @@ struct PersonPopoverCard: View {
     private var sortiesQuiRacontent: [Activity]
     @Query private var notesDeRepas: [MealNote]
     @Query private var pesees: [WeightEntry]
-    @Query private var seances: [PlannedSession]
     @Query private var creneaux: [MealSlot]
 
     /// Les plus récentes d'abord — `PeopleIndex.citations` les range déjà ainsi.
@@ -39,8 +38,7 @@ struct PersonPopoverCard: View {
         let citations = PeopleIndex.citations(
             dans: PeopleView.textes(
                 journalNotes: notesDuJournal, activities: sortiesQuiRacontent,
-                mealNotes: notesDeRepas, weights: pesees,
-                sessions: seances, slots: creneaux
+                mealNotes: notesDeRepas, weights: pesees, slots: creneaux
             )
         )
         return Array((citations[handle] ?? []).prefix(5))
@@ -121,7 +119,7 @@ struct PersonPopoverCard: View {
 }
 
 /// Aller là d'où vient une citation — la journée, la sortie, le repas, la
-/// pesée, la séance. `RootView` sait comment ; la popover n'a qu'à dire
+/// pesée. `RootView` sait comment ; la popover n'a qu'à dire
 /// laquelle. Voir `ouvrirDansPeople` juste en dessous pour le pourquoi de
 /// l'environnement.
 extension EnvironmentValues {

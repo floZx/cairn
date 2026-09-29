@@ -15,7 +15,6 @@ enum PeopleIndex {
         case sortie(String)
         case repas(String)
         case pesee
-        case seance(String)
 
         var libelle: String {
             switch self {
@@ -23,7 +22,6 @@ enum PeopleIndex {
             case .sortie(let nom): nom
             case .repas(let creneau): creneau
             case .pesee: "Pesée"
-            case .seance(let titre): titre
             }
         }
     }

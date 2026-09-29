@@ -95,10 +95,6 @@ struct MirrorRowSchemaTests {
             WeightEntry(dateKey: DateKey(raw: "2026-08-16")!, weightKg: 70),
             JournalNote(dateKey: DateKey(raw: "2026-08-16")!, text: "Une note"),
             JournalAttachment(fileName: "2026-08-16-1.jpg", data: Data([0x01])),
-            PlannedSession(
-                dateKey: DateKey(raw: "2026-08-16")!, sportTypeRaw: SportType.run.rawValue,
-                title: "Sortie longue"
-            ),
             Person(handle: PersonHandle(name: "sam")!),
         ]
     }

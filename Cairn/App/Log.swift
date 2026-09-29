@@ -14,7 +14,6 @@ enum Log {
     static let journal = Logger(subsystem: subsystem, category: "journal")
     static let sync = Logger(subsystem: subsystem, category: "sync")
     static let garmin = Logger(subsystem: subsystem, category: "garmin")
-    static let training = Logger(subsystem: subsystem, category: "training")
 }
 
 extension Logger {

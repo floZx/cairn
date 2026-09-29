@@ -157,7 +157,7 @@ extension RootView {
                     } else if showsJournal {
                         // Le volet du journal reste ouvert : le bouton y est
                         // grisé, et rien ne se fait si ⌥⌘I passe quand même.
-                    } else if showsStatistics || showsTraining {
+                    } else if showsStatistics {
                         // Vider la sélection ne fermait rien ici : le volet
                         // suit le drapeau, et la sélection appartient à la
                         // liste d'activités — voir `sortieOuverteDepuisLEcran`.
@@ -182,9 +182,9 @@ extension RootView {
                         // ouvert, sur une journée ou sur quelqu'un.
                         || showsJournal
                         || showsPeople
-                        || ((showsStatistics || showsTraining) && !sortieOuverteDepuisLEcran)
+                        || (showsStatistics && !sortieOuverteDepuisLEcran)
                         || (!showsNutrition && !showsJournal && !showsPeople
-                            && !showsStatistics && !showsTraining
+                            && !showsStatistics
                             && (selection.isEmpty || listStyle == .cards))
                 )
                 .help(

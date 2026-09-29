@@ -249,17 +249,6 @@ struct StoreMaintenanceTests {
                 Person(handle: PersonHandle(name: "landry")!),
                 sharing: shared, into: context
             ),
-            seedPair(
-                \PlannedSession.uuid,
-                PlannedSession(
-                    dateKey: day, sportTypeRaw: SportType.run.rawValue, title: "Fractionné"
-                ),
-                PlannedSession(
-                    dateKey: DateKey(raw: "2026-08-17")!, sportTypeRaw: SportType.ride.rawValue,
-                    title: "Sortie longue"
-                ),
-                sharing: shared, into: context
-            ),
         ]
         #expect(Set(pairs.map(\.table)) == Set(MirrorEngine.bootstrapOrder))
         try context.save()

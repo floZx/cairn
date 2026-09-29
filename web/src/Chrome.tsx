@@ -21,7 +21,7 @@ import { Symbole } from "./IconeSport"
 ///   d'accueil en bas : sans `env(safe-area-inset-*)`, le premier titre passe
 ///   sous l'heure et le dernier onglet sous le trait blanc.
 
-export type Section = "activites" | "plan" | "journal" | "nutrition" | "stats"
+export type Section = "activites" | "journal" | "nutrition" | "stats"
 
 /// Les icônes des onglets : celles de la barre latérale du Mac, les vrais
 /// symboles SF (voir `Symbole`). Les tracés faits main qui les précédaient
@@ -33,7 +33,6 @@ function Icone({ nom }: { nom: Section; actif: boolean }) {
 /// Les symboles de la barre latérale du Mac, section pour section.
 const SYMBOLES_ONGLETS: Record<Section, string> = {
   activites: "list.bullet",
-  plan: "calendar",
   journal: "text.book.closed",
   nutrition: "fork.knife",
   stats: "chart.bar",
@@ -43,22 +42,13 @@ const SYMBOLES_ONGLETS: Record<Section, string> = {
 /// et qu'un mot long y force deux lignes.
 const TITRES: Record<Section, string> = {
   activites: "Activités",
-  plan: "Plan",
   journal: "Journal",
   nutrition: "Repas",
   stats: "Stats",
 }
 
-/// Le titre de l'écran, quand il diffère de l'onglet.
-///
-/// La capsule n'a de place que pour « Plan » ; le haut de l'écran, lui, en a
-/// pour dire de quel plan il s'agit.
-const TITRES_ECRAN: Partial<Record<Section, string>> = {
-  plan: "Plan d'entraînement",
-}
-
 function titreEcran(section: Section): string {
-  return TITRES_ECRAN[section] ?? TITRES[section]
+  return TITRES[section]
 }
 
 /// Remonter en haut, animé à la main.

@@ -42,9 +42,10 @@ actor MirrorEngine {
     /// Tables the Mac once mirrored and no longer does. An outbox entry
     /// recorded for one before the model went would name a table no `switch`
     /// below covers, and `MirrorError.unknownTable` would stop every push:
-    /// they are dropped instead, unsent. `athlete` left on 29 September 2026 —
-    /// written on every sync and read by nobody, on either screen.
-    static let retiredTables: Set<String> = ["athlete"]
+    /// they are dropped instead, unsent. Both left on 29 September 2026:
+    /// `athlete`, written on every sync and read by nobody; `planned_session`,
+    /// the training plan, hidden since 24 September and then removed.
+    static let retiredTables: Set<String> = ["athlete", "planned_session"]
 
     /// The mirrored tables, parents before children — a convenience, not a
     /// constraint. `supabase/schema.sql` carries **no foreign key** between
@@ -70,9 +71,6 @@ actor MirrorEngine {
         "nutrition_day", "food_entry", "meal_note",
         "recipe", "recipe_item", "favorite_food", "weight_entry",
         "journal_note", "journal_attachment",
-        // Le plan d'entraînement, en dernier : rien ne dépend de son ordre,
-        // et il ne pèse que quelques centaines de lignes.
-        "planned_session",
         "person",
     ]
 
@@ -503,8 +501,6 @@ actor MirrorEngine {
             return try await pushRows(JournalNote.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "journal_attachment":
             return try await pushRows(JournalAttachment.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
-        case "planned_session":
-            return try await pushRows(PlannedSession.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "person":
             return try await pushRows(Person.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         default:

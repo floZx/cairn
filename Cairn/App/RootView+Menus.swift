@@ -26,7 +26,7 @@ extension RootView {
         // The statistics and the plan open an outing's pane of their own: what
         // it shows is the selection, and the commands may act on it.
         let outingOnScreen = activities
-            || ((showsStatistics || showsTraining) && sortieOuverteDepuisLEcran)
+            || (showsStatistics && sortieOuverteDepuisLEcran)
         let selection = outingOnScreen ? selection : []
         let journalUnlocked = app.journalLock.estOuvert
         return MenuState(

@@ -40,12 +40,8 @@ struct RootView: View {
         sectionChoisieALaSouris = false
         sidebarSelection = item
     }
-    /// Le jour choisi dans le plan d'entraînement. Tenu ici comme les autres
-    /// jours d'écran, pour que la grille et son mois survivent à un aller-retour
-    /// vers la liste.
-    @State var trainingDateKey = DateKey(Date())
     /// Si le volet de droite montre une sortie sur un écran qui ne parle pas
-    /// de sorties — le plan, les statistiques.
+    /// de sorties — les statistiques.
     ///
     /// On y arrive pour lire des semaines ou des chiffres : la sortie restée
     /// sélectionnée dans la liste y mangeait la colonne de droite sans rien
@@ -457,7 +453,7 @@ struct RootView: View {
     /// The menu bar follows the same rule — see `menuState`.
     var showsActivityActions: Bool {
         !showsJournal && !showsNutrition && !showsWeight && !showsStatistics
-            && !showsTraining && !showsPeople
+            && !showsPeople
     }
 
     /// La section du journal, quelle que soit la vue choisie dans sa barre
@@ -633,9 +629,6 @@ struct RootView: View {
             // L'écran des pesées, et non la journée où le commentaire se
             // modifie : une citation qui annonce un poids doit mener au poids.
             allerA(.weight)
-        case .seance:
-            trainingDateKey = citation.dateKey
-            allerA(.training)
         }
     }
 
@@ -646,8 +639,6 @@ struct RootView: View {
         app.journal.saveNow()
         journalSelection = date
     }
-
-    var showsTraining: Bool { sidebarSelection == .training }
 
     /// Les gens ne sont plus une section : c'est le journal, rangé par qui y
     /// est cité. Voir `VueJournal`.
@@ -663,7 +654,6 @@ struct RootView: View {
         switch sidebarSelection {
         case .globalMap: .carte
         case .statistics: .statistiques
-        case .training: .plan
         // Deux écrans pour une section : le volet de droite porte l'éditeur
         // d'une note d'un côté, la fiche d'une personne de l'autre, et ils
         // n'ont pas la même largeur utile.
@@ -749,20 +739,6 @@ struct RootView: View {
                         onEdit: { personNoteRequest += 1 },
                         onCommand: performOutsideTheList
                     )
-                } else if showsTraining {
-                    // Le plan prend toute la colonne : une grille de mois n'a
-                    // rien à gagner à cohabiter avec une liste.
-                    TrainingView(
-                        day: $trainingDateKey,
-                        // Sélectionnée, pas ouverte : `openActivity` bascule
-                        // sur l'onglet des activités, ce qui ferait quitter le
-                        // plan à chaque sortie qu'on veut relire.
-                        onSelectActivity: {
-                            selectedActivities = [$0]
-                            sortieOuverteDepuisLEcran = true
-                        }
-                    )
-                    .vimKeys(performOutsideTheList)
                 } else if showsNutrition {
                     // The vim modifier lives inside the view here — it must go
                     // dead while the add/edit sheets are up, and only the view
@@ -883,13 +859,13 @@ struct RootView: View {
         // a record still opens that activity beside them — this fires on
         // entering the section, not on every selection made inside it.
         //
-        // Le plan pour la même raison. Et un drapeau plutôt que la sélection
-        // vidée : voir `sortieOuverteDepuisLEcran`. Vider fermait bien le
+        // Un drapeau plutôt que la sélection vidée : voir
+        // `sortieOuverteDepuisLEcran`. Vider fermait bien le
         // volet, mais emportait avec lui la ligne que la liste d'activités
         // gardait pour le retour.
         //
         .onChange(of: sidebarSelection) { _, newValue in
-            if newValue == .statistics || newValue == .training {
+            if newValue == .statistics {
                 sortieOuverteDepuisLEcran = false
             }
         }
@@ -1079,23 +1055,6 @@ struct RootView: View {
             if nutritionPanelVisible {
                 NutritionSidePanel(selected: $nutritionDateKey)
                     .frame(minWidth: Self.nutritionPanelMinWidth)
-            } else {
-                collapsedDetailColumn
-            }
-        } else if showsTraining {
-            // La sortie qui a accompli la séance, dans le volet — sans quitter
-            // le plan. Cliquer une séance faite emmenait sur l'onglet des
-            // activités, et il fallait revenir pour lire la ligne suivante du
-            // plan ; ici les deux se lisent côte à côte.
-            if sortieOuverteDepuisLEcran, let selected {
-                ActivityDetailView(
-                    activity: selected,
-                    onExpandMap: { expandedMap = .activity(selected.id) },
-                    onEdit: { openEditor(selected, focusingNotes: true) },
-                    onSelectActivity: { selectedActivities = [$0] },
-                    scrollRequest: paneScroll
-                )
-                .frame(minWidth: Self.detailMinWidth)
             } else {
                 collapsedDetailColumn
             }

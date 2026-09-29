@@ -42,7 +42,6 @@ enum PaneGeometry {
         case activites
         case carte
         case statistiques
-        case plan
         case journal
         case people
         case alimentation

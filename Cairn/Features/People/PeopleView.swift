@@ -18,7 +18,6 @@ struct PeopleView: View {
     @Query private var activities: [Activity]
     @Query private var mealNotes: [MealNote]
     @Query private var weights: [WeightEntry]
-    @Query private var sessions: [PlannedSession]
     @Query private var slots: [MealSlot]
     @Query private var people: [Person]
 
@@ -29,7 +28,7 @@ struct PeopleView: View {
     /// une bibliothèque vide sans jamais qu'on le lui dise.
     static func textes(
         journalNotes: [JournalNote], activities: [Activity], mealNotes: [MealNote],
-        weights: [WeightEntry], sessions: [PlannedSession], slots: [MealSlot]
+        weights: [WeightEntry], slots: [MealSlot]
     ) -> [PeopleIndex.Texte] {
         var textes: [PeopleIndex.Texte] = []
         for note in journalNotes {
@@ -55,14 +54,6 @@ struct PeopleView: View {
             guard let jour = pesee.dateKey, let mot = pesee.note, !mot.isEmpty else { continue }
             textes.append(.init(dateKey: jour, source: .pesee, contenu: mot))
         }
-        for seance in sessions {
-            guard let jour = seance.dateKey, !seance.notes.isEmpty else { continue }
-            textes.append(.init(
-                dateKey: jour,
-                source: .seance(seance.title.isEmpty ? seance.sport.displayName : seance.title),
-                contenu: seance.notes
-            ))
-        }
         return textes
     }
 
@@ -70,7 +61,7 @@ struct PeopleView: View {
         let citations = PeopleIndex.citations(
             dans: Self.textes(
                 journalNotes: journalNotes, activities: activities, mealNotes: mealNotes,
-                weights: weights, sessions: sessions, slots: slots
+                weights: weights, slots: slots
             )
         )
         let lignes = PeopleIndex.lignes(

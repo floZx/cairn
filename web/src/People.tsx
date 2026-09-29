@@ -29,7 +29,7 @@ function useTextes() {
     queryKey: ["people-textes", chiffre],
     staleTime: 60 * 1000,
     queryFn: async () => {
-      const [notes, sorties, repas, pesees, seances, creneaux] = await Promise.all([
+      const [notes, sorties, repas, pesees, creneaux] = await Promise.all([
         supabase
           .from("journal_note")
           .select("date_key_raw, text")
@@ -48,10 +48,6 @@ function useTextes() {
           .select("date_key_raw, note")
           .is("deleted_at", null)
           .not("note", "is", null),
-        supabase
-          .from("planned_session")
-          .select("date_key_raw, title, sport_type_raw, notes")
-          .is("deleted_at", null),
         supabase.from("meal_slot").select("uuid, name").is("deleted_at", null),
       ])
 
@@ -97,18 +93,6 @@ function useTextes() {
       }
       for (const p of (pesees.data ?? []) as { date_key_raw: string; note: string }[]) {
         textes.push({ dateKey: p.date_key_raw, source: { sorte: "pesee", libelle: "Pesée" }, contenu: p.note })
-      }
-      for (const s of (seances.data ?? []) as {
-        date_key_raw: string
-        title: string
-        notes: string
-      }[]) {
-        if (!s.notes) continue
-        textes.push({
-          dateKey: s.date_key_raw,
-          source: { sorte: "seance", libelle: s.title || "Séance" },
-          contenu: s.notes,
-        })
       }
       return textes
     },

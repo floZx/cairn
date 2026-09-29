@@ -443,16 +443,11 @@ quantité habituelle. Les deux se gèrent depuis les réglages.
 
 **Le poids** a sa propre section : une pesée par jour, une courbe, et une
 tendance en kg/semaine calculée par moindres carrés sur une fenêtre ancrée à la
-dernière pesée.
+dernière pesée. Elle est **masquée** depuis le 24 septembre 2026, sur le Mac
+comme sur le web : le code reste, et `SidebarItem.masquees` (avec
+`POIDS_MASQUE` côté web) la remet.
 
 Un import unique récupère les données d'un carnet `suivinut` existant.
-
-## Plan d'entraînement
-
-Un mois de séances prévues, en grille, chaque case cochée quand une sortie du
-jour y correspond. Le plan se reprend d'un calendrier macOS (une reprise, pas
-une synchronisation : l'agenda n'est jamais réécrit), et une séance peut
-décider du jour-type de l'alimentation.
 
 ## Personnes
 
@@ -495,7 +490,7 @@ l'original : chaque photo ou trace que le Mac affiche existe d'abord sur ce
 disque, et le miroir ne fait que la recopier vers Supabase après coup.
 
 Le chemin inverse existe pour ce qui s'écrit sur le téléphone : notes du
-journal, repas, pesées, plan d'entraînement, personnes, et la note d'une
+journal, repas, pesées, personnes, et la note d'une
 sortie. Le Mac relit ces tables et range chaque modification à sa place. Les
 notes du journal peuvent être **chiffrées de bout en bout** : une phrase de
 passe saisie sur le Mac et sur le téléphone, jamais envoyée, et Supabase ne
@@ -630,7 +625,7 @@ vouloir dire « va à la carte ». D'où le préfixe `g`.
 |---|---|
 | `ga` `gm` `gs` | mes activités / carte globale / statistiques |
 | `gj` | journal |
-| `gn` `gp` | alimentation / poids |
+| `gn` `gp` | alimentation / poids (masqué) |
 | `t` · ⌥⌘L | basculer entre le tableau et les fiches |
 | `h` · ⌥⌘I | fermer le volet de droite |
 | `échap` | revenir à aujourd'hui (alimentation), vider la recherche, sinon la sélection |

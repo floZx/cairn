@@ -30,7 +30,7 @@ téléphone.
 Elle est **publique par construction** : elle finit dans le JavaScript de la
 page, lisible par quiconque ouvre les outils de développement. Ce n'est pas
 une fuite, c'est ainsi que Supabase est pensé. Ce qui protège les données,
-c'est exclusivement **Row Level Security**, activée sur chacune des vingt-deux
+c'est exclusivement **Row Level Security**, activée sur chacune des vingt et une
 tables : une requête ne rend que les lignes dont `user_id` vaut `auth.uid()`,
 quelle que soit la clé utilisée.
 

@@ -70,8 +70,6 @@ extension MirrorEngine {
             try await sendBatches(JournalNote.self, table: table, userID: userID)
         case "journal_attachment":
             try await sendBatches(JournalAttachment.self, table: table, userID: userID)
-        case "planned_session":
-            try await sendBatches(PlannedSession.self, table: table, userID: userID)
         case "person": try await sendBatches(Person.self, table: table, userID: userID)
         default:
             // `bootstrapOrder` is a closed, hand-written list and this
