@@ -42,7 +42,7 @@ struct JournalSettingsView: View {
                 il se referme aussi quand l'écran se verrouille ou que le Mac \
                 s'endort, et à la demande avec ⌃⌘L. Il protège d'un regard, \
                 pas davantage : sur ce Mac, les notes ne sont pas chiffrées. \
-                Vers le web, elles peuvent l'être — voir l'onglet Miroir.
+                Vers le web, elles peuvent l'être — voir l'onglet Supabase.
                 """)
         }
     }

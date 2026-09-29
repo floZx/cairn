@@ -97,8 +97,8 @@ transite par un service tiers.
 
 1. Ouvrez <https://www.strava.com/settings/api> et créez une application.
 2. Renseignez `localhost` comme **Authorization Callback Domain**.
-3. Lancez Cairn, ouvrez les réglages (⌘,) et collez le **Client ID** et le
-   **Client Secret**.
+3. Lancez Cairn, ouvrez l'onglet Strava des réglages (⌘,) et collez le
+   **Client ID** et le **Client Secret**.
 4. Cliquez « Se connecter à Strava » : l'autorisation s'ouvre dans votre
    navigateur, puis l'application récupère ses jetons.
 
@@ -508,8 +508,8 @@ n'a jamais entendu parler de Supabase se comporte exactement comme un Mac dont
 le miroir est en panne depuis un mois : aucune différence, pour personne
 d'autre que ce petit indicateur.
 
-Le configurer se fait entièrement depuis les réglages, une fois qu'un projet
-existe côté Supabase — la marche à suivre, schéma compris, est détaillée dans
+Le configurer se fait entièrement depuis l'onglet Supabase des réglages, une
+fois qu'un projet existe — la marche à suivre, schéma compris, est détaillée dans
 `supabase/README.md`. L'URL du projet et sa clé anon s'y collent dans un
 premier champ, l'adresse et le mot de passe du compte dans un second, puis
 « Lancer l'amorçage » envoie toute la bibliothèque une première fois. Ensuite le
