@@ -127,11 +127,7 @@ struct PersonPopoverCard: View {
     /// L'initiale dans un médaillon, le nom, et combien de notes la citent.
     private func enTete(total: Int) -> some View {
         HStack(spacing: 10) {
-            Text(String(handle.name.prefix(1)).uppercased())
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.tint)
-                .frame(width: 34, height: 34)
-                .background(Color.accentColor.opacity(0.14), in: .circle)
+            PersonMonogram(handle: handle, size: 34)
             VStack(alignment: .leading, spacing: 1) {
                 Text(handle.displayName)
                     .font(.title3.weight(.semibold))
@@ -143,6 +139,21 @@ struct PersonPopoverCard: View {
                 }
             }
         }
+    }
+}
+
+/// L'initiale d'une personne dans un médaillon teinté — ce que la photo est
+/// à un contact, pour quelqu'un qui n'en a pas.
+struct PersonMonogram: View {
+    let handle: PersonHandle
+    var size: CGFloat = 28
+
+    var body: some View {
+        Text(String(handle.name.prefix(1)).uppercased())
+            .font(.system(size: size * 0.44, weight: .semibold))
+            .foregroundStyle(Color.accentColor)
+            .frame(width: size, height: size)
+            .background(Color.accentColor.opacity(0.14), in: .circle)
     }
 }
 

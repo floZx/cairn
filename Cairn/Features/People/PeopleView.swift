@@ -57,6 +57,18 @@ struct PeopleView: View {
         return textes
     }
 
+    /// La première ligne non vide d'une note, sans sa syntaxe de titre ni ses
+    /// arobases.
+    static func apercu(_ note: String?) -> String? {
+        guard let ligne = note?
+            .split(whereSeparator: \.isNewline)
+            .map({ $0.trimmingCharacters(in: .whitespaces) })
+            .first(where: { !$0.isEmpty })
+        else { return nil }
+        let sansTitre = ligne.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces)
+        return sansTitre.isEmpty ? nil : PersonHandle.sansArobases(sansTitre)
+    }
+
     var body: some View {
         let citations = PeopleIndex.citations(
             dans: Self.textes(
@@ -79,31 +91,13 @@ struct PeopleView: View {
                 }
             } else {
                 ScrollViewReader { defilement in
+                let notes = Dictionary(
+                    people.map { ($0.key, $0.note) }, uniquingKeysWith: { premiere, _ in premiere }
+                )
                 List(lignes, selection: $selection) { ligne in
-                    HStack(spacing: 8) {
-                        Text(ligne.handle.displayName)
-                            .font(.body.weight(.medium))
-                        if ligne.aUneNote {
-                            Image(systemName: "text.alignleft")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .help("Une note existe sur cette personne")
-                        }
-                        Spacer(minLength: 8)
-                        // Pas de date : celle de la dernière citation ne dit
-                        // rien qu'on vienne chercher ici, et elle arrivait
-                        // avec une heure — minuit — qu'aucune note n'a jamais
-                        // eue. Le compte suffit à ranger la liste, et l'ordre
-                        // porte déjà la fraîcheur.
-                        Text("\(ligne.compte)")
-                            .foregroundStyle(.secondary)
-                            .font(.callout)
-                            .monospacedDigit()
-                            .frame(width: 30, alignment: .trailing)
-                    }
-                    .padding(.vertical, 2)
-                    .tag(ligne.handle.key)
-                    .id(ligne.handle.key)
+                    PeopleRow(ligne: ligne, apercu: Self.apercu(notes[ligne.handle.key]))
+                        .tag(ligne.handle.key)
+                        .id(ligne.handle.key)
                 }
                 // Au clavier, comme la liste du journal : `j` et `k` passent
                 // d'une personne à l'autre, Entrée ou `e` ouvre sa note.
@@ -157,5 +151,47 @@ struct PeopleView: View {
     static func selectionGardee(cles: [String], actuelle: String?) -> String? {
         if let actuelle, cles.contains(actuelle) { return nil }
         return cles.first
+    }
+}
+
+/// Une personne dans la liste : son médaillon, son nom, la première ligne de
+/// ce qu'on a écrit sur elle, et combien de notes la citent.
+struct PeopleRow: View {
+    let ligne: PeopleIndex.Ligne
+    let apercu: String?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            PersonMonogram(handle: ligne.handle, size: 30)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(ligne.handle.displayName)
+                    .font(.body.weight(.medium))
+                    .lineLimit(1)
+                // La première ligne de ce qu'on a écrit sur elle,
+                // là où il n'y avait qu'un symbole pour dire qu'il
+                // y avait quelque chose.
+                if let apercu {
+                    Text(apercu)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            // Pas de date : celle de la dernière citation ne dit
+            // rien qu'on vienne chercher ici, et elle arrivait
+            // avec une heure — minuit — qu'aucune note n'a jamais
+            // eue. Le compte suffit à ranger la liste, et l'ordre
+            // porte déjà la fraîcheur.
+            Text("\(ligne.compte)")
+                .font(.caption.weight(.medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(.quaternary.opacity(0.6), in: .capsule)
+                .help(ligne.compte == 1 ? "Citée dans 1 note" : "Citée dans \(ligne.compte) notes")
+        }
+        .padding(.vertical, 4)
     }
 }

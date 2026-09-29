@@ -73,11 +73,25 @@ struct PersonDetailView: View {
     private func contenu(_ handle: PersonHandle) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text(handle.displayName)
-                    .font(.largeTitle.weight(.semibold))
+                // L'en-tête de sa carte, en grand : médaillon, nom, et combien
+                // de notes la citent.
+                HStack(spacing: 14) {
+                    PersonMonogram(handle: handle, size: 48)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(handle.displayName)
+                            .font(.largeTitle.weight(.semibold))
+                            .lineLimit(1)
+                        if !citations.isEmpty {
+                            Text(citations.count == 1 ? "1 note" : "\(citations.count) notes")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Note").font(.headline)
+                    Text("Note")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
                     CompletingNoteEditor(
                         texte: $note,
                         taille: 14,
@@ -101,10 +115,18 @@ struct PersonDetailView: View {
                     Text("Aucune note ne la cite pour l'instant.")
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Citée \(citations.count) fois")
-                        .font(.headline)
-                    ForEach(citations) { citation in
-                        citationView(citation)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Notes qui la citent")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        // Les lignes survolées débordent de huit points : le
+                        // texte, lui, reste aligné sur le reste de la page.
+                        VStack(spacing: 2) {
+                            ForEach(citations) { citation in
+                                citationView(citation)
+                            }
+                        }
+                        .padding(.horizontal, -8)
                     }
                 }
             }
@@ -130,31 +152,9 @@ struct PersonDetailView: View {
     }
 
     private func citationView(_ citation: PeopleIndex.Citation) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                // En minuscules, comme partout ailleurs : « jeudi 24 septembre
-                // 2026 », pas « Jeudi 24 Septembre 2026 ».
-                Text(Format.fullDate(citation.dateKey.date()))
-                    .font(.caption.weight(.medium))
-                Text("·").foregroundStyle(.tertiary)
-                Text(citation.source.libelle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            MarkdownText(
-                markdown: citation.texte, baseSize: 14, hidesTagHashes: true,
-                attachmentsBase: attachmentsBase
-            )
-                .frame(maxWidth: .infinity, alignment: .leading)
+        PersonDetailCitation(citation: citation, attachmentsBase: attachmentsBase) {
+            onOuvrirLaSource(citation)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 10))
-        .contentShape(.rect)
-        .onTapGesture { onOuvrirLaSource(citation) }
-        .help("Aller à « \(citation.source.libelle) »")
     }
 
     /// Crée la fiche au premier caractère, la supprime au dernier effacé.
@@ -174,5 +174,49 @@ struct PersonDetailView: View {
             context.insert(Person(handle: handle, note: texte))
         }
         Log.journal.attempt("note d'une personne") { try context.save() }
+    }
+}
+
+/// Une citation sur la page d'une personne : la ligne de sa carte, en entier.
+///
+/// La tuile du jour, le mois et la source, puis le texte rendu — photos
+/// comprises, ce qu'un extrait de popover n'a pas à porter. Pas de carte
+/// autour : le survol suffit à dire qu'on peut y aller.
+struct PersonDetailCitation: View {
+    let citation: PeopleIndex.Citation
+    let attachmentsBase: URL?
+    let ouvrir: () -> Void
+
+    @State private var survolee = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            JournalDateTile(date: citation.dateKey)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(
+                    JournalRowLayout.monthTitle(citation.dateKey).capitalized
+                    + " · " + citation.source.libelle
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                MarkdownText(
+                    markdown: citation.texte, baseSize: 14, hidesTagHashes: true,
+                    attachmentsBase: attachmentsBase
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.primary.opacity(survolee ? 0.05 : 0))
+        )
+        .contentShape(.rect)
+        .onHover { survolee = $0 }
+        .onTapGesture(perform: ouvrir)
+        .help("Aller à « \(citation.source.libelle) »")
     }
 }
