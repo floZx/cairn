@@ -4,8 +4,29 @@
 build/
 DerivedData/
 xcuserdata/
+*.xcuserstate
 .superpowers/
 node_modules/
 web/dist/
-.env.local
 web/tsconfig.tsbuildinfo
+
+# Secrets : Supabase côté web, secret Strava pour `wrangler pages dev`.
+.env
+.env.*
+!.env.example
+.dev.vars
+.wrangler/
+
+# Données personnelles : une base, une trace ou un certificat n'ont rien à
+# faire dans un dépôt public.
+*.store
+*.store-shm
+*.store-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.fit
+*.gpx
+*.tcx
+*.p12
+*.mobileprovision
