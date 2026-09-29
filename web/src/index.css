@@ -4305,7 +4305,21 @@ button.citation {
   padding-bottom: 24px;
 }
 
-.page-stats > .segmente { margin-bottom: 0; }
+/* Collée sous la barre du haut comme les mois du journal, et pour la même
+   raison de 26 px : devant un graphique du bas, on change de période sans
+   remonter la chercher. Un fond plein derrière la pastille, translucide, sans
+   quoi les cartes se liraient au travers ; les marges négatives rendent les
+   6 px qu'il déborde, pour que la page garde son dessin au repos. */
+.periode-stats {
+  position: sticky;
+  top: 26px;
+  z-index: 2;
+  margin: -6px 0;
+  padding: 6px 0;
+  background: var(--fond);
+}
+
+.periode-stats > .segmente { margin-bottom: 0; }
 
 .carte-stats {
   display: flex;

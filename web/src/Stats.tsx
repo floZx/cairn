@@ -812,7 +812,9 @@ export function Stats({ onOuvrir }: { onOuvrir: (uuid: string) => void }) {
 
   return (
     <div className="page-stats">
-      <Segmente etiquette="Période" choix={PERIODES} valeur={periode} onChange={setPeriode} />
+      <div className="periode-stats">
+        <Segmente etiquette="Période" choix={PERIODES} valeur={periode} onChange={setPeriode} />
+      </div>
 
       {s.totaux.nombre === 0 ? (
         <p className="attenue">Aucune sortie sur cette période.</p>

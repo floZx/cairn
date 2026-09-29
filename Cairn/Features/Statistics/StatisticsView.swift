@@ -57,7 +57,11 @@ struct StatisticsView: View {
             resetKey: "statistiques", request: scrollRequest, scrollsSidewaysWhenNarrow: true
         ) {
             VStack(alignment: .leading, spacing: 16) {
-                periodPicker
+                // Said plainly, because the sidebar has a period filter of its
+                // own that deliberately does not apply here.
+                Text("La période se règle ici. Les autres filtres de la barre latérale s'appliquent.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 if stats.count == 0 {
                     ContentUnavailableView(
                         "Aucune activité",
@@ -106,26 +110,28 @@ struct StatisticsView: View {
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // Hors de la page qui défile : devant un graphique du bas, on change
+        // de période sans remonter la chercher.
+        .safeAreaInset(edge: .top, spacing: 0) { periodPicker }
         .navigationTitle("Statistiques")
     }
 
     // MARK: - Period
 
     private var periodPicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Picker("Période", selection: $period) {
-                ForEach(StatsPeriod.allCases) { choice in
-                    Text(choice.displayName).tag(choice)
-                }
+        Picker("Période", selection: $period) {
+            ForEach(StatsPeriod.allCases) { choice in
+                Text(choice.displayName).tag(choice)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            // Said plainly, because the sidebar has a period filter of its own
-            // that deliberately does not apply here.
-            Text("La période se règle ici. Les autres filtres de la barre latérale s'appliquent.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     // MARK: - Totals
