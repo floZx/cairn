@@ -903,14 +903,6 @@ input, button { font: inherit; }
    voile, flou mais visible, le faisait paraître posé trop bas — signalé,
    capture à l'appui. Sans filet non plus : barre et mois ne font qu'un bloc.
    Rien de lisible n'y est posé, la bande qu'iOS 27 floute reste vide. */
-/* Et elle descend jusqu'à lui. Sans bouton, la barre ne mesure que
-   l'encoche plus ses 10 px de marges, quand le mois se colle à l'encoche plus
-   34 : sur l'iPhone, 24 px d'écart où le texte passait, flou — mesuré. Sans
-   encoche, sur un bureau, les deux valaient 34 et rien ne se voyait. */
-.dans-le-journal .barre-nav {
-  min-height: calc(env(safe-area-inset-top) + 34px);
-}
-
 .dans-le-journal .barre-nav.repliee {
   background: var(--fond);
   -webkit-backdrop-filter: blur(0) saturate(100%) brightness(1);
@@ -3577,18 +3569,28 @@ button.citation {
    plus que l'encoche — 26 px restent à franchir. Mesuré : à zéro, le mois
    passait sous la barre repliée. */
 /* Une carte qu'on amène sous les yeux — une citation touchée, une note
-   ouverte depuis le calendrier — s'arrête sous l'en-tête du mois, collé à
-   26 px et haut de 37 : sans cette marge, il en recouvrait la date. */
+   ouverte depuis le calendrier — s'arrête sous l'en-tête du mois : le bas de
+   la barre, plus les 44 px du mois. Sans cette marge, il en recouvrait la
+   date. */
 .note {
-  scroll-margin-top: 68px;
+  scroll-margin-top: calc(max(34px, env(safe-area-inset-top) + 10px) + 44px);
 }
 
 .mois-journal {
   position: sticky;
-  top: 26px;
+  /* Collé au bas de la barre, sans rien entre les deux. La barre mesure
+     l'encoche plus ses marges (10 px), ou 34 px sans encoche, sur un bureau ;
+     le défilement réserve déjà l'encoche plus 8. D'où 2 px sur l'iPhone et 26
+     sur un bureau. Il se collait à l'encoche plus 34 : 24 px de vide sur
+     l'iPhone, où le texte passait flou, puis 24 px de barre pleine pour le
+     cacher — de la place perdue, signalé. */
+  top: max(2px, calc(26px - env(safe-area-inset-top)));
   z-index: 2;
   margin: 0;
-  padding: 10px 4px 8px;
+  /* 16 en haut et non 10 : sur l'iPhone, le mois commence ainsi à l'encoche
+     plus 26, juste sous la bande qu'iOS 27 floute (jusqu'à environ 25 pt) ;
+     elle ne porte que du fond uni. */
+  padding: 16px 4px 8px;
   background: var(--fond);
   color: var(--texte-2);
   font-size: 13px;
