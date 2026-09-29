@@ -51,7 +51,7 @@ struct ActivityCard: View {
             case .avatarMono:
                 avatar(tint: .accentColor)
                     .padding(.top, 3)
-            case .dateTile:
+            case .dateTile, .dateTileClean:
                 // La tuile du journal : le jour de la sortie, là où elle a eu
                 // lieu — une course du soir à New York reste celle du 12.
                 // L'heure sous la date, en petit : la tuile dit quand, entière.
@@ -89,7 +89,7 @@ struct ActivityCard: View {
                     // date was the widest thing in the row and said the least.
                     // The full one is still there on hover.
                     // Rien ici avec la tuile de date : le jour et l'heure y sont.
-                    if thumbnailStyle != .dateTile {
+                    if !thumbnailStyle.showsDateTile {
                         Text(Format.relativeDate(activity.startDate, in: activity.timeZone))
                             .font(.caption)
                             .monospacedDigit()
@@ -105,7 +105,7 @@ struct ActivityCard: View {
                         .font(.caption.monospacedDigit())
                         .lineLimit(1)
                     Spacer(minLength: 0)
-                    if thumbnailStyle != .dateTile { markers }
+                    if !thumbnailStyle.showsDateTile { markers }
                 }
 
                 // What Mail gives to the first words of a message. Left empty

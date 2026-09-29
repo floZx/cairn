@@ -45,8 +45,6 @@ struct ActivityListView: View {
     /// — someone who prefers cards prefers them tomorrow too.
     @AppStorage(ActivityListStyle.storageKey)
     private var style: ActivityListStyle = .table
-    @AppStorage(ActivityCardThumbnail.storageKey)
-    private var thumbnail: ActivityCardThumbnail = .trace
 
     /// Set by the probe below, used to follow the keyboard cursor.
     @State private var scroller = TableScroller()
@@ -319,20 +317,13 @@ struct ActivityListView: View {
                     }
                 }
             }
-            Divider()
-            // Here rather than in the settings: it is a way of looking at
-            // these cards, beside the order they come in — Finder keeps its
-            // « Options de présentation » in the same place.
-            Picker("Présentation des fiches", selection: $thumbnail) {
-                ForEach(ActivityCardThumbnail.allCases) { option in
-                    Text(option.displayName).tag(option)
-                }
-            }
-            .pickerStyle(.inline)
+            // La présentation des fiches n'est plus ici : un bouton de tri
+            // qui change aussi l'allure des fiches faisait deux choses, et le
+            // menu Présentation la porte déjà.
         } label: {
             Label("Trier", systemImage: "arrow.up.arrow.down")
         }
-        .help("Trier les fiches, choisir leur présentation")
+        .help("Trier les fiches")
     }
 
     /// Des en-têtes de mois : les fiches, triées par date — voir `ActivityMonths`.

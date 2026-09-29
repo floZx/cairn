@@ -8,6 +8,8 @@ struct CairnApp: App {
     @State private var backup = BackupController()
     @AppStorage(ActivityCardThumbnail.storageKey)
     private var cardThumbnail: ActivityCardThumbnail = .trace
+    @AppStorage(JournalPresentation.storageKey)
+    private var journalPresentation: JournalPresentation = .complete
     /// Set by the main window while it is the focused scene: in the settings
     /// window, ⌘⌫ or ⌘D must not reach the library behind it.
     @FocusedValue(\.isMainWindow) private var isMainWindow
@@ -124,6 +126,13 @@ struct CairnApp: App {
                 Picker("Présentation des fiches", selection: $cardThumbnail) {
                     ForEach(ActivityCardThumbnail.allCases) { option in
                         Text(option.displayName).tag(option)
+                    }
+                }
+                if !SidebarItem.journal.estMasquee {
+                    Picker("Présentation du journal", selection: $journalPresentation) {
+                        ForEach(JournalPresentation.allCases) { option in
+                            Text(option.displayName).tag(option)
+                        }
                     }
                 }
                 Divider()

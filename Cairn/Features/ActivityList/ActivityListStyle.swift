@@ -45,6 +45,9 @@ enum ActivityCardThumbnail: String, CaseIterable, Identifiable, Sendable {
     case avatarMono
     /// La tuile de date du journal à gauche, la pastille du sport avant le nom.
     case dateTile
+    /// La même tuile, et plus rien à droite : ni vignettes de photos, ni
+    /// pastille du sport, ni marques — le texte seul à côté du jour.
+    case dateTileClean
     case none
 
     static let storageKey = "activityCardThumbnail"
@@ -60,6 +63,7 @@ enum ActivityCardThumbnail: String, CaseIterable, Identifiable, Sendable {
         case .avatar: "Sport en couleur"
         case .avatarMono: "Sport monochrome"
         case .dateTile: "Calendrier"
+        case .dateTileClean: "Calendrier épuré"
         case .none: "Texte seul"
         }
     }
@@ -67,8 +71,12 @@ enum ActivityCardThumbnail: String, CaseIterable, Identifiable, Sendable {
     /// Whether the sidebar's sports drop their colours for the accent. With
     /// the monochrome badges, so a blue column does not sit beside a rainbow
     /// of the same symbols; and with no thumbnail at all, where the list
-    /// carries no sport colour for the sidebar to echo.
+    /// carries no sport colour for the sidebar to echo. Le calendrier épuré
+    /// aussi : sa pastille du sport est partie avec la colonne de droite.
     var monochromeSidebar: Bool {
-        self == .avatarMono || self == .none
+        self == .avatarMono || self == .none || self == .dateTileClean
     }
+
+    /// La tuile de date à gauche, avec ou sans colonne de droite.
+    var showsDateTile: Bool { self == .dateTile || self == .dateTileClean }
 }

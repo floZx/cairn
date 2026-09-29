@@ -27,6 +27,8 @@ struct JournalListView: View {
     /// The bridge to the list's own `NSTableView`, so a motion can drag the
     /// list along behind it.
     @State private var scroller = TableScroller()
+    @AppStorage(JournalPresentation.storageKey)
+    private var presentation: JournalPresentation = .complete
 
     /// Where the keyboard cursor is, kept here rather than read back from
     /// `selection`.
@@ -118,6 +120,13 @@ struct JournalListView: View {
                 at: JournalRowLayout.tableRows(
                     forDays: Self.changedRows(from: old, to: new), in: new
                 )
+            )
+        }
+        // Chaque ligne perd ou retrouve sa colonne de droite sans changer
+        // d'identité : AppKit garderait les hauteurs mesurées avant.
+        .onChange(of: presentation) { _, _ in
+            scroller.remeasureRows(
+                at: JournalRowLayout.tableRows(forDays: IndexSet(days.indices), in: days)
             )
         }
         // A selection that is not the one we wrote came from somewhere else —
@@ -233,8 +242,10 @@ struct JournalListView: View {
                 // tile is the row's anchor, as the round badge is in the
                 // activity list.
                 .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
-            Spacer(minLength: 8)
-            side(day)
+            if presentation == .complete {
+                Spacer(minLength: 8)
+                side(day)
+            }
         }
         .frame(minHeight: 50, alignment: .top)
         .padding(.vertical, 8)
