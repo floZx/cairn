@@ -198,7 +198,12 @@ struct ActivityListView: View {
         // otherwise pay for automatic row heights. See the probe's own note.
         // Keyed on the presentation: switching builds a different table, and a
         // probe that ran once would go on holding the destroyed one.
-        .background(TableBridge(scroller: scroller).id(style))
+        //
+        // Le tableau seul fait épingler ses lignes. Les fiches tiennent leur
+        // hauteur de `defaultMinListRowHeight`, et depuis les en-têtes de mois
+        // la ligne 0 qu'`apply` mesure est un en-tête : épinglées à sa
+        // hauteur, les fiches se chevauchaient toutes.
+        .background(TableBridge(pinsRowHeight: style == .table, scroller: scroller).id(style))
         // Clicking the selected row again clears it — the detail pane closes
         // and the list gets the width back, without reaching for ⌥⌘I.
         .background(DeselectOnRepeatClick {
