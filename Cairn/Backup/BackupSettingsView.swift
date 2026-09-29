@@ -37,7 +37,10 @@ final class BackupController {
 }
 
 struct BackupSettingsView: View {
-    @State private var controller = BackupController()
+    /// The application's one controller, the one the launch backup runs on.
+    /// A copy of its own here saw neither that run nor its date, and its
+    /// button could start a second copy beside it.
+    @Environment(BackupController.self) private var controller
 
     var body: some View {
         Form {

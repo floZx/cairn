@@ -203,6 +203,7 @@ struct CairnApp: App {
         Settings {
             SettingsScene()
                 .environment(app)
+                .environment(backup)
                 .modelContainer(container)
         }
     }
