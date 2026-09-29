@@ -125,7 +125,7 @@ struct PersonPopoverCard: View {
 /// laquelle. Voir `ouvrirDansPeople` juste en dessous pour le pourquoi de
 /// l'environnement.
 extension EnvironmentValues {
-    @Entry var ouvrirLaCitation: (PeopleIndex.Citation) -> Void = { _ in }
+    @Entry var ouvrirLaCitation = NavigationAction<PeopleIndex.Citation> { _ in }
 }
 
 /// Aller à la fiche complète, depuis n'importe quelle note.
@@ -137,5 +137,20 @@ extension EnvironmentValues {
 /// Sans rien par défaut : hors de l'application montée — aperçus, essais — il
 /// n'y a nulle part où aller.
 extension EnvironmentValues {
-    @Entry var ouvrirDansPeople: (String) -> Void = { _ in }
+    @Entry var ouvrirDansPeople = NavigationAction<String> { _ in }
+}
+
+/// A navigation a note asks `RootView` for, the way `OpenURLAction` asks the
+/// system.
+///
+/// Equal to every other by design: it only forwards to `RootView`, which reads
+/// its own state when called, so a fresh closure is never a new behaviour. A
+/// bare closure in the environment cannot be compared, and SwiftUI would
+/// invalidate every view reading it on each update of the root view.
+struct NavigationAction<Target>: Equatable {
+    let perform: (Target) -> Void
+
+    func callAsFunction(_ target: Target) { perform(target) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
 }

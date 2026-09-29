@@ -111,8 +111,11 @@ final class CatalogUpdater {
                 // covers interrupted downloads): reuse it instead of paying
                 // the gigabyte again. A finished build deletes it either way.
                 if !FileManager.default.fileExists(atPath: cache.path) {
+                    // Weak at this level too: the progress closure outlives
+                    // nothing, but a strong `self` here would make the inner
+                    // `[weak self]` meaningless.
                     try await download(CatalogBuilder.catalogURL, cache) {
-                        bytes, total in
+                        [weak self] bytes, total in
                         Task { @MainActor [weak self] in
                             guard self?.isRunning == true else { return }
                             self?.phase = .downloading(
@@ -139,16 +142,19 @@ final class CatalogUpdater {
                 // A task group rather than Task.detached: detached tasks do
                 // NOT inherit cancellation, and « Annuler » must reach the
                 // builder's Task.checkCancellation().
+                // Built here, where `self` is captured weakly once: inside
+                // `addTask` it would already be held strongly by that closure.
+                let reportKept: @Sendable (Int) -> Void = { [weak self] kept in
+                    Task { @MainActor [weak self] in
+                        guard self?.isRunning == true else { return }
+                        self?.phase = .building(kept: kept)
+                    }
+                }
                 let count = try await withThrowingTaskGroup(of: Int.self) { group in
                     group.addTask(priority: .utility) {
                         try buildCatalog(
                             cache.path, dbPath, String(importedAt)
-                        ) { _, kept in
-                            Task { @MainActor [weak self] in
-                                guard self?.isRunning == true else { return }
-                                self?.phase = .building(kept: kept)
-                            }
-                        }
+                        ) { _, kept in reportKept(kept) }
                     }
                     guard let result = try await group.next() else {
                         throw CancellationError()

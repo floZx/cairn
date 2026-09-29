@@ -961,12 +961,12 @@ struct RootView: View {
         // Sur les deux colonnes et non sur celle du milieu : une note du
         // journal se lit dans le volet de droite, et l'action y arrivait vide —
         // « Voir sa fiche » ne faisait rien. Signalé.
-        .environment(\.ouvrirDansPeople, { cle in
+        .environment(\.ouvrirDansPeople, NavigationAction { cle in
             selectedPerson = cle
             vueJournal = .gens
             allerA(.journal)
         })
-        .environment(\.ouvrirLaCitation, { citation in ouvrirLaSource(citation) })
+        .environment(\.ouvrirLaCitation, NavigationAction { citation in ouvrirLaSource(citation) })
         // Arriving at the statistics gives the whole width to the charts: the
         // activity left selected in the list has nothing to do with the
         // figures now on screen, and its pane was simply in the way. Clicking

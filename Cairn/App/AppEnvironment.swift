@@ -506,13 +506,20 @@ final class AppEnvironment {
         Task { _ = await task.value }
     }
 
-    func loadDetail(stravaID: Int64) {
-        Task { [engine] in
-            try? await engine.fetchDetailIfNeeded(stravaID: stravaID)
-            // Separately, and after: a failure to fetch the detail must not cost
-            // the charts, and neither is worth surfacing as an error — the pane
-            // says what is missing on its own.
-            try? await engine.fetchStreamsIfNeeded(stravaID: stravaID)
+    /// Run by the pane's own task, not detached from it: opening the next
+    /// outing cancels this one, and a request not yet sent never leaves.
+    /// Detached, `j` held down in the list queued a Strava request for every
+    /// outing it went past, each one spending quota on a pane already gone.
+    func loadDetail(stravaID: Int64) async {
+        await Log.sync.attempt("détail de la sortie \(stravaID)") { [engine] in
+            try await engine.fetchDetailIfNeeded(stravaID: stravaID)
+        }
+        guard !Task.isCancelled else { return }
+        // Separately, and after: a failure to fetch the detail must not cost
+        // the charts, and neither is worth surfacing as an error — the pane
+        // says what is missing on its own.
+        await Log.sync.attempt("courbes de la sortie \(stravaID)") { [engine] in
+            try await engine.fetchStreamsIfNeeded(stravaID: stravaID)
         }
     }
 

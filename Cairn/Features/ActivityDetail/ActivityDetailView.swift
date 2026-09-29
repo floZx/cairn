@@ -216,7 +216,11 @@ struct ActivityDetailView: View {
             await app.garminSync.checkIfNeeded(uuid: activity.uuid, source: garminSource)
         }
         .task(id: activity.stravaID) {
-            app.loadDetail(stravaID: activity.stravaID)
+            // A beat first, like the Garmin check above: an outing only
+            // passed through with `j` is left before anything is asked.
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            await app.loadDetail(stravaID: activity.stravaID)
         }
         // Les zones de la sortie ouverte, tout de suite plutôt qu'au tour du
         // remplissage en fond. Après un temps, comme la vérification Garmin :

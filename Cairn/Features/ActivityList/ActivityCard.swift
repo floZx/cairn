@@ -143,7 +143,7 @@ struct ActivityCard: View {
     /// Le jour de la sortie dans son propre fuseau.
     private var localDay: DateKey {
         var calendar = Calendar.current
-        calendar.timeZone = activity.timeZone ?? .current
+        calendar.timeZone = activity.timeZone
         return DateKey(activity.startDate, calendar: calendar)
     }
 
