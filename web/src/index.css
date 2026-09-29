@@ -903,6 +903,14 @@ input, button { font: inherit; }
    voile, flou mais visible, le faisait paraître posé trop bas — signalé,
    capture à l'appui. Sans filet non plus : barre et mois ne font qu'un bloc.
    Rien de lisible n'y est posé, la bande qu'iOS 27 floute reste vide. */
+/* Et elle descend jusqu'à lui. Sans bouton, la barre ne mesure que
+   l'encoche plus ses 10 px de marges, quand le mois se colle à l'encoche plus
+   34 : sur l'iPhone, 24 px d'écart où le texte passait, flou — mesuré. Sans
+   encoche, sur un bureau, les deux valaient 34 et rien ne se voyait. */
+.dans-le-journal .barre-nav {
+  min-height: calc(env(safe-area-inset-top) + 34px);
+}
+
 .dans-le-journal .barre-nav.repliee {
   background: var(--fond);
   -webkit-backdrop-filter: blur(0) saturate(100%) brightness(1);
