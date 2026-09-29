@@ -20,7 +20,11 @@ struct ActivityCard: View {
 
     /// Three lines of text, where there were two at 42. Fixed so nothing has
     /// to be measured — see the type's own note.
-    static let height: CGFloat = 52
+    ///
+    /// 56 depuis que les fiches ont pris l'échelle du journal : le nom en
+    /// 13 pt, les deux lignes du dessous en 11 — elles étaient en 11 et 10,
+    /// et la liste se lisait moins bien que celle du journal à côté.
+    static let height: CGFloat = 56
     /// The insets the list wraps each card in — ours, not the `List` default,
     /// so the full row height is a constant the row-height probe can be told
     /// instead of having to measure (and mis-measure — see the probe).
@@ -37,7 +41,9 @@ struct ActivityCard: View {
     private var inner: CGFloat { 28 }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        // Avec la tuile de date, l'écart de la ligne du journal : les deux
+        // listes posent le même jour au même endroit.
+        HStack(alignment: .top, spacing: thumbnailStyle.showsDateTile ? 12 : 10) {
             switch thumbnailStyle {
             case .trace:
                 thumbnail
@@ -77,11 +83,11 @@ struct ActivityCard: View {
                         // own colour, before the name.
                         if thumbnailStyle == .none {
                             Image(systemName: activity.sportType.symbolName)
-                                .font(.caption)
+                                .font(.subheadline)
                                 .foregroundStyle(.primary)
                         }
                         Text(activity.name)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.body.weight(.medium))
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
@@ -91,7 +97,7 @@ struct ActivityCard: View {
                     // Rien ici avec la tuile de date : le jour et l'heure y sont.
                     if !thumbnailStyle.showsDateTile {
                         Text(Format.relativeDate(activity.startDate, in: activity.timeZone))
-                            .font(.caption)
+                            .font(.subheadline)
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -102,7 +108,7 @@ struct ActivityCard: View {
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(figures.joined(separator: " · "))
-                        .font(.caption.monospacedDigit())
+                        .font(.subheadline.monospacedDigit())
                         .lineLimit(1)
                     Spacer(minLength: 0)
                     if !thumbnailStyle.showsDateTile { markers }
@@ -113,8 +119,8 @@ struct ActivityCard: View {
                 // height is fixed anyway, and a blank line reads as "nothing
                 // written", which is true.
                 Text(preview ?? " ")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 

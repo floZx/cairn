@@ -249,6 +249,11 @@ struct JournalListView: View {
         }
         .frame(minHeight: 50, alignment: .top)
         .padding(.vertical, 8)
+        // Les marges des fiches d'activités, mesurées sur capture : sans elles
+        // la tuile tombait seize points plus à gauche que dans l'autre liste,
+        // et le texte courait jusqu'au bord du surlignage.
+        .padding(.leading, ActivityCard.rowInsets.leading)
+        .padding(.trailing, ActivityCard.rowInsets.trailing)
     }
 
     /// One paragraph, three lines at most: the first sentence in the text's
