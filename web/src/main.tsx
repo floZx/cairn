@@ -7,9 +7,13 @@ import "./index.css"
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Les données changent quand le Mac pousse, pas pendant qu'on lit :
-      // refetcher à chaque retour d'onglet ne ferait que dépenser de l'egress.
-      refetchOnWindowFocus: false,
+      // Relues au retour dans l'application, et seulement celles de l'écran
+      // affiché, vieilles de plus d'une minute (`staleTime`). Coupé au départ
+      // pour l'egress, ce retour laissait l'iPhone sur la note d'avant : une
+      // PWA reste en mémoire, et revenir sur le journal déjà ouvert ne
+      // relisait rien — la note écrite sur le Mac n'arrivait qu'en changeant
+      // d'onglet. Signalé le 29 septembre 2026.
+      refetchOnWindowFocus: true,
       staleTime: 60_000,
       // Gardées toute la session, et non cinq minutes : au-delà, revenir sur
       // la liste après un passage sur la carte la faisait repasser par la
