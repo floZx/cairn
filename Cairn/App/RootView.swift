@@ -1062,8 +1062,14 @@ struct RootView: View {
         case .expandMap:
             if let selected { expandedMap = .activity(selected.id) }
         case .closePane:
-            // Not in cards: they keep a selection (`keptSelection`).
-            if listStyle != .cards { selectedActivities = [] }
+            if showsStatistics || showsTraining {
+                // Le volet s'y ouvre par le drapeau, pas par la sélection :
+                // c'est lui qu'on baisse — voir `sortieOuverteDepuisLEcran`.
+                sortieOuverteDepuisLEcran = false
+            } else if listStyle != .cards {
+                // Not in cards: they keep a selection (`keptSelection`).
+                selectedActivities = []
+            }
         case .toggleListStyle:
             listStyle = listStyle.toggled
         case .openJournalDay:
@@ -1698,6 +1704,11 @@ struct RootView: View {
                     } else if showsJournal {
                         // Le volet du journal reste ouvert : le bouton y est
                         // grisé, et rien ne se fait si ⌥⌘I passe quand même.
+                    } else if showsStatistics || showsTraining {
+                        // Vider la sélection ne fermait rien ici : le volet
+                        // suit le drapeau, et la sélection appartient à la
+                        // liste d'activités — voir `sortieOuverteDepuisLEcran`.
+                        sortieOuverteDepuisLEcran = false
                     } else {
                         selectedActivities = []
                     }
@@ -1718,7 +1729,9 @@ struct RootView: View {
                         // ouvert, sur une journée ou sur quelqu'un.
                         || showsJournal
                         || showsPeople
+                        || ((showsStatistics || showsTraining) && !sortieOuverteDepuisLEcran)
                         || (!showsNutrition && !showsJournal && !showsPeople
+                            && !showsStatistics && !showsTraining
                             && (selection.isEmpty || listStyle == .cards))
                 )
                 .help(

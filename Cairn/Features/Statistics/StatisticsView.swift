@@ -53,7 +53,9 @@ struct StatisticsView: View {
         let regularity = Regularity.compute(
             activities, daily: daily, periodStart: stats.periodStart ?? Date()
         )
-        PaneScrollView(resetKey: "statistiques", request: scrollRequest) {
+        PaneScrollView(
+            resetKey: "statistiques", request: scrollRequest, scrollsSidewaysWhenNarrow: true
+        ) {
             VStack(alignment: .leading, spacing: 16) {
                 periodPicker
                 if stats.count == 0 {

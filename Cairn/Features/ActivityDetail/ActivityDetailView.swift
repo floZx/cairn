@@ -916,6 +916,10 @@ struct PaneScrollView<Content: View>: View {
     /// was left.
     let resetKey: AnyHashable
     let request: PaneScrollRequest
+    /// Trop étroite pour son contenu, la page défile aussi de côté au lieu
+    /// d'être rognée des deux bords. Les statistiques, serrées par le volet
+    /// d'une sortie ouverte depuis un record, devenaient illisibles.
+    var scrollsSidewaysWhenNarrow = false
     @ViewBuilder let content: Content
 
     @State private var position = ScrollPosition()
@@ -923,6 +927,7 @@ struct PaneScrollView<Content: View>: View {
     /// so writing it redraws nothing.
     @State private var geometry = GeometryBox()
     @State private var scroller = PaneScroller()
+    @State private var containerWidth: CGFloat = 0
 
     @MainActor
     final class GeometryBox {
@@ -930,10 +935,20 @@ struct PaneScrollView<Content: View>: View {
     }
 
     var body: some View {
-        ScrollView {
-            content
+        ScrollView(scrollsSidewaysWhenNarrow ? [.vertical, .horizontal] : .vertical) {
+            if scrollsSidewaysWhenNarrow {
+                AtLeastItsNarrowest(width: containerWidth) { content }
+            } else {
+                content
+            }
         }
         .scrollPosition($position)
+        // De côté seulement s'il y a de quoi : une page qui tient dans sa
+        // largeur n'a pas à rebondir sous le trackpad.
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.width } action: { _, new in
+            containerWidth = new
+        }
         // In the coordinates `scrollTo(y:)` takes, which start below the
         // toolbar: the content offset starts above it, 51 pt higher. Handed
         // the raw offset, `J` began every press by jumping back those 51 pt
@@ -941,6 +956,7 @@ struct PaneScrollView<Content: View>: View {
         .onScrollGeometryChange(for: PaneScrollGeometry.self) { g in
             PaneScrollGeometry(
                 offset: g.contentOffset.y + g.contentInsets.top,
+                sideways: g.contentOffset.x + g.contentInsets.leading,
                 maximum: max(
                     0,
                     g.contentSize.height + g.contentInsets.top + g.contentInsets.bottom
@@ -958,7 +974,11 @@ struct PaneScrollView<Content: View>: View {
                     direction: direction,
                     from: geometry.value.offset,
                     maximum: geometry.value.maximum
-                ) { y in position.scrollTo(y: y) }
+                ) { [geometry] y in
+                    // Le point entier : la page peut avoir défilé de côté, et
+                    // `j` n'a pas à la ramener au bord gauche.
+                    position.scrollTo(point: CGPoint(x: geometry.value.sideways, y: y))
+                }
             }
         }
         .onChange(of: resetKey) { _, _ in
@@ -972,6 +992,38 @@ struct PaneScrollView<Content: View>: View {
 /// Où en est le défilement du volet, et jusqu'où il peut aller.
 struct PaneScrollGeometry: Equatable {
     var offset: CGFloat = 0
+    var sideways: CGFloat = 0
     var maximum: CGFloat = 0
 }
 
+
+/// Propose à son contenu la largeur de la page, ou la plus étroite qu'il
+/// puisse tenir si la page est plus étroite encore.
+///
+/// Dans une vue qui défile de côté, la largeur proposée est libre, et chaque
+/// texte s'y étalerait sur une seule ligne. Mesurée plutôt que fixée : la plus
+/// petite largeur est celle que le contenu rend à une proposition nulle — ses
+/// textes repliés au mot, ses rangées de chiffres côte à côte — et elle suit
+/// ce que les cartes deviennent.
+private struct AtLeastItsNarrowest: Layout {
+    let width: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let subview = subviews.first else { return .zero }
+        return subview.sizeThatFits(ProposedViewSize(width: resolvedWidth(subview), height: nil))
+    }
+
+    func placeSubviews(
+        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+    ) {
+        guard let subview = subviews.first else { return }
+        subview.place(
+            at: bounds.origin, anchor: .topLeading,
+            proposal: ProposedViewSize(width: resolvedWidth(subview), height: nil)
+        )
+    }
+
+    private func resolvedWidth(_ subview: LayoutSubview) -> CGFloat {
+        max(width, subview.sizeThatFits(ProposedViewSize(width: 0, height: nil)).width)
+    }
+}
