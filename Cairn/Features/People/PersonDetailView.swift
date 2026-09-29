@@ -59,6 +59,10 @@ struct PersonDetailView: View {
     @State private var note = ""
     @State private var charge = false
     @State private var noteFocus = false
+    /// La note se lit rendue et s'écrit au clic, comme celle d'une sortie :
+    /// un champ toujours ouvert en tête de page se lisait comme un formulaire,
+    /// et son Markdown restait brut.
+    @State private var enEdition = false
 
     private var fiche: Person? { people.first { $0.key == cle } }
 
@@ -66,7 +70,8 @@ struct PersonDetailView: View {
         guard let handle else { return AnyView(EmptyView()) }
         return AnyView(
             contenu(handle)
-                .onChange(of: focusRequest) { _, _ in noteFocus = true }
+                // Entrée ou `e` depuis la liste : droit dans l'éditeur.
+                .onChange(of: focusRequest) { _, _ in commencerLaNote() }
         )
     }
 
@@ -89,26 +94,18 @@ struct PersonDetailView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Note")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    CompletingNoteEditor(
-                        texte: $note,
-                        taille: 14,
-                        focus: $noteFocus
-                    )
-                        .frame(minHeight: 110)
-                        .padding(2)
-                        .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
-                        .overlay(alignment: .topLeading) {
-                            if note.isEmpty {
-                                Text("Ce qu'il y a à retenir de cette personne…")
-                                    .foregroundStyle(.tertiary)
-                                    .padding(.horizontal, 11)
-                                    .padding(.vertical, 14)
-                                    .allowsHitTesting(false)
-                            }
+                    HStack {
+                        Text("Note")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if enEdition {
+                            Text("Échap pour terminer")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
+                    }
+                    noteDeLaPersonne
                 }
 
                 if citations.isEmpty {
@@ -138,6 +135,7 @@ struct PersonDetailView: View {
             charge = true
         }
         .onChange(of: cle) { _, _ in
+            enEdition = false
             charge = false
             note = fiche?.note ?? ""
             charge = true
@@ -149,6 +147,65 @@ struct PersonDetailView: View {
             guard charge else { return }
             enregistrer(nouvelle)
         }
+    }
+
+    /// La note rendue, l'éditeur, ou l'invitation à écrire — les trois états
+    /// de celle d'une sortie, sur la même surface.
+    @ViewBuilder
+    private var noteDeLaPersonne: some View {
+        let ecrite = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if enEdition {
+            CompletingNoteEditor(
+                texte: $note,
+                taille: 14,
+                focus: $noteFocus,
+                onEchappement: { enEdition = false }
+            )
+                .frame(minHeight: 110)
+                .padding(2)
+                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+                // Quitter le champ referme l'éditeur : la note est déjà
+                // enregistrée au fil de la frappe.
+                .onChange(of: noteFocus) { _, focus in
+                    if !focus { enEdition = false }
+                }
+        } else if ecrite.isEmpty {
+            Button(action: commencerLaNote) {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.and.pencil")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Écrire une note")
+                        Text("Ce qu'il y a à retenir de cette personne.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+        } else {
+            // Pas de `textSelection`, pour la raison de la note d'une sortie :
+            // un texte sélectionnable prend le clic pour lui, et seul le vide
+            // à côté des mots ouvrait l'éditeur.
+            MarkdownText(
+                markdown: note, baseSize: 14, hidesTagHashes: true,
+                attachmentsBase: attachmentsBase
+            )
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+            .contentShape(.rect)
+            .onTapGesture(perform: commencerLaNote)
+        }
+    }
+
+    private func commencerLaNote() {
+        enEdition = true
+        noteFocus = true
     }
 
     private func citationView(_ citation: PeopleIndex.Citation) -> some View {
