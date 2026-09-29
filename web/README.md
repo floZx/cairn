@@ -30,7 +30,7 @@ téléphone.
 Elle est **publique par construction** : elle finit dans le JavaScript de la
 page, lisible par quiconque ouvre les outils de développement. Ce n'est pas
 une fuite, c'est ainsi que Supabase est pensé. Ce qui protège les données,
-c'est exclusivement **Row Level Security**, activée sur chacune des dix-huit
+c'est exclusivement **Row Level Security**, activée sur chacune des vingt-trois
 tables : une requête ne rend que les lignes dont `user_id` vaut `auth.uid()`,
 quelle que soit la clé utilisée.
 
@@ -46,10 +46,11 @@ La clé `service_role`, elle, contourne RLS. Elle n'a rien à faire ici.
 - **TanStack Query** — le cache de requêtes. Pas de refetch au retour d'onglet :
   les données ne changent que quand le Mac pousse, et l'egress du palier
   gratuit se dépense vite.
-- **MapLibre GL JS** (à venir) — vectoriel, et il consomme les fonds tiers que
-  l'application macOS gère déjà.
-- **uPlot** (à venir) — sur des traces de plusieurs milliers de points, les
-  bibliothèques à base de SVG s'effondrent.
+- **MapLibre GL JS** — vectoriel, et il consomme les fonds tiers que
+  l'application macOS gère déjà. Chargé à la demande, hors du paquet initial.
+- **Pas de bibliothèque de graphiques** — les courbes d'une sortie sont trois
+  tracés SVG à une seule série, dessinés à la main (`Courbes.tsx`) : le moindre
+  paquet du genre pèserait plus que tout le reste de l'application.
 
 ## Mise en ligne
 

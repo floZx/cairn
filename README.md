@@ -7,10 +7,6 @@ côtés de la saisie manuelle.
 Le journal s'est élargi au-delà du sport : il tient aussi l'**alimentation** et
 le **poids**, pour que tout le suivi se lise au même endroit.
 
-## Captures
-
-<!-- Les images arrivent dans docs/screenshots/ ; voir « Jeu de démonstration ». -->
-
 ## Prérequis
 
 - macOS 15 ou plus récent
@@ -30,7 +26,7 @@ Le projet Xcode est généré à partir de `project.yml` et n'est pas versionné
 En ligne de commande, la sortie va dans `build/` :
 
 ```bash
-xcodebuild build -project Cairn.xcodeproj -scheme Cairn -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+xcodebuild build -project Cairn.xcodeproj -scheme Cairn -configuration Release -destination 'platform=macOS,arch=arm64' -derivedDataPath build
 ```
 
 ```bash
@@ -65,15 +61,11 @@ Aucun test ne doit laisser de fichier dans `~/Library/Preferences` ni dans le
 dossier de cache de l'application ; les deux se vérifient en les comptant avant
 et après une exécution complète.
 
-L'application construite est alors à `build/Build/Products/Debug/Cairn.app`.
+L'application construite est alors à `build/Build/Products/Release/Cairn.app`.
 Ce `-derivedDataPath` n'est pas cosmétique : sans lui, Xcode écrit dans son
 `DerivedData` global et deux bundles portant le même identifiant coexistent à
 deux chemins. LaunchServices s'y perd et le Dock finit par afficher une icône
 générique, alors que l'icône est bien dans les deux bundles.
-
-Vérifier une reconstruction se fait sur `Cairn.debug.dylib`, pas sur
-l'exécutable `Cairn` : ce dernier n'est qu'une amorce de 59 ko dont
-l'horodatage ne bouge pas toujours.
 
 ## Jeu de démonstration
 
@@ -81,7 +73,7 @@ Pour essayer l'application, ou produire des captures, sans compte Strava et sans
 exposer de données réelles :
 
 ```bash
-STRAVALOCAL_DEMO=1 build/Build/Products/Debug/Cairn.app/Contents/MacOS/Cairn
+STRAVALOCAL_DEMO=1 build/Build/Products/Release/Cairn.app/Contents/MacOS/Cairn
 ```
 
 Dix-huit mois d'entraînement inventés apparaissent : trail, course, vélo,
@@ -128,6 +120,23 @@ La synchronisation se déroule en deux temps :
    où il s'est arrêté.
 
 Les synchronisations suivantes sont incrémentales.
+
+## Garmin Connect
+
+Un compte Garmin se lie dans l'onglet Garmin des réglages (code de vérification
+compris, si le compte en demande un). Il sert à deux choses :
+
+- **reporter une correction** — titre, type, description et matériel d'une
+  activité — sur Garmin Connect ;
+- **rapatrier les zones** de fréquence cardiaque et de puissance de chaque
+  sortie, telles que la montre les a comptées. Au lancement, Cairn compare aussi
+  les zones de FC de Strava à celles de la sortie Garmin la plus récente, et
+  prévient quand Strava n'est plus à jour : son API ne permet pas de les
+  corriger à sa place.
+
+Garmin n'a pas d'API ouverte aux particuliers : Cairn passe par celle de son
+application mobile, qui peut changer sans prévenir. Le mot de passe n'est pas
+conservé, seule la session l'est, dans le trousseau.
 
 ## Le journal est la référence
 
@@ -189,10 +198,12 @@ au-delà des autres. Les réglages, section « Activités écartées » de l'ong
 Synchronisation — c'est exactement ce dont cet onglet parle —, les listent et
 permettent de les réintégrer.
 
-Rien n'est jamais écrit chez Strava. L'API le permettrait — `PUT /activities/{id}`
-accepte le nom, la description, le sport et le matériel — mais c'est un choix :
-aucune autorisation d'écriture n'est demandée, aucun quota n'est consommé, et une
-panne de leur côté ne peut pas abîmer votre journal.
+Chez Strava, Cairn n'écrit que deux choses : un **titre** et un **matériel**
+corrigés dans l'éditeur, reportés automatiquement — d'où l'autorisation
+`activity:write` demandée à la connexion. La note, elle, ne part jamais : elle
+porte la note privée de Strava fusionnée, et l'envoyer la rendrait publique. Un
+envoi qui échoue ne défait pas la modification : Cairn la garde, et le volet de
+l'activité dit quel service montre encore l'ancienne valeur.
 
 ## Parcours similaires
 
@@ -214,8 +225,10 @@ symétrique, c'est bien le même parcours.
 
 ## Statistiques
 
-La vue Statistiques donne les cumuls, un histogramme du volume, une ventilation
-par sport et les records.
+La vue Statistiques donne les cumuls, la forme et la charge d'entraînement, la
+régularité, l'intensité, la progression par sport, un histogramme du volume
+(en distance, dénivelé ou temps), la semaine en cours, une ventilation par sport
+et les records.
 
 La période — 3 mois, 6 mois, 12 mois ou année en cours — se règle **dans la vue
 elle-même**, et non par le filtre « Période » de la barre latérale. Ce n'est pas
@@ -234,10 +247,12 @@ barres mensuelles ne forment pas un graphique, et cinquante-deux barres
 hebdomadaires forment un peigne dont l'axe n'est plus étiquetable. Les semaines
 commencent le lundi, sans quoi chaque week-end serait coupé en deux.
 
-Un choix de fond : aucune distance totale n'est affichée globalement. Additionner
-une natation, une sortie en vélo électrique et un trail donne un nombre qui
-n'informe sur rien. Seuls le nombre d'activités, le temps et le dénivelé sont
-cumulés globalement ; la distance se lit par sport.
+Un choix de fond : les cumuls en tête de page ne donnent pas de distance totale.
+Additionner une natation, une sortie en vélo électrique et un trail donne un
+nombre qui n'informe sur rien. Seuls le nombre d'activités, le temps et le
+dénivelé y sont cumulés ; la distance se lit par sport. Pour la voir tous sports
+confondus, l'histogramme du volume a une mesure « Distance » — à filtrer par
+sport dans la barre latérale pour qu'elle dise quelque chose.
 
 ## Journal
 
@@ -259,13 +274,10 @@ protégées. La compatibilité Obsidian survit à sa manière : chaque sauvegard
 en ressort un dossier Markdown, du même format qu'avant, qui s'ouvre comme un
 coffre — voir « Sauvegarde ».
 
-**Ce qui est perdu : Obsidian, donc le téléphone.** Écrire dans le dossier
-depuis Obsidian — sur le Mac ou sur le téléphone — écrivait directement dans
-ce que Cairn lisait, et c'était la seule façon de noter une sortie depuis la
-poche en marchant vers la voiture. Une note d'aujourd'hui ne s'écrit plus que
-depuis le Mac, au clavier de Cairn, jusqu'à ce qu'une application web reprenne
-la saisie mobile. Rien ne la remplace pour l'instant, et ce n'est pas la peine
-de le maquiller.
+**Ce qui est perdu : Obsidian.** Écrire dans le dossier depuis Obsidian — sur
+le Mac ou sur le téléphone — écrivait directement dans ce que Cairn lisait. Le
+téléphone, lui, est revenu par l'application web (voir « Miroir en ligne ») :
+une note du jour s'y écrit, et le Mac la relit.
 
 Le nombre de notes reste visible dans les réglages ; ce n'est plus la preuve
 qu'on a montré le bon dossier — il n'y a plus de dossier à montrer — mais celle
@@ -407,8 +419,8 @@ localement, et la question revient après chaque recompilation.
 Il se construit comme le reste, et n'est pas installé pour vous :
 
 ```bash
-xcodebuild build -project Cairn.xcodeproj -scheme cairn-note -destination 'platform=macOS,arch=arm64' -derivedDataPath build
-ln -sf "$PWD/build/Build/Products/Debug/cairn-note" ~/.local/bin/cairn-note
+xcodebuild build -project Cairn.xcodeproj -scheme cairn-note -configuration Release -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+ln -sf "$PWD/build/Build/Products/Release/cairn-note" ~/.local/bin/cairn-note
 ```
 
 ## Alimentation et poids
@@ -442,6 +454,20 @@ dernière pesée.
 
 Un import unique récupère les données d'un carnet `suivinut` existant.
 
+## Plan d'entraînement
+
+Un mois de séances prévues, en grille, chaque case cochée quand une sortie du
+jour y correspond. Le plan se reprend d'un calendrier macOS (une reprise, pas
+une synchronisation : l'agenda n'est jamais réécrit), et une séance peut
+décider du jour-type de l'alimentation.
+
+## Personnes
+
+Une personne citée dans une note — `@prénom` — entre dans la vue Personnes du
+journal, avec la liste des jours où elle apparaît et une note à elle. Rien ne
+s'y ajoute à la main : elle en sort quand plus aucune note ne la nomme, sauf si
+on a écrit quelque chose sur elle.
+
 ## Sauvegarde
 
 L'application écrit une copie de vos données dans **iCloud Drive**, dans un
@@ -470,12 +496,17 @@ Facts n'est pas sauvegardé : il se retélécharge.
 ## Miroir en ligne
 
 Cairn peut tenir une copie de la bibliothèque à jour dans un projet
-[Supabase](https://supabase.com) personnel — la brique sur laquelle une future
-PWA pourra un jour lire ces mêmes données depuis un navigateur. C'est une
-copie, jamais l'original : chaque photo ou trace que le Mac affiche existe
-d'abord dans son propre stockage externe, sur ce disque, et le miroir ne fait
-que la recopier vers Supabase après coup. Rien n'est jamais lu depuis
-Supabase — l'application n'y écrit que dans un seul sens.
+[Supabase](https://supabase.com) personnel, que l'application web (`web/`, voir
+son README) lit depuis un navigateur ou un téléphone. C'est une copie, jamais
+l'original : chaque photo ou trace que le Mac affiche existe d'abord sur ce
+disque, et le miroir ne fait que la recopier vers Supabase après coup.
+
+Le chemin inverse existe pour ce qui s'écrit sur le téléphone : notes du
+journal, repas, pesées, plan d'entraînement, personnes, et la note d'une
+sortie. Le Mac relit ces tables et range chaque modification à sa place. Les
+notes du journal peuvent être **chiffrées de bout en bout** : une phrase de
+passe saisie sur le Mac et sur le téléphone, jamais envoyée, et Supabase ne
+voit que du texte illisible.
 
 Cairn fonctionne intégralement sans lui. Aucun écran, aucune recherche, aucun
 export ne se soucie de savoir si un projet est configuré ; la seule trace
@@ -488,10 +519,10 @@ Le configurer se fait entièrement depuis les réglages, une fois qu'un projet
 existe côté Supabase — la marche à suivre, schéma compris, est détaillée dans
 `supabase/README.md`. L'URL du projet et sa clé anon s'y collent dans un
 premier champ, l'adresse et le mot de passe du compte dans un second, puis
-« Lancer l'amorçage » envoie toute la bibliothèque une première fois ; chaque
-modification locale part ensuite au lancement suivant, ou à la demande avec
-« Pousser les modifications ». L'amorçage reprend là où il s'était arrêté si on
-l'interrompt en cours de route.
+« Lancer l'amorçage » envoie toute la bibliothèque une première fois. Ensuite le
+miroir se synchronise seul — au lancement, en revenant sur Cairn et toutes les
+cinq minutes —, ou à la demande avec « Synchroniser ». L'amorçage reprend là où
+il s'était arrêté si on l'interrompt en cours de route.
 
 « Oublier ce miroir », dans les mêmes réglages, efface le projet et la session
 enregistrés sur ce Mac sans toucher à la moindre donnée locale et sans rien
@@ -520,9 +551,9 @@ fonds, le relief est dessiné dans les tuiles elles-mêmes, courbes de niveau et
 ombrage compris.
 
 Deux fonds topographiques apportent les courbes de niveau et les sentiers, que
-MapKit n'offre sous aucune forme. Ce sont les seuls à contacter un serveur
-extérieur : chaque déplacement de la carte y envoie des requêtes. Leur
-attribution est affichée dès qu'ils sont actifs, comme leurs licences l'exigent.
+MapKit n'offre sous aucune forme. Chaque déplacement de la carte y envoie des
+requêtes. Leur attribution est affichée dès qu'ils sont actifs, comme leurs
+licences l'exigent.
 
 - **Topographique IGN** — [Plan IGN v2](https://geoservices.ign.fr) via la
   Géoplateforme, accessible sans clé, zoom jusqu'à 19. Le meilleur rendu en
@@ -668,6 +699,20 @@ retour à la ligne.
 | ⌘R | synchroniser |
 | ⇧⌘R | importer seulement les résumés |
 | `/` | aller au champ de recherche |
+
+## Ce qui sort du Mac
+
+Rien, tant qu'aucun service n'est configuré, sinon :
+
+- **Strava** et **Garmin Connect** : la synchronisation, et les corrections
+  décrites plus haut ;
+- **Open-Meteo** : la météo d'une sortie, à partir du lieu et de l'heure de
+  départ seulement — gratuit, sans clé ni compte ;
+- **les fonds topographiques** (IGN, OpenTopoMap) : les tuiles de la zone
+  affichée ;
+- **Open Food Facts** : le catalogue d'aliments ;
+- **Supabase** : le miroir, si on en a configuré un ;
+- **iCloud Drive** : la sauvegarde.
 
 ## Emplacement des données
 
