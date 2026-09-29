@@ -541,8 +541,12 @@ actor SyncEngine {
             // Detail first: it carries the photo summary the fallback needs, so
             // this order saves a request whenever the undocumented endpoint is
             // unavailable.
-            try? await fetchDetailIfNeeded(stravaID: stravaID)
-            try? await fetchStreamsIfNeeded(stravaID: stravaID)
+            await Log.sync.attempt("détail de la sortie \(stravaID)") {
+                try await fetchDetailIfNeeded(stravaID: stravaID)
+            }
+            await Log.sync.attempt("courbes de la sortie \(stravaID)") {
+                try await fetchStreamsIfNeeded(stravaID: stravaID)
+            }
         }
     }
 

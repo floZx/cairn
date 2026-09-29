@@ -77,7 +77,7 @@ struct PlannedSessionSheet: View {
                 if let session {
                     Button("Supprimer", role: .destructive) {
                         context.delete(session)
-                        try? context.save()
+                        Log.training.attempt("suppression d'une séance") { try context.save() }
                         dismiss()
                     }
                 }
@@ -147,8 +147,10 @@ struct PlannedSessionSheet: View {
         // Le budget calorique suit le plan, sans second geste — mais jamais
         // par-dessus un type déjà choisi pour ce jour-là. Voir
         // `TrainingNutrition.appliquer`.
-        try? TrainingNutrition.appliquer(cible, dans: context)
-        try? context.save()
+        Log.training.attempt("jour-type d'une séance") {
+            try TrainingNutrition.appliquer(cible, dans: context)
+        }
+        Log.training.attempt("enregistrement d'une séance") { try context.save() }
         dismiss()
     }
 }

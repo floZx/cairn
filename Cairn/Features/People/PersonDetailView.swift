@@ -175,6 +175,6 @@ struct PersonDetailView: View {
         } else if !propre.isEmpty, let handle {
             context.insert(Person(handle: handle, note: texte))
         }
-        try? context.save()
+        Log.journal.attempt("note d'une personne") { try context.save() }
     }
 }

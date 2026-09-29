@@ -213,14 +213,16 @@ struct TrainingView: View {
     private func poser(_ type: DayType?, sur jour: DateKey) {
         for seance in sessions where seance.dateKeyRaw == jour.raw {
             seance.dayType = type
-            try? TrainingNutrition.appliquer(seance, dans: context)
+            Log.training.attempt("jour-type d'une séance") {
+                try TrainingNutrition.appliquer(seance, dans: context)
+            }
         }
-        try? context.save()
+        Log.training.attempt("jour-type d'une journée") { try context.save() }
     }
 
     private func supprimer(_ seance: PlannedSession) {
         context.delete(seance)
-        try? context.save()
+        Log.training.attempt("suppression d'une séance") { try context.save() }
     }
 
     private func reculer() { shownMonth = shownMonth.monthStart.advanced(by: -1).monthStart }

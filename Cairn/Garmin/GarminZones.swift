@@ -85,9 +85,11 @@ final class GarminZonesFetcher {
         defer { inFlight.remove(activity.uuid) }
         let source = GarminSource(activity)
         let day: TimeInterval = 24 * 3600
-        guard let candidates = try? await client.activities(
-            from: source.start.addingTimeInterval(-day), to: source.start.addingTimeInterval(day)
-        ) else { return }
+        guard let candidates = await Log.garmin.attempt("sorties Garmin autour de \(activity.uuid)", {
+            try await client.activities(
+                from: source.start.addingTimeInterval(-day), to: source.start.addingTimeInterval(day)
+            )
+        }) else { return }
         await apply(to: activity, candidates: candidates, in: context)
     }
 
@@ -111,9 +113,11 @@ final class GarminZonesFetcher {
     /// fois fait.
     static func clearImportedZones(in context: ModelContext) {
         let limite = firstWatchDay
-        guard let anciennes = try? context.fetch(FetchDescriptor<Activity>(
-            predicate: #Predicate { $0.startDate < limite }
-        )) else { return }
+        guard let anciennes = Log.garmin.attempt("sorties d'avant la montre", {
+            try context.fetch(FetchDescriptor<Activity>(
+                predicate: #Predicate { $0.startDate < limite }
+            ))
+        }) else { return }
         var changed = false
         for activity in anciennes where activity.hrZoneFloors != nil || activity.powerZoneFloors != nil {
             activity.hrZoneFloors = nil
@@ -122,16 +126,18 @@ final class GarminZonesFetcher {
             activity.powerZoneSeconds = nil
             changed = true
         }
-        if changed { try? context.save() }
+        if changed { Log.garmin.attempt("zones importées effacées") { try context.save() } }
     }
 
     private func backfill(container: ModelContainer) async {
         let context = ModelContext(container)
         Self.clearImportedZones(in: context)
         let now = Date()
-        guard let all = try? context.fetch(
-            FetchDescriptor<Activity>(sortBy: [SortDescriptor(\.startDate, order: .reverse)])
-        ) else { return }
+        guard let all = Log.garmin.attempt("sorties à compléter", {
+            try context.fetch(
+                FetchDescriptor<Activity>(sortBy: [SortDescriptor(\.startDate, order: .reverse)])
+            )
+        }) else { return }
         let pending = all.filter { Self.needsZones($0, now: now) }
         let calendar = Calendar(identifier: .iso8601)
         // Grouped by week, so one list call answers for all of a week's outings.
@@ -145,22 +151,24 @@ final class GarminZonesFetcher {
         // soit à peu près une par minute ; un départ en cours de paquet ne
         // perd que ce paquet, redemandé au lancement suivant.
         var unsaved = 0
-        defer { if unsaved > 0 { try? context.save() } }
+        defer { if unsaved > 0 { Log.garmin.attempt("zones du dernier paquet") { try context.save() } } }
         for weekStart in weeks.keys.sorted(by: >) {
             if Task.isCancelled { return }
             let day: TimeInterval = 24 * 3600
-            guard let candidates = try? await client.activities(
-                from: weekStart.addingTimeInterval(-day),
-                to: weekStart.addingTimeInterval(8 * day),
-                limit: 100
-            ) else { return }
+            guard let candidates = await Log.garmin.attempt("sorties Garmin de la semaine du \(weekStart)", {
+                try await client.activities(
+                    from: weekStart.addingTimeInterval(-day),
+                    to: weekStart.addingTimeInterval(8 * day),
+                    limit: 100
+                )
+            }) else { return }
             for activity in weeks[weekStart] ?? [] {
                 if Task.isCancelled { return }
                 guard await apply(to: activity, candidates: candidates, in: context, saving: false)
                 else { return }
                 unsaved += 1
                 if unsaved >= Self.backfillBatch {
-                    try? context.save()
+                    Log.garmin.attempt("zones d'un paquet") { try context.save() }
                     unsaved = 0
                 }
                 try? await Task.sleep(for: .seconds(1.5))
@@ -181,16 +189,18 @@ final class GarminZonesFetcher {
             // Not on Garmin — before the watch, or recorded without it. Noted,
             // so it is not asked again.
             activity.zonesCheckedAt = Date()
-            if saving { try? context.save() }
+            if saving { Log.garmin.attempt("sortie absente de Garmin") { try context.save() } }
             return true
         }
-        guard let zones = try? await client.zones(activityID: match.id) else { return false }
+        guard let zones = await Log.garmin.attempt("zones de la sortie Garmin \(match.id)", {
+            try await client.zones(activityID: match.id)
+        }) else { return false }
         activity.hrZoneFloors = zones.heartRate?.floors
         activity.hrZoneSeconds = zones.heartRate?.seconds
         activity.powerZoneFloors = zones.power?.floors
         activity.powerZoneSeconds = zones.power?.seconds
         activity.zonesCheckedAt = Date()
-        if saving { try? context.save() }
+        if saving { Log.garmin.attempt("zones d'une sortie") { try context.save() } }
         return true
     }
 }

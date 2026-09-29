@@ -124,7 +124,9 @@ final class JournalStore {
     /// `AppEnvironment` parce que ce magasin détient déjà les deux choses
     /// qu'il faut : le contexte, et la racine du dossier.
     func rebuildAttachments() {
-        try? JournalAttachmentCache.rebuild(context, vaultRoot: attachmentsBase)
+        Log.journal.attempt("cache des images du journal") {
+            try JournalAttachmentCache.rebuild(context, vaultRoot: attachmentsBase)
+        }
     }
 
     /// Rebuilds `notes` from what the base holds.

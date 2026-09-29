@@ -45,14 +45,13 @@ struct CairnApp: App {
         // tests exercise.
         if !AppModelContainer.isTesting {
             // Before any view reads an activity. Failing is not worth a crash:
-            // the rows keep their identity and the next launch tries again. The
-            // count is discardable by design, but `try?` wraps it in its own
-            // `Optional` that `@discardableResult` does not cover — hence the
-            // explicit `_ =`.
-            _ = try? StoreMaintenance.run(
-                ModelContext(container),
-                cacheDirectory: JournalAttachmentCache.vaultRoot
-            )
+            // the rows keep their identity and the next launch tries again.
+            Log.maintenance.attempt("maintenance du lancement") {
+                try StoreMaintenance.run(
+                    ModelContext(container),
+                    cacheDirectory: JournalAttachmentCache.vaultRoot
+                )
+            }
             // `app.journal` was built above, before this line ran: a day the
             // maintenance just folded would otherwise show twice until the
             // next relaunch. Cheap when nothing changed.

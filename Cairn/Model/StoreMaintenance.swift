@@ -105,9 +105,11 @@ enum StoreMaintenance {
     ///   folder — measured, not supposed.
     @discardableResult
     static func run(_ context: ModelContext, cacheDirectory: URL) throws -> Int {
-        // Its failures stay silent: this folder is derived and
+        // Its failures do not stop the repairs: this folder is derived and
         // reconstructible, so a disk error here costs a relaunch, not a note.
-        try? JournalAttachmentCache.rebuild(context, vaultRoot: cacheDirectory)
+        Log.maintenance.attempt("cache des images du journal") {
+            try JournalAttachmentCache.rebuild(context, vaultRoot: cacheDirectory)
+        }
 
         var changed = 0
 
