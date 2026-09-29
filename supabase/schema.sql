@@ -655,7 +655,10 @@ create trigger person_touch before insert or update on person
 create index person_sync on person (user_id, updated_at);
 -- Une personne par pseudo replié : c'est la clé que les deux écrans emploient
 -- pour retrouver une fiche depuis une citation.
-create unique index person_key on person (user_id, key);
+-- Parmi les fiches vivantes seulement : une fiche supprimée reste en table
+-- pour que la suppression se propage, et recréer la fiche de la même personne
+-- ne doit pas buter contre elle. Voir `018-personne-unique-vivante.sql`.
+create unique index person_key on person (user_id, key) where deleted_at is null;
 
 alter table person enable row level security;
 create policy "propriétaire seul" on person
