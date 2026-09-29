@@ -1,9 +1,11 @@
 # Le miroir Supabase
 
 Ce dossier contient le schéma Postgres du miroir web de Cairn : une copie de
-la bibliothèque, tenue à jour par le Mac, que la future PWA lira. Le Mac ne
-dépend jamais de ce miroir — son échec n'a d'autre effet qu'un indicateur
-dans les réglages.
+la bibliothèque, tenue à jour par le Mac, que l'application web (`web/`) lit
+et complète. Ce qu'on écrit sur le téléphone — journal, repas, pesées, plan,
+personnes, note d'une sortie — le Mac le relit à son tour. Le Mac ne dépend
+jamais de ce miroir : son échec n'a d'autre effet qu'un indicateur dans les
+réglages.
 
 ## Mettre en place le projet
 
@@ -14,13 +16,19 @@ dans les réglages.
 
 2. **Appliquer le schéma.** Dans le tableau de bord du projet, ouvrir
    **SQL Editor** → **New query**, coller l'intégralité de `schema.sql`, et
-   exécuter (**Run**). Ça crée les seize tables du miroir, leurs déclencheurs,
+   exécuter (**Run**). Ça crée les vingt-trois tables du miroir, leurs déclencheurs,
    leurs index, leur politique RLS, ainsi que les deux buckets de Storage
    (`streams`, `photos`) et leur politique.
 
    Le script est écrit pour tourner une seule fois sur un projet neuf. Il ne
    contient pas de garde `if not exists` sur les tables ni les buckets ; le
    rejouer sur un projet déjà provisionné échouera sur les objets déjà créés.
+
+   `schema.sql` décrit l'**état final** : un projet neuf n'a besoin de rien
+   d'autre. Les fichiers numérotés (`002-…` à `014-…`) sont les migrations
+   d'un projet créé avant elles, à passer dans l'ordre, chacune une seule
+   fois. `004-purge-activites-orphelines.sql` est un nettoyage ponctuel, pas
+   un changement de schéma.
 
 3. **Créer l'utilisateur unique.** Dans **Authentication** → **Users**,
    **Add user** → **Create new user**, avec une adresse et un mot de passe.
@@ -36,11 +44,11 @@ dans les réglages.
 
 ## Sur la clé `anon`
 
-La clé `anon` est **publique par construction** : elle finira dans le
-JavaScript de la PWA, visible de quiconque ouvre les outils de développement
+La clé `anon` est **publique par construction** : elle est dans le
+JavaScript de l'application web, visible de quiconque ouvre les outils de développement
 de son navigateur. Ce n'est pas une fuite — c'est ainsi que Supabase est
 pensé. Ce qui protège les données, c'est exclusivement **Row Level Security**
-(RLS), activée sur chacune des seize tables par ce schéma : une requête ne
+(RLS), activée sur chacune des vingt-trois tables par ce schéma : une requête ne
 peut lire ou écrire que les lignes dont `user_id` vaut `auth.uid()`, quelle
 que soit la clé utilisée pour s'authentifier. Sans cette politique, la clé
 `anon` donnerait accès à toute la base à quiconque la trouverait — et

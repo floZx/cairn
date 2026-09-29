@@ -6,7 +6,7 @@ import { supabase } from "./supabase"
 /// appliquait ce jour-là — le pendant d'`ActivityZonesView` sur le Mac, et le
 /// tableau de Garmin : zone 5 en haut, plage, nom, temps, part.
 ///
-/// Une requête à part : les colonnes n'existent qu'une fois `013-zones.sql`
+/// Une requête à part : les colonnes n'existent qu'une fois `014-zones.sql`
 /// passé, et une fiche qui les demanderait avec le reste ne s'ouvrirait plus
 /// du tout sans elles.
 

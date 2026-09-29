@@ -153,7 +153,7 @@ struct MirrorSettingsView: View {
             case .unknown:
                 LabeledContent("État", value: "…")
             case .unavailable:
-                Text("Passez d'abord le script supabase/012-journal-chiffre.sql dans l'éditeur SQL du projet.")
+                Text("Passez d'abord le script supabase/013-journal-chiffre.sql dans l'éditeur SQL du projet.")
                     .foregroundStyle(.secondary)
             case .sealed:
                 LabeledContent("État", value: "Chiffré, clé présente sur ce Mac")

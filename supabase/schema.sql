@@ -62,7 +62,7 @@ create table activity (
   calories        double precision,
   -- Les zones de FC et de puissance du jour de la sortie, prises chez Garmin :
   -- la borne basse de chaque zone et les secondes passées dedans, zone 1
-  -- d'abord. Voir 013-zones.sql.
+  -- d'abord. Voir 014-zones.sql.
   hr_zone_floors      double precision[],
   hr_zone_seconds     double precision[],
   power_zone_floors   double precision[],
@@ -736,7 +736,7 @@ create policy "propriétaire seul" on person
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
--- Le chiffrement du journal : voir 012-journal-chiffre.sql.
+-- Le chiffrement du journal : voir 013-journal-chiffre.sql.
 create table journal_crypto (
   user_id     uuid primary key references auth.users on delete cascade,
   salt        text not null,
@@ -750,3 +750,27 @@ create policy "propriétaire lit" on journal_crypto
   for select using (user_id = auth.uid());
 create policy "propriétaire pose" on journal_crypto
   for insert with check (user_id = auth.uid());
+
+-- Le jeton Strava du navigateur, pour que le téléphone relève les sorties du
+-- jour quand le Mac est fermé : voir 009-jeton-strava.sql. Le Mac garde le sien
+-- dans le trousseau et ne lit jamais cette table. Seule la politique RLS
+-- protège ce jeton — les fonctions Cloudflare y accèdent sous l'identité du
+-- navigateur, sans clé de service.
+create table strava_token (
+  user_id       uuid primary key references auth.users on delete cascade,
+  updated_at    timestamptz not null default now(),
+
+  access_token  text not null,
+  refresh_token text not null,
+  -- L'instant d'expiration tel que Strava le rend : un temps Unix en secondes.
+  expires_at    bigint not null default 0
+);
+
+create trigger strava_token_touch before insert or update on strava_token
+  for each row execute function touch_updated_at();
+
+alter table strava_token enable row level security;
+create policy "propriétaire seul" on strava_token
+  for all
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());

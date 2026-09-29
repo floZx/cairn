@@ -144,7 +144,8 @@ struct MirrorRowSchemaTests {
         // ajouter un nom est un geste qu'on ne fait pas par distraction.
         // `journal_crypto` : la configuration du chiffrement, posée une fois
         // par `MirrorClient.createJournalCrypto`, sans modèle local.
-        let sansModele: Set<String> = ["nutrition_target", "journal_crypto"]
+        // `strava_token` : le jeton du navigateur, que seul le web lit et écrit.
+        let sansModele: Set<String> = ["nutrition_target", "journal_crypto", "strava_token"]
         let portees = Set(Self.allRows().map { type(of: $0).mirrorTable })
         #expect(
             Set(schema.keys) == portees.union(sansModele),
