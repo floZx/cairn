@@ -248,9 +248,12 @@ actor StravaClient {
         ])
 
         let (data, response) = try await transport.send(request)
-        guard (200..<300).contains(response.statusCode),
-              let payload = try? StravaJSON.decoder.decode(TokenResponseDTO.self, from: data)
-        else {
+        guard (200..<300).contains(response.statusCode) else {
+            guard TokenRefresh.isRevoked(status: response.statusCode) else {
+                // Strava unwell, not the grant withdrawn: the tokens stay,
+                // and the next call tries again.
+                throw StravaError.http(response.statusCode, "renouvellement de l'autorisation impossible")
+            }
             // A rejected refresh means the grant is gone for good, so drop the
             // tokens and let the UI ask for a fresh sign-in — but only if the
             // stored token is still the one we just tried. If it changed under
@@ -259,6 +262,9 @@ actor StravaClient {
                 try? store.clearTokens()
             }
             throw StravaError.tokenRefreshRejected
+        }
+        guard let payload = try? StravaJSON.decoder.decode(TokenResponseDTO.self, from: data) else {
+            throw StravaError.invalidResponse
         }
 
         let refreshed = StravaTokens(

@@ -44,6 +44,18 @@ enum StravaError: LocalizedError, Sendable, Equatable {
     }
 }
 
+/// What a token endpoint's refusal means.
+enum TokenRefresh {
+    /// Whether the grant itself is gone: 400 (`invalid_grant`) or 401, the
+    /// two answers OAuth servers give a refresh token they no longer honour.
+    ///
+    /// Anything else — a 5xx, a 429, a maintenance page, a body that does not
+    /// decode — says the server is unwell, not that the grant was withdrawn.
+    /// Dropping the tokens then signed the user out of Strava or Supabase for
+    /// an outage of a few minutes, with a fresh authorisation to go through.
+    static func isRevoked(status: Int) -> Bool { status == 400 || status == 401 }
+}
+
 protocol HTTPTransport: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse)
 }

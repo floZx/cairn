@@ -343,7 +343,7 @@ actor GarminClient {
         else {
             // A refused refresh token is a dead session: keeping it would
             // only have every later call fail the same way, more slowly.
-            if (400..<500).contains(response.statusCode) {
+            if TokenRefresh.isRevoked(status: response.statusCode) {
                 try? store.clearGarminTokens()
                 throw GarminError.refreshRejected
             }

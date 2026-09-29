@@ -148,6 +148,28 @@ struct StravaClientTests {
         #expect(store.credentials() != nil)
     }
 
+    /// Strava en panne n'est pas Strava qui retire l'autorisation : une
+    /// erreur serveur au renouvellement déconnectait pour de bon.
+    @Test("une panne au renouvellement garde les jetons")
+    func keepsTokensWhenStravaIsDown() async {
+        let tokens = StravaTokens(
+            accessToken: "stale", refreshToken: "still-good",
+            expiresAt: Date().addingTimeInterval(-60)
+        )
+        let store = InMemorySecretStore(
+            credentials: StravaCredentials(clientID: "1", clientSecret: "s"), tokens: tokens
+        )
+        let transport = StravaStubTransport([
+            .init(status: 503, body: json("<html>maintenance</html>"), headers: [:])
+        ])
+        let client = StravaClient(store: store, transport: transport)
+
+        await #expect(throws: StravaError.self) {
+            _ = try await client.athleteZones()
+        }
+        #expect(store.tokens() == tokens)
+    }
+
     @Test("une erreur HTTP est remontée avec son code")
     func surfacesHTTPErrors() async {
         let transport = StravaStubTransport([

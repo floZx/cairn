@@ -406,6 +406,9 @@ final class AppEnvironment {
             } catch {
                 errorMessage = error.localizedDescription
             }
+            // A refresh Strava refused has just cleared the tokens: without
+            // this the settings kept saying « connecté » until a relaunch.
+            refreshAuthenticationState()
         }
         runningTask = task
         Task {

@@ -301,6 +301,20 @@ struct GarminClientTests {
         #expect(store.garminTokens() == nil)
     }
 
+    /// Un 429 est un « pas maintenant », pas un « plus jamais ».
+    @Test("un rafraîchissement freiné garde la session")
+    func throttledRefreshKeepsTheSession() async throws {
+        let store = InMemorySecretStore()
+        try store.save(GarminTokens(accessToken: jwt(exp: -60), refreshToken: "alive", clientID: "C"))
+        let api = GarminStubTransport([.init(status: 429, body: "")])
+        let client = GarminClient(store: store, transport: api)
+
+        await #expect(throws: GarminError.self) {
+            _ = try await client.gear(forActivity: 7)
+        }
+        #expect(store.garminTokens()?.refreshToken == "alive")
+    }
+
     @Test("la mise à jour n'envoie que les champs choisis")
     func updateSendsOnlyChosenFields() async throws {
         let store = InMemorySecretStore()

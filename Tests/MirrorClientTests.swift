@@ -402,4 +402,26 @@ struct MirrorClientTests {
         #expect(store.mirrorSession() == nil)
         #expect(store.mirrorCredentials() != nil)
     }
+
+    /// Un projet en pause ou une panne de Supabase n'est pas une session
+    /// retirée : la garder évite de ressaisir e-mail et mot de passe.
+    @Test func unePanneAuRenouvellementGardeLaSession() async throws {
+        let store = InMemorySecretStore()
+        try store.save(
+            MirrorCredentials(
+                projectURL: URL(string: "https://x.supabase.co")!, anonKey: "anon"
+            )
+        )
+        let session = MirrorSession(
+            accessToken: "vieux", refreshToken: "r",
+            expiresAt: Date().addingTimeInterval(-10), userID: "u"
+        )
+        try store.save(session)
+        let client = MirrorClient(store: store, transport: StubTransport(responses: [(Data(), 503)]))
+
+        await #expect(throws: MirrorError.self) {
+            try await client.upsert(table: "weight_entry", rows: [["uuid": .string("a")]])
+        }
+        #expect(store.mirrorSession()?.refreshToken == "r")
+    }
 }

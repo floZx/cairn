@@ -532,6 +532,13 @@ actor MirrorClient {
         )
         let (data, response) = try await Self.send(request, transport: transport)
         guard (200..<300).contains(response.statusCode) else {
+            guard TokenRefresh.isRevoked(status: response.statusCode) else {
+                // Supabase unwell — a 5xx, a project paused — not the session
+                // withdrawn: it stays, and the next pass tries again.
+                throw MirrorError.http(
+                    status: response.statusCode, body: String(decoding: data.prefix(200), as: UTF8.self)
+                )
+            }
             // Supabase rotates the refresh token on every use: a rejected
             // refresh means the one just tried is already spent, so the
             // session is dead for good, not merely retryable — the same
