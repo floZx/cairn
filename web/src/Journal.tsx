@@ -379,9 +379,21 @@ export function Journal({
     if (!jourAMontrer) return
     const carte = document.getElementById(`jour-${jourAMontrer}`)
     if (carte) {
-      carte.scrollIntoView({ block: "start" })
-      onJourMontre?.()
-      return
+      // Deux fois, et la seconde après 250 ms : en changeant d'écran, le
+      // châssis remet la position qu'il avait retenue pour le journal — tout
+      // de suite, puis encore 200 ms plus tard (voir `Chrome`). Un seul
+      // défilement était effacé par cette dernière remise, et l'on arrivait
+      // en haut du journal. Mesuré le 29 septembre 2026.
+      const poser = () =>
+        document.getElementById(`jour-${jourAMontrer}`)?.scrollIntoView({ block: "start" })
+      poser()
+      // Prévenir après seulement : la demande effacée relance cet effet, et
+      // son nettoyage annulerait le second défilement.
+      const tard = setTimeout(() => {
+        poser()
+        onJourMontre?.()
+      }, 250)
+      return () => clearTimeout(tard)
     }
     if (isPending || isFetchingNextPage) return
     if (hasNextPage && (!plusAncienne || plusAncienne > jourAMontrer)) {
