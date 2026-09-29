@@ -321,6 +321,21 @@ struct RootView: View {
             Text(writeFailureMessage ?? "")
         }
         .alert(
+            "Zones de FC à mettre à jour sur Strava",
+            isPresented: Binding(
+                get: { app.zoneDrift != nil },
+                set: { if !$0 { app.zoneDrift = nil } }
+            )
+        ) {
+            Button("Ouvrir Strava") {
+                NSWorkspace.shared.open(HeartRateZoneDrift.stravaSettingsURL)
+                app.zoneDrift = nil
+            }
+            Button("Plus tard", role: .cancel) { app.zoneDrift = nil }
+        } message: {
+            Text(app.zoneDrift?.message ?? "")
+        }
+        .alert(
             "Fichiers GPX",
             isPresented: Binding(
                 get: { fileMessage != nil },

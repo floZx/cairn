@@ -312,10 +312,40 @@ final class AppEnvironment {
         restoreLastSyncDate()
         pushMirrorOnLaunch()
         startMirrorPolling()
-        // Les zones des anciennes sorties, doucement, en fond.
-        if isGarminConnected { garminZones.startBackfill(container: zonesContainer) }
+        // Les zones des anciennes sorties, doucement, en fond ; puis, les plus
+        // récentes connues, l'écart avec celles de Strava.
+        if isGarminConnected {
+            garminZones.startBackfill(container: zonesContainer) { [weak self] in
+                await self?.checkZoneDrift()
+            }
+        }
         guard syncsOnLaunch, isAuthenticated else { return }
         syncSummariesOnly()
+    }
+
+    /// Si le lancement compare les zones de FC de Strava à celles de Garmin.
+    /// Le réglage n'a de sens, et ne s'affiche, qu'avec les deux comptes.
+    static let alertsOnZoneDriftKey = "alertsOnZoneDrift"
+
+    var alertsOnZoneDrift: Bool {
+        defaults.object(forKey: Self.alertsOnZoneDriftKey) as? Bool ?? true
+    }
+
+    /// L'écart trouvé au lancement, que la fenêtre présente en alerte. Rien
+    /// n'est mémorisé : tant que Strava n'est pas corrigé, l'alerte revient à
+    /// chaque lancement — le réglage est là pour la couper.
+    var zoneDrift: HeartRateZoneDrift?
+
+    func checkZoneDrift() async {
+        guard alertsOnZoneDrift, isGarminConnected, isAuthenticated,
+              let latest = HeartRateZoneDrift.latestGarminZones(in: ModelContext(zonesContainer)),
+              let strava = try? await client.athleteZones().heart_rate
+        else { return }
+        zoneDrift = HeartRateZoneDrift.compare(
+            garminFloors: latest.floors,
+            stravaFloors: HeartRateZoneDrift.stravaFloors(strava.zones),
+            activityDate: latest.date
+        )
     }
 
     /// Combien de temps sépare deux relèves du miroir.

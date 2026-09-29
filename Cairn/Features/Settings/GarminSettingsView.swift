@@ -14,6 +14,7 @@ struct GarminSettingsView: View {
     @State private var pending: GarminPendingLogin?
     @State private var isWorking = false
     @State private var failure: String?
+    @AppStorage(AppEnvironment.alertsOnZoneDriftKey) private var alertsOnZoneDrift = true
 
     var body: some View {
         Form {
@@ -21,6 +22,23 @@ struct GarminSettingsView: View {
                 Section("Connexion") {
                     LabeledContent("Compte", value: app.garminAccountName ?? "Connecté")
                     Button("Se déconnecter", role: .destructive) { app.disconnectGarmin() }
+                }
+                if app.isAuthenticated {
+                    Section {
+                        Toggle("Alerter si les zones de FC de Strava ne sont plus à jour",
+                               isOn: $alertsOnZoneDrift)
+                    } header: {
+                        Text("Zones")
+                    } footer: {
+                        Text("""
+                            Au lancement, Cairn compare les zones de fréquence \
+                            cardiaque de Strava à celles de la sortie Garmin la plus \
+                            récente. Strava ne laisse pas Cairn les modifier : \
+                            l'alerte ouvre sa page de réglages.
+                            """)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
                 }
             } else if pending != nil {
                 Section {

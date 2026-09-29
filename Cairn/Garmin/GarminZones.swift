@@ -92,12 +92,17 @@ final class GarminZonesFetcher {
     }
 
     /// Fills the library in, newest first. Started once per launch.
-    func startBackfill(container: ModelContainer) {
+    /// `then` runs once the pass is over, finished or stopped — the newest
+    /// outings have their zones by then.
+    func startBackfill(
+        container: ModelContainer, then: @escaping @MainActor () async -> Void = {}
+    ) {
         guard backfillTask == nil else { return }
         backfillTask = Task { [weak self] in
             // Not in the launch's first seconds: the sync and the mirror come first.
             try? await Task.sleep(for: .seconds(30))
             await self?.backfill(container: container)
+            await then()
         }
     }
 

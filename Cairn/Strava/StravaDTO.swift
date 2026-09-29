@@ -127,6 +127,23 @@ struct AthleteDTO: Decodable, Sendable {
     let weight: Double?
 }
 
+/// `GET /athlete/zones` : les zones de l'athlète, dont celles de FC —
+/// `{"heart_rate": {"custom_zones": true, "zones": [{"min": 0, "max": 129}, …,
+/// {"min": 167, "max": -1}]}}`. Lu avec `profile:read_all`.
+struct AthleteZonesDTO: Decodable, Sendable {
+    let heart_rate: ZoneSet?
+
+    struct ZoneSet: Decodable, Sendable {
+        let custom_zones: Bool?
+        let zones: [Range]
+    }
+
+    struct Range: Decodable, Sendable {
+        let min: Int
+        let max: Int
+    }
+}
+
 struct TokenResponseDTO: Decodable, Sendable {
     let access_token: String
     let refresh_token: String
