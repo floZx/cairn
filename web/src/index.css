@@ -3556,6 +3556,13 @@ button.citation {
    déjà l'encoche plus 8 px (`.sans-bouton-haut`), la barre en mesure 34 de
    plus que l'encoche — 26 px restent à franchir. Mesuré : à zéro, le mois
    passait sous la barre repliée. */
+/* Une carte qu'on amène sous les yeux — une citation touchée, une note
+   ouverte depuis le calendrier — s'arrête sous l'en-tête du mois, collé à
+   26 px et haut de 37 : sans cette marge, il en recouvrait la date. */
+.note {
+  scroll-margin-top: 68px;
+}
+
 .mois-journal {
   position: sticky;
   top: 26px;
