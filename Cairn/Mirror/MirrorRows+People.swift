@@ -13,6 +13,7 @@ extension Person: MirrorRow {
             "key": .string(key),
             "name": .string(name),
             "note": .string(note),
+            "aliases": .stringArray(aliases),
         ]
     }
 }

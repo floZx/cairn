@@ -56,20 +56,72 @@ enum PeopleIndex {
         }
     }
 
+    /// Qui est qui : chaque nom cité, par sa clé, vers la personne qu'il
+    /// désigne.
+    ///
+    /// Tiré des fiches : les alias d'une fiche mènent à son nom, et son nom à
+    /// lui-même — si bien qu'une mention écrite « @christele » s'affiche sous
+    /// l'orthographe de la fiche. Un alias qui serait le nom d'une autre fiche
+    /// est ignoré : cette personne-là existe, et le lien ne va que dans un
+    /// sens. Pas de chaîne non plus — l'alias d'un alias ne mène nulle part.
+    struct Annuaire: Equatable {
+        private(set) var parCle: [String: PersonHandle] = [:]
+        /// Les alias retenus de chaque fiche, par la clé de son nom, tels
+        /// qu'écrits.
+        private(set) var aliasParPrincipal: [String: [PersonHandle]] = [:]
+
+        static let vide = Annuaire()
+
+        init() {}
+
+        init(fiches: [(name: String, aliases: [String])]) {
+            let principaux = fiches.compactMap { PersonHandle(name: $0.name) }
+            let nomsPropres = Set(principaux.map(\.key))
+            for principal in principaux { parCle[principal.key] = principal }
+            for fiche in fiches {
+                guard let principal = PersonHandle(name: fiche.name) else { continue }
+                for alias in fiche.aliases {
+                    guard let handle = PersonHandle(name: alias),
+                          !nomsPropres.contains(handle.key),
+                          parCle[handle.key] == nil
+                    else { continue }
+                    parCle[handle.key] = principal
+                    aliasParPrincipal[principal.key, default: []].append(handle)
+                }
+            }
+        }
+
+        /// La personne qu'un nom cité désigne — lui-même quand il n'est
+        /// l'alias de personne.
+        func resoudre(_ handle: PersonHandle) -> PersonHandle {
+            parCle[handle.key] ?? handle
+        }
+
+        /// Les alias de quelqu'un, pour les lui montrer et les proposer.
+        func alias(de principal: PersonHandle) -> [PersonHandle] {
+            aliasParPrincipal[principal.key] ?? []
+        }
+    }
+
     /// Les citations de chacun, les plus récentes d'abord.
     ///
     /// Une personne citée deux fois dans le même texte n'y figure qu'une : on
     /// veut la liste des notes qui parlent d'elle, pas celle des occurrences.
-    static func citations(dans textes: [Texte]) -> [PersonHandle: [Citation]] {
+    /// Sous un alias comme sous son nom, c'est la même personne, et la même
+    /// règle.
+    static func citations(
+        dans textes: [Texte], annuaire: Annuaire = .vide
+    ) -> [PersonHandle: [Citation]] {
         var index: [PersonHandle: [Citation]] = [:]
         for texte in textes {
             let propre = texte.contenu.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !propre.isEmpty else { continue }
-            for handle in PersonScanner.mentions(in: propre) {
+            let citees = Set(PersonScanner.mentions(in: propre).map(annuaire.resoudre))
+            for handle in citees {
                 index[handle, default: []].append(
                     Citation(
                         dateKey: texte.dateKey, source: texte.source,
-                        texte: extrait(de: propre, citant: handle),
+                        texte: extrait(de: propre, citant: handle, annuaire: annuaire),
                         activityUUID: texte.activityUUID
                     )
                 )
@@ -97,9 +149,11 @@ enum PeopleIndex {
     /// une citation reste une note, comme le dit `citations(dans:)`, elle est
     /// seulement réduite à ce qui la concerne. Et le texte entier quand le
     /// découpage ne trouve rien — mieux vaut trop montrer que rien.
-    static func extrait(de texte: String, citant handle: PersonHandle) -> String {
+    static func extrait(
+        de texte: String, citant handle: PersonHandle, annuaire: Annuaire = .vide
+    ) -> String {
         let citants = unites(de: texte).filter {
-            PersonScanner.mentions(in: $0).contains(handle)
+            PersonScanner.mentions(in: $0).map(annuaire.resoudre).contains(handle)
         }
         return citants.isEmpty ? texte : citants.joined(separator: "\n\n")
     }
@@ -194,5 +248,12 @@ enum PeopleIndex {
             default: gauche.handle < droite.handle
             }
         }
+    }
+}
+
+extension PeopleIndex.Annuaire {
+    /// L'annuaire tiré des fiches du magasin.
+    init(people: [Person]) {
+        self.init(fiches: people.map { (name: $0.name, aliases: $0.aliases) })
     }
 }

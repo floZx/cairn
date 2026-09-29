@@ -43,6 +43,8 @@ struct CompletingNoteEditor: View {
     /// taper son nom en entier.
     @Environment(\.modelContext) private var context
     @State private var annuaire: [PersonHandle] = []
+    /// Qui désigne chaque alias, pour l'écrire à côté : « Chérie → Christèle ».
+    @State private var alias = PeopleIndex.Annuaire.vide
     @State private var annuaireLu = false
 
     @State private var enCours: MentionCompletion.EnCours?
@@ -55,9 +57,12 @@ struct CompletingNoteEditor: View {
         guard !annuaireLu else { return }
         annuaireLu = true
 
+        let fiches = (try? context.fetch(FetchDescriptor<Person>())) ?? []
+        alias = PeopleIndex.Annuaire(people: fiches)
+        // Les alias aussi : on tape le nom qu'on emploie, et le lien suit.
         var trouves = Set(
-            ((try? context.fetch(FetchDescriptor<Person>())) ?? [])
-                .compactMap { PersonHandle(name: $0.name) }
+            fiches.compactMap { PersonHandle(name: $0.name) }
+                + fiches.flatMap { $0.aliases.compactMap(PersonHandle.init(name:)) }
         )
         // La note en cours d'écriture est écartée de son propre annuaire : le
         // journal enregistre à la frappe, et « @To » à moitié tapé se
@@ -128,6 +133,11 @@ struct CompletingNoteEditor: View {
                     // Avec son arobase, ici seulement : c'est ce qui va
                     // s'écrire dans la note.
                     Text("@\(handle.name)")
+                    let principal = alias.resoudre(handle)
+                    if principal.key != handle.key {
+                        Text("→ \(principal.name)")
+                            .foregroundStyle(.secondary)
+                    }
                     Spacer(minLength: 12)
                     if rang == retenue {
                         Text("⇥").font(.caption2).foregroundStyle(.secondary)

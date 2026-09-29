@@ -40,9 +40,12 @@ struct PersonDetailView: View {
             dans: PeopleView.textes(
                 journalNotes: journalNotes, activities: activities,
                 mealNotes: mealNotes, weights: weights, slots: slots
-            )
+            ),
+            annuaire: annuaire
         )[handle] ?? []
     }
+
+    private var annuaire: PeopleIndex.Annuaire { PeopleIndex.Annuaire(people: people) }
 
     /// Retrouvée par ses citations d'abord, par sa fiche ensuite : quelqu'un
     /// dont la note existe mais que plus aucune note ne cite doit rester
@@ -63,6 +66,9 @@ struct PersonDetailView: View {
     /// un champ toujours ouvert en tête de page se lisait comme un formulaire,
     /// et son Markdown restait brut.
     @State private var enEdition = false
+    /// Le nom en cours d'ajout aux alias, champ ouvert ; nil, champ fermé.
+    @State private var nouvelAlias: String?
+    @FocusState private var champAlias: Bool
 
     private var fiche: Person? { people.first { $0.key == cle } }
 
@@ -92,6 +98,8 @@ struct PersonDetailView: View {
                         }
                     }
                 }
+
+                autresNoms(handle)
 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
@@ -203,6 +211,76 @@ struct PersonDetailView: View {
         }
     }
 
+    /// « Autres noms » : les alias en pastilles, qu'on retire d'un clic, et
+    /// un champ pour en ajouter — ajouter un nom qui avait sa propre fiche la
+    /// fond dans celle-ci, voir `PersonAliases`.
+    private func autresNoms(_ handle: PersonHandle) -> some View {
+        HStack(spacing: 6) {
+            Text("Autres noms")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            ForEach(annuaire.alias(de: handle)) { alias in
+                HStack(spacing: 4) {
+                    Text(alias.name)
+                    Button {
+                        guard let fiche else { return }
+                        PersonAliases.retirer(alias, de: fiche, context: context)
+                        Log.journal.attempt("alias d'une personne") { try context.save() }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 8, weight: .bold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Ne plus compter « \(alias.name) » comme \(handle.name)")
+                }
+                .font(.callout)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 3)
+                .background(.quaternary.opacity(0.5), in: .capsule)
+            }
+            if nouvelAlias != nil {
+                TextField("Autre nom", text: Binding(
+                    get: { nouvelAlias ?? "" }, set: { nouvelAlias = $0 }
+                ))
+                .textFieldStyle(.plain)
+                .font(.callout)
+                .frame(width: 120)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 3)
+                .background(.quaternary.opacity(0.5), in: .capsule)
+                .focused($champAlias)
+                .onSubmit { ajouterLAlias(a: handle) }
+                .onExitCommand { nouvelAlias = nil }
+                .onChange(of: champAlias) { _, focus in
+                    if !focus { nouvelAlias = nil }
+                }
+            } else {
+                Button {
+                    nouvelAlias = ""
+                    champAlias = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 22, height: 22)
+                        .background(.quaternary.opacity(0.5), in: .circle)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Ajouter un autre nom sous lequel on la cite")
+            }
+        }
+        .focusEffectDisabled()
+    }
+
+    private func ajouterLAlias(a principal: PersonHandle) {
+        let tape = (nouvelAlias ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "@ "))
+        nouvelAlias = nil
+        guard let alias = PersonHandle(name: tape) else { return }
+        PersonAliases.fusionner(alias, dans: principal, context: context)
+        Log.journal.attempt("alias d'une personne") { try context.save() }
+    }
+
     private func commencerLaNote() {
         enEdition = true
         noteFocus = true
@@ -222,11 +300,9 @@ struct PersonDetailView: View {
     private func enregistrer(_ texte: String) {
         let propre = texte.trimmingCharacters(in: .whitespacesAndNewlines)
         if let fiche {
-            if propre.isEmpty {
-                context.delete(fiche)
-            } else {
-                fiche.note = texte
-            }
+            fiche.note = propre.isEmpty ? "" : texte
+            // Vide, elle ne part que si aucun alias ne la retient.
+            PersonAliases.supprimerSiVide(fiche, context: context)
         } else if !propre.isEmpty, let handle {
             context.insert(Person(handle: handle, note: texte))
         }

@@ -12,6 +12,7 @@ import SwiftData
 /// des sorties porte son filtre, si bien qu'on parcourt les cinquante-sept qui
 /// ont écrit quelque chose et non les huit cent soixante-huit qui existent.
 struct PersonPopoverCard: View {
+    /// Le nom tel qu'il a été cliqué — peut-être un alias, voir `personne`.
     let handle: PersonHandle
 
     @Environment(\.ouvrirDansPeople) private var ouvrirDansPeople
@@ -33,6 +34,12 @@ struct PersonPopoverCard: View {
     @Query private var pesees: [WeightEntry]
     @Query private var creneaux: [MealSlot]
 
+    private var annuaire: PeopleIndex.Annuaire { PeopleIndex.Annuaire(people: fiches) }
+
+    /// Celle que le nom cliqué désigne : « Chérie » ouvre la carte de
+    /// Christèle, sous son nom à elle.
+    private var personne: PersonHandle { annuaire.resoudre(handle) }
+
     /// Toutes ses citations, les plus récentes d'abord — `PeopleIndex.citations`
     /// les range déjà ainsi. La carte en montre cinq et compte le reste.
     private var citations: [PeopleIndex.Citation] {
@@ -40,13 +47,14 @@ struct PersonPopoverCard: View {
             dans: PeopleView.textes(
                 journalNotes: notesDuJournal, activities: sortiesQuiRacontent,
                 mealNotes: notesDeRepas, weights: pesees, slots: creneaux
-            )
+            ),
+            annuaire: annuaire
         )
-        return index[handle] ?? []
+        return index[personne] ?? []
     }
 
     private var note: String? {
-        let ecrit = (fiches.first { $0.key == handle.key }?.note ?? "")
+        let ecrit = (fiches.first { $0.key == personne.key }?.note ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return ecrit.isEmpty ? nil : ecrit
     }
@@ -81,7 +89,9 @@ struct PersonPopoverCard: View {
                     .padding(.bottom, 4)
                 VStack(spacing: 0) {
                     ForEach(citations.prefix(5)) { citation in
-                        PersonCitationRow(citation: citation, handle: handle) {
+                        PersonCitationRow(
+                            citation: citation, handle: personne, alias: annuaire.alias(de: personne)
+                        ) {
                             fermer()
                             ouvrirLaCitation(citation)
                         }
@@ -98,7 +108,7 @@ struct PersonPopoverCard: View {
                 Divider()
                 Button {
                     fermer()
-                    ouvrirDansPeople(handle.key)
+                    ouvrirDansPeople(personne.key)
                 } label: {
                     HStack(spacing: 4) {
                         Text("Voir sa fiche")
@@ -127,9 +137,9 @@ struct PersonPopoverCard: View {
     /// L'initiale dans un médaillon, le nom, et combien de notes la citent.
     private func enTete(total: Int) -> some View {
         HStack(spacing: 10) {
-            PersonMonogram(handle: handle, size: 34)
+            PersonMonogram(handle: personne, size: 34)
             VStack(alignment: .leading, spacing: 1) {
-                Text(handle.displayName)
+                Text(personne.displayName)
                     .font(.title3.weight(.semibold))
                     .lineLimit(1)
                 if total > 0 {
@@ -165,6 +175,8 @@ struct PersonMonogram: View {
 struct PersonCitationRow: View {
     let citation: PeopleIndex.Citation
     let handle: PersonHandle
+    /// Ses autres noms : ils ressortent comme le sien.
+    var alias: [PersonHandle] = []
     let action: () -> Void
 
     @State private var survolee = false
@@ -187,7 +199,7 @@ struct PersonCitationRow: View {
                     // lignes dans une popover n'a pas besoin de ses gras, et les
                     // mentions qu'il contient y deviendraient des liens ouvrant
                     // une popover dans la popover. Seul son nom à elle ressort.
-                    Text(Self.extrait(citation.texte, soulignant: handle))
+                    Text(Self.extrait(citation.texte, soulignant: handle, alias: alias))
                         .font(.callout)
                         .lineLimit(3)
                 }
@@ -210,7 +222,10 @@ struct PersonCitationRow: View {
     ///
     /// Reconnue par sa clé et non par son orthographe : « @Helene » tapé à la
     /// hâte est la même « @Hélène », et doit ressortir pareil.
-    static func extrait(_ texte: String, soulignant handle: PersonHandle) -> AttributedString {
+    static func extrait(
+        _ texte: String, soulignant handle: PersonHandle, alias: [PersonHandle] = []
+    ) -> AttributedString {
+        let siens = Set([handle.key] + alias.map(\.key))
         var resultat = AttributedString()
         var curseur = texte.startIndex
         while let arobase = texte[curseur...].firstIndex(of: "@") {
@@ -223,7 +238,7 @@ struct PersonCitationRow: View {
             let enTeteDeMot = avant == nil || avant!.isWhitespace || "([{«\"'-–—*>".contains(avant!)
             if enTeteDeMot, let cite = PersonHandle(name: String(texte[debut..<fin])) {
                 var nom = AttributedString(texte[debut..<fin])
-                if cite.key == handle.key {
+                if siens.contains(cite.key) {
                     nom.foregroundColor = .accentColor
                     nom.font = .callout.weight(.medium)
                 }

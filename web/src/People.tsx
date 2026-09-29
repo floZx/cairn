@@ -6,7 +6,16 @@ import { BarreCitations } from "./BarreCitations"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { Markdown } from "./markdown"
-import { index, lignes, type Citation, type Personne, type Source } from "./citations"
+import {
+  annuaire as annuaireDesFiches,
+  index,
+  lignes,
+  personne,
+  type Annuaire,
+  type Citation,
+  type Personne,
+  type Source,
+} from "./citations"
 import { useImagesDuJournal } from "./Journal"
 
 /// Les gens cités dans les notes.
@@ -20,7 +29,7 @@ import { useImagesDuJournal } from "./Journal"
 /// miroir n'a pas de vue qui les réunisse, et une jointure faite à la main
 /// coûterait plus cher que quatre requêtes que le navigateur lance ensemble.
 
-type Fiche = { uuid: string; key: string; name: string; note: string }
+type Fiche = { uuid: string; key: string; name: string; note: string; aliases: string[] | null }
 
 function useTextes() {
   const chiffre = useChiffre()
@@ -104,7 +113,7 @@ function useFiches() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("person")
-        .select("uuid, key, name, note")
+        .select("uuid, key, name, note, aliases")
         .is("deleted_at", null)
       if (error) throw error
       return data as Fiche[]
@@ -132,7 +141,10 @@ export function People({
   // illustrée affichait sinon le chemin du fichier en toutes lettres.
   const images = useImagesDuJournal()
 
-  const table = useMemo(() => index(textes.data ?? []), [textes.data])
+  // Chris et Chérie comptent pour Christèle : ils ne figurent pas dans la
+  // liste, leurs notes s'ajoutent aux siennes.
+  const qui = useMemo(() => annuaireDesFiches(fiches.data ?? []), [fiches.data])
+  const table = useMemo(() => index(textes.data ?? [], qui), [textes.data, qui])
   const liste = useMemo(
     () => lignes(table, (fiches.data ?? []).map((f) => ({ key: f.key, name: f.name }))),
     [table, fiches.data],
@@ -142,14 +154,19 @@ export function People({
   if (textes.error) return <p className="erreur">{(textes.error as Error).message}</p>
 
   if (ouverte) {
-    const entree = table.get(ouverte)
-    const qui = entree?.personne ?? liste.find((l) => l.personne.cle === ouverte)?.personne
-    if (!qui) return null
+    // Ouverte par un alias — « Chérie » touché dans une note —, c'est la
+    // fiche de Christèle qui s'affiche.
+    const cle = qui.parCle.get(ouverte)?.cle ?? ouverte
+    const entree = table.get(cle)
+    const ouvertePar = entree?.personne ?? liste.find((l) => l.personne.cle === cle)?.personne
+    if (!ouvertePar) return null
     return (
       <FichePersonne
-        personne={qui}
+        personne={ouvertePar}
+        annuaire={qui}
+        fiches={fiches.data ?? []}
         citations={entree?.citations ?? []}
-        fiche={(fiches.data ?? []).find((f) => f.key === ouverte) ?? null}
+        fiche={(fiches.data ?? []).find((f) => f.key === cle) ?? null}
         onFermer={onFermer}
         onSource={onSource}
         urlImage={(chemin) => images.data?.get(chemin.replace(/^.*\//, ""))}
@@ -253,6 +270,8 @@ function mois(dateKey: string): string {
 /// formulaire, et son Markdown restait brut.
 function FichePersonne({
   personne: qui,
+  annuaire,
+  fiches,
   citations,
   fiche,
   onFermer,
@@ -260,6 +279,8 @@ function FichePersonne({
   urlImage,
 }: {
   personne: Personne
+  annuaire: Annuaire
+  fiches: Fiche[]
   citations: Citation[]
   fiche: Fiche | null
   onFermer: () => void
@@ -292,6 +313,8 @@ function FichePersonne({
           )}
         </div>
       </div>
+
+      <AutresNoms personne={qui} annuaire={annuaire} fiches={fiches} />
 
       {/* Une note vide tient sur une ligne, qu'on touche pour écrire — comme
           celle d'une sortie. */}
@@ -382,11 +405,12 @@ function NotePersonne({
         key: qui.cle,
         name: qui.nom,
         note,
+        aliases: fiche?.aliases ?? [],
         edited_at: maintenant,
-        // Vider la note supprime la fiche : une fiche vide laissée derrière
-        // ferait rester quelqu'un dans la liste alors que plus rien ne le cite
-        // ni ne le décrit. C'est la règle du Mac.
-        deleted_at: vide ? maintenant : null,
+        // Vider la note supprime la fiche, sauf si des alias la retiennent :
+        // une fiche vide laissée derrière ferait rester quelqu'un dans la
+        // liste alors que plus rien ne le décrit. C'est la règle du Mac.
+        deleted_at: vide && (fiche?.aliases ?? []).length === 0 ? maintenant : null,
       })
       if (error) throw error
     },
@@ -425,4 +449,139 @@ function NotePersonne({
       />
     </>
   )
+}
+
+/// « Autres noms » : les alias en pastilles, qu'on retire d'un toucher, et un
+/// champ pour en ajouter. Ajouter un nom qui avait sa propre fiche la fond
+/// dans celle-ci — note et alias compris —, comme sur le Mac : voir
+/// `PersonAliases.fusionner`.
+function AutresNoms({
+  personne: qui,
+  annuaire,
+  fiches,
+}: {
+  personne: Personne
+  annuaire: Annuaire
+  fiches: Fiche[]
+}) {
+  const [saisie, setSaisie] = useState<string | null>(null)
+  const client = useQueryClient()
+  const alias = annuaire.alias.get(qui.cle) ?? []
+
+  const ecriture = useMutation({
+    mutationFn: async (lignes: Fiche[]) => {
+      const { data } = await supabase.auth.getUser()
+      const userID = data.user?.id
+      if (!userID) throw new Error("Session expirée, reconnecte-toi.")
+      const maintenant = new Date().toISOString()
+      const { error } = await supabase.from("person").upsert(
+        lignes.map((f) => ({
+          uuid: f.uuid,
+          user_id: userID,
+          key: f.key,
+          name: f.name,
+          note: f.note,
+          aliases: f.aliases ?? [],
+          edited_at: maintenant,
+          // Ni note ni alias : la fiche n'a plus rien à porter.
+          deleted_at: !f.note.trim() && (f.aliases ?? []).length === 0 ? maintenant : null,
+        })),
+      )
+      if (error) throw error
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["people-fiches"] })
+      client.invalidateQueries({ queryKey: ["annuaire-citations"] })
+    },
+  })
+
+  const ajouter = () => {
+    const tape = (saisie ?? "").replace(/^@+/, "").trim()
+    setSaisie(null)
+    const source = personne(tape)
+    if (!source || source.cle === qui.cle) return
+    ecriture.mutate(fusionner(source, qui, fiches))
+  }
+
+  const retirer = (nom: Personne) => {
+    const fiche = fiches.find((f) => f.key === qui.cle)
+    if (!fiche) return
+    ecriture.mutate([
+      { ...fiche, aliases: (fiche.aliases ?? []).filter((a) => personne(a)?.cle !== nom.cle) },
+    ])
+  }
+
+  return (
+    <div className="autres-noms">
+      <span className="attenue petit">Autres noms</span>
+      {alias.map((a) => (
+        <span className="pastille-nom" key={a.cle}>
+          {a.nom}
+          <button
+            className="retirer"
+            onClick={() => retirer(a)}
+            aria-label={`Ne plus compter « ${a.nom} » comme ${qui.nom}`}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      {saisie !== null ? (
+        <input
+          className="pastille-nom saisie"
+          autoFocus
+          value={saisie}
+          placeholder="Autre nom"
+          onChange={(e) => setSaisie(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") ajouter()
+            if (e.key === "Escape") setSaisie(null)
+          }}
+          onBlur={() => (saisie.trim() ? ajouter() : setSaisie(null))}
+        />
+      ) : (
+        <button className="pastille-nom ajouter" onClick={() => setSaisie("")} aria-label="Ajouter un autre nom">
+          +
+        </button>
+      )}
+      {ecriture.error && <p className="erreur">{(ecriture.error as Error).message}</p>}
+    </div>
+  )
+}
+
+/// Ramène `source` à `cible`, dont elle devient un alias. Porté de
+/// `PersonAliases.fusionner` : la fiche de la source, si elle existe, se fond
+/// dans celle de la cible — alias puis note —, et un nom quitte la fiche qui
+/// le portait. Rend les lignes à écrire.
+function fusionner(source: Personne, cible: Personne, fiches: Fiche[]): Fiche[] {
+  const ecrites: Fiche[] = []
+  const existante = fiches.find((f) => f.key === cible.cle)
+  const ficheCible: Fiche = existante
+    ? { ...existante, aliases: [...(existante.aliases ?? [])] }
+    : { uuid: crypto.randomUUID(), key: cible.cle, name: cible.nom, note: "", aliases: [] }
+  const alias = ficheCible.aliases ?? []
+  const ajoute = (nom: string) => {
+    const qui = personne(nom)
+    if (!qui || qui.cle === cible.cle || alias.some((a) => personne(a)?.cle === qui.cle)) return
+    alias.push(qui.nom)
+  }
+  ajoute(source.nom)
+  for (const autre of fiches) {
+    if (autre.key === cible.cle) continue
+    if (autre.key === source.cle) {
+      for (const a of autre.aliases ?? []) ajoute(a)
+      if (autre.note.trim()) {
+        ficheCible.note = ficheCible.note.trim() ? `${ficheCible.note}\n\n${autre.note}` : autre.note
+      }
+      // Ni note ni alias une fois vidée : `deleted_at` part à l'écriture.
+      ecrites.push({ ...autre, note: "", aliases: [] })
+    } else if ((autre.aliases ?? []).some((a) => personne(a)?.cle === source.cle)) {
+      ecrites.push({
+        ...autre,
+        aliases: (autre.aliases ?? []).filter((a) => personne(a)?.cle !== source.cle),
+      })
+    }
+  }
+  ficheCible.aliases = alias
+  return [ficheCible, ...ecrites]
 }

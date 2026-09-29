@@ -79,23 +79,63 @@ export type Ligne = {
   aUneNote: boolean
 }
 
+/// Qui est qui : chaque nom cité, par sa clé, vers la personne qu'il désigne.
+/// Porté de `PeopleIndex.Annuaire` : les alias d'une fiche mènent à son nom,
+/// son nom à lui-même ; un alias qui est le nom d'une autre fiche est ignoré,
+/// et l'alias d'un alias ne mène nulle part.
+export type Annuaire = {
+  parCle: Map<string, Personne>
+  /// Les alias retenus de chaque fiche, par la clé de son nom, tels qu'écrits.
+  alias: Map<string, Personne[]>
+}
+
+export const ANNUAIRE_VIDE: Annuaire = { parCle: new Map(), alias: new Map() }
+
+export function annuaire(fiches: { name: string; aliases?: string[] | null }[]): Annuaire {
+  const parCle = new Map<string, Personne>()
+  const alias = new Map<string, Personne[]>()
+  const principaux = fiches.map((f) => personne(f.name)).filter((p): p is Personne => !!p)
+  const nomsPropres = new Set(principaux.map((p) => p.cle))
+  for (const p of principaux) parCle.set(p.cle, p)
+  for (const fiche of fiches) {
+    const principal = personne(fiche.name)
+    if (!principal) continue
+    for (const nom of fiche.aliases ?? []) {
+      const qui = personne(nom)
+      if (!qui || nomsPropres.has(qui.cle) || parCle.has(qui.cle)) continue
+      parCle.set(qui.cle, principal)
+      alias.set(principal.cle, [...(alias.get(principal.cle) ?? []), qui])
+    }
+  }
+  return { parCle, alias }
+}
+
+/// La personne qu'un nom cité désigne — lui-même quand il n'est l'alias de
+/// personne.
+export function resoudre(a: Annuaire, qui: Personne): Personne {
+  return a.parCle.get(qui.cle) ?? qui
+}
+
 /// Les citations de chacun, les plus récentes d'abord.
 ///
 /// Une personne citée deux fois dans le même texte n'y figure qu'une : on veut
-/// la liste des notes qui parlent d'elle, pas celle des occurrences.
+/// la liste des notes qui parlent d'elle, pas celle des occurrences. Sous un
+/// alias comme sous son nom, c'est la même personne.
 export function index(
   textes: { dateKey: string; source: Source; contenu: string }[],
+  a: Annuaire = ANNUAIRE_VIDE,
 ): Map<string, { personne: Personne; citations: Citation[] }> {
   const table = new Map<string, { personne: Personne; citations: Citation[] }>()
   for (const texte of textes) {
     const propre = texte.contenu.trim()
     if (!propre) continue
-    for (const qui of citations(propre)) {
+    const citees = new Map(citations(propre).map((p) => resoudre(a, p)).map((p) => [p.cle, p]))
+    for (const qui of citees.values()) {
       const entree = table.get(qui.cle) ?? { personne: qui, citations: [] }
       entree.citations.push({
         dateKey: texte.dateKey,
         source: texte.source,
-        texte: extrait(propre, qui.cle),
+        texte: extrait(propre, qui.cle, a),
       })
       table.set(qui.cle, entree)
     }
@@ -116,9 +156,9 @@ export function index(
 ///
 /// Plusieurs passages citants sont recollés, séparés par une ligne vide ; le
 /// texte entier quand le découpage ne trouve rien.
-export function extrait(texte: string, cle: string): string {
+export function extrait(texte: string, cle: string, a: Annuaire = ANNUAIRE_VIDE): string {
   const citants = unites(texte).filter((u) =>
-    citations(u).some((p) => p.cle === cle),
+    citations(u).some((p) => resoudre(a, p).cle === cle),
   )
   return citants.length === 0 ? texte : citants.join("\n\n")
 }

@@ -3,7 +3,14 @@ import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import type { ChampNote } from "./ZoneNote"
 import { ouvrir as dechiffrer, useChiffre } from "./chiffre"
-import { citations, enCoursDe, propositions, type Personne } from "./citations"
+import {
+  annuaire as annuaireDesFiches,
+  citations,
+  enCoursDe,
+  propositions,
+  resoudre,
+  type Personne,
+} from "./citations"
 
 /// La barre de propositions qui se pose au-dessus d'un champ quand on tape `@`.
 ///
@@ -19,7 +26,7 @@ function useAnnuaire() {
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const [fiches, notes, sorties] = await Promise.all([
-        supabase.from("person").select("name").is("deleted_at", null),
+        supabase.from("person").select("name, aliases").is("deleted_at", null),
         supabase.from("journal_note").select("text").is("deleted_at", null),
         supabase
           .from("activity")
@@ -31,7 +38,12 @@ function useAnnuaire() {
       const ajoute = (texte: string) => {
         for (const qui of citations(texte)) table.set(qui.cle, qui)
       }
-      for (const f of (fiches.data ?? []) as { name: string }[]) ajoute(`@${f.name}`)
+      const lignes = (fiches.data ?? []) as { name: string; aliases: string[] | null }[]
+      // Les alias aussi : on tape le nom qu'on emploie, et le lien suit.
+      for (const f of lignes) {
+        ajoute(`@${f.name}`)
+        for (const alias of f.aliases ?? []) ajoute(`@${alias}`)
+      }
       for (const n of (notes.data ?? []) as { text: string }[]) {
         const texte = await dechiffrer(n.text)
         if (texte !== null) ajoute(texte)
@@ -39,7 +51,7 @@ function useAnnuaire() {
       for (const a of (sorties.data ?? []) as { activity_description: string }[]) {
         ajoute(a.activity_description)
       }
-      return [...table.values()]
+      return { connus: [...table.values()], qui: annuaireDesFiches(lignes) }
     },
   })
 }
@@ -75,7 +87,7 @@ export function BarreCitations({
     }
   }, [aire])
 
-  const choix = enCours ? propositions(enCours.fragment, annuaire.data ?? []) : []
+  const choix = enCours ? propositions(enCours.fragment, annuaire.data?.connus ?? []) : []
   if (!enCours || choix.length === 0) return null
 
   const choisir = (qui: Personne) => {
@@ -110,6 +122,10 @@ export function BarreCitations({
           }}
         >
           @{qui.nom}
+          {/* Qui un alias désigne : « Chérie → Christèle ». */}
+          {annuaire.data && resoudre(annuaire.data.qui, qui).cle !== qui.cle && (
+            <span className="attenue"> → {resoudre(annuaire.data.qui, qui).nom}</span>
+          )}
         </button>
       ))}
     </div>

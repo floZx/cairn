@@ -2944,6 +2944,47 @@ button.citation {
   font-weight: 700;
 }
 
+/* Les autres noms d'une personne, en pastilles sous son nom. */
+.autres-noms {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 12px;
+}
+
+.pastille-nom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--champ);
+  color: var(--texte);
+  font: inherit;
+  font-size: 15px;
+}
+
+.pastille-nom .retirer {
+  padding: 0 0 0 2px;
+  border: 0;
+  background: none;
+  color: var(--texte-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pastille-nom.ajouter {
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.pastille-nom.saisie {
+  width: 120px;
+  outline: none;
+}
+
 /* Les titres de groupe d'une fiche en petites capitales grises, comme les
    en-têtes de groupe d'iOS. Une classe à elle : `.titre-section` sert aussi
    aux filtres et à l'ajout d'aliment. */

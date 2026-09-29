@@ -20,6 +20,7 @@ struct PeopleView: View {
     @Query private var weights: [WeightEntry]
     @Query private var slots: [MealSlot]
     @Query private var people: [Person]
+    @Environment(\.modelContext) private var context
 
     /// Tous les textes de la bibliothèque, réduits à ce que l'index lit.
     ///
@@ -69,12 +70,33 @@ struct PeopleView: View {
         return sansTitre.isEmpty ? nil : PersonHandle.sansArobases(sansTitre)
     }
 
+    /// « C'est aussi… » : ramener cette personne à une autre, dont elle
+    /// devient un alias. Voir `PersonAliases.fusionner`.
+    @ViewBuilder
+    private func menuDeFusion(_ source: PersonHandle, parmi lignes: [PeopleIndex.Ligne]) -> some View {
+        let autres = lignes.map(\.handle).filter { $0.key != source.key }.sorted()
+        Menu("C'est aussi…") {
+            ForEach(autres) { cible in
+                Button(cible.name) {
+                    PersonAliases.fusionner(source, dans: cible, context: context)
+                    Log.journal.attempt("fusion de deux personnes") { try context.save() }
+                    // La personne ouverte vient de devenir un autre nom : on
+                    // ouvre celle qu'elle désigne désormais.
+                    if selection == source.key { selection = cible.key }
+                }
+            }
+        }
+    }
+
     var body: some View {
         let citations = PeopleIndex.citations(
             dans: Self.textes(
                 journalNotes: journalNotes, activities: activities, mealNotes: mealNotes,
                 weights: weights, slots: slots
-            )
+            ),
+            // Chris et Chérie comptent pour Christèle : ils ne figurent pas
+            // dans la liste, leurs notes s'ajoutent aux siennes.
+            annuaire: PeopleIndex.Annuaire(people: people)
         )
         let lignes = PeopleIndex.lignes(
             citations: citations, fiches: people.map { (key: $0.key, name: $0.name) }
@@ -97,6 +119,7 @@ struct PeopleView: View {
                 List(lignes, selection: $selection) { ligne in
                     PeopleRow(ligne: ligne, apercu: Self.apercu(notes[ligne.handle.key]))
                         .tag(ligne.handle.key)
+                        .contextMenu { menuDeFusion(ligne.handle, parmi: lignes) }
                         .id(ligne.handle.key)
                 }
                 // Au clavier, comme la liste du journal : `j` et `k` passent

@@ -644,7 +644,10 @@ create table person (
   key        text not null default '',
   -- Le pseudo tel qu'il a été écrit la première fois, pour l'affichage.
   name       text not null default '',
-  note       text not null default ''
+  note       text not null default '',
+  -- Les autres noms sous lesquels on la cite, tels qu'écrits : « Chris »,
+  -- « Chérie » pour Christèle. Voir `017-alias.sql`.
+  aliases    text[] not null default '{}'
 );
 
 create trigger person_touch before insert or update on person

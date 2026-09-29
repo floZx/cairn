@@ -280,6 +280,8 @@ extension MirrorEngine {
         let key: String
         let name: String
         let note: String
+        /// Optionnelle : une ligne lue avant la migration 017 n'en a pas.
+        let aliases: [String]?
         let updated_at: String
         let deleted_at: String?
     }
@@ -638,11 +640,13 @@ extension MirrorEngine {
                 locale.key = row.key
                 locale.name = row.name
                 locale.note = row.note
+                locale.aliases = row.aliases ?? []
             } else {
                 guard let handle = PersonHandle(name: row.name) else { continue }
                 let fiche = Person(handle: handle, note: row.note)
                 fiche.uuid = row.uuid
                 fiche.key = row.key
+                fiche.aliases = row.aliases ?? []
                 context.insert(fiche)
                 existantes[row.uuid] = fiche
                 parCle[row.key] = fiche
