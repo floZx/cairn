@@ -67,6 +67,8 @@ struct RootView: View {
     @State var selectedPerson: String?
     /// Entrée sur une personne : son éditeur de note prend le clavier.
     @State var personNoteRequest = 0
+    /// Change quand la liste demande de renommer la personne ouverte.
+    @State var personRenameRequest = 0
     @State var filter = ActivityFilter.none
     // See the comment on `ActivityListView.selection`: `Activity.ID` can't be
     // named from this file, so `PersistentIdentifier` is used directly.
@@ -737,6 +739,7 @@ struct RootView: View {
                     PeopleView(
                         selection: $selectedPerson,
                         onEdit: { personNoteRequest += 1 },
+                        onRename: { personRenameRequest += 1 },
                         onCommand: performOutsideTheList
                     )
                 } else if showsNutrition {
@@ -1068,7 +1071,11 @@ struct RootView: View {
                     cle: cle,
                     onOuvrirLaSource: { ouvrirLaSource($0) },
                     attachmentsBase: app.journal.attachmentsBase,
-                    focusRequest: personNoteRequest
+                    focusRequest: personNoteRequest,
+                    renameRequest: personRenameRequest,
+                    // Renommée, elle change de clé : la sélection la suit,
+                    // sans quoi la page se refermait sur un nom disparu.
+                    onRenommee: { selectedPerson = $0 }
                 )
                 .frame(minWidth: Self.detailMinWidth)
             } else {

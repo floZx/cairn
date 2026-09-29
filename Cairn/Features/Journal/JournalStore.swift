@@ -253,6 +253,32 @@ final class JournalStore {
         refresh()
     }
 
+    /// Réécrit chaque note que `transformer` change — un renommage de
+    /// personne, aujourd'hui le seul cas.
+    ///
+    /// Par le magasin et non à côté : la note ouverte est tenue dans un
+    /// tampon, et une réécriture faite dans son dos serait écrasée par la
+    /// frappe suivante. Le tampon est d'abord enregistré, puis réécrit comme
+    /// les autres, et l'éditeur prévenu par `textRevision`.
+    ///
+    /// - Returns: le nombre de notes réécrites.
+    @discardableResult
+    func reecrire(_ transformer: (String) -> String?) -> Int {
+        saveNow()
+        var reecrites = 0
+        for ligne in (try? context.fetch(FetchDescriptor<JournalNote>())) ?? [] {
+            guard let date = ligne.dateKey, let neuf = transformer(ligne.text) else { continue }
+            JournalNoteWrite.apply(neuf, for: date, in: context)
+            if date == editingDate { buffer = neuf }
+            reecrites += 1
+        }
+        guard reecrites > 0 else { return 0 }
+        save()
+        refresh()
+        textRevision += 1
+        return reecrites
+    }
+
     /// Inserts today's note in memory if it is not there, and returns its key.
     ///
     /// Nothing is written: a note appears the moment something is typed, and

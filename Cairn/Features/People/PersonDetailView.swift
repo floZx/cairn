@@ -24,8 +24,15 @@ struct PersonDetailView: View {
     let attachmentsBase: URL?
     /// Change quand la liste demande la note : Entrée ou `e` sur une personne.
     var focusRequest = 0
+    /// Change quand la liste demande de la renommer.
+    var renameRequest = 0
+    /// Sa nouvelle clé, une fois renommée.
+    var onRenommee: (String) -> Void = { _ in }
 
     @Environment(\.modelContext) private var context
+    /// Optionnel, comme pour `MarkdownText` : le journal se réécrit par son
+    /// magasin, qui n'existe que dans l'application montée.
+    @Environment(AppEnvironment.self) private var app: AppEnvironment?
     @Query private var people: [Person]
     @Query private var journalNotes: [JournalNote]
     @Query private var activities: [Activity]
@@ -69,6 +76,9 @@ struct PersonDetailView: View {
     /// Le nom en cours d'ajout aux alias, champ ouvert ; nil, champ fermé.
     @State private var nouvelAlias: String?
     @FocusState private var champAlias: Bool
+    /// Le nom en cours de saisie dans la fenêtre de renommage ; nil, fermée.
+    @State private var nouveauNom: String?
+    @State private var refusDuNom: String?
 
     private var fiche: Person? { people.first { $0.key == cle } }
 
@@ -78,6 +88,33 @@ struct PersonDetailView: View {
             contenu(handle)
                 // Entrée ou `e` depuis la liste : droit dans l'éditeur.
                 .onChange(of: focusRequest) { _, _ in commencerLaNote() }
+                .onChange(of: renameRequest) { _, _ in nouveauNom = handle.name }
+                .alert(
+                    "Renommer \(handle.name)",
+                    isPresented: Binding(
+                        get: { nouveauNom != nil }, set: { if !$0 { nouveauNom = nil } }
+                    )
+                ) {
+                    TextField("Nouveau nom", text: Binding(
+                        get: { nouveauNom ?? "" }, set: { nouveauNom = $0 }
+                    ))
+                    Button("Renommer") { renommer(handle) }
+                    Button("Annuler", role: .cancel) { nouveauNom = nil }
+                } message: {
+                    Text(citations.isEmpty
+                         ? "Aucune note ne la cite encore."
+                         : "\(citations.count == 1 ? "La note" : "Les \(citations.count) notes") qui la citent seront réécrites avec le nouveau nom.")
+                }
+                .alert(
+                    "Impossible de renommer",
+                    isPresented: Binding(
+                        get: { refusDuNom != nil }, set: { if !$0 { refusDuNom = nil } }
+                    )
+                ) {
+                    Button("OK", role: .cancel) { refusDuNom = nil }
+                } message: {
+                    Text(refusDuNom ?? "")
+                }
         )
     }
 
@@ -89,9 +126,20 @@ struct PersonDetailView: View {
                 HStack(spacing: 14) {
                     PersonMonogram(handle: handle, size: 48)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(handle.displayName)
-                            .font(.largeTitle.weight(.semibold))
-                            .lineLimit(1)
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(handle.displayName)
+                                .font(.largeTitle.weight(.semibold))
+                                .lineLimit(1)
+                            Button {
+                                nouveauNom = handle.name
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .help("Renommer — chaque note qui la cite est réécrite")
+                        }
                         if !citations.isEmpty {
                             Text(citations.count == 1 ? "1 note" : "\(citations.count) notes")
                                 .foregroundStyle(.secondary)
@@ -279,6 +327,38 @@ struct PersonDetailView: View {
         guard let alias = PersonHandle(name: tape) else { return }
         PersonAliases.fusionner(alias, dans: principal, context: context)
         Log.journal.attempt("alias d'une personne") { try context.save() }
+    }
+
+    /// Réécrit chaque `@ancien` en `@nouveau` — le journal par son magasin,
+    /// le reste par `PersonRename` —, puis suit la personne sous son nouveau
+    /// nom.
+    private func renommer(_ ancien: PersonHandle) {
+        let tape = nouveauNom ?? ""
+        nouveauNom = nil
+        let connus = Array(PersonScanner.mentions(
+            inAny: journalNotes.map(\.text) + activities.map(\.activityDescription)
+                + mealNotes.map(\.note) + weights.map(\.note)
+        )) + people.compactMap { PersonHandle(name: $0.name) }
+            + people.flatMap { $0.aliases.compactMap(PersonHandle.init(name:)) }
+        switch PersonRename.refus(tape, pour: ancien, connus: connus) {
+        case .nomInvalide:
+            refusDuNom = "« \(tape) » n'est pas un nom de personne : des lettres, des chiffres, - ou _, sans espace."
+            return
+        case .inchange:
+            return
+        case let .dejaPris(autre):
+            refusDuNom = "\(autre.name) existe déjà. Pour les réunir, utilise « C'est aussi… » dans la liste."
+            return
+        case nil:
+            break
+        }
+        guard let nouveau = PersonHandle(name: tape.trimmingCharacters(in: CharacterSet(charactersIn: "@ ")))
+        else { return }
+        enEdition = false
+        app?.journal.reecrire { PersonRename.remplacer(dans: $0, ancien: ancien, par: nouveau) }
+        PersonRename.renommer(ancien, en: nouveau, context: context)
+        Log.journal.attempt("renommage d'une personne") { try context.save() }
+        onRenommee(nouveau.key)
     }
 
     private func commencerLaNote() {

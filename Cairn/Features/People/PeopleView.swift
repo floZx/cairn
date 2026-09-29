@@ -11,6 +11,8 @@ struct PeopleView: View {
     @Binding var selection: String?
     /// Entrée ou `e` : le curseur dans la note de la personne ouverte.
     var onEdit: () -> Void = {}
+    /// « Renommer… » : la page de la personne ouvre sa fenêtre de renommage.
+    var onRename: () -> Void = {}
     /// Ce que la liste ne traite pas elle-même — changer de section, l'aide.
     var onCommand: (VimCommand) -> Bool = { _ in false }
 
@@ -78,6 +80,12 @@ struct PeopleView: View {
     @ViewBuilder
     private func menuDeFusion(_ source: PersonHandle, parmi lignes: [PeopleIndex.Ligne]) -> some View {
         let autres = lignes.map(\.handle).filter { $0.key != source.key }.sorted()
+        Button("Renommer…") {
+            selection = source.key
+            // Au tour suivant : la page de cette personne doit exister pour
+            // recevoir la demande — elle vient peut-être d'être sélectionnée.
+            Task { @MainActor in onRename() }
+        }
         Menu("C'est aussi…") {
             ForEach(autres) { cible in
                 Button(cible.name) {
