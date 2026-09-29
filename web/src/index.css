@@ -4538,3 +4538,15 @@ button.citation {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
+
+/* Le mot cherché dans un résultat du journal : la teinte d'accent, pas le
+   jaune de surligneur par défaut. */
+mark.trouve {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: inherit;
+}
+
+.compte-resultats {
+  margin: 4px 0 8px 16px;
+}

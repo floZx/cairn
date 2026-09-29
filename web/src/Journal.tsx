@@ -9,6 +9,8 @@ import { estChiffre, ouvrir as dechiffrer, useChiffre } from "./chiffre"
 import { NoteEditor, jourCourant, type NoteAEditer } from "./NoteEditor"
 import { Feuille, Chargement } from "./Chrome"
 import { PastilleSport, Symbole } from "./IconeSport"
+import { TuileDuJour, mois } from "./TuileDuJour"
+import { replie, unites } from "./citations"
 
 /// Une journée du journal, telle que le Mac la compose.
 ///
@@ -316,6 +318,12 @@ export function Journal({
   onRepas: (dateKey: string) => void
 }) {
   const [enEdition, setEnEdition] = useState<NoteAEditer | null>(null)
+  const [saisie, setSaisie] = useState("")
+  /// Le jour choisi parmi les résultats : amené sous les yeux comme une
+  /// citation, par le même déroulement de pages.
+  const [jourTrouve, setJourTrouve] = useState<string | null>(null)
+  const cherche = saisie.trim().length >= 2 ? saisie.trim() : ""
+  const recherche = useRechercheJournal(cherche !== "")
   const images = useImagesDuJournal()
   const creneaux = useCreneaux()
   const { data, error, isPending, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -375,9 +383,11 @@ export function Journal({
   /// s'est arrêtée.
   const journeesChargees = data?.pages.flatMap((p) => p.jours) ?? []
   const plusAncienne = journeesChargees[journeesChargees.length - 1]?.dateKey
+  const jourVise = jourAMontrer ?? jourTrouve
+  const montre = jourAMontrer ? onJourMontre : () => setJourTrouve(null)
   useEffect(() => {
-    if (!jourAMontrer) return
-    const carte = document.getElementById(`jour-${jourAMontrer}`)
+    if (!jourVise || cherche) return
+    const carte = document.getElementById(`jour-${jourVise}`)
     if (carte) {
       // Deux fois, et la seconde après 250 ms : en changeant d'écran, le
       // châssis remet la position qu'il avait retenue pour le journal — tout
@@ -385,23 +395,24 @@ export function Journal({
       // défilement était effacé par cette dernière remise, et l'on arrivait
       // en haut du journal. Mesuré le 29 septembre 2026.
       const poser = () =>
-        document.getElementById(`jour-${jourAMontrer}`)?.scrollIntoView({ block: "start" })
+        document.getElementById(`jour-${jourVise}`)?.scrollIntoView({ block: "start" })
       poser()
       // Prévenir après seulement : la demande effacée relance cet effet, et
       // son nettoyage annulerait le second défilement.
       const tard = setTimeout(() => {
         poser()
-        onJourMontre?.()
+        montre?.()
       }, 250)
       return () => clearTimeout(tard)
     }
     if (isPending || isFetchingNextPage) return
-    if (hasNextPage && (!plusAncienne || plusAncienne > jourAMontrer)) {
+    if (hasNextPage && (!plusAncienne || plusAncienne > jourVise)) {
       fetchNextPage()
     } else {
-      onJourMontre?.()
+      montre?.()
     }
-  }, [jourAMontrer, plusAncienne, isPending, isFetchingNextPage, hasNextPage, fetchNextPage, onJourMontre])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jourVise, cherche, plusAncienne, isPending, isFetchingNextPage, hasNextPage, fetchNextPage])
 
   const sentinelle = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -441,8 +452,62 @@ export function Journal({
         ...journees,
       ].sort((x, y) => y.dateKey.localeCompare(x.dateKey))
 
+  const barre = (
+    <div className="barre-recherche">
+      <input
+        type="search"
+        className="recherche"
+        value={saisie}
+        onChange={(e) => setSaisie(e.target.value)}
+        placeholder="Rechercher…"
+      />
+    </div>
+  )
+
+  // En recherche, les résultats remplacent les journées : toutes les notes,
+  // lues et déchiffrées une fois pour la séance — le journal se déroule par
+  // pages, et chercher dans les seules pages chargées mentirait par omission.
+  if (cherche) {
+    const trouves = (recherche.data ?? []).filter((n) => replie(n.texte).includes(replie(cherche)))
+    return (
+      <>
+        {barre}
+        {recherche.isPending ? (
+          <Chargement />
+        ) : trouves.length === 0 ? (
+          <p className="attenue">Aucune note ne contient « {cherche} ».</p>
+        ) : (
+          <>
+            <p className="attenue petit compte-resultats">
+              {trouves.length === 1 ? "1 journée" : `${trouves.length} journées`}
+            </p>
+            <div className="liste-citations">
+              {trouves.map((n) => (
+                <div
+                  className="ligne-citation"
+                  key={n.dateKey}
+                  onClick={() => {
+                    setSaisie("")
+                    setJourTrouve(n.dateKey)
+                  }}
+                >
+                  <TuileDuJour dateKey={n.dateKey} />
+                  <div className="corps-citation">
+                    <span className="provenance">{mois(n.dateKey)}</span>
+                    <span>{surligne(passage(n.texte, cherche), cherche)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </>
+    )
+  }
+
   return (
     <>
+      {barre}
       {enEdition && (
         <Feuille titre="Note" onFerme={() => setEnEdition(null)}>
           <NoteEditor note={enEdition} onFerme={() => setEnEdition(null)} />
@@ -650,5 +715,77 @@ function CarteJour({
         </div>
       )}
     </article>
+  )
+}
+
+/// Toutes les notes du journal, déchiffrées, les plus récentes d'abord — lues
+/// seulement quand on cherche, et une fois pour la séance.
+function useRechercheJournal(actif: boolean) {
+  const chiffre = useChiffre()
+  return useQuery({
+    queryKey: ["journal-recherche", chiffre],
+    enabled: actif,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("journal_note")
+        .select("date_key_raw, text")
+        .is("deleted_at", null)
+        .order("date_key_raw", { ascending: false })
+      if (error) throw error
+      const notes: { dateKey: string; texte: string }[] = []
+      for (const n of (data ?? []) as { date_key_raw: string; text: string }[]) {
+        const texte = await dechiffrer(n.text)
+        if (texte) notes.push({ dateKey: n.date_key_raw, texte })
+      }
+      return notes
+    },
+  })
+}
+
+/// Le passage où le mot apparaît — le paragraphe ou l'item de liste —, sans
+/// sa syntaxe ; la note entière quand le découpage ne le trouve pas.
+function passage(texte: string, cherche: string): string {
+  const cible = replie(cherche)
+  const unite = unites(texte).find((u) => replie(u).includes(cible)) ?? texte
+  return unite
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/^[#>\s*+-]+/gm, "")
+    .replace(/(^|[\s(])[@#](?=[\p{L}\p{N}_])/gu, "$1")
+    .replace(/\*\*|__|\*|_/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+/// Le texte avec chaque occurrence du mot surlignée, sans tenir compte de la
+/// casse ni des accents : « ete » trouve « été ».
+function surligne(texte: string, cherche: string) {
+  const cible = replie(cherche)
+  // Une lettre repliée par lettre d'origine : les accents se replient en rien
+  // de plus, la position se retrouve donc caractère pour caractère.
+  const replies = [...texte].map((c) => replie(c))
+  const morceaux: (string | { mot: string })[] = []
+  let i = 0
+  let courant = ""
+  const lettres = [...texte]
+  while (i < lettres.length) {
+    let longueur = 0
+    let accumule = ""
+    while (i + longueur < lettres.length && accumule.length < cible.length) {
+      accumule += replies[i + longueur]
+      longueur++
+    }
+    if (cible && accumule === cible) {
+      if (courant) morceaux.push(courant)
+      courant = ""
+      morceaux.push({ mot: lettres.slice(i, i + longueur).join("") })
+      i += longueur
+    } else {
+      courant += lettres[i]
+      i++
+    }
+  }
+  if (courant) morceaux.push(courant)
+  return morceaux.map((m, k) =>
+    typeof m === "string" ? m : <mark key={k} className="trouve">{m.mot}</mark>,
   )
 }
