@@ -102,6 +102,8 @@ struct RootView: View {
     /// reste à `J` et `K`, ouvert sur un record à côté.
     @State private var statisticsScroll = PaneScrollRequest()
     @State private var showsKeyboardHelp = false
+    /// « Resynchroniser tout… », demandé depuis le menu Strava.
+    @State private var confirmsResync = false
     /// Whether the editor about to open should start in the note field.
     ///
     /// Carried beside `editor` rather than inside its `Mode`: the mode says
@@ -362,48 +364,12 @@ struct RootView: View {
                 onCancel: { showsJournalExport = false }
             )
         }
-        .onAppear {
-            // ⌘N means "make the thing this section is about": an activity in
-            // the list, today's note in the journal. One shortcut rather than
-            // two, since the two can never both apply.
-            app.requestNewActivity = {
-                if showsJournal, app.journalLock.estOuvert {
-                    openTodaysNote()
-                } else {
-                    editor = .create
-                }
-            }
-            app.requestEditSelection = { if let selected { editor = .edit(selected) } }
-            app.requestDeleteSelection = {
-                if showsJournal, app.journalLock.estOuvert {
-                    journalPendingDeletion = journalSelectionHasNote
-                        ? journalSelection : nil
-                } else {
-                    pendingDeletion = selected
-                }
-            }
-            app.requestToggleFavorite = { toggleFavorite() }
-            app.requestImportGPX = { chooseGPXFilesToImport() }
-            app.requestExportGPX = { exportGPX(selection) }
-            app.requestShowJournalTag = { tag in
-                allerA(.journal)
-                vueJournal = .journees
-                journalQuery = ""
-                journalTags = [tag]
-            }
-            app.requestExportJournalPDF = {
-                // Un livre du journal est le journal : il attend la même clé.
-                guard app.journalLock.estOuvert else { return }
-                // Pre-filled on the month being read: that is the period one
-                // has in mind when the menu is opened from the journal.
-                let day = journalSelection ?? DateKey(Date())
-                journalExportProgress = nil
-                journalExportFrom = day.monthStart
-                journalExportTo = day.monthEnd()
-                showsJournalExport = true
-            }
-            app.requestToggleListStyle = { listStyle = listStyle.toggled }
-        }
+        .resyncEverythingConfirmation(isPresented: $confirmsResync)
+        // The menu bar follows the screen: rebuilt whenever what it could act
+        // on changes, withdrawn when the window goes.
+        .onChange(of: menuState, initial: true) { installMenuCommands(menuState) }
+        .onDisappear { installMenuCommands(nil) }
+        .focusedSceneValue(\.isMainWindow, true)
     }
 
     /// A map on its own, with the sidebar and the detail pane out of the way.
@@ -488,11 +454,100 @@ struct RootView: View {
     /// The sort, presentation and search controls need no such gate: they
     /// belong to the list's own toolbar and leave with it.
     ///
-    /// The menu keeps every one of them, shortcuts included: this hides the
-    /// buttons, it does not withdraw the commands.
+    /// The menu bar follows the same rule — see `menuState`.
     private var showsActivityActions: Bool {
         !showsJournal && !showsNutrition && !showsWeight && !showsStatistics
             && !showsTraining && !showsPeople
+    }
+
+    /// What the menu bar can act on from the screen on display.
+    ///
+    /// The commands used to be installed once and never withdrawn: beside the
+    /// food journal, the statistics or a locked journal, ⌘⌫ offered to delete
+    /// an outing the screen did not show, ⌘N opened the activity editor, and
+    /// no item ever greyed out. The vim layer already refused the same
+    /// commands there (`VimCommand.actsOnActivities`); the menu now agrees.
+    struct MenuState: Equatable {
+        /// The activity list's own section: ⌘N and the table/cards switch.
+        var activities = false
+        var selectedOne = false
+        var selectedAny = false
+        var selectionIsFavorite = false
+        var journalOpen = false
+        var journalNote = false
+        var journalUnlocked = false
+    }
+
+    private var menuState: MenuState {
+        let activities = showsActivityActions
+        // The statistics and the plan open an outing's pane of their own: what
+        // it shows is the selection, and the commands may act on it.
+        let outingOnScreen = activities
+            || ((showsStatistics || showsTraining) && sortieOuverteDepuisLEcran)
+        let selection = outingOnScreen ? selection : []
+        let journalUnlocked = app.journalLock.estOuvert
+        return MenuState(
+            activities: activities,
+            selectedOne: selection.count == 1,
+            selectedAny: !selection.isEmpty,
+            selectionIsFavorite: !selection.isEmpty && selection.allSatisfy(\.isFavorite),
+            journalOpen: showsJournal && journalUnlocked,
+            journalNote: showsJournal && journalUnlocked && journalSelectionHasNote,
+            journalUnlocked: journalUnlocked
+        )
+    }
+
+    /// A nil closure is what greys an item out; nil everywhere once the window
+    /// has gone, so nothing acts on a view that no longer exists.
+    private func installMenuCommands(_ state: MenuState?) {
+        guard let state else {
+            app.requestNewActivity = nil
+            app.requestEditSelection = nil
+            app.requestDeleteSelection = nil
+            app.requestToggleFavorite = nil
+            app.selectionIsFavorite = false
+            app.requestExportGPX = nil
+            app.requestToggleListStyle = nil
+            app.requestExportJournalPDF = nil
+            app.requestImportGPX = nil
+            app.requestShowJournalTag = nil
+            app.requestShowKeyboardHelp = nil
+            app.requestResyncEverything = nil
+            return
+        }
+        // ⌘N means "make the thing this section is about": an activity in
+        // the list, today's note in the journal.
+        app.requestNewActivity = state.journalOpen
+            ? { openTodaysNote() }
+            : state.activities ? { editor = .create } : nil
+        app.requestEditSelection = state.selectedOne
+            ? { if let selected { editor = .edit(selected) } } : nil
+        app.requestDeleteSelection = state.journalNote
+            ? { journalPendingDeletion = journalSelection }
+            : state.selectedOne ? { pendingDeletion = selected } : nil
+        app.requestToggleFavorite = state.selectedAny ? { toggleFavorite() } : nil
+        app.selectionIsFavorite = state.selectionIsFavorite
+        app.requestExportGPX = state.selectedAny ? { exportGPX(selection) } : nil
+        app.requestToggleListStyle = state.activities
+            ? { listStyle = listStyle.toggled } : nil
+        app.requestExportJournalPDF = state.journalUnlocked ? {
+            // Pre-filled on the month being read: that is the period one
+            // has in mind when the menu is opened from the journal.
+            let day = journalSelection ?? DateKey(Date())
+            journalExportProgress = nil
+            journalExportFrom = day.monthStart
+            journalExportTo = day.monthEnd()
+            showsJournalExport = true
+        } : nil
+        app.requestImportGPX = { chooseGPXFilesToImport() }
+        app.requestShowJournalTag = { tag in
+            allerA(.journal)
+            vueJournal = .journees
+            journalQuery = ""
+            journalTags = [tag]
+        }
+        app.requestShowKeyboardHelp = { showsKeyboardHelp = true }
+        app.requestResyncEverything = { confirmsResync = true }
     }
 
     /// La section du journal, quelle que soit la vue choisie dans sa barre

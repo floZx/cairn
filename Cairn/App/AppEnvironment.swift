@@ -79,8 +79,9 @@ final class AppEnvironment {
 
     /// Installed by `RootView` so the menu bar can reach the window's own state.
     ///
-    /// Nil until a window exists, which is exactly what disables the menu items:
-    /// there is nothing to add an activity to before then.
+    /// Nil whenever the screen on display gives the command nothing to act on —
+    /// no window, no selection, a section the command does not belong to —
+    /// which is exactly what greys the menu item out. See `RootView.menuState`.
     var requestNewActivity: (() -> Void)?
     var requestEditSelection: (() -> Void)?
     var requestDeleteSelection: (() -> Void)?
@@ -91,6 +92,13 @@ final class AppEnvironment {
     /// Un tag cliqué dans une note : le journal, filtré sur lui.
     var requestShowJournalTag: ((JournalTag) -> Void)?
     var requestToggleListStyle: (() -> Void)?
+    var requestShowKeyboardHelp: (() -> Void)?
+    /// Opens the confirmation, not the resync itself: see
+    /// `ResyncEverythingConfirmation`.
+    var requestResyncEverything: (() -> Void)?
+    /// Whether every selected activity is already starred, for the menu item
+    /// to say what it will do.
+    var selectionIsFavorite = false
 
     /// `store`, `mirrorTransport` and `mirrorCursor` default to the real
     /// Keychain, `URLSession` and `UserDefaults.standard` — production never

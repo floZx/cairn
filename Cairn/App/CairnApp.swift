@@ -8,6 +8,9 @@ struct CairnApp: App {
     @State private var backup = BackupController()
     @AppStorage(ActivityCardThumbnail.storageKey)
     private var cardThumbnail: ActivityCardThumbnail = .trace
+    /// Set by the main window while it is the focused scene: in the settings
+    /// window, ⌘⌫ or ⌘D must not reach the library behind it.
+    @FocusedValue(\.isMainWindow) private var isMainWindow
 
     init() {
         let container: ModelContainer
@@ -17,6 +20,10 @@ struct CairnApp: App {
             fatalError("Impossible d'ouvrir la base locale : \(error)")
         }
         self.container = container
+        // One window: « Nouvelle fenêtre » is already gone from the menu, and
+        // the menu commands act on the window that installed them last. The
+        // tab bar's own « + » and its Présentation items went with tabbing.
+        NSWindow.allowsAutomaticWindowTabbing = false
         // Built before either write below, and deliberately so: if the mirror
         // is configured, `AppEnvironment.init` starts `MirrorRecorder` right
         // away, and starting it *after* `DemoData` or `StoreMaintenance` had
@@ -108,53 +115,56 @@ struct CairnApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(after: .newItem) {
-                // These two now depend on the section: an activity in the
-                // list, today's note in the journal. Named for what they do
-                // rather than for one of the two things they act on — a
-                // « Supprimer l'activité » that sends a note to the trash is
-                // the worst kind of label. The two below stay activity-worded
-                // because they stayed activity-only.
-                Button("Nouvel élément") { app.requestNewActivity?() }
+                // These two depend on the section: an activity in the list,
+                // today's note in the journal. Named for what they do rather
+                // than for one of the two things they act on — a « Supprimer
+                // l'activité » that sends a note to the trash is the worst
+                // kind of label. The others stay activity-worded because they
+                // are activity-only.
+                Button("Nouvel élément") { Self.inMainWindow(app.requestNewActivity) }
                     .keyboardShortcut("n")
-                    .disabled(app.requestNewActivity == nil)
-                Button("Modifier l'activité") { app.requestEditSelection?() }
+                    .disabled(unavailable(app.requestNewActivity))
+                Button("Modifier l'activité…") { Self.inMainWindow(app.requestEditSelection) }
                     .keyboardShortcut("e")
-                    .disabled(app.requestEditSelection == nil)
-                Button("Supprimer l'élément") { app.requestDeleteSelection?() }
+                    .disabled(unavailable(app.requestEditSelection))
+                Button("Supprimer l'élément…") { Self.deleteOrEraseLine(app.requestDeleteSelection) }
                     .keyboardShortcut(.delete, modifiers: .command)
-                    .disabled(app.requestDeleteSelection == nil)
-                Button("Favori") { app.requestToggleFavorite?() }
-                    .keyboardShortcut("d")
-                    .disabled(app.requestToggleFavorite == nil)
-                Button("Tableau ou fiches") { app.requestToggleListStyle?() }
-                    // A letter, like every other shortcut here: the digits need
-                    // shift on an AZERTY keyboard.
-                    .keyboardShortcut("l", modifiers: [.option, .command])
-                    .disabled(app.requestToggleListStyle == nil)
+                    .disabled(unavailable(app.requestDeleteSelection))
+                Button(app.selectionIsFavorite ? "Retirer des favoris" : "Ajouter aux favoris") {
+                    Self.inMainWindow(app.requestToggleFavorite)
+                }
+                .keyboardShortcut("d")
+                .disabled(unavailable(app.requestToggleFavorite))
             }
             // Le menu Présentation, où macOS range ce qui change la façon de
             // voir sans rien changer à ce qu'on voit.
             CommandGroup(after: .toolbar) {
+                Button("Tableau ou fiches") { Self.inMainWindow(app.requestToggleListStyle) }
+                    // A letter, like every other shortcut here: the digits need
+                    // shift on an AZERTY keyboard.
+                    .keyboardShortcut("l", modifiers: [.option, .command])
+                    .disabled(unavailable(app.requestToggleListStyle))
                 Picker("Présentation des fiches", selection: $cardThumbnail) {
                     ForEach(ActivityCardThumbnail.allCases) { option in
                         Text(option.displayName).tag(option)
                     }
                 }
+                Divider()
             }
             // The standard placement, so Import and Export land where macOS
             // users already look for them rather than under a menu of our own.
             CommandGroup(replacing: .importExport) {
-                Button("Importer des fichiers GPX…") { app.requestImportGPX?() }
+                Button("Importer des fichiers GPX…") { Self.inMainWindow(app.requestImportGPX) }
                     .keyboardShortcut("i")
-                    .disabled(app.requestImportGPX == nil)
-                Button("Exporter la sélection en GPX…") { app.requestExportGPX?() }
+                    .disabled(unavailable(app.requestImportGPX))
+                Button("Exporter la sélection en GPX…") { Self.inMainWindow(app.requestExportGPX) }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
-                    .disabled(app.requestExportGPX == nil)
+                    .disabled(unavailable(app.requestExportGPX))
                 if !SidebarItem.journal.estMasquee {
                     Button("Exporter le journal en PDF…") {
-                        app.requestExportJournalPDF?()
+                        Self.inMainWindow(app.requestExportJournalPDF)
                     }
-                    .disabled(app.requestExportJournalPDF == nil)
+                    .disabled(unavailable(app.requestExportJournalPDF))
                 }
                 if !SidebarItem.journal.estMasquee {
                     Divider()
@@ -172,11 +182,21 @@ struct CairnApp: App {
                 Button("Importer seulement les résumés") { app.syncSummariesOnly() }
                     .keyboardShortcut("r", modifiers: [.command, .shift])
                     .disabled(!app.isAuthenticated || app.progress.isRunning)
-                Button("Resynchroniser tout") { app.resyncEverything() }
-                    .disabled(!app.isAuthenticated || app.progress.isRunning)
+                Button("Resynchroniser tout…") { app.requestResyncEverything?() }
+                    .disabled(
+                        !app.isAuthenticated || app.progress.isRunning
+                            || app.requestResyncEverything == nil
+                    )
                 Divider()
                 Button("Interrompre la synchronisation") { app.cancelSync() }
                     .disabled(!app.progress.isRunning)
+            }
+            // Pas de livre d'aide : l'élément par défaut n'ouvrait qu'« Aide
+            // non disponible ». L'aide-mémoire du clavier, que `?` ouvre déjà.
+            CommandGroup(replacing: .help) {
+                Button("Raccourcis clavier") { Self.inMainWindow(app.requestShowKeyboardHelp) }
+                    .keyboardShortcut("?", modifiers: .command)
+                    .disabled(unavailable(app.requestShowKeyboardHelp))
             }
         }
 
@@ -186,4 +206,31 @@ struct CairnApp: App {
                 .modelContainer(container)
         }
     }
+
+    private func unavailable(_ command: (() -> Void)?) -> Bool {
+        command == nil || isMainWindow != true
+    }
+
+    /// Runs a window command unless a sheet is in front: an editor open on one
+    /// activity must not let ⌘⌫ delete another behind it.
+    private static func inMainWindow(_ command: (() -> Void)?) {
+        guard let command, NSApp.keyWindow?.sheetParent == nil else { return }
+        command()
+    }
+
+    /// ⌘⌫ is also the text system's « effacer jusqu'au début de la ligne », and
+    /// a menu's key equivalent reaches the menu before the text view sees the
+    /// key: typing it in a note would have asked to delete the note. In a
+    /// text field it keeps its text meaning.
+    private static func deleteOrEraseLine(_ command: (() -> Void)?) {
+        if let text = NSApp.keyWindow?.firstResponder as? NSTextView, text.isEditable {
+            text.deleteToBeginningOfLine(nil)
+            return
+        }
+        inMainWindow(command)
+    }
+}
+
+extension FocusedValues {
+    @Entry var isMainWindow: Bool?
 }

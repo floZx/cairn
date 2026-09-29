@@ -57,7 +57,6 @@ struct KeyboardHelpSheet: View {
         Group(title: "Journal", rows: [
             ("j / k", "note suivante / précédente"),
             ("e / n / ⏎", "écrire dans la note sélectionnée"),
-            ("h", "fermer le volet de droite (aussi ⌥⌘I)"),
             ("échap", "quitter l'éditeur, puis vider la recherche, les tags, la sélection"),
             ("x / ⌘⌫", "supprimer la note, après confirmation — sans corbeille"),
             ("⌘N", "la note du jour, créée au besoin"),
@@ -65,8 +64,8 @@ struct KeyboardHelpSheet: View {
         Group(title: "Chercher", rows: [
             ("/", "aller au champ de recherche"),
             ("échap", "revenir à aujourd'hui (alimentation), vider la recherche, sinon la sélection"),
-            ("⌥⌘I", "fermer le volet — depuis n'importe quelle vue"),
-            ("?", "cet aide-mémoire"),
+            ("⌥⌘I", "fermer le volet d'une activité, depuis la liste, les statistiques ou le plan"),
+            ("? / ⌘?", "cet aide-mémoire"),
         ]),
     ]
 
