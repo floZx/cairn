@@ -2,7 +2,7 @@ import Foundation
 
 /// Which note of the journal is being written in, if any.
 ///
-/// Lifted out of `JournalDetailView` for the same reason as `JournalNotice`:
+/// Lifted out of `JournalDetailView` to be tested on its own:
 /// two events can arrive together — the note on screen changes, the editor is
 /// asked for — and what they add up to is a small state machine. One that only
 /// a view holds is one that only reading can check, and reading is what missed

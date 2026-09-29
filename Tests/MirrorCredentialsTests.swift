@@ -65,11 +65,8 @@ struct MirrorCredentialsTests {
 
     @Test func leKeychainRespecteLeMemeContrat() throws {
         // Dedicated service name so the app's real credentials are never
-        // touched. No legacy service: Supabase has no former name to fall
-        // back to.
-        let store = KeychainStore(
-            service: "com.florianmaisonnial.Cairn.tests.mirror", legacyService: nil
-        )
+        // touched.
+        let store = KeychainStore(service: "com.florianmaisonnial.Cairn.tests.mirror")
         try store.clearAll()
         try store.clearMirror()
 

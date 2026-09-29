@@ -46,11 +46,8 @@ un seul endroit, `AppModelContainer.isTesting`, et quatre chemins en dépendent 
 
 - **la base** : sous test, c'est toujours un fichier jetable
   (`AppModelContainer.storeFileName(isTesting:isDemo:)`) ;
-- **les préférences** : la reprise du journal de `StoreMaintenance.run` — qui
-  lirait le vrai `journalFolderPath` et poserait le vrai marqueur de reprise —
-  ne s'exécute pas depuis un lancement de test, et chaque test qui l'appelle
-  passe un domaine `UserDefaults` jetable, balayé après lui
-  (`Tests/ThrowawayDefaults.swift`) ;
+- **les préférences** : chaque test qui en lit ou en écrit passe un domaine
+  `UserDefaults` jetable, balayé après lui (`Tests/ThrowawayDefaults.swift`) ;
 - **la sauvegarde** : elle vise le vrai `Cairn.store` et le vrai dossier iCloud
   Drive, donc elle ne part pas non plus depuis un lancement de test ;
 - **le cache des pièces jointes** : son dossier est un paramètre sans valeur par
@@ -73,7 +70,7 @@ Pour essayer l'application, ou produire des captures, sans compte Strava et sans
 exposer de données réelles :
 
 ```bash
-STRAVALOCAL_DEMO=1 build/Build/Products/Release/Cairn.app/Contents/MacOS/Cairn
+CAIRN_DEMO=1 build/Build/Products/Release/Cairn.app/Contents/MacOS/Cairn
 ```
 
 Dix-huit mois d'entraînement inventés apparaissent : trail, course, vélo,
@@ -83,7 +80,7 @@ fonds topographiques et les profils d'altitude ressemblent à quelque chose, mai
 des parcours entièrement fictifs.
 
 Deux garde-fous, parce qu'il ne s'agirait pas d'écrire de fausses activités dans
-une vraie base : le jeu ne se génère que si `STRAVALOCAL_DEMO` est défini, et dans
+une vraie base : le jeu ne se génère que si `CAIRN_DEMO` est défini, et dans
 ce cas l'application ouvre un **fichier de base distinct**
 (`Cairn-demo.store`). La bibliothèque réelle n'est jamais ouverte. Chaque
 activité générée se déclare en outre « Fichier importé » plutôt que « Strava »,
@@ -261,10 +258,10 @@ comme les activités et le reste. Ça n'a pas toujours été vrai. Le journal vi
 dans un dossier que vous désigniez vous-même, au format des notes du jour
 d'Obsidian (`AAAA-MM-JJ.md` à la racine, pièces jointes dans `pieces-jointes/`) ;
 Cairn le lisait, l'écrivait et le surveillait en continu, comme un second
-Obsidian. Ce dossier n'existe plus pour Cairn : à la première ouverture de cette
-version, chaque note et chaque image en ont été reprises une fois pour toutes,
-puis il n'a plus été touché — il reste sur le disque, tel quel, si vous voulez
-le rouvrir dans Obsidian par vous-même.
+Obsidian. Ce dossier n'existe plus pour Cairn : le 17 août 2026, chaque note et
+chaque image en ont été reprises une fois pour toutes, puis il n'a plus été
+touché — il reste sur le disque, tel quel, si vous voulez le rouvrir dans
+Obsidian par vous-même. Le code de cette reprise a été retiré depuis.
 
 **Ce qui est gagné : la sauvegarde.** Le dossier ne partait jamais dans la
 sauvegarde iCloud de Cairn — l'y recopier n'aurait rien protégé, il était déjà
@@ -278,10 +275,6 @@ coffre — voir « Sauvegarde ».
 le Mac ou sur le téléphone — écrivait directement dans ce que Cairn lisait. Le
 téléphone, lui, est revenu par l'application web (voir « Miroir en ligne ») :
 une note du jour s'y écrit, et le Mac la relit.
-
-Le nombre de notes reste visible dans les réglages ; ce n'est plus la preuve
-qu'on a montré le bon dossier — il n'y a plus de dossier à montrer — mais celle
-que la reprise a bien trouvé ce qu'il y avait à trouver.
 
 **On lit la note rendue, on écrit dedans au clic.** Le volet de droite affiche
 les titres, les listes et les citations, et devient un champ de texte dès qu'on

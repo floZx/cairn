@@ -11,7 +11,7 @@ struct DemoDataTests {
 
     @Test("le mode démo est désactivé sauf variable d'environnement")
     func staysOffByDefault() throws {
-        // The suite runs without STRAVALOCAL_DEMO set, which is the point: a
+        // The suite runs without CAIRN_DEMO set, which is the point: a
         // guard that could ever be true by accident would risk writing invented
         // activities into a real library.
         #expect(DemoData.isEnabled == false)

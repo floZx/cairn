@@ -7,7 +7,7 @@ import SwiftData
 /// anybody's training history: activity names and the places you train are
 /// personal data, and a screenshot of a real library gives away both.
 ///
-/// Two safeguards. It only runs when `STRAVALOCAL_DEMO` is set, and when it does
+/// Two safeguards. It only runs when `CAIRN_DEMO` is set, and when it does
 /// the whole app opens a *different* store file — see `AppModelContainer.make`.
 /// The real library is never opened, so it cannot be written to.
 ///
@@ -15,7 +15,7 @@ import SwiftData
 /// the same library and a screenshot can be retaken identically.
 enum DemoData {
     static var isEnabled: Bool {
-        ProcessInfo.processInfo.environment["STRAVALOCAL_DEMO"] != nil
+        ProcessInfo.processInfo.environment["CAIRN_DEMO"] != nil
     }
 
     /// Fills an empty demo store, and does nothing on one already filled.

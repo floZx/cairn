@@ -20,33 +20,6 @@ struct PhotoImportTests {
         return activity
     }
 
-    /// Un domaine `UserDefaults` jetable, jamais `.standard` : `StoreMaintenance.run`
-    /// déclenche désormais la reprise du journal, qui lirait et écrirait les
-    /// vraies préférences de cette machine sans ce domaine à part — voir la
-    /// même remarque dans `Tests/StoreMaintenanceTests.swift`.
-    private static let suitePrefix = "photo-import-tests-"
-
-    private func freshDefaults() -> (UserDefaults, String) {
-        let name = "\(Self.suitePrefix)\(UUID().uuidString)"
-        return (UserDefaults(suiteName: name)!, name)
-    }
-
-    private func discard(_ suiteName: String) {
-        UserDefaults().removePersistentDomain(forName: suiteName)
-        ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
-    }
-
-    /// Un dossier de cache jetable, jamais `JournalAttachmentCache.vaultRoot` —
-    /// voir la même paire dans `Tests/StoreMaintenanceTests.swift`.
-    private func freshCacheDirectory() -> URL {
-        URL(fileURLWithPath: NSTemporaryDirectory())
-            .appending(path: "\(Self.suitePrefix)cache-\(UUID().uuidString)")
-    }
-
-    private func discardCache(_ directory: URL) {
-        try? FileManager.default.removeItem(at: directory)
-    }
-
     @Test("la plus grande taille est choisie, pas la première venue")
     func picksTheLargestSize() {
         // The keys are strings even though they are numbers: sorted as text,
@@ -129,28 +102,6 @@ struct PhotoImportTests {
 
         _ = mapper.upsert(photos: [photo(id: "a", urls: ["600": "url-a"])], on: activity)
         #expect(activity.photos[0].activityUUID == activity.uuid)
-    }
-
-    @Test("une photo enregistrée avant ce champ est rattachée par la maintenance")
-    func maintenanceLinksOldPhotos() throws {
-        // Those photos would be invisible for good otherwise: the sync will not
-        // fetch them again, `photosFetchedAt` being already set on their activity.
-        let context = ModelContext(try AppModelContainer.inMemory())
-        let activity = makeActivity(in: context)
-        let orphan = ActivityPhoto(uniqueID: "ancienne")
-        orphan.activity = activity
-        context.insert(orphan)
-        activity.photos.append(orphan)
-        try context.save()
-        let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
-        let cache = freshCacheDirectory()
-        defer { discardCache(cache) }
-
-        #expect(try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults) > 0)
-        #expect(orphan.activityUUID == activity.uuid)
-        // Idempotent: a second pass has nothing left to repair.
-        #expect(try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults) == 0)
     }
 
     @Test("une photo sans identifiant est reconnue par son adresse")

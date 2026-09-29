@@ -86,13 +86,6 @@ enum AppModelContainer {
         // first reached the user's store, before anyone decided it should.
         // See `isTesting` above for why the question is asked there.
         let isTesting = Self.isTesting
-        // Before opening anything: an unmigrated library from the app's former
-        // name would otherwise be shadowed by a brand-new empty store.
-        try LegacyStoreMigration.run(
-            from: URL.applicationSupportDirectory
-                .appending(path: LegacyStoreMigration.legacyDirectoryName),
-            to: directory
-        )
         let name = storeFileName(isTesting: isTesting, isDemo: DemoData.isEnabled)
         let configuration = ModelConfiguration(
             schema: schema, url: directory.appending(path: name)

@@ -48,28 +48,10 @@ private func seedLocalPair<Model: PersistentModel>(
 @Suite("Maintenance du store")
 @MainActor
 struct StoreMaintenanceTests {
-    /// Un domaine `UserDefaults` jetable, jamais `.standard` : depuis que
-    /// `StoreMaintenance.run` déclenche la reprise du journal, l'appeler avec
-    /// son défaut lirait et écrirait les vraies préférences de cette
-    /// machine — le vrai `journalFolderPath`, et le vrai marqueur de reprise.
-    /// Aucun des tests ci-dessous ne s'intéresse au journal ; ce domaine
-    /// jetable existe pour que la reprise qu'ils déclenchent malgré eux reste
-    /// sans conséquence.
     private static let suitePrefix = "store-maintenance-tests-"
 
-    private func freshDefaults() -> (UserDefaults, String) {
-        let name = "\(Self.suitePrefix)\(UUID().uuidString)"
-        return (UserDefaults(suiteName: name)!, name)
-    }
-
-    private func discard(_ suiteName: String) {
-        UserDefaults().removePersistentDomain(forName: suiteName)
-        ThrowawayDefaults.sweep(prefix: Self.suitePrefix)
-    }
-
     /// Un dossier de cache jetable, jamais `JournalAttachmentCache.vaultRoot` :
-    /// la reprise que `StoreMaintenance.run` déclenche reconstruit le cache des
-    /// pièces jointes, et tant que ce dossier était nommé dans `run` lui-même,
+    /// `StoreMaintenance.run` reconstruit le cache des pièces jointes, et tant que ce dossier était nommé dans `run` lui-même,
     /// `un.jpg` et `deux.jpg` — ceux de `splitsDuplicatedUUIDsForLocalJournalModels`
     /// ci-dessous — atterrissaient dans le vrai dossier de cache de
     /// l'application, à chaque exécution de la suite. Mesuré, pas supposé.
@@ -95,12 +77,10 @@ struct StoreMaintenanceTests {
         context.insert(untouched)
         context.insert(empty)
         try context.save()
-        let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
         let cache = freshCacheDirectory()
         defer { discardCache(cache) }
 
-        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
+        let changed = try StoreMaintenance.run(context, cacheDirectory: cache)
 
         #expect(changed == 1)
         #expect(untouched.uuid == kept)
@@ -124,12 +104,10 @@ struct StoreMaintenanceTests {
         context.insert(two)
         context.insert(three)
         try context.save()
-        let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
         let cache = freshCacheDirectory()
         defer { discardCache(cache) }
 
-        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
+        let changed = try StoreMaintenance.run(context, cacheDirectory: cache)
 
         #expect(changed == 2)
         let uuids = Set([one.uuid, two.uuid, three.uuid])
@@ -154,7 +132,7 @@ struct StoreMaintenanceTests {
     /// La forme reproduite est celle qu'une migration légère laisse : deux
     /// lignes d'une même table portant la même valeur. Le compte attendu est
     /// exactement un réémis par paire — le premier revendiquant garde le sien.
-    @Test("chacun des vingt modèles ressort avec des uuid distincts")
+    @Test("chacun des modèles du miroir ressort avec des uuid distincts")
     func splitsDuplicatedUUIDsForEveryMirroredModel() throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
@@ -289,12 +267,10 @@ struct StoreMaintenanceTests {
         ]
         #expect(Set(pairs.map(\.table)) == Set(MirrorEngine.bootstrapOrder))
         try context.save()
-        let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
         let cache = freshCacheDirectory()
         defer { discardCache(cache) }
 
-        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
+        let changed = try StoreMaintenance.run(context, cacheDirectory: cache)
 
         #expect(changed == pairs.count)
         for pair in pairs {
@@ -304,7 +280,7 @@ struct StoreMaintenanceTests {
         }
 
         // La même passe, relancée : plus rien à réparer sur aucune des seize.
-        #expect(try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults) == 0)
+        #expect(try StoreMaintenance.run(context, cacheDirectory: cache) == 0)
     }
 
     /// Les deux modèles du journal, à part : ils portent un `uuid` sujet au
@@ -334,12 +310,10 @@ struct StoreMaintenanceTests {
             ),
         ]
         try context.save()
-        let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
         let cache = freshCacheDirectory()
         defer { discardCache(cache) }
 
-        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
+        let changed = try StoreMaintenance.run(context, cacheDirectory: cache)
 
         #expect(changed == pairs.count)
         for pair in pairs {
@@ -348,7 +322,7 @@ struct StoreMaintenanceTests {
             #expect(uuids.allSatisfy { !$0.isEmpty }, "\(pair.table) : un uuid vide")
         }
 
-        #expect(try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults) == 0)
+        #expect(try StoreMaintenance.run(context, cacheDirectory: cache) == 0)
         // Et les deux images sont allées dans le dossier jetable, nulle part
         // ailleurs : c'est la preuve que `cacheDirectory:` est bien ce que la
         // reconstruction utilise. Tant qu'il n'existait pas, ces deux
@@ -395,13 +369,11 @@ struct StoreMaintenanceTests {
         context.insert(one)
         context.insert(two)
         try context.save()
-        let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
         let cache = freshCacheDirectory()
         defer { discardCache(cache) }
-        try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
+        try StoreMaintenance.run(context, cacheDirectory: cache)
 
-        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
+        let changed = try StoreMaintenance.run(context, cacheDirectory: cache)
 
         #expect(changed == 0)
     }
@@ -414,59 +386,5 @@ struct StoreMaintenanceTests {
     /// reprise réussie, la situation ne se dénouait jamais d'elle-même :
     /// à chaque lancement, indéfiniment, 840 activités auraient gardé le
     /// même `uuid`.
-    @Test("un dossier de journal introuvable n'empêche pas la réparation des uuid")
-    func repairsSurviveAnUnreadableJournalFolder() throws {
-        let container = try AppModelContainer.inMemory()
-        let context = ModelContext(container)
-        let shared = "64D8A062-4BAC-4EAF-BB62-5803626D04E5"
-        let one = Activity(stravaID: 1, name: "Une", sportType: .run)
-        let two = Activity(stravaID: 2, name: "Deux", sportType: .run)
-        one.uuid = shared
-        two.uuid = shared
-        context.insert(one)
-        context.insert(two)
-        try context.save()
-        let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
-        let cache = freshCacheDirectory()
-        defer { discardCache(cache) }
-        // Jamais créé : c'est exactement ce que devient un chemin enregistré
-        // il y a un an dont le dossier a bougé depuis.
-        defaults.set(
-            URL(fileURLWithPath: NSTemporaryDirectory())
-                .appending(path: "journal-absent-\(UUID().uuidString)").path,
-            forKey: JournalSettings.folderPathKey
-        )
-
-        let changed = try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
-
-        #expect(changed == 1)
-        #expect(one.uuid != two.uuid)
-        // La reprise, elle, n'a pas eu lieu et n'est pas marquée faite : elle
-        // a le droit d'échouer et de réessayer, c'est la spécification.
-        #expect(defaults.bool(forKey: JournalSettings.importDoneKey) == false)
-    }
-
-    /// Une reprise qui échoue le dit, par le même chemin qu'un fichier
-    /// illisible : sans cette phrase, un lecteur dont le chemin est périmé
-    /// n'a qu'un journal vide, aucun message, et — depuis que le sélecteur de
-    /// dossier a disparu — aucun moyen de deviner lequel remettre en place.
-    @Test("une reprise qui échoue laisse une trace nommant le dossier")
-    func aFailedRecoveryLeavesANoticeNamingTheFolder() throws {
-        let container = try AppModelContainer.inMemory()
-        let context = ModelContext(container)
-        let (defaults, suiteName) = freshDefaults()
-        defer { discard(suiteName) }
-        let cache = freshCacheDirectory()
-        defer { discardCache(cache) }
-        let missing = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appending(path: "journal-absent-\(UUID().uuidString)").path
-        defaults.set(missing, forKey: JournalSettings.folderPathKey)
-
-        try StoreMaintenance.run(context, cacheDirectory: cache, defaults: defaults)
-
-        let notice = try #require(defaults.string(forKey: JournalSettings.importNoticeKey))
-        #expect(notice.contains(missing))
-    }
 
 }

@@ -1,20 +1,8 @@
 import SwiftUI
 
-/// What the journal holds, and where it holds it.
-///
-/// There is no folder to choose any more: the notes live in the base like
-/// everything else, and the folder that used to hold them is read once at the
-/// first launch and then forgotten. The count is what is left of the old
-/// confirmation, and it still earns its place — it is the immediate proof that
-/// the recovery found the notes.
+/// What the journal holds, and how it is locked.
 struct JournalSettingsView: View {
     @Environment(AppEnvironment.self) private var app
-    /// The recovery's own report — `JournalSettings.importNoticeKey`, written
-    /// once by `StoreMaintenance.run` the very first time it recovers a
-    /// journal folder, absent on every launch that finds nothing to say.
-    /// This is the one screen a reader would open to check on a note the
-    /// recovery flagged, so it is where that sentence has to surface.
-    @AppStorage(JournalSettings.importNoticeKey) private var importNotice = ""
 
     var body: some View {
         Form {
@@ -30,14 +18,6 @@ struct JournalSettingsView: View {
             }
 
             lockSection
-
-            if !importNotice.isEmpty {
-                Section {
-                    Text(importNotice)
-                } header: {
-                    Text("Reprise")
-                }
-            }
         }
         .formStyle(.grouped)
     }
@@ -61,8 +41,8 @@ struct JournalSettingsView: View {
                 Touch ID ou le mot de passe de votre session pour l'ouvrir ; \
                 il se referme aussi quand l'écran se verrouille ou que le Mac \
                 s'endort, et à la demande avec ⌃⌘L. Il protège d'un regard, \
-                pas davantage : les notes ne sont pas chiffrées, et le miroir \
-                les porte au web.
+                pas davantage : sur ce Mac, les notes ne sont pas chiffrées. \
+                Vers le web, elles peuvent l'être — voir l'onglet Miroir.
                 """)
         }
     }

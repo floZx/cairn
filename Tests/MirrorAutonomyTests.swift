@@ -135,29 +135,7 @@ struct MirrorAutonomyTests {
 @Suite("Garanties de branchement du miroir")
 @MainActor
 struct MirrorWiringTests {
-    /// Un domaine `UserDefaults` jetable, jamais `.standard` : `StoreMaintenance.run`
-    /// déclenche désormais la reprise du journal, qui lirait et écrirait les
-    /// vraies préférences de cette machine sans ce domaine à part — voir la
-    /// même remarque dans `Tests/StoreMaintenanceTests.swift`. Un préfixe à
-    /// part de `cairn.tests.mirror.` : celui-là nomme les curseurs
-    /// d'amorçage jetables de `freshCursor()`, pas les préférences du
-    /// journal.
-    // Named `...Journal...` throughout, distinct from the free `freshCursor()`
-    // / `discard(_:)` pair `Tests/MirrorTestSupport.swift` exports: a method of
-    // the same name declared on this struct would shadow those for every
-    // unqualified call inside it, silently sweeping the wrong prefix for the
-    // mirror cursor `lEnregistreurEcouteDejaQuandLInitRend()` already uses.
     private static let journalSuitePrefix = "mirror-wiring-tests-journal-"
-
-    private func freshJournalDefaults() -> (UserDefaults, String) {
-        let name = "\(Self.journalSuitePrefix)\(UUID().uuidString)"
-        return (UserDefaults(suiteName: name)!, name)
-    }
-
-    private func discardJournalDefaults(_ suiteName: String) {
-        UserDefaults().removePersistentDomain(forName: suiteName)
-        ThrowawayDefaults.sweep(prefix: Self.journalSuitePrefix)
-    }
 
     /// Un dossier de cache jetable, jamais `JournalAttachmentCache.vaultRoot` —
     /// voir la même paire dans `Tests/StoreMaintenanceTests.swift`.
@@ -220,14 +198,10 @@ struct MirrorWiringTests {
         for entry in try setup.fetch(FetchDescriptor<MirrorOutbox>()) { setup.delete(entry) }
         try setup.save()
 
-        let (defaults, journalSuiteName) = freshJournalDefaults()
-        defer { discardJournalDefaults(journalSuiteName) }
         let cache = freshCacheDirectory()
         defer { discardCache(cache) }
         // The actual first write of a launch, called directly.
-        let changed = try StoreMaintenance.run(
-            ModelContext(container), cacheDirectory: cache, defaults: defaults
-        )
+        let changed = try StoreMaintenance.run(ModelContext(container), cacheDirectory: cache)
         #expect(changed > 0)
 
         let entries = try ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>())

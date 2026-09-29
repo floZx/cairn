@@ -3,27 +3,6 @@ import Foundation
 import Observation
 import SwiftData
 
-/// AppStorage keys for the journal, held here so no key literal is ever
-/// duplicated — the same rule as `NutritionSettings`.
-enum JournalSettings {
-    /// Where the notes used to live. Read exactly once, by
-    /// `JournalImport.runIfNeeded`, and never written any more: the folder is
-    /// taken in at the first launch and then forgotten.
-    static let folderPathKey = "journalFolderPath"
-    /// Set once `JournalImport.runIfNeeded` has run, whatever it found —
-    /// explicit rather than deduced from an empty store, because a journal
-    /// with no note in it is a legitimate state, not a sign recovery never
-    /// happened.
-    static let importDoneKey = "journalImportDone"
-    /// The recovery's own report, in French, once — set by `StoreMaintenance`
-    /// alongside `importDoneKey` when `JournalImport.Outcome.unreadable` is
-    /// not empty, and read back by `JournalSettingsView`. Absent, not an
-    /// empty string, when nothing was unreadable: the empty case has to be
-    /// distinguishable from "the recovery has not run yet" for a view that
-    /// only ever reads this key, never runs the recovery itself.
-    static let importNoticeKey = "journalImportNotice"
-}
-
 /// The journal's live state: what the base holds, and what is being typed into
 /// it right now.
 ///

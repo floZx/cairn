@@ -54,11 +54,6 @@ enum SecretStoreError: Error {
 /// Values are JSON so adding a field later doesn't need a migration.
 final class KeychainStore: SecretStore, Sendable {
     private let service: String
-    /// The service the app used under its former name. Items are copied across on
-    /// first read rather than at launch, so an install that never had a
-    /// StravaLocal keychain pays nothing and a rename doesn't ask the user to sign
-    /// in to Strava all over again.
-    private let legacyService: String?
     private static let credentialsAccount = "credentials"
     private static let tokensAccount = "tokens"
     private static let mirrorCredentialsAccount = "mirror-credentials"
@@ -66,16 +61,12 @@ final class KeychainStore: SecretStore, Sendable {
     private static let garminTokensAccount = "garmin-tokens"
     private static let journalKeyAccount = "journal-key"
 
-    init(
-        service: String = "com.florianmaisonnial.Cairn",
-        legacyService: String? = "com.florianmaisonnial.StravaLocal"
-    ) {
+    init(service: String = "com.florianmaisonnial.Cairn") {
         self.service = service
-        self.legacyService = legacyService
     }
 
     func credentials() -> StravaCredentials? {
-        adopting(StravaCredentials.self, account: Self.credentialsAccount)
+        read(StravaCredentials.self, account: Self.credentialsAccount)
     }
 
     func save(_ credentials: StravaCredentials) throws {
@@ -83,43 +74,22 @@ final class KeychainStore: SecretStore, Sendable {
     }
 
     func tokens() -> StravaTokens? {
-        adopting(StravaTokens.self, account: Self.tokensAccount)
-    }
-
-    /// Reads under the current service, falling back to the former one and
-    /// copying what it finds so the next read no longer needs the fallback.
-    private func adopting<T: Codable>(_ type: T.Type, account: String) -> T? {
-        if let value = read(type, account: account) { return value }
-        guard let legacyService,
-              let value = read(type, account: account, service: legacyService)
-        else { return nil }
-        // A failed copy is not worth surfacing: the value was still read, and the
-        // fallback will simply run again next time.
-        try? write(value, account: account)
-        return value
+        read(StravaTokens.self, account: Self.tokensAccount)
     }
 
     func save(_ tokens: StravaTokens) throws {
         try write(tokens, account: Self.tokensAccount)
     }
 
-    /// Deletes the former service's copy too. `adopting` reads it whenever
-    /// the current one is missing, so deleting only the current one signed
-    /// nobody out: the next read copied the old tokens straight back.
     func clearTokens() throws {
         try delete(account: Self.tokensAccount)
-        try deleteLegacy(account: Self.tokensAccount)
     }
 
     func clearAll() throws {
         try clearTokens()
         try delete(account: Self.credentialsAccount)
-        try deleteLegacy(account: Self.credentialsAccount)
     }
 
-    /// No `legacyService` fallback here: Supabase has no former name to
-    /// adopt secrets from, so a plain read avoids a wasted Keychain lookup
-    /// on every call.
     func mirrorCredentials() -> MirrorCredentials? {
         read(MirrorCredentials.self, account: Self.mirrorCredentialsAccount)
     }
@@ -169,18 +139,18 @@ final class KeychainStore: SecretStore, Sendable {
         try delete(account: Self.journalKeyAccount)
     }
 
-    private func baseQuery(account: String, service: String? = nil) -> [String: Any] {
+    private func baseQuery(account: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service ?? self.service,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
     }
 
     private func read<T: Decodable>(
-        _ type: T.Type, account: String, service: String? = nil
+        _ type: T.Type, account: String
     ) -> T? {
-        var query = baseQuery(account: account, service: service)
+        var query = baseQuery(account: account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -213,13 +183,8 @@ final class KeychainStore: SecretStore, Sendable {
         }
     }
 
-    private func deleteLegacy(account: String) throws {
-        guard let legacyService else { return }
-        try delete(account: account, service: legacyService)
-    }
-
-    private func delete(account: String, service: String? = nil) throws {
-        let status = SecItemDelete(baseQuery(account: account, service: service) as CFDictionary)
+    private func delete(account: String) throws {
+        let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw SecretStoreError.keychain(status)
         }
