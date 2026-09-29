@@ -234,8 +234,8 @@ struct JournalDayKeysTests {
         sortie.startLocalDate = sortie.startDate
         context.insert(sortie)
 
-        let cles = JournalDaySources.dayKeys(
-            notes: [], activities: [sortie], mealNotes: [], weights: []
+        let cles = JournalDaySources.libraryDayKeys(
+            activities: [sortie], mealNotes: [], weights: []
         )
         #expect(cles == ["2026-08-14"])
     }
@@ -248,8 +248,8 @@ struct JournalDayKeysTests {
         context.insert(pesee)
         context.insert(repas)
 
-        let cles = JournalDaySources.dayKeys(
-            notes: [], activities: [], mealNotes: [repas], weights: [pesee]
+        let cles = JournalDaySources.libraryDayKeys(
+            activities: [], mealNotes: [repas], weights: [pesee]
         )
         #expect(cles == ["2026-08-15", "2026-08-16"])
     }
@@ -264,8 +264,8 @@ struct JournalDayKeysTests {
         context.insert(repas)
 
         #expect(
-            JournalDaySources.dayKeys(
-                notes: [], activities: [], mealNotes: [repas], weights: []
+            JournalDaySources.libraryDayKeys(
+                activities: [], mealNotes: [repas], weights: []
             ).isEmpty
         )
     }

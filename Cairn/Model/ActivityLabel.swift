@@ -45,19 +45,6 @@ enum ActivityLabel: String, CaseIterable, Sendable, Identifiable, Codable {
         }
     }
 
-    /// Short enough for a narrow table column.
-    var shortName: String {
-        switch self {
-        case .favorite: "Favori"
-        case .race: "Compét."
-        case .longRun: "Longue"
-        case .workout: "Entraîn."
-        case .commute: "Trajet"
-        case .trainer: "Intérieur"
-        case .manual: "Manuelle"
-        }
-    }
-
     var symbolName: String {
         switch self {
         case .favorite: "star.fill"

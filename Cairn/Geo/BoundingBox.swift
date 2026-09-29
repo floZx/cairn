@@ -34,11 +34,6 @@ struct BoundingBox: Sendable, Equatable {
         minLat: -90, maxLat: 90, minLon: -180, maxLon: 180
     )
 
-    func intersects(_ other: BoundingBox) -> Bool {
-        minLat <= other.maxLat && maxLat >= other.minLat
-            && minLon <= other.maxLon && maxLon >= other.minLon
-    }
-
     func contains(_ coordinate: Coordinate) -> Bool {
         coordinate.latitude >= minLat && coordinate.latitude <= maxLat
             && coordinate.longitude >= minLon && coordinate.longitude <= maxLon

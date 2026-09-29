@@ -560,7 +560,7 @@ struct RootView: View {
     }
 
     /// Les jours que la barre latérale a besoin de connaître — son compte et
-    /// les points de son calendrier. Voir `JournalDaySources.dayKeys`.
+    /// les points de son calendrier. Voir `JournalDaySources.libraryDayKeys`.
     private var journalDayKeys: Set<String> {
         bibliothequeDuJournal.jours.union(app.journal.notes.map(\.date.raw))
     }

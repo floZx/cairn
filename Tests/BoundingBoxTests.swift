@@ -23,28 +23,6 @@ struct BoundingBoxTests {
         #expect(BoundingBox(coordinates: []) == nil)
     }
 
-    @Test("deux boîtes qui se chevauchent s'intersectent")
-    func detectsOverlap() {
-        let a = BoundingBox(minLat: 45, maxLat: 46, minLon: 4, maxLon: 5)
-        let b = BoundingBox(minLat: 45.5, maxLat: 47, minLon: 4.5, maxLon: 6)
-        #expect(a.intersects(b))
-        #expect(b.intersects(a))
-    }
-
-    @Test("deux boîtes disjointes ne s'intersectent pas")
-    func detectsDisjoint() {
-        let a = BoundingBox(minLat: 45, maxLat: 46, minLon: 4, maxLon: 5)
-        let b = BoundingBox(minLat: 48, maxLat: 49, minLon: 2, maxLon: 3)
-        #expect(!a.intersects(b))
-    }
-
-    @Test("deux boîtes qui se touchent par un bord s'intersectent")
-    func touchingEdgesCount() {
-        let a = BoundingBox(minLat: 45, maxLat: 46, minLon: 4, maxLon: 5)
-        let b = BoundingBox(minLat: 46, maxLat: 47, minLon: 4, maxLon: 5)
-        #expect(a.intersects(b))
-    }
-
     @Test("l'appartenance d'un point est testée bord inclus")
     func containsPoint() {
         let box = BoundingBox(minLat: 45, maxLat: 46, minLon: 4, maxLon: 5)

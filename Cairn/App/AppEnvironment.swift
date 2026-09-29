@@ -618,14 +618,6 @@ final class AppEnvironment {
         runMirror { [mirror] in try await mirror.bootstrap() }
     }
 
-    /// Replays the outbox: everything changed locally since the last
-    /// successful push.
-    func pushNow() {
-        runMirror { [mirror, targets = nutritionTargets] in
-            try await mirror.push(nutritionTargets: targets)
-        }
-    }
-
     /// Les quatre objectifs nutritionnels, lus dans `defaults` — jamais dans
     /// `UserDefaults.standard` en dur : c'est l'instance que cet environnement
     /// a reçue, et un test qui en injecte une jetable doit rester jetable.

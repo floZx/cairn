@@ -390,7 +390,7 @@ struct MirrorWiringTests {
     }
 
     /// Le lancement pousse ce que la boîte d'envoi a accumulé. Jusqu'ici seul
-    /// le bouton des réglages appelait `pushNow()`, alors que deux textes
+    /// le bouton des réglages lançait une poussée, alors que deux textes
     /// promettaient l'inverse — et surtout, `MirrorRecorder` justifie son
     /// démarrage conditionnel par une borne que seule une poussée effective
     /// peut tenir : sans ce déclenchement, la trace ne faisait que grossir.
@@ -456,12 +456,12 @@ struct MirrorWiringTests {
         #expect(await transport.requests().count == 1)
     }
 
-    /// The same slot serializes the *other* entry point too: `pushNow()`
+    /// The same slot serializes the *other* entry point too: `syncMirrorNow()`
     /// called while a `startBootstrap()` is still running must not start a
     /// second, overlapping operation — the pattern `runMirror` shares with
     /// `AppEnvironment.runSync(_:)`, guarding both callers with one flag
     /// rather than one each.
-    @Test func pushNowPendantUnAmorcageEnCoursNeDemarreRien() async throws {
+    @Test func synchroniserPendantUnAmorcageEnCoursNeDemarreRien() async throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
         context.insert(Athlete(stravaID: 1))
@@ -477,7 +477,7 @@ struct MirrorWiringTests {
 
         environment.startBootstrap()
         await transport.waitForFirstRequest()
-        environment.pushNow()
+        environment.syncMirrorNow()
         #expect(await transport.requests().count == 1)
 
         await transport.release()

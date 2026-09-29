@@ -99,9 +99,9 @@ struct MirrorSettingsView: View {
             } footer: {
                 Text("""
                     L'amorçage envoie toute la bibliothèque une première fois ; il \
-                    reprend là où il s'est arrêté si vous l'interrompez. Ensuite, chaque \
-                    modification locale part au lancement suivant, ou tout de suite avec \
-                    « Pousser les modifications ».
+                    reprend là où il s'est arrêté si vous l'interrompez. Ensuite, le \
+                    miroir se synchronise tout seul : au lancement, en revenant sur Cairn \
+                    et toutes les cinq minutes, ou tout de suite avec « Synchroniser ».
                     """)
                 .font(.caption)
                 .foregroundStyle(.secondary)

@@ -7,20 +7,8 @@ import Foundation
 /// rule worth testing. `RootView` holds the queries; this holds the meaning.
 @MainActor
 enum JournalDaySources {
-    /// Blank texts never enter: a meal note opened and closed without a word
-    /// must not make a day appear, and a weigh-in is a figure, not a sentence.
-    /// The weigh-in's own comment is a sentence, and does count.
-    ///
-    /// What each day did, whether or not anyone wrote about it.
-    ///
-    /// Read from every outing rather than from the ones carrying a note: a day
-    /// that has a vault note and a silent run still ran, and the glyph is the
-    /// only thing in the row that would say so.
-    ///
-    /// Days with no mark are simply absent — a dictionary of empty marks would
-    /// be a dictionary of nothing.
-    /// Les seuls jours **nommés** par quelque chose, sans rien construire de
-    /// plus.
+    /// Les seuls jours **nommés** par la bibliothèque, sans rien construire
+    /// de plus ; `RootView.journalDayKeys` y ajoute ceux du carnet.
     ///
     /// La barre latérale ne demande que ça : un compte pour sa pastille, et
     /// des dates pour les points de son calendrier. Elle recevait pourtant la
@@ -30,29 +18,18 @@ enum JournalDaySources {
     /// 56 % du temps du fil principal.
     ///
     /// Ici : une lecture de propriété par ligne, aucun tri, aucune photo.
-    static func dayKeys(
-        notes: [JournalFileNote], activities: [Activity],
-        mealNotes: [MealNote], weights: [WeightEntry]
-    ) -> Set<String> {
-        libraryDayKeys(activities: activities, mealNotes: mealNotes, weights: weights)
-            .union(notes.map(\.date.raw))
-    }
-
-    /// La même chose sans le carnet : ce que la bibliothèque seule nomme.
     ///
-    /// La coupure sert `JournalLibraryCache` — cette moitié-ci ne bouge qu'à
-    /// l'écriture, quand celle du carnet bouge à chaque frappe. Les deux se
-    /// réunissent à la lecture, où les notes se comptent sur les doigts.
+    /// La coupure avec le carnet sert `JournalLibraryCache` — cette moitié-ci
+    /// ne bouge qu'à l'écriture, quand celle du carnet bouge à chaque frappe.
+    /// Les deux se réunissent à la lecture, où les notes se comptent sur les
+    /// doigts.
     static func libraryDayKeys(
         activities: [Activity], mealNotes: [MealNote], weights: [WeightEntry]
     ) -> Set<String> {
         var jours: Set<String> = []
         for activity in activities { jours.insert(DateKey(activity.startDate).raw) }
-        for weight in weights where !isBlank(weight.note) {
-            if let date = weight.dateKey { jours.insert(date.raw) }
-        }
-        // Les pesées sans un mot marquent quand même leur jour : c'est la
-        // règle de `marks`, et la liste les montre.
+        // Les pesées marquent leur jour, avec ou sans un mot : c'est la règle
+        // de `marks`, et la liste les montre.
         for weight in weights { if let date = weight.dateKey { jours.insert(date.raw) } }
         for note in mealNotes where !isBlank(note.note) {
             if let date = note.dateKey { jours.insert(date.raw) }
@@ -64,6 +41,14 @@ enum JournalDaySources {
         (texte ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// What each day did, whether or not anyone wrote about it.
+    ///
+    /// Read from every outing rather than from the ones carrying a note: a day
+    /// that has a vault note and a silent run still ran, and the glyph is the
+    /// only thing in the row that would say so.
+    ///
+    /// Days with no mark are simply absent — a dictionary of empty marks would
+    /// be a dictionary of nothing.
     static func marks(
         activities: [Activity], weights: [WeightEntry]
     ) -> [DateKey: JournalDay.Marks] {
@@ -100,6 +85,10 @@ enum JournalDaySources {
         return marks
     }
 
+    /// Blank texts never enter: a meal note opened and closed without a word
+    /// must not make a day appear, and a weigh-in is a figure, not a sentence.
+    /// The weigh-in's own comment is a sentence, and does count.
+    ///
     /// - Returns: the texts of a day, in the order the day was lived — the
     ///   outings first, then the meals in the order they are eaten, the
     ///   weigh-in last. `JournalDay.summary` takes the first of them for a day

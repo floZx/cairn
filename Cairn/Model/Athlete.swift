@@ -18,6 +18,4 @@ final class Athlete {
     var updatedAt: Date = Date.distantPast
 
     init(stravaID: Int64) { self.stravaID = stravaID }
-
-    var fullName: String { "\(firstName) \(lastName)".trimmingCharacters(in: .whitespaces) }
 }
