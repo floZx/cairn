@@ -221,7 +221,10 @@ function VerrouReglage() {
             ? "Face ID ou Touch ID pour l'ouvrir, ou le mot de passe du compte. "
             : "Le mot de passe du compte pour l'ouvrir. "
           : "Sur ce téléphone seulement. "}
-        Il protège d'un regard, pas davantage : les notes ne sont pas chiffrées.
+        {reglage.actif && reglage.delai === 0
+          ? "Revenu en moins de 30 secondes — le centre de contrôle, une photo à joindre —, il se rouvre seul. "
+          : ""}
+        Il protège d'un regard ; les notes, elles, sont chiffrées sur le serveur.
       </p>
     </>
   )

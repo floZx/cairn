@@ -5,7 +5,7 @@ import { supabase } from "./supabase"
 ///
 /// Ce qu'il est, et ce qu'il n'est pas : un écran devant le journal, contre un
 /// regard sur un téléphone déverrouillé qu'on prête ou qu'on laisse traîner. Il
-/// ne chiffre rien — les notes arrivent de Supabase en clair, comme partout.
+/// ne chiffre rien lui-même — le chiffrement des notes, c'est `chiffre.ts`.
 ///
 /// Deux façons de l'ouvrir. Face ID ou Touch ID, par une passkey que
 /// l'appareil garde : c'est lui qui vérifie le visage ou le doigt, et rien ne
@@ -59,6 +59,19 @@ function lire(): ReglageVerrou {
 let reglage = lire()
 let ouvert = !reglage.actif
 let cacheDepuis: number | null = null
+/// Refermé par un départ tout juste commencé, et rouvrable sans rien
+/// demander si l'on revient à temps — voir `GRACE`.
+let fermeParLeDepart = false
+
+/// Le temps d'un aller-retour qui n'est pas un départ.
+///
+/// iOS masque la page pour bien plus que quitter Cairn : le centre de
+/// contrôle qu'on descend, le sélecteur de photos, la feuille de partage.
+/// Refermé à chaque fois, le journal demandait Face ID sans cesse — signalé
+/// le 29 septembre 2026. Il se referme toujours à l'instant, ce qui le cache
+/// dans l'aperçu du sélecteur d'applications, mais se rouvre seul si l'on
+/// revient dans les trente secondes.
+const GRACE = 30_000
 const abonnes = new Set<() => void>()
 let instantane = { reglage, ouvert }
 
@@ -85,13 +98,19 @@ if (typeof document !== "undefined") {
       cacheDepuis = Date.now()
       if (reglage.delai === 0 && ouvert) {
         ouvert = false
+        fermeParLeDepart = true
         publier()
       }
     } else if (cacheDepuis !== null) {
-      if (Date.now() - cacheDepuis >= reglage.delai * 60_000 && ouvert) {
+      const absence = Date.now() - cacheDepuis
+      if (fermeParLeDepart && absence < GRACE) {
+        ouvert = true
+        publier()
+      } else if (absence >= reglage.delai * 60_000 && ouvert) {
         ouvert = false
         publier()
       }
+      fermeParLeDepart = false
       cacheDepuis = null
     }
   })
@@ -225,6 +244,13 @@ export function desactiver() {
 
 export function choisirDelai(minutes: number) {
   enregistrer({ ...reglage, delai: minutes })
+}
+
+/// L'état à l'instant, hors du rendu : au retour dans l'application, la grâce
+/// de trente secondes a pu rouvrir le journal dans ce même événement, avant
+/// qu'aucun rendu ne l'ait dit.
+export function estOuvert(): boolean {
+  return ouvert
 }
 
 export function verrouiller() {

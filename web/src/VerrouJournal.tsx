@@ -1,20 +1,45 @@
-import { useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { Symbole } from "./IconeSport"
-import { ouvrirAvecBiometrie, ouvrirAvecMotDePasse, useVerrou } from "./verrou"
+import { estOuvert, ouvrirAvecBiometrie, ouvrirAvecMotDePasse, useVerrou } from "./verrou"
 import { saisirPhrase, useChiffre } from "./chiffre"
 import { useQueryClient } from "@tanstack/react-query"
 
 /// Ce qui s'affiche à la place du journal tant qu'il est fermé — le pendant
 /// de `JournalLockView` sur le Mac.
 ///
-/// Face ID n'est pas demandé tout seul en arrivant, contrairement au Mac : le
-/// navigateur ne le permet qu'au doigt, sur un bouton. Le mot de passe est
-/// dessous, toujours, pour le jour où Face ID ne passe pas.
+/// Face ID est demandé tout seul, une fois, à chaque fois que l'écran
+/// apparaît — comme sur le Mac. On le croyait réservé au doigt, sur un bouton ;
+/// ce n'était pas mesuré. Si Safari le refuse, rien ne s'affiche en erreur et
+/// le bouton est là. Le mot de passe est dessous, toujours, pour le jour où
+/// Face ID ne passe pas.
 export function VerrouJournal({ children }: { children: ReactNode }) {
   const { reglage, ouvert } = useVerrou()
   const [motDePasse, setMotDePasse] = useState("")
   const [erreur, setErreur] = useState<string | null>(null)
   const [enCours, setEnCours] = useState(false)
+  /// Une seule tentative par apparition : un Face ID annulé ne doit pas
+  /// revenir en boucle.
+  const tente = useRef(false)
+
+  useEffect(() => {
+    if (ouvert) {
+      tente.current = false
+      return
+    }
+    if (!reglage.passkey || tente.current) return
+    const essayer = () => {
+      if (document.visibilityState !== "visible" || tente.current || estOuvert()) return
+      tente.current = true
+      // Sans message en cas d'échec : ce n'est pas un essai de quelqu'un,
+      // et le bouton reste là pour le vrai.
+      void ouvrirAvecBiometrie()
+    }
+    essayer()
+    // Refermé pendant que la page était cachée : l'écran est déjà là au
+    // retour, et c'est ce retour qui doit demander Face ID.
+    document.addEventListener("visibilitychange", essayer)
+    return () => document.removeEventListener("visibilitychange", essayer)
+  }, [ouvert, reglage.passkey])
 
   if (ouvert) return <PhraseDuJournal>{children}</PhraseDuJournal>
 
