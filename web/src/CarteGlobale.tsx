@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import * as maplibregl from "maplibre-gl"
+import "./maplibreWorker"
 import "maplibre-gl/dist/maplibre-gl.css"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import * as maplibregl from "maplibre-gl"
+import "./maplibreWorker"
 import "maplibre-gl/dist/maplibre-gl.css"
 import type { Coordonnee } from "./track"
 import { ChoixFond } from "./ChoixFond"

@@ -21,6 +21,8 @@ export default defineConfig({
   define: {
     __EMPREINTE__: JSON.stringify(EMPREINTE),
   },
+  // Le worker de MapLibre, regroupé au format module : voir `maplibreWorker.ts`.
+  worker: { format: "es" },
   plugins: [
     react(),
     VitePWA({

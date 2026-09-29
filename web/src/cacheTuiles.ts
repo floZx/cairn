@@ -1,4 +1,5 @@
-import maplibregl from "maplibre-gl"
+import * as maplibregl from "maplibre-gl"
+import "./maplibreWorker"
 
 /// Les tuiles des fonds de carte, gardées d'une ouverture à l'autre.
 ///
