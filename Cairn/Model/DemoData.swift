@@ -24,13 +24,6 @@ enum DemoData {
         let existing = try context.fetch(FetchDescriptor<Activity>())
         guard existing.isEmpty else { return }
 
-        let athlete = Athlete(stravaID: 424_242)
-        athlete.firstName = "Camille"
-        athlete.lastName = "Durand"
-        athlete.city = "Le Puy-en-Velay"
-        athlete.country = "France"
-        context.insert(athlete)
-
         for outing in library(now: now) {
             context.insert(outing)
         }

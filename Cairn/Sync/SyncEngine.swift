@@ -13,7 +13,6 @@ protocol StravaSyncSource: Sendable {
     func activityDetail(id: Int64) async throws -> DetailActivityDTO
     func photos(id: Int64) async throws -> [PhotoDTO]
     func imageData(from url: URL) async throws -> Data
-    func athlete() async throws -> AthleteDTO
     func gear(id: String) async throws -> GearDTO
     func rateLimitSnapshot() async -> RateLimitSnapshot?
     func delayBeforeNextRequest() async -> TimeInterval
@@ -298,7 +297,6 @@ actor SyncEngine {
     }
 
     func syncAll() async throws {
-        try await syncAthlete()
         try await syncSummaries()
         try await syncGear()
         try await syncStreams()
@@ -361,7 +359,6 @@ actor SyncEngine {
         }
         try context.save()
 
-        try await syncAthlete()
         try await syncSummaries()
         try await syncGear()
         // The details it just cleared, fetched in the same run rather than
@@ -370,12 +367,6 @@ actor SyncEngine {
         // on 24 September 2026, after a resync that finished in a minute and
         // brought back not one note.
         try await syncBackfill()
-    }
-
-    func syncAthlete() async throws {
-        let dto = try await source.athlete()
-        try mapper.upsert(athlete: dto)
-        try context.save()
     }
 
     /// Fetches the detail endpoint lazily, on first open of an activity. Halves

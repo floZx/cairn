@@ -3,7 +3,7 @@ import SwiftData
 
 enum AppModelContainer {
     static let schema = Schema([
-        Activity.self, ActivityStreams.self, Athlete.self,
+        Activity.self, ActivityStreams.self,
         Lap.self, Gear.self, SyncState.self, DiscardedActivity.self,
         ActivityPhoto.self,
         // Nutrition — added as a block: SwiftData treats new models as a

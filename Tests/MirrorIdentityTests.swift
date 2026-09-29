@@ -41,7 +41,6 @@ struct MirrorIdentityTests {
         let activity = Activity(stravaID: 1, name: "Sortie", sportType: .run)
         let activityStreams = ActivityStreams()
         let activityPhoto = ActivityPhoto(uniqueID: "strava-photo-1")
-        let athlete = Athlete(stravaID: 1)
         let lap = Lap(stravaID: 1, lapIndex: 0)
         let gear = Gear(stravaID: "b1", name: "Vélo")
         let discardedActivity = DiscardedActivity(stravaID: 1, name: "Sortie annulée")
@@ -63,13 +62,13 @@ struct MirrorIdentityTests {
         let weightEntry = WeightEntry(dateKey: DateKey(raw: "2026-08-16")!, weightKg: 70)
 
         let uuids = [
-            activity.uuid, activityStreams.uuid, activityPhoto.uuid, athlete.uuid,
+            activity.uuid, activityStreams.uuid, activityPhoto.uuid,
             lap.uuid, gear.uuid, discardedActivity.uuid, dayType.uuid, mealSlot.uuid,
             nutritionDay.uuid, foodEntry.uuid, mealNote.uuid, recipe.uuid,
             recipeItem.uuid, favoriteFood.uuid, weightEntry.uuid,
         ]
 
-        #expect(uuids.count == 16)
+        #expect(uuids.count == 15)
         #expect(uuids.allSatisfy { !$0.isEmpty })
         #expect(Set(uuids).count == uuids.count)
     }

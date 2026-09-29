@@ -83,20 +83,6 @@ struct MirrorRowTests {
         #expect(!row.keys.contains("edited_fields_raw"))
     }
 
-    /// `Athlete.updatedAt` est le rafraîchissement Strava du profil, sans
-    /// rapport avec la colonne standard `updated_at` du miroir — le schéma le
-    /// range donc sous `profile_updated_at`.
-    @Test func laDateDuProfilAthleteEviteUpdatedAt() {
-        let athlete = Athlete(stravaID: 1)
-        athlete.updatedAt = Date(timeIntervalSince1970: 1_000)
-
-        let row = athlete.mirrorRow(userID: "u")
-
-        #expect(row["profile_updated_at"] == .date(Date(timeIntervalSince1970: 1_000)))
-        #expect(!row.keys.contains("updated_at"))
-        #expect(Athlete.mirrorTable == "athlete")
-    }
-
     /// `WeightEntry` n'a jamais porté `day` ni `kilograms` : seuls
     /// `date_key_raw` et `weight_kg` ont existé sur ce modèle.
     @Test func lePoidsEmetDateKeyRawEtWeightKg() {

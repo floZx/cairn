@@ -210,30 +210,6 @@ extension Gear: MirrorRow {
     }
 }
 
-// MARK: - Athlete
-
-extension Athlete: MirrorRow {
-    static var mirrorTable: String { "athlete" }
-
-    func mirrorRow(userID: String) -> [String: MirrorValue] {
-        [
-            "uuid": .string(uuid),
-            "user_id": .string(userID),
-
-            "strava_id": .int(stravaID),
-            "first_name": .string(firstName),
-            "last_name": .string(lastName),
-            "city": .from(city),
-            "country": .from(country),
-            "profile_image_url": .from(profileImageURL),
-            "weight": .from(weight),
-            // Strava's own refresh timestamp, not this mirror's `updated_at` —
-            // the schema renames it precisely to avoid that collision.
-            "profile_updated_at": .date(updatedAt),
-        ]
-    }
-}
-
 // MARK: - DiscardedActivity
 
 extension DiscardedActivity: MirrorRow {

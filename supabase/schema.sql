@@ -220,32 +220,6 @@ create trigger gear_touch before insert or update on gear
   for each row execute function touch_updated_at();
 create index gear_sync on gear (user_id, updated_at);
 
--- `Athlete.updatedAt` est un `Date` non optionnel venu de Strava — le moment
--- où le profil a été rafraîchi là-bas — sans rapport avec la colonne standard
--- `updated_at` de ce miroir, qui appartient au serveur Postgres et sert au
--- curseur de pull. Les deux ne peuvent pas porter le même nom : la propriété
--- du modèle devient `profile_updated_at`.
-create table athlete (
-  uuid               text primary key,
-  user_id            uuid not null references auth.users on delete cascade,
-  updated_at         timestamptz not null default now(),
-  edited_at          timestamptz,
-  deleted_at         timestamptz,
-
-  strava_id          bigint not null default 0,
-  first_name         text not null default '',
-  last_name          text not null default '',
-  city               text,
-  country            text,
-  profile_image_url  text,
-  weight             double precision,
-  profile_updated_at timestamptz not null
-);
-
-create trigger athlete_touch before insert or update on athlete
-  for each row execute function touch_updated_at();
-create index athlete_sync on athlete (user_id, updated_at);
-
 create table discarded_activity (
   uuid          text primary key,
   user_id       uuid not null references auth.users on delete cascade,
@@ -480,12 +454,6 @@ create policy "propriétaire seul" on lap
 
 alter table gear enable row level security;
 create policy "propriétaire seul" on gear
-  for all
-  using (user_id = auth.uid())
-  with check (user_id = auth.uid());
-
-alter table athlete enable row level security;
-create policy "propriétaire seul" on athlete
   for all
   using (user_id = auth.uid())
   with check (user_id = auth.uid());

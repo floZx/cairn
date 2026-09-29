@@ -49,7 +49,7 @@ struct StravaClientTests {
         let transport = StravaStubTransport([])
         let client = StravaClient(store: InMemorySecretStore(), transport: transport)
         await #expect(throws: StravaError.self) {
-            _ = try await client.athlete()
+            _ = try await client.athleteZones()
         }
         #expect(transport.requests.isEmpty)
     }
@@ -142,7 +142,7 @@ struct StravaClientTests {
         let client = StravaClient(store: store, transport: transport)
 
         await #expect(throws: StravaError.tokenRefreshRejected) {
-            _ = try await client.athlete()
+            _ = try await client.athleteZones()
         }
         #expect(store.tokens() == nil)
         #expect(store.credentials() != nil)
@@ -188,7 +188,7 @@ struct StravaClientTests {
         )
 
         await #expect(throws: StravaError.http(429, "Quota d'API dépassé")) {
-            _ = try await client.athlete()
+            _ = try await client.athleteZones()
         }
         // A throttle must produce a wait, and must not record the quota headers
         // as if the call had succeeded.

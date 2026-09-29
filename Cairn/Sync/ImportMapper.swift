@@ -375,30 +375,6 @@ struct ImportMapper {
     }
 
     @discardableResult
-    func upsert(athlete dto: AthleteDTO) throws -> Athlete {
-        let stravaID = dto.id
-        var descriptor = FetchDescriptor<Athlete>(
-            predicate: #Predicate { $0.stravaID == stravaID }
-        )
-        descriptor.fetchLimit = 1
-        let athlete = try context.fetch(descriptor).first
-            ?? {
-                let new = Athlete(stravaID: stravaID)
-                context.insert(new)
-                return new
-            }()
-
-        athlete.firstName = dto.firstname ?? ""
-        athlete.lastName = dto.lastname ?? ""
-        athlete.city = dto.city
-        athlete.country = dto.country
-        athlete.profileImageURL = dto.profile
-        athlete.weight = dto.weight
-        athlete.updatedAt = Date()
-        return athlete
-    }
-
-    @discardableResult
     func upsert(gear dto: GearDTO) throws -> Gear {
         let gear = try existingGear(stravaID: dto.id) ?? {
             let new = Gear(stravaID: dto.id, name: dto.name)

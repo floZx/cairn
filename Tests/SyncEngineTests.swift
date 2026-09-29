@@ -84,13 +84,6 @@ private actor FakeSource: StravaSyncSource {
         return Data("image-\(url.lastPathComponent)".utf8)
     }
 
-    func athlete() async throws -> AthleteDTO {
-        AthleteDTO(
-            id: 1, firstname: "Test", lastname: "User", city: nil,
-            country: nil, profile: nil, weight: nil
-        )
-    }
-
     func gear(id: String) async throws -> GearDTO {
         gearRequests.append(id)
         return GearDTO(

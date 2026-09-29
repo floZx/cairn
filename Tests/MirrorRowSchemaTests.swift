@@ -74,7 +74,6 @@ struct MirrorRowSchemaTests {
             ActivityPhoto(uniqueID: "p1"),
             Lap(stravaID: 1, lapIndex: 0),
             Gear(stravaID: "b1", name: "Vélo"),
-            Athlete(stravaID: 1),
             DiscardedActivity(stravaID: 1, name: "Sortie annulée"),
             DayType(name: "Repos", kcalTarget: 2000),
             MealSlot(name: "Petit-déj"),

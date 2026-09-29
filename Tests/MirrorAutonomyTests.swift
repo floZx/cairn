@@ -235,7 +235,7 @@ struct MirrorWiringTests {
         #expect(!environment.isMirrorConfigured)
 
         let context = ModelContext(container)
-        context.insert(Athlete(stravaID: 1))
+        context.insert(Gear(stravaID: "g1", name: "Chaussures"))
         try context.save()
 
         let entries = try ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>())
@@ -295,10 +295,10 @@ struct MirrorWiringTests {
         #expect(environment.isMirrorConfigured)
 
         let context = ModelContext(container)
-        context.insert(Athlete(stravaID: 1))
+        context.insert(Gear(stravaID: "g1", name: "Chaussures"))
         try context.save()
         let afterConfigure = try ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>())
-        #expect(afterConfigure.contains { $0.table == "athlete" })
+        #expect(afterConfigure.contains { $0.table == "gear" })
 
         // `saveMirrorCredentials` resets it on a project change; `forgetMirror()`
         // must do the same, or the settings screen keeps showing « Jamais
@@ -320,7 +320,7 @@ struct MirrorWiringTests {
         for entry in try cleanup.fetch(FetchDescriptor<MirrorOutbox>()) { cleanup.delete(entry) }
         try cleanup.save()
 
-        context.insert(Athlete(stravaID: 2))
+        context.insert(Gear(stravaID: "g2", name: "Chaussures"))
         try context.save()
         let afterForget = try ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>())
         #expect(afterForget.isEmpty)
@@ -387,7 +387,7 @@ struct MirrorWiringTests {
         // Une modification locale, enregistrée par l'enregistreur que `init`
         // vient de démarrer.
         let context = ModelContext(container)
-        context.insert(Athlete(stravaID: 1))
+        context.insert(Gear(stravaID: "g1", name: "Chaussures"))
         try context.save()
         #expect(try !ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>()).isEmpty)
 
@@ -396,7 +396,7 @@ struct MirrorWiringTests {
         for _ in 0..<2000 where environment.mirrorProgress.lastPushAt == nil {
             try? await Task.sleep(for: .milliseconds(1))
         }
-        #expect(await transport.tableOrder().contains("athlete"))
+        #expect(await transport.tableOrder().contains("gear"))
         // Et la trace est purgée de ce qui vient de partir — la borne que la
         // documentation de `MirrorRecorder` promet.
         #expect(try ModelContext(container).fetch(FetchDescriptor<MirrorOutbox>()).isEmpty)
@@ -407,12 +407,12 @@ struct MirrorWiringTests {
     /// racing it — `PausingTransport.waitForFirstRequest()` waits for the
     /// request to actually be sent), is a no-op. Proven by request count
     /// rather than by inspecting private state: if the guard ever failed,
-    /// releasing the transport would let a second "athlete" upsert through
+    /// releasing the transport would let a second "gear" upsert through
     /// once the first finished, and the final count would read 2, not 1.
     @Test func deuxAmorcagesConcurrentsNeSentrelacentPas() async throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
-        context.insert(Athlete(stravaID: 1))
+        context.insert(Gear(stravaID: "g1", name: "Chaussures"))
         try context.save()
 
         let (cursor, suiteName) = freshCursor()
@@ -444,7 +444,7 @@ struct MirrorWiringTests {
     @Test func synchroniserPendantUnAmorcageEnCoursNeDemarreRien() async throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
-        context.insert(Athlete(stravaID: 1))
+        context.insert(Gear(stravaID: "g1", name: "Chaussures"))
         try context.save()
 
         let (cursor, suiteName) = freshCursor()
@@ -480,7 +480,7 @@ struct MirrorWiringTests {
     @Test func demarrerJusteApresAnnulerNeContourneLeCreneau() async throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
-        context.insert(Athlete(stravaID: 1))
+        context.insert(Gear(stravaID: "g1", name: "Chaussures"))
         try context.save()
 
         let (cursor, suiteName) = freshCursor()
@@ -500,7 +500,7 @@ struct MirrorWiringTests {
         // `mirrorTask` itself would let through.
         environment.startBootstrap()
 
-        // A wrongly-spawned second bootstrap would send its own "athlete"
+        // A wrongly-spawned second bootstrap would send its own "gear"
         // request almost at once — `PausingTransport` only ever parks the
         // *first* call it sees (`sent.count == 1`), so a second call
         // returns immediately rather than blocking on `release()`.

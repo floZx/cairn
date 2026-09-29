@@ -204,23 +204,6 @@ struct ImportMapperTests {
         #expect(try context.fetch(FetchDescriptor<Lap>()).count == 1)
     }
 
-    @Test("l'athlète est unique et mis à jour")
-    func upsertsAthlete() throws {
-        let context = try makeContext()
-        let mapper = ImportMapper(context: context)
-        let dto = try Fixture.decode(AthleteDTO.self, "athlete")
-
-        _ = try mapper.upsert(athlete: dto)
-        try context.save()
-        let second = try mapper.upsert(athlete: dto)
-        try context.save()
-
-        #expect(try context.fetch(FetchDescriptor<Athlete>()).count == 1)
-        #expect(second.firstName == "Camille")
-        #expect(second.lastName == "Durand")
-        #expect(second.city == "Lyon")
-    }
-
     @Test("retrouve une activité par son identifiant Strava")
     func findsByStravaID() throws {
         let context = try makeContext()

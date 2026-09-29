@@ -154,7 +154,14 @@ actor MirrorEngine {
     private static let photosBucket = "photos"
     private static let streamsBucket = "streams"
 
-    /// The sixteen tables, parents before children — a convenience, not a
+    /// Tables the Mac once mirrored and no longer does. An outbox entry
+    /// recorded for one before the model went would name a table no `switch`
+    /// below covers, and `MirrorError.unknownTable` would stop every push:
+    /// they are dropped instead, unsent. `athlete` left on 29 September 2026 —
+    /// written on every sync and read by nobody, on either screen.
+    static let retiredTables: Set<String> = ["athlete"]
+
+    /// The mirrored tables, parents before children — a convenience, not a
     /// constraint. `supabase/schema.sql` carries **no foreign key** between
     /// mirror tables, deliberately and in its own opening comment: a link is
     /// the child's own `activity_uuid`, `meal_slot_uuid`, and so on, precisely
@@ -169,10 +176,10 @@ actor MirrorEngine {
     /// whatever tables the outbox names, alphabetically (`byTable.keys.sorted()`),
     /// which would be a bug if any of this were load-bearing.
     ///
-    /// Fixed rather than derived from the schema all the same: sixteen names
+    /// Fixed rather than derived from the schema all the same: every name
     /// in one place, read by two `switch`es that have to cover exactly them.
     static let bootstrapOrder: [String] = [
-        "athlete", "gear", "day_type", "meal_slot",
+        "gear", "day_type", "meal_slot",
         "activity", "activity_streams", "activity_photo", "lap",
         "discarded_activity",
         "nutrition_day", "food_entry", "meal_note",
@@ -344,7 +351,13 @@ actor MirrorEngine {
             try await adopterLesUUIDsDeStrava()
 
             let outboxContext = ModelContext(container)
-            let entries = try outboxContext.fetch(FetchDescriptor<MirrorOutbox>())
+            let fetched = try outboxContext.fetch(FetchDescriptor<MirrorOutbox>())
+            let retired = fetched.filter { Self.retiredTables.contains($0.table) }
+            if !retired.isEmpty {
+                for entry in retired { outboxContext.delete(entry) }
+                try outboxContext.save()
+            }
+            let entries = fetched.filter { !Self.retiredTables.contains($0.table) }
 
             // An empty outbox still counts as a clean finish, on the same
             // reasoning as `bootstrap()` calling `finish()` unconditionally
@@ -568,8 +581,6 @@ actor MirrorEngine {
         entriesByRow: [String: [MirrorOutbox]], outboxContext: ModelContext
     ) async throws -> Int {
         switch table {
-        case "athlete":
-            return try await pushRows(Athlete.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "gear":
             return try await pushRows(Gear.self, table: table, entries: entries, userID: userID, entriesByRow: entriesByRow, outboxContext: outboxContext)
         case "day_type":
@@ -614,7 +625,7 @@ actor MirrorEngine {
         default:
             // Every entry's `table` was written by `MirrorRecorder` from
             // `MirrorRow.mirrorTable`, and that protocol is conformed by
-            // exactly the eighteen models this `switch` covers. Thrown
+            // exactly the models this `switch` covers. Thrown
             // rather than asserted, for the reason `MirrorError.unknownTable`
             // records.
             //
@@ -1180,7 +1191,6 @@ actor MirrorEngine {
     /// Swift — the type has to appear in source for the compiler to see it.
     func sendTable(_ table: String, userID: String) async throws {
         switch table {
-        case "athlete": try await sendBatches(Athlete.self, table: table, userID: userID)
         case "gear": try await sendBatches(Gear.self, table: table, userID: userID)
         case "day_type": try await sendBatches(DayType.self, table: table, userID: userID)
         case "meal_slot": try await sendBatches(MealSlot.self, table: table, userID: userID)

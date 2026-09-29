@@ -164,10 +164,6 @@ struct StoreMaintenanceTests {
                 sharing: shared, into: context
             ),
             seedPair(
-                \Athlete.uuid, Athlete(stravaID: 1), Athlete(stravaID: 2),
-                sharing: shared, into: context
-            ),
-            seedPair(
                 \DiscardedActivity.uuid, DiscardedActivity(stravaID: 1, name: "Annulée"),
                 DiscardedActivity(stravaID: 2, name: "Annulée aussi"),
                 sharing: shared, into: context

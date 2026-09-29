@@ -17,8 +17,7 @@ extension JournalNote: MirrorRow {
             "text": .string(text),
             "tags_raw": .stringArray(tagsRaw),
             // Not `updated_at`: that column is the server's own, posted by the
-            // trigger and read only by the pull cursor. `Athlete.updatedAt`
-            // met the same collision first and answered it the same way.
+            // trigger and read only by the pull cursor.
             "note_updated_at": .date(updatedAt),
         ]
     }

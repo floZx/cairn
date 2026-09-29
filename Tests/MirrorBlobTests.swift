@@ -209,7 +209,7 @@ struct MirrorBlobTests {
         let photo = ActivityPhoto(uniqueID: "p1")
         photo.data = Data(repeating: 0xAB, count: 128)
         context.insert(photo)
-        context.insert(Athlete(stravaID: 1))
+        context.insert(Gear(stravaID: "g1", name: "Chaussures"))
         try context.save()
 
         let transport = StorageRefusingTransport()
@@ -227,7 +227,7 @@ struct MirrorBlobTests {
         #expect(progress.statusText.contains("1 fichier non envoyé"))
         // Les lignes sont bien parties malgré le refus du bucket.
         let paths = await transport.paths
-        #expect(paths.contains("/rest/v1/athlete"))
+        #expect(paths.contains("/rest/v1/gear"))
         #expect(paths.contains("/rest/v1/activity_photo"))
         // Et la photo reste due : `mirroredAt` intact, donc réessayée plus tard.
         let reloaded = try ModelContext(container).fetch(FetchDescriptor<ActivityPhoto>())

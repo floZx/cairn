@@ -285,7 +285,6 @@ final class AppEnvironment {
     /// The cheap pass only — a couple of requests whatever the history size.
     func syncSummariesOnly() {
         runSync { [engine] in
-            try await engine.syncAthlete()
             try await engine.syncSummaries()
             // A small bite of the backlog on every launch, so it empties without
             // anyone having to think about it. Bounded so opening the app stays

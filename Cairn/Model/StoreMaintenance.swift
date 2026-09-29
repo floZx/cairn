@@ -68,7 +68,6 @@ enum StoreMaintenance {
         repair(ActivityPhoto.self, \.uuid),
         repair(Lap.self, \.uuid),
         repair(Gear.self, \.uuid),
-        repair(Athlete.self, \.uuid),
         repair(DiscardedActivity.self, \.uuid),
         repair(DayType.self, \.uuid),
         repair(MealSlot.self, \.uuid),

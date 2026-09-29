@@ -2,9 +2,9 @@ import Foundation
 
 /// What a `@Model` becomes on its way to Supabase: a table name and a row of
 /// `MirrorValue`s, one call, no network and no store involved. Conformed by
-/// the sixteen models that traverse — every `@Model` in `AppModelContainer.schema`
-/// except `SyncState`, which describes the relationship with Strava and stays
-/// local.
+/// the models that traverse — every `@Model` in `AppModelContainer.schema`
+/// except the few that stay local: `SyncState`, which describes the
+/// relationship with Strava, `MirrorOutbox` and `ActivityWeather`.
 ///
 /// `mirrorRow(userID:)` never omits a column: PostgREST's upsert only writes
 /// the columns present in the payload, so a column left out keeps whatever

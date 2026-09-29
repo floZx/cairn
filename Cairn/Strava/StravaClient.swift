@@ -115,10 +115,6 @@ actor StravaClient {
         return data
     }
 
-    func athlete() async throws -> AthleteDTO {
-        try await get(AthleteDTO.self, path: "athlete", query: [:])
-    }
-
     func athleteZones() async throws -> AthleteZonesDTO {
         try await get(AthleteZonesDTO.self, path: "athlete/zones", query: [:])
     }

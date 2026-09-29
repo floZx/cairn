@@ -306,9 +306,9 @@ struct MirrorBootstrapTests {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
         // Une seule table peuplée suffit : `bootstrapOrder` en compte quinze
-        // autres derrière "athlete", donc le `Task.checkCancellation()` qui
+        // autres derrière "gear", donc le `Task.checkCancellation()` qui
         // précède la suivante est garanti d'être atteint après elle.
-        context.insert(Athlete(stravaID: 1))
+        context.insert(Gear(stravaID: "g1", name: "Chaussures"))
         try context.save()
 
         let (cursor, suiteName) = freshCursor()
@@ -321,7 +321,7 @@ struct MirrorBootstrapTests {
         )
 
         let task = Task { try await engine.bootstrap() }
-        // Attend que la requête "athlete" soit réellement partie et bloquée
+        // Attend que la requête "gear" soit réellement partie et bloquée
         // en attente de réponse, plutôt que d'annuler à l'aveugle.
         await transport.waitForFirstRequest()
         task.cancel()
@@ -334,7 +334,7 @@ struct MirrorBootstrapTests {
             try await task.value
         }
 
-        // La ligne "athlete" est bien partie avant que l'annulation ne
+        // La ligne "gear" est bien partie avant que l'annulation ne
         // prenne effet — la preuve que ceci a exercé une vraie requête, pas
         // seulement le tout premier point de contrôle avant que rien n'ait
         // tourné.
@@ -350,7 +350,7 @@ struct MirrorBootstrapTests {
     @Test func laDateDeDerniereSynchroSurvitAUnRelancement() async throws {
         let container = try AppModelContainer.inMemory()
         let context = ModelContext(container)
-        context.insert(Athlete(stravaID: 1))
+        context.insert(Gear(stravaID: "g1", name: "Chaussures"))
         try context.save()
 
         let (cursor, suiteName) = freshCursor()
