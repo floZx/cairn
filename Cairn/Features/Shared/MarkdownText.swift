@@ -173,11 +173,12 @@ struct MarkdownText: View {
         return Text(withHighlightedMentions(sansDièses))
     }
 
-    /// Colore les `@pseudo` sans les toucher autrement.
+    /// Colore les `@pseudo` et retire leur arobase.
     ///
-    /// Le `@` reste, à la différence du `#` des tags : « @sam » se lit comme un
-    /// nom là où « #trail » se lit comme un mot, et retirer l'arobase donnerait
-    /// « sam » au milieu d'une phrase, indistinguable du reste.
+    /// Le `@` restait, au motif que « sam » sans lui se perdrait au milieu
+    /// d'une phrase. Mais la mention est colorée et cliquable : elle se
+    /// distingue sans lui, et l'arobase n'était plus que de la syntaxe
+    /// affichée — comme le `#` des tags, retiré pour la même raison.
     ///
     /// La couleur seule, ni fond ni gras : dans une note qui cite trois
     /// personnes, trois pastilles feraient une décoration là où trois mots
@@ -213,7 +214,9 @@ struct MarkdownText: View {
             trouves.append(index..<fin)
         }
 
-        for citation in trouves {
+        // À rebours, pour que retirer une arobase ne décale pas les plages
+        // qui la précèdent.
+        for citation in trouves.reversed() {
             resultat[citation].foregroundColor = .accentColor
             // Un lien, parce que c'est la seule façon dont un `Text` de SwiftUI
             // rend une plage cliquable : il n'y a pas de geste par plage de
@@ -223,6 +226,9 @@ struct MarkdownText: View {
             if let handle = PersonHandle(name: ecrit) {
                 resultat[citation].link = lien(pour: handle)
             }
+            resultat.characters.removeSubrange(
+                citation.lowerBound..<resultat.characters.index(after: citation.lowerBound)
+            )
         }
         return resultat
     }

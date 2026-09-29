@@ -125,7 +125,9 @@ struct CompletingNoteEditor: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(propositions.enumerated()), id: \.element.id) { rang, handle in
                 HStack(spacing: 6) {
-                    Text(handle.displayName)
+                    // Avec son arobase, ici seulement : c'est ce qui va
+                    // s'écrire dans la note.
+                    Text("@\(handle.name)")
                     Spacer(minLength: 12)
                     if rang == retenue {
                         Text("⇥").font(.caption2).foregroundStyle(.secondary)

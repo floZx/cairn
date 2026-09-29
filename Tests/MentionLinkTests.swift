@@ -47,6 +47,8 @@ struct MentionLinkTests {
         )
         let liens = rendu.runs.compactMap(\.link)
         #expect(liens.count == 1)
+        // Le lien porte le nom seul : l'arobase n'est que la syntaxe.
+        #expect(String(rendu.characters) == "Sortie avec Sam, puis dîner.")
         #expect(MarkdownText.mention(dans: try #require(liens.first))?.key == "sam")
     }
 

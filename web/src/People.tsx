@@ -174,7 +174,7 @@ export function People({
           className="ligne-personne"
           onClick={() => onOuvrir(ligne.personne.cle)}
         >
-          <span className="pseudo">@{ligne.personne.nom}</span>
+          <span className="pseudo">{ligne.personne.nom}</span>
           {ligne.aUneNote && <span className="marque-note">·</span>}
           <span className="attenue petit compte">
             {ligne.compte > 0 ? `${ligne.compte}` : "—"}
@@ -237,7 +237,7 @@ function FichePersonne({
         <button className="lien" onClick={onFermer}>
           ‹ Tous
         </button>
-        <span className="jour">@{qui.nom}</span>
+        <span className="jour">{qui.nom}</span>
         <button
           className="lien fort"
           onClick={() => enregistrement.mutate()}

@@ -16,12 +16,16 @@ import { personne } from "./citations"
 export const SurUneMention = createContext<((cle: string) => void) | null>(null)
 
 /// Une personne citée, cliquable quand il y a où aller.
+///
+/// Sans arobase une fois cliquable : la couleur et le lien la distinguent, le
+/// `@` n'est que la syntaxe qui la cite. Sans fiche où mener, elle le garde —
+/// c'est alors tout ce qui la sépare du texte autour. Le Mac fait pareil.
 function Mention({ cle, nom }: { cle: string; nom: string }) {
   const ouvrir = useContext(SurUneMention)
   if (!ouvrir) return <span className="citation">@{nom}</span>
   return (
     <button type="button" className="citation" onClick={() => ouvrir(cle)}>
-      @{nom}
+      {nom}
     </button>
   )
 }

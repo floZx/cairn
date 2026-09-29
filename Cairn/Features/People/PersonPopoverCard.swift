@@ -127,7 +127,7 @@ struct PersonPopoverCard: View {
     /// L'initiale dans un médaillon, le nom, et combien de notes la citent.
     private func enTete(total: Int) -> some View {
         HStack(spacing: 10) {
-            Text(String(handle.displayName.drop { $0 == "@" }.prefix(1)).uppercased())
+            Text(String(handle.name.prefix(1)).uppercased())
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.tint)
                 .frame(width: 34, height: 34)
@@ -194,24 +194,36 @@ struct PersonCitationRow: View {
         .onHover { survolee = $0 }
     }
 
-    /// L'extrait, avec chaque mention de cette personne en couleur d'accent.
+    /// L'extrait, avec chaque mention de cette personne en couleur d'accent,
+    /// et l'arobase de toutes les mentions retirée, comme dans les notes.
     ///
     /// Reconnue par sa clé et non par son orthographe : « @Helene » tapé à la
     /// hâte est la même « @Hélène », et doit ressortir pareil.
     static func extrait(_ texte: String, soulignant handle: PersonHandle) -> AttributedString {
-        var resultat = AttributedString(texte)
+        var resultat = AttributedString()
         var curseur = texte.startIndex
         while let arobase = texte[curseur...].firstIndex(of: "@") {
+            resultat += AttributedString(texte[curseur..<arobase])
             let debut = texte.index(after: arobase)
             let fin = texte[debut...].firstIndex { !PersonHandle.isAllowed($0) } ?? texte.endIndex
-            if let cite = PersonHandle(name: String(texte[debut..<fin])), cite.key == handle.key,
-               let bas = AttributedString.Index(arobase, within: resultat),
-               let haut = AttributedString.Index(fin, within: resultat) {
-                resultat[bas..<haut].foregroundColor = .accentColor
-                resultat[bas..<haut].font = .callout.weight(.medium)
+            // La règle des notes : une arobase collée à un mot est celle
+            // d'une adresse, pas une mention.
+            let avant = arobase > texte.startIndex ? texte[texte.index(before: arobase)] : nil
+            let enTeteDeMot = avant == nil || avant!.isWhitespace || "([{«\"'-–—*>".contains(avant!)
+            if enTeteDeMot, let cite = PersonHandle(name: String(texte[debut..<fin])) {
+                var nom = AttributedString(texte[debut..<fin])
+                if cite.key == handle.key {
+                    nom.foregroundColor = .accentColor
+                    nom.font = .callout.weight(.medium)
+                }
+                resultat += nom
+                curseur = fin
+            } else {
+                resultat += AttributedString("@")
+                curseur = debut
             }
-            curseur = fin > arobase ? fin : texte.index(after: arobase)
         }
+        resultat += AttributedString(texte[curseur...])
         return resultat
     }
 }

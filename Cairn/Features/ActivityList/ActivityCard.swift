@@ -259,7 +259,8 @@ struct ActivityCard: View {
             .first
             .map { $0.trimmingCharacters(in: .whitespaces) }
         guard let note, !note.isEmpty else { return nil }
-        return note
+        // Sans les arobases, comme la note ouverte à droite les affiche.
+        return PersonHandle.sansArobases(note)
     }
 
     /// The figures the sport is read by, with their units and without labels:

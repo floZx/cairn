@@ -49,7 +49,39 @@ struct PersonHandle: Hashable, Comparable, Sendable, Identifiable {
 
     var id: String { key }
 
-    var displayName: String { "@\(name)" }
+    /// Le nom sans son arobase : à l'écran, une personne est un nom, et le
+    /// `@` n'est que la syntaxe qui la cite. L'éditeur, lui, le garde — voir
+    /// `CompletingNoteEditor`.
+    var displayName: String { name }
+
+    /// Le texte avec l'arobase de chaque mention retirée — pour les aperçus en
+    /// texte nu, où la mention n'est pas un lien mais ne doit pas pour autant
+    /// garder une syntaxe que les notes n'affichent plus.
+    ///
+    /// La règle des notes : une arobase collée à un mot est celle d'une
+    /// adresse, et reste.
+    static func sansArobases(_ texte: String) -> String {
+        var resultat = ""
+        var precedent: Character?
+        var index = texte.startIndex
+        while index < texte.endIndex {
+            let caractere = texte[index]
+            let suivant = texte.index(after: index)
+            if caractere == "@",
+               precedent == nil || precedent!.isWhitespace || "([{«\"'-–—*>".contains(precedent!) {
+                let fin = texte[suivant...].firstIndex { !isAllowed($0) } ?? texte.endIndex
+                if PersonHandle(name: String(texte[suivant..<fin])) != nil {
+                    precedent = caractere
+                    index = suivant
+                    continue
+                }
+            }
+            resultat.append(caractere)
+            precedent = caractere
+            index = suivant
+        }
+        return resultat
+    }
 
     static func == (lhs: PersonHandle, rhs: PersonHandle) -> Bool { lhs.key == rhs.key }
     func hash(into hasher: inout Hasher) { hasher.combine(key) }
