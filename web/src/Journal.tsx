@@ -293,6 +293,8 @@ function useJournees(creneaux: { uuid: string; name: string; sort_order: number 
 export function Journal({
   noteAOuvrir,
   onNoteOuverte,
+  jourAMontrer,
+  onJourMontre,
   onActivite,
   onRepas,
 }: {
@@ -303,6 +305,10 @@ export function Journal({
   noteAOuvrir?: string | null
   /// Prévenir qu'elle est ouverte, pour que le signal ne se rejoue pas.
   onNoteOuverte?: () => void
+  /// Le jour à amener sous les yeux, en lecture — une citation touchée sur la
+  /// fiche d'une personne. Les pages se déroulent jusqu'à lui.
+  jourAMontrer?: string | null
+  onJourMontre?: () => void
   /// Aller voir la sortie citée.
   onActivite: (uuid: string) => void
   /// Aller à la journée de repas — c'est là que se modifient une note de
@@ -358,6 +364,32 @@ export function Journal({
       .getElementById(`jour-${enEdition.dateKey}`)
       ?.scrollIntoView({ block: "start" })
   }, [enEdition?.dateKey])
+
+  /// Déroule les pages jusqu'au jour visé, puis s'y pose.
+  ///
+  /// Page après page et non d'un saut : le journal se charge par tranches de
+  /// quarante-cinq jours, et la journée citée peut dater de l'an dernier. Tant
+  /// que la plus ancienne journée chargée est plus récente qu'elle, on demande
+  /// la suivante ; dès que sa carte existe, on défile dessus. Une journée qui
+  /// n'a plus de carte — sa note effacée depuis — laisse la liste où elle
+  /// s'est arrêtée.
+  const journeesChargees = data?.pages.flatMap((p) => p.jours) ?? []
+  const plusAncienne = journeesChargees[journeesChargees.length - 1]?.dateKey
+  useEffect(() => {
+    if (!jourAMontrer) return
+    const carte = document.getElementById(`jour-${jourAMontrer}`)
+    if (carte) {
+      carte.scrollIntoView({ block: "start" })
+      onJourMontre?.()
+      return
+    }
+    if (isPending || isFetchingNextPage) return
+    if (hasNextPage && (!plusAncienne || plusAncienne > jourAMontrer)) {
+      fetchNextPage()
+    } else {
+      onJourMontre?.()
+    }
+  }, [jourAMontrer, plusAncienne, isPending, isFetchingNextPage, hasNextPage, fetchNextPage, onJourMontre])
 
   const sentinelle = useRef<HTMLDivElement>(null)
   useEffect(() => {

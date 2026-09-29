@@ -186,6 +186,9 @@ export function App() {
   /// La note du journal à ouvrir — mêmes raisons que `jourRepas`, mêmes
   /// effacements à main levée.
   const [noteAOuvrir, setNoteAOuvrir] = useState<string | null>(null)
+  /// La journée à montrer, en lecture : la citation d'une note touchée sur la
+  /// fiche d'une personne. On vient la relire, pas la réécrire.
+  const [jourAMontrer, setJourAMontrer] = useState<string | null>(null)
   const verrou = useVerrou()
   /// Vrai le temps d'un retour qu'on a soi-même déclenché pour fermer une
   /// fiche. L'entrée retrouvée porte l'écran d'où l'on venait, et le restaurer
@@ -196,6 +199,7 @@ export function App() {
   const changerDeSection = (s: Section) => {
     setJourRepas(null)
     setNoteAOuvrir(null)
+    setJourAMontrer(null)
     // Une fiche est une page poussée : partir vers un onglet la referme, comme
     // le chevron le ferait. Sans ça, la barre étant désormais visible depuis
     // une fiche, on changeait d'onglet sans rien voir changer — la fiche
@@ -284,7 +288,7 @@ export function App() {
         return
       case "journal":
         setVueJournal("journees")
-        setNoteAOuvrir(citation.dateKey)
+        setJourAMontrer(citation.dateKey)
         setSection("journal")
         return
     }
@@ -387,6 +391,8 @@ export function App() {
         <Journal
           noteAOuvrir={noteAOuvrir}
           onNoteOuverte={() => setNoteAOuvrir(null)}
+          jourAMontrer={jourAMontrer}
+          onJourMontre={() => setJourAMontrer(null)}
           onActivite={ouvrir}
           onRepas={(dateKey) => {
             setJourRepas(dateKey)
