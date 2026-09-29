@@ -3,24 +3,24 @@ import SwiftData
 import UniformTypeIdentifiers
 
 struct RootView: View {
-    @Environment(AppEnvironment.self) private var app
-    @Environment(\.modelContext) private var modelContext
-    @State private var sidebarSelection: SidebarItem? = .all
+    @Environment(AppEnvironment.self) var app
+    @Environment(\.modelContext) var modelContext
+    @State var sidebarSelection: SidebarItem? = .all
     /// Si la section a été choisie dans la barre latérale plutôt qu'au clavier.
     ///
     /// Le contenu ne prend alors pas le clavier en apparaissant : la ligne
     /// qu'on vient de cliquer garderait son bleu une demi-seconde puis
     /// pâlirait, ce qui se lit comme un défaut. Voir
     /// `EnvironmentValues.vimKeysClaimentLeFocus`.
-    @State private var sectionChoisieALaSouris = false
+    @State var sectionChoisieALaSouris = false
     /// Incrémenté quand le contenu doit prendre le clavier — la touche Entrée
     /// depuis la barre latérale. Voir `EnvironmentValues.vimKeysDemandeDeFocus`.
-    @State private var demandeDeFocusDuContenu = 0
+    @State var demandeDeFocusDuContenu = 0
 
     /// La sélection de la barre latérale, écrite par la barre elle-même — donc
     /// à la souris, ou aux flèches depuis la barre. Les changements de section
     /// venus d'ailleurs passent par `allerA`, qui les distingue.
-    private var sidebarSelectionBinding: Binding<SidebarItem?> {
+    var sidebarSelectionBinding: Binding<SidebarItem?> {
         Binding(
             get: { sidebarSelection },
             set: { item in
@@ -33,7 +33,7 @@ struct RootView: View {
     /// Change de section depuis ailleurs que la barre latérale : une commande
     /// au clavier, une citation cliquée, une journée ouverte depuis une sortie.
     /// Le clavier suit le contenu, puisqu'il y était déjà.
-    private func allerA(_ item: SidebarItem?) {
+    func allerA(_ item: SidebarItem?) {
         // Une section masquée ne s'atteint pas plus au clavier ou par une
         // citation que par la barre. Voir `SidebarItem.masquees`.
         if let item, item.estMasquee { return }
@@ -43,7 +43,7 @@ struct RootView: View {
     /// Le jour choisi dans le plan d'entraînement. Tenu ici comme les autres
     /// jours d'écran, pour que la grille et son mois survivent à un aller-retour
     /// vers la liste.
-    @State private var trainingDateKey = DateKey(Date())
+    @State var trainingDateKey = DateKey(Date())
     /// Si le volet de droite montre une sortie sur un écran qui ne parle pas
     /// de sorties — le plan, les statistiques.
     ///
@@ -60,103 +60,103 @@ struct RootView: View {
     ///
     /// Un seul drapeau pour les deux : un seul de ces écrans est à l'écran à
     /// la fois, et chacun le baisse en arrivant.
-    @State private var sortieOuverteDepuisLEcran = false
+    @State var sortieOuverteDepuisLEcran = false
     /// Ce que le journal montre : ses journées, ou les gens qui y sont cités.
     /// `AppStorage`, comme la présentation de la liste d'activités : c'est une
     /// façon de lire, et elle doit se retrouver au lancement suivant.
-    @AppStorage(VueJournal.storageKey) private var vueJournal: VueJournal = .journees
+    @AppStorage(VueJournal.storageKey) var vueJournal: VueJournal = .journees
     /// La personne ouverte, par sa clé repliée — jamais par son orthographe :
     /// la sélection doit survivre à une note qui écrit « @Sam » au lieu de
     /// « @sam ».
-    @State private var selectedPerson: String?
+    @State var selectedPerson: String?
     /// Entrée sur une personne : son éditeur de note prend le clavier.
-    @State private var personNoteRequest = 0
-    @State private var filter = ActivityFilter.none
+    @State var personNoteRequest = 0
+    @State var filter = ActivityFilter.none
     // See the comment on `ActivityListView.selection`: `Activity.ID` can't be
     // named from this file, so `PersistentIdentifier` is used directly.
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var selectedActivities: Set<PersistentIdentifier> = []
+    @Environment(\.colorScheme) var colorScheme
+    @State var selectedActivities: Set<PersistentIdentifier> = []
     /// Whether the list has already picked its opening row. Held here rather
     /// than in the list: it survived the days when a filter change destroyed
     /// that view, and it still belongs to the window — the choice is made once
     /// per launch, not once per list.
-    @State private var hasAutoSelected = false
+    @State var hasAutoSelected = false
     /// Which map, if any, is filling the window.
-    @State private var expandedMap: ExpandedMap?
+    @State var expandedMap: ExpandedMap?
     /// Which editor is open, if any. One state rather than two booleans: the two
     /// modes are exclusive and a pair of flags would let both be true.
-    @State private var editor: ActivityEditorSheet.Mode?
+    @State var editor: ActivityEditorSheet.Mode?
     /// The activity a confirmation dialog is about to delete. Introduced here
     /// for the toolbar's Supprimer button; the confirmation itself is task 7's.
-    @State private var pendingDeletion: Activity?
+    @State var pendingDeletion: Activity?
     /// Set when a write the user believes already happened — a delete, a
     /// restore, a save from the editor sheet — actually failed. Both `delete`
     /// and the editor's `onSave` change what is on screen (the selection
     /// clears, the sheet dismisses) before `try?` used to hide a failed
     /// `context.save()` behind a screen that already looks correct.
-    @State private var writeFailureMessage: String?
+    @State var writeFailureMessage: String?
     /// Whether the keyboard map is on screen, opened with `?`.
     /// `J` / `K` : le volet de droite défile d'un cran — voir `ActivityDetailView`.
-    @State private var paneScroll = PaneScrollRequest()
+    @State var paneScroll = PaneScrollRequest()
     /// La page des statistiques, sous `j` et `k` — pas le volet : celui-là
     /// reste à `J` et `K`, ouvert sur un record à côté.
-    @State private var statisticsScroll = PaneScrollRequest()
-    @State private var showsKeyboardHelp = false
+    @State var statisticsScroll = PaneScrollRequest()
+    @State var showsKeyboardHelp = false
     /// « Resynchroniser tout… », demandé depuis le menu Strava.
-    @State private var confirmsResync = false
+    @State var confirmsResync = false
     /// Whether the editor about to open should start in the note field.
     ///
     /// Carried beside `editor` rather than inside its `Mode`: the mode says
     /// *what* is being edited and feeds `sheet(item:)`'s identity, while this
     /// says where to put the cursor — folding it in would give the same activity
     /// two identities and present the sheet twice.
-    @State private var editorFocusesNotes = false
+    @State var editorFocusesNotes = false
     /// Whether the food journal's side panel (calendar + day summary) is up.
     /// `AppStorage` rather than `State`: closing the panel is a workspace
     /// choice, and it should still be closed after a relaunch.
-    @AppStorage("nutritionPanelVisible") private var nutritionPanelVisible = true
+    @AppStorage("nutritionPanelVisible") var nutritionPanelVisible = true
     /// The day the food journal and its side panel are showing — lifted here
     /// so the mini calendar (in the detail column) and the journal (in the
     /// content column) share one binding rather than drifting apart.
-    @State private var nutritionDateKey = DateKey(Date())
+    @State var nutritionDateKey = DateKey(Date())
     /// The journal's own selection, search and ticked tags. Held here rather
     /// than in the list for the same reason as the activity list's: the
     /// sidebar's tag section and the search field both live outside it.
-    @State private var journalSelection: DateKey?
-    @State private var journalQuery = ""
-    @State private var journalTags: Set<JournalTag> = []
+    @State var journalSelection: DateKey?
+    @State var journalQuery = ""
+    @State var journalTags: Set<JournalTag> = []
     /// Bumped to bring the keyboard back to the list, or to the editor.
-    @State private var journalListFocus = 0
-    @State private var journalEditorFocus = 0
-    @State private var journalPendingDeletion: DateKey?
+    @State var journalListFocus = 0
+    @State var journalEditorFocus = 0
+    @State var journalPendingDeletion: DateKey?
     /// Focus of the search field, so `/` can reach it.
     ///
     /// Held here rather than in the list: `.searchable` is applied to the list
     /// from this view, and `.searchFocused` only binds the field of the
     /// `searchable` in its own chain.
-    @FocusState private var searchFieldFocused: Bool
+    @FocusState var searchFieldFocused: Bool
     /// The list's presentation, held here too so the shortcut reaches it from
     /// anywhere. Same `AppStorage` key as the list's own, so the two never
     /// disagree — a second copy of the state would.
     @AppStorage(ActivityListStyle.storageKey)
-    private var listStyle: ActivityListStyle = .table
+    var listStyle: ActivityListStyle = .table
     /// Kept apart from `writeFailureMessage`: a GPX that would not parse is not
     /// a failed save, and telling the user their work was lost when it was not
     /// is its own kind of wrong.
-    @State private var fileMessage: String?
+    @State var fileMessage: String?
     /// The exported book's period, and whether its sheet is up. Held here
     /// rather than in the sheet so the estimate below can follow the dates as
     /// they are picked.
-    @State private var showsJournalExport = false
-    @State private var journalExportFrom = DateKey(Date()).monthStart
-    @State private var journalExportTo = DateKey(Date()).monthEnd()
+    @State var showsJournalExport = false
+    @State var journalExportFrom = DateKey(Date()).monthStart
+    @State var journalExportTo = DateKey(Date()).monthEnd()
     /// Non-nil while the book is being made — the sheet stays up and shows it
     /// rather than closing on a window that has stopped answering.
-    @State private var journalExportProgress: ExportJournalSheet.Progress?
+    @State var journalExportProgress: ExportJournalSheet.Progress?
     /// Shared with every map so the chosen background and colour carry over.
-    @AppStorage(MapStyle.storageKey) private var expandedStyle: MapStyle = .standard
-    @AppStorage(TrackColor.storageKey) private var expandedTrackColor: TrackColor = .accent
-    @Query private var allActivities: [Activity]
+    @AppStorage(MapStyle.storageKey) var expandedStyle: MapStyle = .standard
+    @AppStorage(TrackColor.storageKey) var expandedTrackColor: TrackColor = .accent
+    @Query var allActivities: [Activity]
     /// Only the outings that wrote something down.
     ///
     /// Narrowed in the fetch rather than after it: the journal merges these
@@ -166,20 +166,20 @@ struct RootView: View {
     @Query(filter: #Predicate<Activity> {
         $0.activityDescription != nil && $0.activityDescription != ""
     })
-    private var notedActivities: [Activity]
+    var notedActivities: [Activity]
 
     /// The journal reads what was written in the food journal too — a meal's
     /// note, a weigh-in's comment. Unfiltered: both tables are small enough to
     /// read whole — at most one weigh-in per day, and one note per meal and
     /// per day — where the activities needed narrowing to the few dozen
     /// carrying a note.
-    @Query private var mealNotes: [MealNote]
-    @Query private var weightEntries: [WeightEntry]
+    @Query var mealNotes: [MealNote]
+    @Query var weightEntries: [WeightEntry]
     /// For the exported book, which gathers a meal's totals the way the day
     /// screen does. Unfiltered like the two above: the period is applied by
     /// `JournalBook.build`, not by the fetch.
-    @Query private var foodEntries: [FoodEntry]
-    @Query(sort: \MealSlot.sortOrder) private var mealSlots: [MealSlot]
+    @Query var foodEntries: [FoodEntry]
+    @Query(sort: \MealSlot.sortOrder) var mealSlots: [MealSlot]
 
     /// The selected activities, restricted to those the list actually shows.
     ///
@@ -196,7 +196,7 @@ struct RootView: View {
     /// filter over the whole library each time. Running it over the one or two
     /// activities actually selected turns each of those passes from 840
     /// predicate evaluations into one.
-    private var selection: [Activity] {
+    var selection: [Activity] {
         guard !selectedActivities.isEmpty else { return [] }
         return filter.apply(
             to: allActivities.filter { selectedActivities.contains($0.id) }
@@ -205,21 +205,21 @@ struct RootView: View {
 
     /// The one selected activity, or nil as soon as there are several: the
     /// detail pane shows figures for one outing and a comparison map for more.
-    private var selected: Activity? {
+    var selected: Activity? {
         selection.count == 1 ? selection.first : nil
     }
 
     /// The global map honours the same filters as the list — picking a sport in
     /// the sidebar or typing a search has to narrow the tracks too, otherwise
     /// the map contradicts every other view.
-    private var mapActivities: [Activity] {
+    var mapActivities: [Activity] {
         filter.apply(to: allActivities)
     }
 
     /// Everything the filters keep except the date range, which the statistics
     /// view sets for itself — it has to reach into the preceding period to
     /// compare against it.
-    private var statisticsActivities: [Activity] {
+    var statisticsActivities: [Activity] {
         filter.ignoringPeriod.apply(to: allActivities)
     }
 
@@ -374,7 +374,7 @@ struct RootView: View {
 
     /// A map on its own, with the sidebar and the detail pane out of the way.
     @ViewBuilder
-    private func fullWindowMap(_ expanded: ExpandedMap) -> some View {
+    func fullWindowMap(_ expanded: ExpandedMap) -> some View {
         let map = Group {
             switch expanded {
             case .global:
@@ -427,7 +427,7 @@ struct RootView: View {
             }
     }
 
-    private var regionBinding: Binding<BoundingBox?> {
+    var regionBinding: Binding<BoundingBox?> {
         Binding(
             get: { filter.region },
             set: { newRegion in
@@ -442,9 +442,9 @@ struct RootView: View {
         )
     }
 
-    private var showsGlobalMap: Bool { sidebarSelection == .globalMap }
+    var showsGlobalMap: Bool { sidebarSelection == .globalMap }
 
-    private var showsStatistics: Bool { sidebarSelection == .statistics }
+    var showsStatistics: Bool { sidebarSelection == .statistics }
 
     /// Whether the toolbar's activity buttons have anything to act on.
     ///
@@ -455,106 +455,16 @@ struct RootView: View {
     /// belong to the list's own toolbar and leave with it.
     ///
     /// The menu bar follows the same rule — see `menuState`.
-    private var showsActivityActions: Bool {
+    var showsActivityActions: Bool {
         !showsJournal && !showsNutrition && !showsWeight && !showsStatistics
             && !showsTraining && !showsPeople
     }
 
-    /// What the menu bar can act on from the screen on display.
-    ///
-    /// The commands used to be installed once and never withdrawn: beside the
-    /// food journal, the statistics or a locked journal, ⌘⌫ offered to delete
-    /// an outing the screen did not show, ⌘N opened the activity editor, and
-    /// no item ever greyed out. The vim layer already refused the same
-    /// commands there (`VimCommand.actsOnActivities`); the menu now agrees.
-    struct MenuState: Equatable {
-        /// The activity list's own section: ⌘N and the table/cards switch.
-        var activities = false
-        var selectedOne = false
-        var selectedAny = false
-        var selectionIsFavorite = false
-        var journalOpen = false
-        var journalNote = false
-        var journalUnlocked = false
-    }
-
-    private var menuState: MenuState {
-        let activities = showsActivityActions
-        // The statistics and the plan open an outing's pane of their own: what
-        // it shows is the selection, and the commands may act on it.
-        let outingOnScreen = activities
-            || ((showsStatistics || showsTraining) && sortieOuverteDepuisLEcran)
-        let selection = outingOnScreen ? selection : []
-        let journalUnlocked = app.journalLock.estOuvert
-        return MenuState(
-            activities: activities,
-            selectedOne: selection.count == 1,
-            selectedAny: !selection.isEmpty,
-            selectionIsFavorite: !selection.isEmpty && selection.allSatisfy(\.isFavorite),
-            journalOpen: showsJournal && journalUnlocked,
-            journalNote: showsJournal && journalUnlocked && journalSelectionHasNote,
-            journalUnlocked: journalUnlocked
-        )
-    }
-
-    /// A nil closure is what greys an item out; nil everywhere once the window
-    /// has gone, so nothing acts on a view that no longer exists.
-    private func installMenuCommands(_ state: MenuState?) {
-        guard let state else {
-            app.requestNewActivity = nil
-            app.requestEditSelection = nil
-            app.requestDeleteSelection = nil
-            app.requestToggleFavorite = nil
-            app.selectionIsFavorite = false
-            app.requestExportGPX = nil
-            app.requestToggleListStyle = nil
-            app.requestExportJournalPDF = nil
-            app.requestImportGPX = nil
-            app.requestShowJournalTag = nil
-            app.requestShowKeyboardHelp = nil
-            app.requestResyncEverything = nil
-            return
-        }
-        // ⌘N means "make the thing this section is about": an activity in
-        // the list, today's note in the journal.
-        app.requestNewActivity = state.journalOpen
-            ? { openTodaysNote() }
-            : state.activities ? { editor = .create } : nil
-        app.requestEditSelection = state.selectedOne
-            ? { if let selected { editor = .edit(selected) } } : nil
-        app.requestDeleteSelection = state.journalNote
-            ? { journalPendingDeletion = journalSelection }
-            : state.selectedOne ? { pendingDeletion = selected } : nil
-        app.requestToggleFavorite = state.selectedAny ? { toggleFavorite() } : nil
-        app.selectionIsFavorite = state.selectionIsFavorite
-        app.requestExportGPX = state.selectedAny ? { exportGPX(selection) } : nil
-        app.requestToggleListStyle = state.activities
-            ? { listStyle = listStyle.toggled } : nil
-        app.requestExportJournalPDF = state.journalUnlocked ? {
-            // Pre-filled on the month being read: that is the period one
-            // has in mind when the menu is opened from the journal.
-            let day = journalSelection ?? DateKey(Date())
-            journalExportProgress = nil
-            journalExportFrom = day.monthStart
-            journalExportTo = day.monthEnd()
-            showsJournalExport = true
-        } : nil
-        app.requestImportGPX = { chooseGPXFilesToImport() }
-        app.requestShowJournalTag = { tag in
-            allerA(.journal)
-            vueJournal = .journees
-            journalQuery = ""
-            journalTags = [tag]
-        }
-        app.requestShowKeyboardHelp = { showsKeyboardHelp = true }
-        app.requestResyncEverything = { confirmsResync = true }
-    }
-
     /// La section du journal, quelle que soit la vue choisie dans sa barre
     /// d'outils — `showsJournal` et `showsPeople` la coupent en deux.
-    private var showsJournalSection: Bool { sidebarSelection == .journal }
+    var showsJournalSection: Bool { sidebarSelection == .journal }
 
-    private var showsJournal: Bool { showsJournalSection && vueJournal == .journees }
+    var showsJournal: Bool { showsJournalSection && vueJournal == .journees }
 
     /// Every day the journal knows about: the vault's notes, and the days
     /// something was written about elsewhere — an outing, a meal, a weigh-in.
@@ -563,7 +473,7 @@ struct RootView: View {
     /// (`notedActivities`), so this groups a few dozen rows rather than the
     /// whole library. Where each text belongs is `JournalDaySources`'s
     /// business, not this view's.
-    private var journalDays: [JournalDay] {
+    var journalDays: [JournalDay] {
         let bibliotheque = bibliothequeDuJournal
         return JournalDay.merge(
             notes: app.journal.notes,
@@ -579,7 +489,7 @@ struct RootView: View {
     /// Ce que la bibliothèque dit des journées — la moitié qui ne bouge qu'à
     /// l'écriture. Voir `JournalLibraryCache` : cette moitié-là se retrouvait
     /// recalculée à chaque touche frappée dans une note.
-    private var bibliothequeDuJournal: JournalLibraryCache.Contenu {
+    var bibliothequeDuJournal: JournalLibraryCache.Contenu {
         app.journalLibrary.contenu(
             activities: allActivities, notedActivities: notedActivities,
             mealNotes: mealNotes, weights: weightEntries
@@ -587,13 +497,13 @@ struct RootView: View {
     }
 
     /// What the list shows: the search and the ticked tags together.
-    private var filteredJournalDays: [JournalDay] {
+    var filteredJournalDays: [JournalDay] {
         JournalDay.filter(journalDays, query: journalQuery, tags: journalTags)
     }
 
     /// Whether the selected day has a note of its own to delete. A day listed
     /// only because an outing, a meal or a weigh-in wrote something has none.
-    private var journalSelectionHasNote: Bool {
+    var journalSelectionHasNote: Bool {
         // Lu dans le magasin plutôt que dans la fusion : la barre d'outils
         // pose cette question à chaque rendu, et la fusion coûte la
         // bibliothèque entière pour un booléen.
@@ -606,7 +516,7 @@ struct RootView: View {
     /// The tag list the sidebar ticks, counted over every source at once — a
     /// `#Sam` weighs the same whether it was written in the vault, under an
     /// outing, beside a meal or next to a weigh-in.
-    private var journalTagCounts: [JournalTagTally.Row] {
+    var journalTagCounts: [JournalTagTally.Row] {
         // Seulement quand le journal est à l'écran : la barre latérale ne
         // montre ses étiquettes que là, et les compter ailleurs revenait à
         // fusionner toute la bibliothèque pour une liste que personne ne voit.
@@ -616,12 +526,12 @@ struct RootView: View {
 
     /// Les jours que la barre latérale a besoin de connaître — son compte et
     /// les points de son calendrier. Voir `JournalDaySources.libraryDayKeys`.
-    private var journalDayKeys: Set<String> {
+    var journalDayKeys: Set<String> {
         bibliothequeDuJournal.jours.union(app.journal.notes.map(\.date.raw))
     }
 
     /// The list's selection.
-    private var journalSelectionBinding: Binding<DateKey?> {
+    var journalSelectionBinding: Binding<DateKey?> {
         Binding(
             get: { journalSelection },
             // Explicit closure, not a method reference: swift-frontend 6.3
@@ -641,7 +551,7 @@ struct RootView: View {
     /// puts the caret in; clicking a day means "show me that day", and a note
     /// one wanted to read should not open with a cursor in it. The reader's
     /// own invitation is there for the day one meant to write.
-    private var journalDayBinding: Binding<DateKey> {
+    var journalDayBinding: Binding<DateKey> {
         Binding(
             get: { journalSelection ?? DateKey(Date()) },
             set: { day in
@@ -662,7 +572,7 @@ struct RootView: View {
     /// and whose outings said nothing has no row in the store, and this is a
     /// key one presses precisely to write the first line about it. Nothing
     /// reaches the disk until a character is typed.
-    private func openJournalDay() {
+    func openJournalDay() {
         guard !SidebarItem.journal.estMasquee else { return }
         guard let activity = selected ?? selection.first else { return }
         let date = DateKey(activity.startDate)
@@ -687,7 +597,7 @@ struct RootView: View {
     /// The buffer is flushed by `onChange(of: sidebarSelection)`, which fires
     /// on the switch below — an outing opened mid-sentence must not cost the
     /// sentence.
-    private func openActivity(_ id: PersistentIdentifier) {
+    func openActivity(_ id: PersistentIdentifier) {
         selectedActivities = [id]
         allerA(.all)
     }
@@ -697,7 +607,7 @@ struct RootView: View {
     /// Cliquer une note de sortie menait à la sortie, et cliquer une note de
     /// repas ne menait nulle part : la même carte se comportait de deux façons
     /// selon ce qu'elle citait. Les cinq sources ont maintenant leur chemin.
-    private func ouvrirLaSource(_ citation: PeopleIndex.Citation) {
+    func ouvrirLaSource(_ citation: PeopleIndex.Citation) {
         switch citation.source {
         case .sortie:
             guard let uuid = citation.activityUUID,
@@ -729,7 +639,7 @@ struct RootView: View {
         }
     }
 
-    private func selectJournalNote(_ date: DateKey?) {
+    func selectJournalNote(_ date: DateKey?) {
         // The flush first: a debounce that has not fired yet is unwritten
         // work, and the note being left must not lose its last sentence to the
         // pane being rebuilt on another day.
@@ -737,11 +647,11 @@ struct RootView: View {
         journalSelection = date
     }
 
-    private var showsTraining: Bool { sidebarSelection == .training }
+    var showsTraining: Bool { sidebarSelection == .training }
 
     /// Les gens ne sont plus une section : c'est le journal, rangé par qui y
     /// est cité. Voir `VueJournal`.
-    private var showsPeople: Bool { showsJournalSection && vueJournal == .gens }
+    var showsPeople: Bool { showsJournalSection && vueJournal == .gens }
 
     /// L'écran sous lequel les largeurs de volets sont rangées.
     ///
@@ -749,7 +659,7 @@ struct RootView: View {
     /// calendrier ici, des étiquettes là, des filtres de sport ailleurs — et le
     /// volet de droite non plus. Sans sélection, c'est la liste des activités
     /// qui s'affiche, donc son écran.
-    private var ecranDesVolets: PaneGeometry.Ecran {
+    var ecranDesVolets: PaneGeometry.Ecran {
         switch sidebarSelection {
         case .globalMap: .carte
         case .statistics: .statistiques
@@ -764,9 +674,9 @@ struct RootView: View {
         }
     }
 
-    private var showsNutrition: Bool { sidebarSelection == .nutrition }
+    var showsNutrition: Bool { sidebarSelection == .nutrition }
 
-    private var showsWeight: Bool { sidebarSelection == .weight }
+    var showsWeight: Bool { sidebarSelection == .weight }
 
     /// One three-column split view for the whole app life, never two.
     ///
@@ -776,7 +686,7 @@ struct RootView: View {
     /// identity, and changing the column count is a different identity. The
     /// structure is now fixed, and the map claims the space by collapsing the
     /// detail column instead.
-    private var splitView: some View {
+    var splitView: some View {
         NavigationSplitView {
             sidebar
         } content: {
@@ -1013,7 +923,7 @@ struct RootView: View {
     /// Removes an activity from the journal: from the current selection so the
     /// detail pane never keeps a live reference to a deleted object, then from
     /// the store — leaving a tombstone behind when it came from Strava.
-    private func delete(_ activity: Activity) {
+    func delete(_ activity: Activity) {
         selectedActivities.remove(activity.id)
         // The full-window map can only reach a deleted activity by identity
         // (`.activity(id)`), and ⌘⌫ is reachable while it fills the window
@@ -1037,147 +947,11 @@ struct RootView: View {
         }
     }
 
-    private func openEditor(_ activity: Activity, focusingNotes: Bool) {
+    func openEditor(_ activity: Activity, focusingNotes: Bool) {
         // Set before the sheet is presented: the flag is read as the sheet is
         // built, and assigning it afterwards would arrive one presentation late.
         editorFocusesNotes = focusingNotes
         editor = .edit(activity)
-    }
-
-    /// The command set for the screens that show no activity — the journal, the
-    /// food journal, the weight chart. An activity selection survives invisibly
-    /// behind all three, and without this filter a stray `n` or `x` edited or
-    /// deleted an outing nothing was showing.
-    private func performOutsideActivities(_ command: VimCommand) -> Bool {
-        guard !command.actsOnActivities else { return false }
-        return performOutsideTheList(command)
-    }
-
-    /// The journal's own command set.
-    ///
-    /// It keeps the rule above — nothing may reach the activity selection
-    /// surviving invisibly behind this screen — but three keys mean something
-    /// here that they cannot mean beside a food log: `/` has a search field to
-    /// aim at, Escape has a search and a selection of its own to peel, and `h`
-    /// has a pane that does close.
-    private func performInJournal(_ command: VimCommand) -> Bool {
-        switch command {
-        case .openSearch:
-            searchFieldFocused = true
-            return true
-        case .clear:
-            // One layer at a time, in the order the screen was narrowed.
-            // Jamais la sélection : le volet du journal reste ouvert, toujours
-            // sur une journée — comme celui des gens.
-            if !journalQuery.isEmpty {
-                journalQuery = ""
-            } else if !journalTags.isEmpty {
-                journalTags = []
-            }
-            searchFieldFocused = false
-            return true
-        case .closePane:
-            // Pas de volet à fermer ici : il reste ouvert sur une journée.
-            return false
-        default:
-            return performOutsideActivities(command)
-        }
-    }
-
-    /// Les statistiques n'ont pas de lignes à parcourir : `j`, `k` et les
-    /// flèches y font défiler la page. Le compte est ignoré — `5j` n'a pas de
-    /// sens sur une page qui défile d'un mouvement continu.
-    private func performInStatistics(_ command: VimCommand) -> Bool {
-        switch command {
-        case let .move(step):
-            statisticsScroll.direction = step > 0 ? 1 : -1
-            return true
-        case .stopScroll:
-            statisticsScroll.direction = 0
-            perform(command)
-            return true
-        default:
-            return performOutsideTheList(command)
-        }
-    }
-
-    /// The same commands, from a view that has no rows to move through.
-    ///
-    /// Motions are refused rather than silently ignored: the press falls through
-    /// to whatever else might want it, instead of being swallowed by a view that
-    /// had nothing to do with it.
-    private func performOutsideTheList(_ command: VimCommand) -> Bool {
-        switch command {
-        case .move, .first, .last, .halfPage:
-            return false
-        default:
-            perform(command)
-            return true
-        }
-    }
-
-    /// The keyboard commands the list cannot carry out on its own.
-    private func perform(_ command: VimCommand) {
-        switch command {
-        case let .section(item):
-            allerA(item)
-        case .edit:
-            if let selected { openEditor(selected, focusingNotes: false) }
-        case .editNotes:
-            if let selected { openEditor(selected, focusingNotes: true) }
-        case .delete:
-            pendingDeletion = selected
-        case .toggleFavorite:
-            toggleFavorite()
-        case .expandMap:
-            if let selected { expandedMap = .activity(selected.id) }
-        case .closePane:
-            if showsStatistics || showsTraining {
-                // Le volet s'y ouvre par le drapeau, pas par la sélection :
-                // c'est lui qu'on baisse — voir `sortieOuverteDepuisLEcran`.
-                sortieOuverteDepuisLEcran = false
-            } else if listStyle != .cards {
-                // Not in cards: they keep a selection (`keptSelection`).
-                selectedActivities = []
-            }
-        case .toggleListStyle:
-            listStyle = listStyle.toggled
-        case .openJournalDay:
-            openJournalDay()
-        case .showHelp:
-            showsKeyboardHelp = true
-        case .clear:
-            // Escape peels one layer at a time, as it does everywhere else on
-            // the system: the search first, since that is what narrowed the
-            // list, and only then the selection.
-            if !filter.searchText.isEmpty {
-                filter.searchText = ""
-            } else if listStyle != .cards {
-                selectedActivities = []
-            }
-            // Focus comes back to the list either way, so the very next key is
-            // a motion again rather than a character typed into the field.
-            searchFieldFocused = false
-        case .openSearch:
-            searchFieldFocused = true
-        case .move, .first, .last, .halfPage:
-            // Motions are carried out by the list, which has the sorted rows.
-            break
-        case .moveEntryDown, .moveEntryUp:
-            // `J` et `K` hors de l'alimentation, qui les prend avant nous pour
-            // déplacer un aliment : ici ils font défiler le volet de droite,
-            // pendant que `j` et `k` continuent de choisir la sortie. La
-            // répétition de la touche ne change rien — le sens est déjà posé,
-            // et c'est le volet qui défile à son rythme jusqu'au relâchement.
-            paneScroll.direction = command == .moveEntryDown ? 1 : -1
-        case .stopScroll:
-            paneScroll.direction = 0
-        case .addFood, .newWeighIn, .dayForward,
-             .loadRecipe, .saveRecipe:
-            // Reaching here means no journal screen intercepted them: the
-            // list, map or statistics are showing, where they mean nothing.
-            break
-        }
     }
 
     /// Stars, or unstars, every selected activity.
@@ -1187,7 +961,7 @@ struct RootView: View {
     /// pressing a button once means.
     /// Sends a new title or gear to Strava and Garmin, in the background: the
     /// editor has closed and Cairn already shows it.
-    private func propagateEdits(_ changed: Set<ActivityField>, of activity: Activity) {
+    func propagateEdits(_ changed: Set<ActivityField>, of activity: Activity) {
         var edits: [EditPropagator.Edit] = []
         if changed.contains(.name) { edits.append(.name) }
         if changed.contains(.gear) { edits.append(.gear(stravaGearID: activity.gear?.stravaID)) }
@@ -1205,7 +979,7 @@ struct RootView: View {
         }
     }
 
-    private func toggleFavorite() {
+    func toggleFavorite() {
         let activities = selection
         guard !activities.isEmpty else { return }
         let starred = !activities.allSatisfy(\.isFavorite)
@@ -1220,7 +994,7 @@ struct RootView: View {
 
     /// Opens today's note, creating it if it is not there. Nothing is written
     /// until something is typed — see `JournalStore.openToday`.
-    private func openTodaysNote() {
+    func openTodaysNote() {
         // Through `selectJournalNote`, never by assigning `journalSelection`:
         // that is the one path that flushes the note being left.
         selectJournalNote(app.journal.openToday())
@@ -1237,194 +1011,13 @@ struct RootView: View {
         Task { @MainActor in journalEditorFocus += 1 }
     }
 
-    private func chooseGPXFilesToImport() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [Self.gpxType]
-        panel.prompt = "Importer"
-        panel.message = "Choisissez un ou plusieurs fichiers GPX à ajouter au journal"
-        guard panel.runModal() == .OK else { return }
-        importGPX(from: panel.urls)
-    }
-
-    /// Imports every chosen file, keeping the ones that worked.
-    ///
-    /// One bad file among ten does not cancel the other nine: the failures are
-    /// listed by name at the end instead. Selecting what came in is what makes
-    /// an import visible — otherwise the rows land somewhere in 840 others.
-    private func importGPX(from urls: [URL]) {
-        let importer = GPXImporter(context: modelContext)
-        var imported: [Activity] = []
-        var failures: [String] = []
-
-        for url in urls {
-            do {
-                let track = try GPXParser.parse(data: try Data(contentsOf: url))
-                imported.append(
-                    try importer.import(
-                        track,
-                        fallbackName: url.deletingPathExtension().lastPathComponent
-                    )
-                )
-            } catch {
-                failures.append("\(url.lastPathComponent) : \(error.localizedDescription)")
-            }
-        }
-
-        if !imported.isEmpty {
-            do {
-                try modelContext.save()
-                selectedActivities = Set(imported.map(\.id))
-                hasAutoSelected = true
-            } catch {
-                failures.append(
-                    "L'enregistrement a échoué : \(error.localizedDescription)"
-                )
-            }
-        }
-        fileMessage = Self.importReport(imported: imported.count, failures: failures)
-    }
-
-    /// What to tell the user afterwards, or nil when everything worked and the
-    /// new rows on screen already say so.
-    static func importReport(imported: Int, failures: [String]) -> String? {
-        guard !failures.isEmpty else { return nil }
-        let head = imported == 0
-            ? "Aucun fichier n'a pu être importé."
-            : "\(imported) activité\(imported > 1 ? "s importées" : " importée"), les autres non :"
-        return ([head] + failures).joined(separator: "\n")
-    }
-
-    /// Writes the book: gather, draw, paginate, save.
-    ///
-    /// The order matters. The days are gathered first so an empty period can be
-    /// refused before anything slow starts — and before a save panel asks where
-    /// to put a PDF that would hold nothing but its cover.
-    /// Takes each picture into the journal and appends its link to the note.
-    ///
-    /// Through the store, which owns the bytes, the cache and the text alike:
-    /// this view only says which files were dropped, and hears back which of
-    /// them were refused.
-    private func addJournalPhotos(_ urls: [URL], to date: DateKey) {
-        let refused = app.journal.addAttachments(from: urls, to: date)
-        guard !refused.isEmpty else { return }
-        // Named rather than dropped in silence: a file one believes was added
-        // is worse than one that says why it was not.
-        fileMessage = refused.count == 1
-            ? "« \(refused[0]) » n'a pas pu être ajouté : seules les images "
-                + "JPEG, PNG et HEIC entrent dans une note."
-            : "Ces fichiers n'ont pas pu être ajoutés : "
-                + refused.joined(separator: ", ")
-    }
-
-    /// The same from the clipboard, which carries bytes and no name.
-    private func pasteJournalPhoto(_ data: Data, to date: DateKey) {
-        guard !app.journal.addAttachment(data, to: date) else { return }
-        fileMessage = "La photo collée n'a pas pu être ajoutée à la note."
-    }
-
-    private func exportJournalPDF() async {
-        let from = journalExportFrom
-        let to = journalExportTo
-        let book = JournalBook.build(
-            from: from, to: to, notes: app.journal.notes,
-            activities: allActivities, entries: foodEntries, slots: mealSlots,
-            mealNotes: mealNotes, weights: weightEntries
-        )
-        guard !book.days.isEmpty else {
-            showsJournalExport = false
-            fileMessage = "Aucune journée à exporter sur cette période."
-            return
-        }
-
-        journalExportProgress = .drawing(done: 0, total: 1)
-        let illustrations = await JournalBookAssets.illustrations(for: book) {
-            done, total in
-            journalExportProgress = .drawing(done: done, total: total)
-        }
-
-        // The pictures written in the notes themselves, read from the cache
-        // the store materialises them into.
-        let noteImages = JournalBookAssets.noteImages(
-            for: book, vault: app.journal.attachmentsBase
-        ) { done, total in
-            journalExportProgress = .drawing(done: done, total: total)
-        }
-
-        do {
-            // Said out loud, because it is the phase nobody expects: every
-            // picture is drawn and WebKit still has a book to paginate.
-            journalExportProgress = .layingOut
-            let data = try await JournalBookExporter.pdf(
-                from: JournalBookHTML.document(
-                    book, illustrations: illustrations, noteImages: noteImages
-                )
-            )
-            journalExportProgress = nil
-            showsJournalExport = false
-
-            let panel = NSSavePanel()
-            panel.allowedContentTypes = [.pdf]
-            panel.nameFieldStringValue = "Carnet \(from.raw) — \(to.raw).pdf"
-            guard panel.runModal() == .OK, let url = panel.url else { return }
-            try data.write(to: url)
-        } catch {
-            journalExportProgress = nil
-            showsJournalExport = false
-            writeFailureMessage =
-                "Le carnet n'a pas pu être écrit. \(error.localizedDescription)"
-        }
-    }
-
-    private func exportGPX(_ activities: [Activity]) {
-        guard !activities.isEmpty else { return }
-        if let single = activities.count == 1 ? activities.first : nil {
-            let panel = NSSavePanel()
-            panel.allowedContentTypes = [Self.gpxType]
-            panel.nameFieldStringValue = GPXWriter.fileName(for: single)
-            guard panel.runModal() == .OK, let url = panel.url else { return }
-            write([single], into: url.deletingLastPathComponent(), names: [url.lastPathComponent])
-            return
-        }
-        // Several at once go to a folder: a save panel per activity would mean
-        // twenty dialogs for twenty rows.
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.prompt = "Exporter"
-        panel.message = "Choisissez le dossier où écrire les \(activities.count) fichiers GPX"
-        guard panel.runModal() == .OK, let directory = panel.url else { return }
-        write(activities, into: directory, names: activities.map(GPXWriter.fileName(for:)))
-    }
-
-    private func write(_ activities: [Activity], into directory: URL, names: [String]) {
-        var failures: [String] = []
-        for (activity, name) in zip(activities, names) {
-            do {
-                try GPXWriter.document(for: activity)
-                    .write(to: directory.appending(path: name), atomically: true, encoding: .utf8)
-            } catch {
-                failures.append("\(name) : \(error.localizedDescription)")
-            }
-        }
-        if !failures.isEmpty {
-            fileMessage = (["Certains fichiers n'ont pas pu être écrits :"] + failures)
-                .joined(separator: "\n")
-        }
-    }
-
-    /// `.gpx` is not a system-declared type, so it is built from the extension;
-    /// `.xml` is the honest fallback, since a GPX is one.
-    private static let gpxType = UTType(filenameExtension: "gpx") ?? .xml
-
     /// A floor for the detail pane whenever it actually has something to show.
     ///
     /// Not decoration: the collapse below sets the column's width to zero, and
     /// AppKit hands a reopening column back the width it had — near nothing. With
     /// no remembered width to fall back on, as after a fresh build, the pane
     /// reopened a few points wide, its labels wrapped one letter per line.
-    private static let detailMinWidth: CGFloat = 360
+    static let detailMinWidth: CGFloat = 360
 
     /// Le panneau du journal alimentaire demande bien moins que les autres :
     /// des lignes de texte, et rien d'autre.
@@ -1437,10 +1030,10 @@ struct RootView: View {
     /// 160 : « moy. 2450 kcal/j » tient sur une ligne avec ses seize points de
     /// marge de chaque côté, et les deux ou trois lignes plus longues se
     /// replient, ce qu'un panneau de chiffres supporte très bien.
-    private static let nutritionPanelMinWidth: CGFloat = 160
+    static let nutritionPanelMinWidth: CGFloat = 160
 
     @ViewBuilder
-    private var detailColumn: some View {
+    var detailColumn: some View {
         // Neither the map nor the statistics collapse the pane outright any
         // more: clicking a track on one, or a record on the other, opens the
         // activity beside it, and both give the width back when nothing is
@@ -1560,11 +1153,11 @@ struct RootView: View {
     /// Squeezing the column shut gives the width back to the list, and doing it
     /// this way keeps the split view's identity — and therefore the widths the
     /// user chose.
-    private var collapsedDetailColumn: some View {
+    var collapsedDetailColumn: some View {
         Color.clear.navigationSplitViewColumnWidth(0)
     }
 
-    private var sidebar: some View {
+    var sidebar: some View {
         SidebarView(
             selection: sidebarSelectionBinding,
             filter: $filter,
@@ -1616,207 +1209,14 @@ struct RootView: View {
     }
 
     /// The colour the window borrows from what is open, if anything is.
-    private var washColor: Color? {
+    var washColor: Color? {
         selected?.sportType.color
     }
 
-    @ToolbarContentBuilder
-    private var syncToolbar: some ToolbarContent {
-            ToolbarItem(placement: .status) {
-                if app.progress.isRunning {
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
-                        Text(app.progress.toolbarText)
-                            .font(.caption)
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            // Reserved on the text alone, so the pill keeps a
-                            // steady width as the counter ticks over without
-                            // pinning its contents against one edge.
-                            .frame(width: 96, alignment: .leading)
-                    }
-                    .help(app.progress.statusText)
-                }
-            }
-            // Des `ControlGroup` en style `.navigation`, et non des
-            // `ToolbarItem` côte à côte : macOS 26 coule tous les boutons
-            // voisins dans une seule capsule — six icônes où plus rien ne se
-            // distinguait — et `ToolbarSpacer` n'y change rien dans cette
-            // fenêtre (essayé, fixe comme flexible). Une capsule par sujet :
-            // la bibliothèque (rapatrier, ajouter), puis la sortie choisie.
-            ToolbarItem {
-                ControlGroup {
-                    Button {
-                        app.syncNow()
-                    } label: {
-                        Label("Synchroniser", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                    .disabled(!app.isAuthenticated || app.progress.isRunning)
-                    // Already worded for every phase: the last run's date and time
-                    // when idle, "Jamais synchronisé" before the first one, and what
-                    // is happening while a sync is in flight.
-                    .help(app.progress.statusText)
-
-                    // Va avec la synchronisation : il ne vise pas la sélection.
-                    if showsActivityActions {
-                        Button {
-                            editor = .create
-                        } label: {
-                            Label("Nouvelle activité", systemImage: "plus")
-                        }
-                        .help("Ajouter une activité saisie à la main")
-                    }
-                }
-                .controlGroupStyle(.navigation)
-            }
-            // These three act on the selected activity and belong together —
-            // and leave together, on the screens that show no activity.
-            if showsActivityActions {
-                ToolbarItem {
-                    ControlGroup {
-                        Button {
-                            toggleFavorite()
-                        } label: {
-                            // Filled when every selected activity is already a favourite,
-                            // so the icon says what the button is about to do.
-                            Label(
-                                "Favori",
-                                systemImage: selection.allSatisfy(\.isFavorite) && !selection.isEmpty
-                                    ? "star.fill" : "star"
-                            )
-                        }
-                        .disabled(selection.isEmpty)
-                        .help("Marquer ou retirer des favoris")
-
-                        Button {
-                            if let selected { editor = .edit(selected) }
-                        } label: {
-                            Label("Modifier", systemImage: "pencil")
-                        }
-                        .disabled(selected == nil)
-                        .help("Modifier l'activité sélectionnée")
-
-                        Button {
-                            pendingDeletion = selected
-                        } label: {
-                            Label("Supprimer", systemImage: "trash")
-                        }
-                        .disabled(selected == nil)
-                        .help("Supprimer l'activité sélectionnée")
-                    }
-                    .controlGroupStyle(.navigation)
-                }
-            }
-            if showsJournalSection {
-                ToolbarItemGroup {
-                    // Le même segmenté que la présentation des activités : le
-                    // choix porte sur la façon de ranger ce qu'on a sous les
-                    // yeux, pas sur l'endroit où l'on va.
-                    Picker("Vue du journal", selection: $vueJournal) {
-                        ForEach(VueJournal.allCases) { vue in
-                            Label(vue.displayName, systemImage: vue.symbolName)
-                                .tag(vue)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelStyle(.iconOnly)
-                    .help("Basculer entre les journées et les gens qui y sont cités")
-
-                    // Écrire et supprimer, ce sont des gestes sur une note :
-                    // devant la liste des gens ils n'ont rien à viser.
-                    if showsJournal {
-                        Button {
-                            openTodaysNote()
-                        } label: {
-                            Label("Note du jour", systemImage: "square.and.pencil")
-                        }
-                        .help("Ouvrir la note d'aujourd'hui (⌘N)")
-
-                        Button {
-                            journalPendingDeletion = journalSelection
-                        } label: {
-                            Label("Supprimer", systemImage: "trash")
-                        }
-                        .disabled(!journalSelectionHasNote)
-                        .help("Supprimer la note sélectionnée")
-                    }
-                }
-            }
-    }
-
-    /// Le bouton du volet, à part du reste de la barre : posé sur la colonne
-    /// de détail, il passe après le tri et la présentation que la liste
-    /// déclare, et vient donc juste avant la recherche — la place du bouton
-    /// d'inspecteur dans Xcode ou le Finder. Sur la colonne du milieu, il
-    /// restait devant le tri : la barre d'une vue englobante passe avant
-    /// celles qu'elle contient. Il reste affiché quand la colonne est
-    /// refermée à zéro (Alimentation, volet masqué), essayé : sans quoi on
-    /// ne pourrait plus la rouvrir. Plus à droite encore, après la
-    /// recherche, n'est pas possible : `.searchable` se range toujours en
-    /// dernier (essayé : `.primaryAction`, `.confirmationAction`, la colonne
-    /// de détail, `.inspector`).
-    @ToolbarContentBuilder
-    private var panelToolbar: some ToolbarContent {
-            // Kept in place and merely disabled rather than appearing with the
-            // selection: a toolbar whose buttons come and go is unsettling, and
-            // this way the affordance is visible before it is needed.
-            ToolbarItem {
-                Button {
-                    // In the food journal the pane is not driven by a
-                    // selection, so the same button toggles the side panel
-                    // instead of clearing a selection it doesn't have.
-                    if showsNutrition {
-                        nutritionPanelVisible.toggle()
-                    } else if showsPeople {
-                        // Le volet des gens suit la personne choisie, comme
-                        // celui du journal suit la note.
-                        selectedPerson = nil
-                    } else if showsJournal {
-                        // Le volet du journal reste ouvert : le bouton y est
-                        // grisé, et rien ne se fait si ⌥⌘I passe quand même.
-                    } else if showsStatistics || showsTraining {
-                        // Vider la sélection ne fermait rien ici : le volet
-                        // suit le drapeau, et la sélection appartient à la
-                        // liste d'activités — voir `sortieOuverteDepuisLEcran`.
-                        sortieOuverteDepuisLEcran = false
-                    } else {
-                        selectedActivities = []
-                    }
-                } label: {
-                    Label("Fermer le panneau", systemImage: "sidebar.trailing")
-                }
-                // A letter, not a digit: on an AZERTY keyboard the top row
-                // needs shift for its numbers, so ⌥⌘0 is really ⇧⌥⌘0 and half
-                // unreachable. ⌥⌘I is the Finder's inspector shortcut, and this
-                // is the same pane on the same side.
-                .keyboardShortcut("i", modifiers: [.option, .command])
-                // The weight screen has no pane to close; elsewhere the button
-                // needs something to act on — a selected note in the journal,
-                // a selected activity anywhere else.
-                .disabled(
-                    showsWeight
-                        // Le journal et les gens gardent toujours leur volet
-                        // ouvert, sur une journée ou sur quelqu'un.
-                        || showsJournal
-                        || showsPeople
-                        || ((showsStatistics || showsTraining) && !sortieOuverteDepuisLEcran)
-                        || (!showsNutrition && !showsJournal && !showsPeople
-                            && !showsStatistics && !showsTraining
-                            && (selection.isEmpty || listStyle == .cards))
-                )
-                .help(
-                    showsNutrition
-                        ? (nutritionPanelVisible
-                            ? "Fermer le panneau de droite (⌥⌘I)"
-                            : "Rouvrir le panneau de droite (⌥⌘I)")
-                        : "Fermer le panneau de droite et désélectionner (⌥⌘I)"
-                )
-            }
-    }
 }
 
 /// Which map is filling the window, if any.
-private enum ExpandedMap: Equatable {
+enum ExpandedMap: Equatable {
     case global
     case comparison
     case activity(PersistentIdentifier)
