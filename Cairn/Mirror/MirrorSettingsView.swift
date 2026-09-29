@@ -11,6 +11,7 @@ struct MirrorSettingsView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var isSigningIn = false
+    @State private var confirmsForget = false
     /// `MirrorRecorder.failureCount` is a plain `static var`, not
     /// `@Observable` — reading it once in `onAppear` would freeze whatever it
     /// happened to be the moment the tab opened. Polled instead, at a slow
@@ -120,17 +121,32 @@ struct MirrorSettingsView: View {
             }
 
             Section {
-                Button("Oublier ce miroir", role: .destructive) { app.forgetMirror() }
+                Button("Oublier ce miroir…", role: .destructive) { confirmsForget = true }
             } footer: {
                 Text("""
-                    Efface le projet et la session enregistrés sur ce Mac. N'affecte \
-                    aucune donnée locale, et rien n'est supprimé côté Supabase.
+                    Efface le projet, la session et la clé du journal enregistrés sur \
+                    ce Mac. N'affecte aucune donnée locale, et rien n'est supprimé côté \
+                    Supabase.
                     """)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+        .confirmationDialog(
+            "Oublier ce miroir ?",
+            isPresented: $confirmsForget,
+            titleVisibility: .visible
+        ) {
+            Button("Oublier", role: .destructive) { app.forgetMirror() }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("""
+                Rien n'est supprimé, ni ici ni sur Supabase. Mais pour reprendre, il \
+                faudra ressaisir les identifiants, se reconnecter, relancer un \
+                amorçage complet et, si le journal est chiffré, retaper sa phrase.
+                """)
+        }
         .onAppear {
             projectURL = app.store.mirrorCredentials()?.projectURL.absoluteString ?? ""
             anonKey = app.store.mirrorCredentials()?.anonKey ?? ""

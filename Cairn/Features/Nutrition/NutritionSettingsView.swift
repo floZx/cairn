@@ -21,6 +21,9 @@ struct NutritionSettingsView: View {
     @State private var catalogStatus = ""
     @State private var showsRecipesManager = false
     @State private var showsFavoritesManager = false
+    /// Le jour-type dont la suppression attend sa confirmation, et combien de
+    /// journées du journal le portent.
+    @State private var pendingDayTypeDeletion: (dayType: DayType, days: Int)?
 
     var body: some View {
         Form {
@@ -119,6 +122,22 @@ struct NutritionSettingsView: View {
         .onAppear { refreshCatalogStatus() }
         .sheet(isPresented: $showsRecipesManager) { RecipesManagerSheet() }
         .sheet(isPresented: $showsFavoritesManager) { FavoritesManagerSheet() }
+        .confirmationDialog(
+            pendingDayTypeDeletion.map { "Supprimer le jour-type « \($0.dayType.name) » ?" } ?? "",
+            isPresented: Binding(
+                get: { pendingDayTypeDeletion != nil },
+                set: { if !$0 { pendingDayTypeDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Supprimer", role: .destructive) {
+                if let pending = pendingDayTypeDeletion { delete(pending.dayType) }
+                pendingDayTypeDeletion = nil
+            }
+            Button("Annuler", role: .cancel) { pendingDayTypeDeletion = nil }
+        } message: {
+            Text(Self.dayTypeDeletionMessage(days: pendingDayTypeDeletion?.days ?? 0))
+        }
         .alert(
             "Journal alimentaire",
             isPresented: Binding(
@@ -175,7 +194,7 @@ struct NutritionSettingsView: View {
             .disabled(index == dayTypes.count - 1)
             .help("Descendre ce jour-type")
             Button {
-                delete(dayType)
+                askToDelete(dayType)
             } label: {
                 Image(systemName: "minus.circle")
             }
@@ -253,6 +272,22 @@ struct NutritionSettingsView: View {
         } catch {
             writeFailureMessage =
                 "L'ordre n'a pas pu être enregistré. \(error.localizedDescription)"
+        }
+    }
+
+    /// Un « − » sans bordure, à côté de deux flèches : trop près pour agir
+    /// sans demander, et la suppression détache le jour-type de chaque
+    /// journée qui le portait, sans retour possible.
+    private func askToDelete(_ dayType: DayType) {
+        let days = (try? NutritionJournal.dayCount(using: dayType, in: modelContext)) ?? 0
+        pendingDayTypeDeletion = (dayType, days)
+    }
+
+    static func dayTypeDeletionMessage(days: Int) -> String {
+        switch days {
+        case 0: "Aucune journée du journal ne le porte."
+        case 1: "Une journée du journal le porte : elle restera, sans jour-type."
+        default: "\(days) journées du journal le portent : elles resteront, sans jour-type."
         }
     }
 

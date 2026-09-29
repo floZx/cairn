@@ -342,6 +342,15 @@ extension NutritionJournal {
         try context.save()
     }
 
+    /// How many journal days carry this type: what deleting it would leave
+    /// without one, said before it happens.
+    @MainActor
+    static func dayCount(using dayType: DayType, in context: ModelContext) throws -> Int {
+        try context.fetch(FetchDescriptor<NutritionDay>())
+            .filter { $0.dayType?.persistentModelID == dayType.persistentModelID }
+            .count
+    }
+
     /// Days referencing the deleted type keep their row with a nil type —
     /// explicit nullification in code (no schema change) so this production
     /// store never silently eats journal days.

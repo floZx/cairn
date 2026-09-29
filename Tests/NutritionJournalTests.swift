@@ -368,6 +368,9 @@ struct NutritionJournalTests {
         // Un jour qui référence le type supprimé garde sa ligne, type effacé.
         let key = DateKey(raw: "2026-08-08")!
         try NutritionJournal.setDayType(second, for: key, in: context)
+        // Ce que la confirmation annonce avant de supprimer.
+        #expect(try NutritionJournal.dayCount(using: second, in: context) == 1)
+        #expect(try NutritionJournal.dayCount(using: first, in: context) == 0)
         try NutritionJournal.deleteDayType(second, in: context)
         let days = try context.fetch(FetchDescriptor<NutritionDay>())
         #expect(days.count == 1)

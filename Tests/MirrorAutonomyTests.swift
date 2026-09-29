@@ -310,8 +310,9 @@ struct MirrorWiringTests {
         let container = try AppModelContainer.inMemory()
         let (cursor, suiteName) = freshCursor()
         defer { discard(suiteName) }
+        let store = InMemorySecretStore()
         let environment = AppEnvironment(
-            container: container, store: InMemorySecretStore(),
+            container: container, store: store,
             mirrorTransport: StubTransport(alwaysRespondingWith: 200), mirrorCursor: cursor
         )
         #expect(!environment.isMirrorConfigured)
@@ -330,9 +331,14 @@ struct MirrorWiringTests {
         // synchronisé — 3 fichiers non envoyés » after the mirror is gone.
         environment.mirrorProgress.failedUploads = 3
 
+        // La clé du journal ouvre les notes de ce projet-là : un miroir oublié
+        // ne laisse pas sur ce Mac de quoi les déchiffrer.
+        try store.save(JournalKey(keyData: Data(repeating: 1, count: 32), salt: "sel"))
+
         environment.forgetMirror()
         #expect(!environment.isMirrorConfigured)
         #expect(environment.mirrorProgress.failedUploads == 0)
+        #expect(store.journalKey() == nil)
 
         // Purges what the write above left, so the next check is unambiguous
         // about what happened *after* `forgetMirror()`.

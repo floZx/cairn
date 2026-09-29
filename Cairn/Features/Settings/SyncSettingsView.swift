@@ -5,6 +5,7 @@ import SwiftData
 struct SyncSettingsView: View {
     @Environment(AppEnvironment.self) private var app
     @Query private var activities: [Activity]
+    @State private var confirmsResync = false
 
     var body: some View {
         Form {
@@ -48,7 +49,7 @@ struct SyncSettingsView: View {
                     .disabled(!app.isAuthenticated || app.progress.isRunning)
                 Button("Importer seulement les résumés") { app.syncSummariesOnly() }
                     .disabled(!app.isAuthenticated || app.progress.isRunning)
-                Button("Resynchroniser tout") { app.resyncEverything() }
+                Button("Resynchroniser tout…") { confirmsResync = true }
                     .disabled(!app.isAuthenticated || app.progress.isRunning)
                 if app.progress.isRunning {
                     Button("Interrompre", role: .cancel) { app.cancelSync() }
@@ -67,5 +68,6 @@ struct SyncSettingsView: View {
             DiscardedActivitiesSection()
         }
         .formStyle(.grouped)
+        .resyncEverythingConfirmation(isPresented: $confirmsResync)
     }
 }

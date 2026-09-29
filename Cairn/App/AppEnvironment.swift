@@ -601,10 +601,16 @@ final class AppEnvironment {
     /// reconfiguring a *different* Supabase project afterward would silently
     /// skip every row sorting before the old cursor — see
     /// `MirrorBootstrapCursor.clear()`'s own doc comment.
+    ///
+    /// La clé du journal part aussi : elle ouvre les notes de ce projet-là, et
+    /// un miroir oublié n'a plus à laisser sur ce Mac de quoi les déchiffrer.
+    /// Reconfigurer le même projet redemandera la phrase.
     func forgetMirror() {
         cancelMirror()
         mirrorRecorder.stop()
         try? store.clearMirror()
+        try? store.clearJournalKey()
+        journalEncryption = .unknown
         mirrorCursor.clear()
         mirrorProgress.phase = .idle
         mirrorProgress.lastPushAt = nil
