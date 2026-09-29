@@ -1,7 +1,5 @@
 import SwiftUI
 
-
-
 /// Decides which column absorbs a width change, and gives the geometry a name
 /// that survives a rebuild.
 ///
@@ -261,6 +259,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
             guard let root = probe.window?.contentView else { continue }
             for splitView in root.descendantSplitViews() where apply(to: splitView) {
                 coordinator.splitView = splitView
+                observeFullScreen(of: splitView)
                 coordinator.restoreOnLaunch(splitView)
                 observeDetailWidth(of: splitView, coordinator: coordinator)
                 clipDividersUnderToolbar(of: splitView)
@@ -285,13 +284,56 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         let items = controller.splitViewItems
         guard items.count >= 3 else { return false }
 
-        set(listPriority, on: items[1])
-        set(detailPriority, on: items[2])
+        let fullScreen = splitView.window?.styleMask.contains(.fullScreen) == true
+        setPriorities(fullScreen: fullScreen, on: items)
 
         // Keeps the window's width fixed and resizes the panes instead;
         // otherwise AppKit answers a sidebar toggle by resizing the window.
         items[0].collapseBehavior = .preferResizingSiblingsWithFixedSplitView
+        // Replied by hand only, never by a window growing smaller.
+        //
+        // Measured, leaving full screen: the window is back to 1425 points
+        // while the columns still claim 2827 — the list has not given back the
+        // width it took — and AppKit, finding that nothing fits, collapses
+        // the sidebar. Two milliseconds later the list is at 848 and
+        // everything would have fitted, but the sidebar is already on its way
+        // to zero. Signalé, capture à l'appui.
+        items[0].canCollapseFromWindowResize = false
         return true
+    }
+
+    /// Who absorbs a change of the window's width.
+    ///
+    /// Windowed, the list: the width a sidebar toggle frees or takes goes to
+    /// the list, and the pane keeps the width the user dragged it to. In full
+    /// screen, the pane: the window gains a thousand points at once, and the
+    /// list took them all — cards stretched across the screen, while the map
+    /// and the charts stayed where they were. Leaving full screen, the pane
+    /// is still the one that absorbs, so it gives back exactly what it took,
+    /// and the priorities swap back once the window has settled.
+    @MainActor
+    static func setPriorities(fullScreen: Bool, on items: [NSSplitViewItem]) {
+        guard items.count >= 3 else { return }
+        set(fullScreen ? detailPriority : listPriority, on: items[1])
+        set(fullScreen ? listPriority : detailPriority, on: items[2])
+    }
+
+    @MainActor
+    private static func observeFullScreen(of splitView: NSSplitView) {
+        for (nom, fullScreen) in [
+            (NSWindow.willEnterFullScreenNotification, true),
+            (NSWindow.didExitFullScreenNotification, false),
+        ] {
+            NotificationCenter.default.addObserver(
+                forName: nom, object: splitView.window, queue: .main
+            ) { [weak splitView] _ in
+                MainActor.assumeIsolated {
+                    guard let controller = splitView?.delegate as? NSSplitViewController
+                    else { return }
+                    setPriorities(fullScreen: fullScreen, on: controller.splitViewItems)
+                }
+            }
+        }
     }
 
 
