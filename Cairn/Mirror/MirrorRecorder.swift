@@ -165,6 +165,10 @@ final class MirrorRecorder {
         for entry in entries { side.insert(entry) }
         do {
             try side.save()
+            // Qu'une modification attend d'être envoyée : l'application en
+            // fait partir la synchronisation quelques secondes plus tard,
+            // voir `AppEnvironment.synchroniserApresUneModification`.
+            NotificationCenter.default.post(name: .mirrorOutboxChanged, object: nil)
         } catch {
             // Deliberately swallowed, see above — but counted, so that the
             // settings indicator can say the mirror is falling behind.
@@ -210,4 +214,9 @@ final class MirrorRecorder {
 
         return Array(byRow.values)
     }
+}
+
+extension Notification.Name {
+    /// Des entrées viennent d'entrer dans la file d'envoi du miroir.
+    static let mirrorOutboxChanged = Notification.Name("CairnMirrorOutboxChanged")
 }

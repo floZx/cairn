@@ -275,6 +275,11 @@ extension AppEnvironment {
     /// arrangé personne.
     func observeActivation() {
         NotificationCenter.default.addObserver(
+            forName: .mirrorOutboxChanged, object: nil, queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in self?.synchroniserApresUneModification() }
+        }
+        NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
             object: nil,
             queue: nil,
@@ -283,6 +288,34 @@ extension AppEnvironment {
             // depuis la file principale : la notification arrive sur le fil
             // qui la publie, et l'ordonnancer est plus honnête que l'affirmer.
             Task { @MainActor in self?.syncMirrorAutomatically() }
+        }
+    }
+
+    /// Envoie ce qui vient d'être modifié, cinq secondes après la dernière
+    /// modification.
+    ///
+    /// L'envoi n'avait lieu qu'à la relève des cinq minutes, ou en revenant
+    /// au Mac : un renommage fait sur le Mac n'apparaissait sur le téléphone
+    /// que plusieurs minutes plus tard, et se lisait comme un renommage qui
+    /// n'avait pas pris. Signalé le 29 septembre 2026. Envoyer souvent ne
+    /// coûte presque rien — ce sont les lignes modifiées, vers Supabase ;
+    /// c'est la lecture qui se paie.
+    ///
+    /// Par `syncMirrorNow`, relève comprise, et non par la seule poussée :
+    /// l'ordre lire-puis-pousser est ce qui évite de renvoyer sur le serveur
+    /// une note que le téléphone vient de changer — voir `syncMirrorNow`.
+    func synchroniserApresUneModification() {
+        guard isMirrorConfigured, isMirrorSignedIn else { return }
+        synchronisationDifferee?.cancel()
+        synchronisationDifferee = Task { [weak self] in
+            try? await Task.sleep(for: Self.mirrorPushDelay)
+            // Un créneau déjà pris — une relève en cours — : attendre qu'il
+            // se libère plutôt que perdre l'envoi jusqu'aux cinq minutes.
+            while !Task.isCancelled, self?.mirrorTask != nil {
+                try? await Task.sleep(for: .seconds(2))
+            }
+            guard !Task.isCancelled, let self else { return }
+            self.syncMirrorNow()
         }
     }
 

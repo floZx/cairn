@@ -65,6 +65,9 @@ final class AppEnvironment {
     /// Quand la dernière relève automatique est partie, pour ne pas en lancer
     /// deux coup sur coup lorsqu'on passe d'une fenêtre à l'autre.
     var lastAutomaticMirrorSync: Date?
+    /// La synchronisation qui suivra la dernière modification, tant qu'une
+    /// autre ne vient pas la repousser.
+    var synchronisationDifferee: Task<Void, Never>?
 
     var isAuthenticated: Bool
     var hasCredentials: Bool
@@ -364,6 +367,13 @@ final class AppEnvironment {
     /// long pour qu'une journée entière d'application ouverte ne fasse pas
     /// mille appels.
     static let mirrorPollInterval: Duration = .seconds(300)
+
+    /// Le temps de silence après une modification avant de l'envoyer.
+    ///
+    /// Cinq secondes : le journal enregistre à la frappe, et chaque
+    /// enregistrement repousse l'échéance — une phrase tapée ne fait qu'un
+    /// envoi, parti le temps de relever les yeux vers le téléphone.
+    static let mirrorPushDelay: Duration = .seconds(5)
 
     /// Deux relèves automatiques ne se suivent jamais de plus près que cela.
     ///
