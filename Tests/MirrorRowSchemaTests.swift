@@ -112,12 +112,14 @@ struct MirrorRowSchemaTests {
         )
         let emitted = Set(
             MirrorEngine.nutritionTargetRow(
-                .init(proteinG: 130, fatG: 66, fiberG: 30, weightGoalKg: 70),
+                .init(proteinG: 130, fatG: 66, weightGoalKg: 70),
                 userID: "u"
             ).keys
         )
 
-        #expect(emitted == columns.subtracting(Self.reservedColumns))
+        // `fiber_g` reste en base sans que le Mac l'envoie plus : voir
+        // `MirrorEngine.NutritionTargets`.
+        #expect(emitted == columns.subtracting(Self.reservedColumns).subtracting(["fiber_g"]))
     }
 
     /// Every model's row matches its table's columns exactly, once the four

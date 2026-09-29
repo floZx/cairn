@@ -125,7 +125,7 @@ extension AppEnvironment {
     /// a reçue, et un test qui en injecte une jetable doit rester jetable.
     ///
     /// `double(forKey:)` répond `0` pour une clé absente, ce qui n'est pas la
-    /// valeur par défaut voulue : les quatre sont donc lues par `object(forKey:)`
+    /// valeur par défaut voulue : elles sont donc lues par `object(forKey:)`
     /// avant de retomber sur celles de `NutritionSettings`, la même précaution
     /// que `syncsOnLaunch` prend juste au-dessus.
     var nutritionTargets: MirrorEngine.NutritionTargets {
@@ -139,10 +139,6 @@ extension AppEnvironment {
             ),
             fatG: lire(
                 NutritionSettings.fatTargetKey, NutritionSettings.defaultFatTargetG
-            ),
-            fiberG: lire(
-                NutritionSettings.fiberTargetKey,
-                NutritionSettings.defaultFiberTargetG
             ),
             weightGoalKg: lire(
                 NutritionSettings.weightGoalKey, NutritionSettings.defaultWeightGoalKg

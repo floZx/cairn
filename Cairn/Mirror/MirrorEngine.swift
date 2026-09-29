@@ -197,7 +197,11 @@ actor MirrorEngine {
     /// from the single fetch at the top of this method, and `purge` only
     /// ever deletes objects out of that fixed set — nothing this call did
     /// not itself read is ever at risk of being purged.
-    /// Les trois objectifs nutritionnels, tels que l'appelant les a lus.
+    /// Les objectifs nutritionnels, tels que l'appelant les a lus.
+    ///
+    /// Plus l'objectif de fibres, depuis le 29 septembre 2026 : plus rien ne
+    /// l'affichait ni ne le réglait. La colonne `fiber_g` reste en base, avec
+    /// sa valeur d'avant ; un upsert ne touche que les colonnes qu'il porte.
     ///
     /// Passés en argument plutôt que lus ici : ils vivent dans
     /// `UserDefaults.standard`, et un acteur du miroir qui irait les y
@@ -208,7 +212,6 @@ actor MirrorEngine {
     struct NutritionTargets: Sendable, Equatable {
         var proteinG: Double
         var fatG: Double
-        var fiberG: Double
         var weightGoalKg: Double
     }
 
@@ -339,7 +342,6 @@ actor MirrorEngine {
             "user_id": .string(userID),
             "protein_g": .double(targets.proteinG),
             "fat_g": .double(targets.fatG),
-            "fiber_g": .double(targets.fiberG),
             "weight_goal_kg": .double(targets.weightGoalKg),
         ]
     }
