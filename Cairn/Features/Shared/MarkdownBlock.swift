@@ -55,6 +55,30 @@ enum MarkdownBlock: Equatable, Identifiable, Sendable {
 }
 
 enum MarkdownParser {
+    /// Une ligne qui trace un trait : trois tirets, étoiles ou soulignés, et
+    /// rien d'autre — ou sa version passée par les tirets typographiques.
+    static func estUnTrait(_ ligne: String) -> Bool {
+        let nette = ligne.trimmingCharacters(in: .whitespaces)
+        if nette.range(
+            of: #"^(-\s*){3,}$|^(\*\s*){3,}$|^(_\s*){3,}$"#, options: .regularExpression
+        ) != nil { return true }
+        return traitTypographique(nette)
+    }
+
+    /// `---` tel que le Mac et l'iPhone le rendent : leurs tirets
+    /// intelligents en font un seul tiret long — mesuré sur la note, le
+    /// 29 septembre 2026 : « — », U+2014, et rien d'autre. Une ligne faite de
+    /// tirets seulement, dont au moins un typographique, et qui pèse trois
+    /// tirets simples : le cadratin en vaut trois, puisque c'est de `---`
+    /// qu'il naît, le demi-cadratin deux. Un « – » seul reste du texte.
+    static func traitTypographique(_ ligne: String) -> Bool {
+        let nette = ligne.filter { !$0.isWhitespace }
+        guard !nette.isEmpty, nette.allSatisfy({ "-–—".contains($0) }),
+              nette.contains(where: { $0 == "–" || $0 == "—" })
+        else { return false }
+        return nette.reduce(0) { $0 + ($1 == "—" ? 3 : $1 == "–" ? 2 : 1) } >= 3
+    }
+
     /// Splits a note into blocks.
     ///
     /// Deliberately small: a note is not a document, and every construct here is
@@ -84,7 +108,7 @@ enum MarkdownParser {
             }
             // Trois tirets, étoiles ou soulignés et rien d'autre : un trait,
             // comme en Markdown. Avant les puces, que `- ` ouvre.
-            if line.range(of: #"^(-\s*){3,}$|^(\*\s*){3,}$|^(_\s*){3,}$"#, options: .regularExpression) != nil {
+            if estUnTrait(line) {
                 flushParagraph()
                 blocks.append(.rule(blocks.count))
                 continue

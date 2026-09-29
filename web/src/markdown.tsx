@@ -30,6 +30,17 @@ function Mention({ cle, nom }: { cle: string; nom: string }) {
   )
 }
 
+/// `---` tel que l'iPhone et le Mac le rendent : leurs tirets intelligents en
+/// font un seul tiret long, « — ». Une ligne de tirets seulement, dont au moins
+/// un typographique, qui pèse trois tirets simples — le cadratin en vaut
+/// trois, le demi-cadratin deux. Un « – » seul reste du texte. Porté de
+/// `MarkdownParser.traitTypographique`.
+export function traitTypographique(ligne: string): boolean {
+  const nette = ligne.replace(/\s/g, "")
+  if (!nette || !/^[-–—]+$/.test(nette) || !/[–—]/.test(nette)) return false
+  return [...nette].reduce((poids, c) => poids + (c === "—" ? 3 : c === "–" ? 2 : 1), 0) >= 3
+}
+
 /// Un rendu Markdown minimal, écrit à la main plutôt qu'emprunté.
 ///
 /// Ce que le journal et les descriptions d'activité contiennent réellement :
@@ -83,7 +94,7 @@ export function enBlocs(markdown: string): Bloc[] {
     }
     // Trois tirets, étoiles ou soulignés, et rien d'autre : un trait, comme
     // en Markdown et comme sur le Mac. Avant les puces, que `- ` ouvre.
-    if (/^(-\s*){3,}$|^(\*\s*){3,}$|^(_\s*){3,}$/.test(nette)) {
+    if (/^(-\s*){3,}$|^(\*\s*){3,}$|^(_\s*){3,}$/.test(nette) || traitTypographique(nette)) {
       viderListe()
       blocs.push({ sorte: "trait" })
       coupe = true

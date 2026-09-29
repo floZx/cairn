@@ -69,6 +69,10 @@ struct NoteTextView: NSViewRepresentable {
         champ.isRichText = false
         champ.allowsUndo = true
         champ.isAutomaticQuoteSubstitutionEnabled = true
+        // Pas de tirets intelligents : ils changent `---` en un seul tiret
+        // long, et un séparateur Markdown devenait impossible à taper. Un
+        // tiret long se tape toujours, ⌥⇧-.
+        champ.isAutomaticDashSubstitutionEnabled = false
         champ.isContinuousSpellCheckingEnabled = true
         champ.textContainerInset = NSSize(width: 8, height: 8)
         champ.font = police

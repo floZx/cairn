@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react"
+import { traitTypographique } from "./markdown"
 
 /// Ce qu'un champ de note offre à qui le pilote — la barre des citations, le
 /// curseur posé à l'ouverture : le sous-ensemble d'un `textarea` dont on se
@@ -126,7 +127,36 @@ export const ZoneNote = forwardRef<
       }}
       onInput={(e) => {
         const el = e.currentTarget
-        const texte = el.textContent ?? ""
+        let texte = el.textContent ?? ""
+        // `---` que le clavier a changé en « —- » : chaque ligne de trait est
+        // réécrite en trois tirets, pour que le séparateur reste du Markdown
+        // qu'Obsidian lit. Toutes et non la seule du curseur : le clavier peut
+        // frapper au retour à la ligne. Ailleurs, `--` garde son tiret long.
+        const lignes = texte.split("\n")
+        if (lignes.some(traitTypographique)) {
+          const sel = getSelection()
+          const plage = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
+          const curseur =
+            plage && el.contains(plage.startContainer)
+              ? decalage(el, plage.startContainer, plage.startOffset)
+              : texte.length
+          let debut = 0
+          let nouveau = curseur
+          const redressees = lignes.map((ligne) => {
+            const longueur = ligne.length
+            if (traitTypographique(ligne)) {
+              if (curseur > debut + longueur) nouveau += 3 - longueur
+              else if (curseur >= debut) nouveau = debut + 3
+              debut += 4
+              return "---"
+            }
+            debut += longueur + 1
+            return ligne
+          })
+          texte = redressees.join("\n")
+          el.textContent = texte
+          placer(el, nouveau)
+        }
         // Vidé, le bloc garde parfois un `<br>` de remplissage : il ne serait
         // plus `:empty`, et le texte indicatif ne reviendrait pas.
         if (texte === "" && el.firstChild) el.replaceChildren()
