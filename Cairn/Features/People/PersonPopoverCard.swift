@@ -33,15 +33,16 @@ struct PersonPopoverCard: View {
     @Query private var pesees: [WeightEntry]
     @Query private var creneaux: [MealSlot]
 
-    /// Les plus récentes d'abord — `PeopleIndex.citations` les range déjà ainsi.
-    private var dernieresCitations: [PeopleIndex.Citation] {
-        let citations = PeopleIndex.citations(
+    /// Toutes ses citations, les plus récentes d'abord — `PeopleIndex.citations`
+    /// les range déjà ainsi. La carte en montre cinq et compte le reste.
+    private var citations: [PeopleIndex.Citation] {
+        let index = PeopleIndex.citations(
             dans: PeopleView.textes(
                 journalNotes: notesDuJournal, activities: sortiesQuiRacontent,
                 mealNotes: notesDeRepas, weights: pesees, slots: creneaux
             )
         )
-        return Array((citations[handle] ?? []).prefix(5))
+        return index[handle] ?? []
     }
 
     private var note: String? {
@@ -51,9 +52,12 @@ struct PersonPopoverCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(handle.displayName)
-                .font(.title3.weight(.semibold))
+        let citations = citations
+        VStack(alignment: .leading, spacing: 0) {
+            enTete(total: citations.count)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
 
             // Rien quand rien n'a été écrit : une phrase qui dit qu'il n'y a
             // rien occupe la place de ce qu'il n'y a pas, et la carte a mieux à
@@ -63,58 +67,152 @@ struct PersonPopoverCard: View {
                 // des tags et on y cite d'autres gens.
                 MarkdownText(markdown: note, hidesTagHashes: true)
                     .textSelection(.enabled)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
             }
 
-            let citations = dernieresCitations
             if !citations.isEmpty {
-                // La ligne ne sépare que s'il y a quelque chose au-dessus.
-                if note != nil { Divider() }
+                Divider()
                 Text("Dernières notes")
-                    .font(.caption.weight(.medium))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                ForEach(citations) { citation in
-                    // Cliquable, et jusqu'au bout de la ligne : c'est un
-                    // extrait, ce qu'on veut en faire est aller le lire entier
-                    // là où il a été écrit.
-                    Button {
-                        fermer()
-                        ouvrirLaCitation(citation)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(
-                                "\(Format.fullDate(citation.dateKey.date())) · "
-                                + citation.source.libelle
-                            )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            // Du texte nu et non du Markdown rendu : un extrait
-                            // de trois lignes dans une popover n'a pas besoin de
-                            // ses gras, et les mentions qu'il contient y
-                            // deviendraient des liens ouvrant une popover dans
-                            // la popover.
-                            Text(citation.texte)
-                                .font(.callout)
-                                .lineLimit(3)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
+                VStack(spacing: 0) {
+                    ForEach(citations.prefix(5)) { citation in
+                        PersonCitationRow(citation: citation, handle: handle) {
+                            fermer()
+                            ouvrirLaCitation(citation)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
                 }
+                // Les lignes survolées s'arrondissent à huit points du bord,
+                // et non à seize : le texte, lui, reste aligné sur l'en-tête.
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
             }
 
             // La fiche vit dans le journal : masqué, il n'y a plus où l'ouvrir.
             if !SidebarItem.journal.estMasquee {
-                Button("Voir sa fiche") {
+                Divider()
+                Button {
                     fermer()
                     ouvrirDansPeople(handle.key)
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Voir sa fiche")
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
                 }
-                .buttonStyle(.link)
+                .buttonStyle(.plain)
+                .foregroundStyle(.tint)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
             }
         }
-        .padding(16)
+        // Rien ne reçoit le clavier ici, et c'est voulu : on n'arrive sur
+        // cette carte qu'à la souris, et l'anneau bleu que macOS posait sur la
+        // première note ne désignait rien qu'on allait taper.
+        .focusEffectDisabled()
+        // La popover hérite de l'interligne de la note qui l'a ouverte — celui,
+        // généreux, de l'éditeur du journal. Une carte se lit serrée.
+        .lineSpacing(1)
         .frame(width: 340, alignment: .leading)
+    }
+
+    /// L'initiale dans un médaillon, le nom, et combien de notes la citent.
+    private func enTete(total: Int) -> some View {
+        HStack(spacing: 10) {
+            Text(String(handle.displayName.drop { $0 == "@" }.prefix(1)).uppercased())
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.tint)
+                .frame(width: 34, height: 34)
+                .background(Color.accentColor.opacity(0.14), in: .circle)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(handle.displayName)
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(1)
+                if total > 0 {
+                    Text(total == 1 ? "1 note" : "\(total) notes")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+/// Une note qui cite quelqu'un : le jour en tuile, comme dans les listes,
+/// d'où elle vient, et l'extrait où son nom ressort.
+///
+/// Cliquable jusqu'au bout de la ligne : c'est un extrait, ce qu'on veut en
+/// faire est aller le lire entier là où il a été écrit.
+struct PersonCitationRow: View {
+    let citation: PeopleIndex.Citation
+    let handle: PersonHandle
+    let action: () -> Void
+
+    @State private var survolee = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 10) {
+                JournalDateTile(date: citation.dateKey)
+                    .scaleEffect(0.85, anchor: .top)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(
+                        JournalRowLayout.monthTitle(citation.dateKey).capitalized
+                        + " · " + citation.source.libelle
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    // Du texte nu et non du Markdown rendu : un extrait de trois
+                    // lignes dans une popover n'a pas besoin de ses gras, et les
+                    // mentions qu'il contient y deviendraient des liens ouvrant
+                    // une popover dans la popover. Seul son nom à elle ressort.
+                    Text(Self.extrait(citation.texte, soulignant: handle))
+                        .font(.callout)
+                        .lineLimit(3)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.primary.opacity(survolee ? 0.06 : 0))
+            )
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { survolee = $0 }
+    }
+
+    /// L'extrait, avec chaque mention de cette personne en couleur d'accent.
+    ///
+    /// Reconnue par sa clé et non par son orthographe : « @Helene » tapé à la
+    /// hâte est la même « @Hélène », et doit ressortir pareil.
+    static func extrait(_ texte: String, soulignant handle: PersonHandle) -> AttributedString {
+        var resultat = AttributedString(texte)
+        var curseur = texte.startIndex
+        while let arobase = texte[curseur...].firstIndex(of: "@") {
+            let debut = texte.index(after: arobase)
+            let fin = texte[debut...].firstIndex { !PersonHandle.isAllowed($0) } ?? texte.endIndex
+            if let cite = PersonHandle(name: String(texte[debut..<fin])), cite.key == handle.key,
+               let bas = AttributedString.Index(arobase, within: resultat),
+               let haut = AttributedString.Index(fin, within: resultat) {
+                resultat[bas..<haut].foregroundColor = .accentColor
+                resultat[bas..<haut].font = .callout.weight(.medium)
+            }
+            curseur = fin > arobase ? fin : texte.index(after: arobase)
+        }
+        return resultat
     }
 }
 
