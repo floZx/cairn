@@ -2985,6 +2985,16 @@ button.citation {
   min-width: 0;
 }
 
+/* Le texte colle à sa provenance : la marge d'un premier paragraphe
+   séparait sinon la ligne « Septembre 2026 · Journal » de ce qu'elle annonce. */
+.corps-citation > :nth-child(2) {
+  margin-top: 0;
+}
+
+.corps-citation > :last-child {
+  margin-bottom: 0;
+}
+
 .corps-citation .provenance {
   overflow: hidden;
   color: var(--texte-2);
