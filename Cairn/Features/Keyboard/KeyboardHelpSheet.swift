@@ -16,7 +16,7 @@ struct KeyboardHelpSheet: View {
 
     private let groups: [Group] = [
         Group(title: "Se déplacer", rows: [
-            ("j / k", "activité suivante / précédente"),
+            ("j / k", "activité suivante / précédente — dans les statistiques, faire défiler la page"),
             ("5j", "cinq activités plus bas — tout mouvement prend un compte"),
             ("gg / G", "première / dernière activité"),
             ("⌃d / ⌃u", "une demi-page vers le bas / vers le haut"),

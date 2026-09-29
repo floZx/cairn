@@ -914,7 +914,7 @@ final class PaneScroller {
 struct PaneScrollView<Content: View>: View {
     /// Another activity opens at the top of its pane, not where the last one
     /// was left.
-    let resetKey: PersistentIdentifier
+    let resetKey: AnyHashable
     let request: PaneScrollRequest
     @ViewBuilder let content: Content
 

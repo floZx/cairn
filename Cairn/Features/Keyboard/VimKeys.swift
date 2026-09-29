@@ -113,6 +113,13 @@ struct VimKeys: ViewModifier {
                 guard enabled else { return .ignored }
                 return onCommand(.stopScroll) ? .handled : .ignored
             }
+            // Les flèches aussi : dans les statistiques, elles font défiler la
+            // page comme `j` et `k`, et sans leur relâchement elle ne
+            // s'arrêterait plus.
+            .onKeyPress(keys: [.upArrow, .downArrow], phases: .up) { _ in
+                guard enabled else { return .ignored }
+                return onCommand(.stopScroll) ? .handled : .ignored
+            }
             .onKeyPress(.escape) {
                 guard enabled else { return .ignored }
                 buffer.reset()

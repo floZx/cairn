@@ -98,6 +98,9 @@ struct RootView: View {
     /// Whether the keyboard map is on screen, opened with `?`.
     /// `J` / `K` : le volet de droite défile d'un cran — voir `ActivityDetailView`.
     @State private var paneScroll = PaneScrollRequest()
+    /// La page des statistiques, sous `j` et `k` — pas le volet : celui-là
+    /// reste à `J` et `K`, ouvert sur un record à côté.
+    @State private var statisticsScroll = PaneScrollRequest()
     @State private var showsKeyboardHelp = false
     /// Whether the editor about to open should start in the note field.
     ///
@@ -731,9 +734,10 @@ struct RootView: View {
                         onSelect: {
                             selectedActivities = [$0]
                             sortieOuverteDepuisLEcran = true
-                        }
+                        },
+                        scrollRequest: statisticsScroll
                     )
-                    .vimKeys(performOutsideTheList)
+                    .vimKeys(performInStatistics)
                 } else if showsJournalSection, !app.journalLock.estOuvert {
                     // Avant les deux vues du journal, gens compris : c'est la
                     // même matière, et la ranger par personne ne la rend pas
@@ -1007,6 +1011,23 @@ struct RootView: View {
             return false
         default:
             return performOutsideActivities(command)
+        }
+    }
+
+    /// Les statistiques n'ont pas de lignes à parcourir : `j`, `k` et les
+    /// flèches y font défiler la page. Le compte est ignoré — `5j` n'a pas de
+    /// sens sur une page qui défile d'un mouvement continu.
+    private func performInStatistics(_ command: VimCommand) -> Bool {
+        switch command {
+        case let .move(step):
+            statisticsScroll.direction = step > 0 ? 1 : -1
+            return true
+        case .stopScroll:
+            statisticsScroll.direction = 0
+            perform(command)
+            return true
+        default:
+            return performOutsideTheList(command)
         }
     }
 

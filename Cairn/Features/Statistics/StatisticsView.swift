@@ -17,6 +17,9 @@ struct StatisticsView: View {
     /// obvious question about it — where was it, how did it go — is answered one
     /// pane to the right.
     let onSelect: (PersistentIdentifier) -> Void
+    /// `j` et `k` : la page défile tant que la touche est tenue, du même
+    /// mouvement que le volet de droite sous `J` et `K`.
+    var scrollRequest = PaneScrollRequest()
 
     @AppStorage(StatsPeriod.storageKey) private var period: StatsPeriod = .twelveMonths
 
@@ -50,7 +53,7 @@ struct StatisticsView: View {
         let regularity = Regularity.compute(
             activities, daily: daily, periodStart: stats.periodStart ?? Date()
         )
-        ScrollView {
+        PaneScrollView(resetKey: "statistiques", request: scrollRequest) {
             VStack(alignment: .leading, spacing: 16) {
                 periodPicker
                 if stats.count == 0 {
