@@ -73,11 +73,16 @@ enum JournalRowLayout {
         let days: [JournalDay]
     }
 
-    static func months(of days: [JournalDay]) -> [Month] {
-        var months: [Month] = []
+    /// « SEPTEMBRE 2026 » — l'en-tête d'un mois, ici comme dans les activités.
+    static func monthTitle(_ date: DateKey) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "fr_FR")
         formatter.dateFormat = "LLLL yyyy"
+        return formatter.string(from: date.date()).uppercased()
+    }
+
+    static func months(of days: [JournalDay]) -> [Month] {
+        var months: [Month] = []
         for day in days {
             let key = String(day.date.raw.prefix(7))
             if months.last?.id == key {
@@ -85,7 +90,7 @@ enum JournalRowLayout {
                 months.append(Month(id: key, title: last.title, days: last.days + [day]))
             } else {
                 months.append(Month(
-                    id: key, title: formatter.string(from: day.date.date()).uppercased(), days: [day]
+                    id: key, title: monthTitle(day.date), days: [day]
                 ))
             }
         }

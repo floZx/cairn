@@ -36,9 +36,10 @@ struct ActivityListView: View {
     @Query(sort: [SortDescriptor(\Activity.startDate, order: .reverse)])
     private var query: [Activity]
 
-    @State private var sortOrder = [
-        KeyPathComparator(\Activity.startDate, order: .reverse)
-    ]
+    // Le tri « Date » du menu, et non `startDate` : l'ordre est le même, mais
+    // celui-là n'était reconnu par personne — ni le menu, qui n'y cochait
+    // rien, ni les en-têtes de mois, qui ne s'affichaient pas.
+    @State private var sortOrder = ActivitySort.date.comparators(ascending: false)
 
     /// Which presentation is showing. Persisted: it is a preference, not a mode
     /// — someone who prefers cards prefers them tomorrow too.
@@ -161,7 +162,7 @@ struct ActivityListView: View {
         // And the list follows. Without this the cursor walks off the bottom of
         // the window and the list stops being navigable at the very moment it is
         // being navigated.
-        scroller.scroll(toRow: index)
+        scroller.scroll(toRow: tableRow(index, in: rows))
     }
 
     /// Where the next motion starts from.
@@ -265,7 +266,7 @@ struct ActivityListView: View {
             // list is built anew, scrolled to its top. Signalé.
             if let selected = selection.first,
                let index = rows.firstIndex(where: { $0.id == selected }) {
-                scroller.scrollWhenAttached(toRow: index)
+                scroller.scrollWhenAttached(toRow: tableRow(index, in: rows))
             }
         }
         .toolbar {
@@ -329,16 +330,36 @@ struct ActivityListView: View {
         .help("Trier les fiches, choisir leur présentation")
     }
 
+    /// Des en-têtes de mois : les fiches, triées par date — voir `ActivityMonths`.
+    private var showsMonths: Bool {
+        style == .cards && ActivitySort.current(sortOrder) == .date
+    }
+
+    /// La ligne de la table qui porte la `index`-ième sortie, en-têtes de mois
+    /// comptés quand il y en a.
+    private func tableRow(_ index: Int, in rows: [Activity]) -> Int {
+        showsMonths
+            ? ActivityMonths.tableRow(forRow: index, in: rows, day: \.localDay)
+            : index
+    }
+
     /// The rich presentation: one card per activity.
     private func cards(_ rows: [Activity]) -> some View {
-        List(rows, selection: $selection) { activity in
-            ActivityCard(activity: activity)
-                // With the pane closed the column takes the whole window,
-                // and a card as wide put its date a screen away from its
-                // name. Past this width the card stops growing.
-                .frame(maxWidth: 720, alignment: .leading)
-                .listRowInsets(ActivityCard.rowInsets)
-                .tag(activity.id)
+        List(selection: $selection) {
+            if showsMonths {
+                // Le mois une fois, dans un en-tête collant — celui du journal.
+                ForEach(ActivityMonths.months(of: rows, day: \.localDay)) { month in
+                    Section {
+                        ForEach(month.rows) { card($0) }
+                    } header: {
+                        Text(month.title)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                ForEach(rows) { card($0) }
+            }
         }
         .listStyle(.inset)
         // Lets the column's material through — see `RootView.splitView`.
@@ -352,6 +373,16 @@ struct ActivityListView: View {
         // the heights — verified live, `usesAutomaticRowHeights` already
         // false, estimated rows answering 24.)
         .environment(\.defaultMinListRowHeight, ActivityCard.rowHeight)
+    }
+
+    private func card(_ activity: Activity) -> some View {
+        ActivityCard(activity: activity)
+            // With the pane closed the column takes the whole window,
+            // and a card as wide put its date a screen away from its
+            // name. Past this width the card stops growing.
+            .frame(maxWidth: 720, alignment: .leading)
+            .listRowInsets(ActivityCard.rowInsets)
+            .tag(activity.id)
     }
 
     /// A figure in a table cell.

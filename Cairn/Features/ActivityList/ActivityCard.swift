@@ -56,7 +56,7 @@ struct ActivityCard: View {
                 // lieu — une course du soir à New York reste celle du 12.
                 // L'heure sous la date, en petit : la tuile dit quand, entière.
                 VStack(spacing: 0) {
-                    JournalDateTile(date: localDay)
+                    JournalDateTile(date: activity.localDay)
                     Text(Format.time(activity.startDate, in: activity.timeZone))
                         .font(.system(size: 8.5))
                         .monospacedDigit()
@@ -138,13 +138,6 @@ struct ActivityCard: View {
         }
         .padding(.vertical, 3)
         .frame(height: Self.height, alignment: .top)
-    }
-
-    /// Le jour de la sortie dans son propre fuseau.
-    private var localDay: DateKey {
-        var calendar = Calendar.current
-        calendar.timeZone = activity.timeZone
-        return DateKey(activity.startDate, calendar: calendar)
     }
 
     @ViewBuilder
