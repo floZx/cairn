@@ -2844,12 +2844,12 @@ button.citation {
   overflow: hidden;
 }
 
-/* Une ligne par personne : le pseudo, un point quand une note existe, et le
-   nombre de notes qui la citent. */
+/* Une ligne par personne : son rond, son nom et la première ligne de sa
+   note, puis le nombre de notes qui la citent. */
 .ligne-personne {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   width: 100%;
   padding: 13px 16px;
   border: 0;
@@ -2860,24 +2860,61 @@ button.citation {
   cursor: pointer;
 }
 
+.ligne-personne .identite {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .ligne-personne .pseudo {
-  color: var(--accent);
   font-weight: 600;
 }
 
-.ligne-personne .marque-note {
-  color: var(--texte-3);
+.ligne-personne .resume {
+  overflow: hidden;
+  color: var(--texte-2);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+/* Le compte dans une pastille, comme sur le Mac. */
 .ligne-personne .compte {
-  margin-left: auto;
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--champ);
+  color: var(--texte-2);
+  font-size: 13px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
-/* Le trait entre deux personnes commence après le texte, comme dans les
+/* L'initiale dans un rond teinté de la couleur d'accent. */
+.monogramme {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.monogramme.grand {
+  width: 56px;
+  height: 56px;
+  font-size: 24px;
+}
+
+/* Le trait entre deux personnes commence après le rond, comme dans les
    listes d'iOS ; et un chevron dit que la ligne s'ouvre. */
 .ligne-personne + .ligne-personne {
-  box-shadow: inset 16px 0 0 var(--carte), inset 0 0.5px 0 var(--trait);
+  box-shadow: inset 64px 0 0 var(--carte), inset 0 0.5px 0 var(--trait);
 }
 
 .ligne-personne::after {
@@ -2891,6 +2928,69 @@ button.citation {
   margin: 18px 0 8px;
   font-size: 15px;
   font-weight: 600;
+}
+
+/* L'en-tête d'une fiche : le grand rond, le nom, le nombre de notes. */
+.entete-personne {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0 4px;
+}
+
+.entete-personne h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+/* Les titres de groupe d'une fiche en petites capitales grises, comme les
+   en-têtes de groupe d'iOS. Une classe à elle : `.titre-section` sert aussi
+   aux filtres et à l'ajout d'aliment. */
+.titre-groupe {
+  margin: 20px 0 6px 16px;
+  color: var(--texte-2);
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Les notes qui la citent : une liste encartée, une ligne par note. */
+.liste-citations {
+  display: flex;
+  flex-direction: column;
+  background: var(--carte);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.ligne-citation {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+.ligne-citation + .ligne-citation {
+  box-shadow: inset 68px 0 0 var(--carte), inset 0 0.5px 0 var(--trait);
+}
+
+.corps-citation {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.corps-citation .provenance {
+  overflow: hidden;
+  color: var(--texte-2);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Une note qui cite la personne, avec sa date et sa provenance. */

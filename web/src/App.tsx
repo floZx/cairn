@@ -288,11 +288,9 @@ export function App() {
       onSection={changerDeSection}
       masquerOnglets={surUneFiche}
       identite={personneOuverte ?? ouverte ?? undefined}
-      // Sur la fiche d'une personne seulement. Sur celle d'une sortie, le
-      // chevron ramenait d'où l'on venait — la fiche d'une personne quand on
-      // y était passé — là où l'on attendait la liste ; les onglets restent
-      // visibles pour en sortir, et le geste de retour pour remonter.
-      retour={personneOuverte !== null ? () => history.back() : undefined}
+      // Plus de chevron nulle part : sur la fiche d'une personne, il faisait
+      // ce que fait déjà le geste de retour, et « ‹ Tous » mène à la liste.
+      // « Le swipe suffit. »
       // Seulement sur les activités : c'est la seule section qui se regarde de
       // trois façons.
       entete={
