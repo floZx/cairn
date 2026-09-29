@@ -31,13 +31,12 @@ import AppKit
 enum PaneGeometry {
     /// L'écran affiché, et donc à qui ces largeurs appartiennent.
     ///
-    /// Un par section, parce qu'elles ne montrent pas la même chose dans la
-    /// même colonne : la barre latérale porte un calendrier dans le journal et
-    /// dans l'alimentation, des étiquettes dans le journal seul, des filtres de
-    /// sport sur les écrans d'activités ; le volet de droite porte une carte et
-    /// quatre rangées de chiffres sur une sortie, un éditeur dans le journal,
-    /// du texte sur la fiche d'une personne. Une largeur pour tout le monde
-    /// voulait dire qu'élargir l'une rétrécissait l'autre.
+    /// Un par section pour le volet de droite, parce qu'il ne montre pas la
+    /// même chose partout : une carte et quatre rangées de chiffres sur une
+    /// sortie, un éditeur dans le journal, du texte sur la fiche d'une
+    /// personne. La barre latérale, elle, a été rangée par écran elle aussi,
+    /// puis ramenée à une seule largeur : la voir changer d'une section à
+    /// l'autre ne servait à rien — « elle devrait avoir la même partout ».
     enum Ecran: String, CaseIterable, Sendable {
         case activites
         case carte
@@ -71,18 +70,26 @@ enum PaneGeometry {
 
     /// La clé sous laquelle une largeur est rangée.
     ///
-    /// Les trois écrans qui avaient déjà la leur gardent leur ancien nom : une
+    /// Les écrans qui avaient déjà la leur gardent leur ancien nom : une
     /// largeur déjà réglée à la main n'a pas à être perdue par le correctif
     /// qui vient précisément empêcher qu'on les perde.
+    ///
+    /// Les activités et le journal partagent la leur : passer de l'un à
+    /// l'autre faisait sauter le volet de quelques points, et une sortie se
+    /// lit aussi bien dans la largeur d'une note. C'est celle du journal qui
+    /// l'emporte — « le volet des activités devrait partager la même taille
+    /// que celui du journal ».
     static func key(_ ecran: Ecran, _ colonne: Colonne) -> String {
         if colonne == .detail {
             switch ecran {
-            case .activites: return "detailPaneWidth.v1"
+            case .activites, .journal: return "journalPaneWidth.v1"
             case .alimentation: return "nutritionPaneWidth.v1"
-            case .journal: return "journalPaneWidth.v1"
             default: break
             }
         }
+        // Une seule barre latérale pour tout le logiciel : elle change de
+        // contenu d'un écran à l'autre, pas de place.
+        if colonne == .laterale { return "volet.laterale" }
         return "volet.\(ecran.rawValue).\(colonne.rawValue)"
     }
 

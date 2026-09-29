@@ -87,11 +87,11 @@ struct PaneGeometryTests {
         #expect(PaneGeometry.saved(.journal, .detail, from: defaults) == 580)
     }
 
-    /// Les trois écrans qui avaient déjà leur largeur gardent leur ancienne
-    /// clé : le correctif qui vient empêcher qu'on perde les largeurs ne doit
-    /// pas commencer par les perdre.
+    /// Les écrans qui avaient déjà leur largeur gardent leur ancienne clé :
+    /// le correctif qui vient empêcher qu'on perde les largeurs ne doit pas
+    /// commencer par les perdre. Les activités prennent celle du journal.
     @Test("les anciennes clés sont conservées", arguments: [
-        (PaneGeometry.Ecran.activites, "detailPaneWidth.v1"),
+        (PaneGeometry.Ecran.activites, "journalPaneWidth.v1"),
         (.alimentation, "nutritionPaneWidth.v1"),
         (.journal, "journalPaneWidth.v1"),
     ])
@@ -99,6 +99,24 @@ struct PaneGeometryTests {
         #expect(PaneGeometry.key(ecran, .detail) == cle)
         // La latérale, elle, est neuve partout.
         #expect(PaneGeometry.key(ecran, .laterale).hasPrefix("volet."))
+    }
+
+    @Test("les activités et le journal ont un seul volet de droite")
+    func activitesEtJournalPartagent() {
+        let defaults = makeDefaults()
+        PaneGeometry.save(594, .journal, .detail, to: defaults)
+        #expect(PaneGeometry.saved(.activites, .detail, from: defaults) == 594)
+        PaneGeometry.save(620, .activites, .detail, to: defaults)
+        #expect(PaneGeometry.saved(.journal, .detail, from: defaults) == 620)
+    }
+
+    @Test("une seule largeur de barre latérale pour tous les écrans")
+    func uneSeuleLaterale() {
+        let defaults = makeDefaults()
+        PaneGeometry.save(268, .journal, .laterale, to: defaults)
+        for ecran in PaneGeometry.Ecran.allCases {
+            #expect(PaneGeometry.saved(ecran, .laterale, from: defaults) == 268)
+        }
     }
 
     @Test("le plancher du volet alimentation est plus bas que celui des activités")
