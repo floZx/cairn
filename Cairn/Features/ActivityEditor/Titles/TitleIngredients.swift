@@ -66,6 +66,10 @@ struct TitleIngredients: Sendable, Equatable {
     var isCommute = false
     var isIndoor = false
     var averageHeartrate: Double?
+    /// The top of zone 2 — the floor of zone 3 — from the zones Garmin
+    /// applied to this outing, or to the one closest in time. Nil when Cairn
+    /// knows no zones at all.
+    var easyHeartrateCeiling: Double?
 
     var hasDistance: Bool { distanceKm >= 0.1 }
 

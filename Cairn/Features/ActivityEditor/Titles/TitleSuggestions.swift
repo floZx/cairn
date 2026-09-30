@@ -8,10 +8,11 @@ import Foundation
 /// wrong about the facts, so the work goes into choosing the right ones and
 /// phrasing them the way a person would.
 enum TitleSuggestions {
-    /// Under this average, a run is an easy one. Florian's own figure: on
-    /// his runs titled « EF » or « Footing » the average is 142, though a
-    /// good half of them went over — heat, hills, a tired day. A title too
-    /// many costs a line in a list, so the figure he runs by wins.
+    /// Under this average, a run is an easy one — when Cairn knows no zones.
+    /// Otherwise the top of zone 2 decides (`easyHeartrateCeiling`): the
+    /// figure an easy run is actually held to, and it moves with the season.
+    /// This one was Florian's own: on his runs titled « EF » or « Footing »
+    /// the average is 142, though a good half of them went over.
     static let easyHeartrate: Double = 145
 
     /// Five or six titles, the most telling first: the session read in the
@@ -56,7 +57,8 @@ enum TitleSuggestions {
         // An easy run, said the two ways it is written: « Footing », « EF ».
         // Never over a session or a race the laps or the markers found.
         if i.sport == .run, i.intervals == nil, !i.isRace,
-           let heartrate = i.averageHeartrate, heartrate > 0, heartrate < easyHeartrate {
+           let heartrate = i.averageHeartrate, heartrate > 0,
+           heartrate < (i.easyHeartrateCeiling ?? easyHeartrate) {
             for word in ["Footing", "EF"] {
                 if i.isIndoor {
                     titles.append("\(word) sur tapis")

@@ -55,7 +55,23 @@ enum TitleIngredientsBuilder {
         ingredients.isCommute = draft.isCommute
         ingredients.isIndoor = draft.isTrainer
         ingredients.averageHeartrate = activity.averageHeartrate
+        ingredients.easyHeartrateCeiling = zoneTwoCeiling(for: activity, in: library)
         return ingredients
+    }
+
+    /// The floor of zone 3: the outing's own zones, or, since zones move over
+    /// the months, those of the outing closest to it in time — the rule the
+    /// training load reads them by.
+    static func zoneTwoCeiling(for activity: Activity, in library: [Activity]) -> Double? {
+        let floors = activity.hrZoneFloors.flatMap { $0.count > 2 ? $0 : nil }
+            ?? library
+                .filter { ($0.hrZoneFloors?.count ?? 0) > 2 }
+                .min {
+                    abs($0.startDate.timeIntervalSince(activity.startDate))
+                        < abs($1.startDate.timeIntervalSince(activity.startDate))
+                }?
+                .hrZoneFloors
+        return floors?[2]
     }
 
     /// The median of the last year's outings in the same sport — a median,

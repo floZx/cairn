@@ -251,6 +251,20 @@ struct TitleSuggestionsTests {
         #expect(!TitleSuggestions.make(bike).contains { $0.hasPrefix("Footing") })
     }
 
+    @Test("le haut de la Z2, quand Cairn le connaît, remplace les 145")
+    func easyRunFollowsZoneTwo() {
+        var run = ride()
+        run.sport = .run
+        run.places = ["Sury-le-Comtal"]
+        run.averageHeartrate = 148
+        run.easyHeartrateCeiling = 152
+        #expect(TitleSuggestions.make(run).contains("Footing à Sury-le-Comtal"))
+
+        run.averageHeartrate = 140
+        run.easyHeartrateCeiling = 138
+        #expect(!TitleSuggestions.make(run).contains { $0.hasPrefix("Footing") })
+    }
+
     @Test("les titres automatiques sont banals, pas ceux qu'on a écrits")
     func banalTitles() {
         for name in [
