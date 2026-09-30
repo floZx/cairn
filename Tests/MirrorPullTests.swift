@@ -401,6 +401,55 @@ struct MirrorPullNutritionTests {
         )
     }
 
+    private static func journee(
+        uuid: String, typeUUID: String?, date: String = "2026-08-16"
+    ) -> [String: Any] {
+        [
+            "uuid": uuid, "date_key_raw": date,
+            "day_type_uuid": typeUUID as Any? ?? NSNull(),
+            "updated_at": "2026-08-16T10:00:00.123456+00:00", "deleted_at": NSNull(),
+        ]
+    }
+
+    /// Relit une page de `nutrition_day` sur un magasin qui a une journée
+    /// « Repos », et rend son type après la lecture.
+    private func typeApres(_ ligne: [String: Any]) async throws -> String? {
+        let container = try AppModelContainer.inMemory()
+        let context = ModelContext(container)
+        let repos = DayType(name: "Repos", kcalTarget: 1750, sortOrder: 0)
+        repos.uuid = "repos"
+        context.insert(repos)
+        let jour = NutritionDay(dateKey: DateKey(raw: "2026-08-16")!, dayType: repos)
+        jour.uuid = "d1"
+        context.insert(jour)
+        try context.save()
+
+        let (cursor, suiteName) = freshCursor()
+        defer { discard(suiteName) }
+        let vide = Data("[]".utf8)
+        let transport = StubTransport(
+            responses: [(vide, 200), (Self.page([ligne]), 200)], thenAlways: vide
+        )
+        try await Self.engine(container, transport, cursor).pull()
+
+        let jours = try ModelContext(container).fetch(FetchDescriptor<NutritionDay>())
+        #expect(jours.count == 1)
+        return jours.first?.dayType?.name
+    }
+
+    /// Le 21 septembre 2026 : des journées redescendues avec un type inconnu
+    /// ont perdu le leur. Un type introuvable n'efface plus rien — ni sur la
+    /// même ligne, ni sur une autre ligne de la même date.
+    @Test func unTypeInconnuNEffacePasLeTypeLocal() async throws {
+        #expect(try await typeApres(Self.journee(uuid: "d1", typeUUID: "inconnu")) == "Repos")
+        #expect(try await typeApres(Self.journee(uuid: "copie", typeUUID: "inconnu")) == "Repos")
+    }
+
+    /// Un type retiré ailleurs, lui, se retire ici.
+    @Test func unTypeNulRetireLeType() async throws {
+        #expect(try await typeApres(Self.journee(uuid: "d1", typeUUID: nil)) == nil)
+    }
+
     /// Un aliment saisi sur le téléphone arrive sur le Mac, rattaché à son
     /// créneau.
     @Test func unAlimentInconnuEstCree() async throws {

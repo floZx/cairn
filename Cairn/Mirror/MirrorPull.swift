@@ -307,8 +307,10 @@ extension MirrorEngine {
         let context = ModelContext(container)
         let pending = try pendingUUIDs(table: "nutrition_day", in: context)
         var existing: [String: NutritionDay] = [:]
+        var byDate: [String: NutritionDay] = [:]
         for day in try context.fetch(FetchDescriptor<NutritionDay>()) {
             existing[day.uuid] = day
+            byDate[day.dateKeyRaw] = day
         }
         var types: [String: DayType] = [:]
         for type in try context.fetch(FetchDescriptor<DayType>()) { types[type.uuid] = type }
@@ -324,20 +326,31 @@ extension MirrorEngine {
                 outcome.applied += 1
                 continue
             }
-            // Le type de jour peut être absent du magasin — une ligne arrivée
-            // avant celle qu'elle désigne. La journée est posée sans lui plutôt
-            // que sautée : elle vaut par elle-même, et la lecture suivante
-            // rattachera le type.
-            let type = row.day_type_uuid.flatMap { types[$0] }
+            // Un type que le magasin ne connaît pas n'efface jamais celui de
+            // la journée. Le 21 septembre 2026, des uuid réécrits par une
+            // vieille build ont fait redescendre des journées qui désignaient
+            // d'anciens types : posées « sans type, la lecture suivante le
+            // rattachera », elles ont perdu 82 jours-types — et la lecture
+            // suivante n'est jamais venue, le curseur ayant avancé. Seul un
+            // `day_type_uuid` nul retire le type : c'est un choix, pas un
+            // trou.
+            let local = existing[row.uuid] ?? byDate[row.date_key_raw]
+            let type: DayType? = switch row.day_type_uuid {
+            case nil: nil
+            case let uuid?: types[uuid] ?? local?.dayType
+            }
             if let local = existing[row.uuid] {
                 local.dateKeyRaw = row.date_key_raw
                 local.dayType = type
             } else {
                 guard let dateKey = DateKey(raw: row.date_key_raw) else { continue }
+                // Même date, autre uuid : la contrainte d'unicité remplace la
+                // journée locale, qui passe son type à la nouvelle ci-dessus.
                 let day = NutritionDay(dateKey: dateKey, dayType: type)
                 day.uuid = row.uuid
                 context.insert(day)
                 existing[row.uuid] = day
+                byDate[row.date_key_raw] = day
             }
             outcome.applied += 1
         }
