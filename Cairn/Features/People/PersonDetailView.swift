@@ -24,6 +24,8 @@ struct PersonDetailView: View {
     let attachmentsBase: URL?
     /// Change quand la liste demande la note : Entrée ou `e` sur une personne.
     var focusRequest = 0
+    /// `J` et `K` : la fiche se lit au clavier, comme celle d'une sortie.
+    var scrollRequest = PaneScrollRequest()
     /// Change quand la liste demande de la renommer.
     var renameRequest = 0
     /// Sa nouvelle clé, une fois renommée.
@@ -119,7 +121,7 @@ struct PersonDetailView: View {
     }
 
     private func contenu(_ handle: PersonHandle) -> some View {
-        ScrollView {
+        PaneScrollView(resetKey: cle, request: scrollRequest) {
             VStack(alignment: .leading, spacing: 16) {
                 // L'en-tête de sa carte, en grand : médaillon, nom, et combien
                 // de notes la citent.

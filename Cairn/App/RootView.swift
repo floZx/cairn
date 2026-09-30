@@ -1039,7 +1039,8 @@ struct RootView: View {
                     },
                     attachmentsBase: app.journal.attachmentsBase,
                     onAddPhotos: { addJournalPhotos($0, to: date) },
-                    onPastePhoto: { pasteJournalPhoto($0, to: date) }
+                    onPastePhoto: { pasteJournalPhoto($0, to: date) },
+                    scrollRequest: paneScroll
                 )
                 .frame(minWidth: Self.detailMinWidth)
             } else {
@@ -1066,6 +1067,7 @@ struct RootView: View {
                     onOuvrirLaSource: { ouvrirLaSource($0) },
                     attachmentsBase: app.journal.attachmentsBase,
                     focusRequest: personNoteRequest,
+                    scrollRequest: paneScroll,
                     renameRequest: personRenameRequest,
                     // Renommée, elle change de clé : la sélection la suit,
                     // sans quoi la page se refermait sur un nom disparu.

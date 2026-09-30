@@ -80,6 +80,8 @@ struct JournalDetailView: View {
     /// The same for pasted bytes, which carry no file at all — a screenshot is
     /// an image on the clipboard and nothing more.
     let onPastePhoto: (Data) -> Void
+    /// `J` et `K` : le volet se lit au clavier, comme la fiche d'une sortie.
+    var scrollRequest = PaneScrollRequest()
 
     /// Vrai quand l'éditeur doit avoir le clavier. Un état ordinaire et non
     /// un `@FocusState` : c'est `NoteTextView` qui tient le premier
@@ -272,7 +274,7 @@ struct JournalDetailView: View {
     /// looking dead. The invitation is there for the empty one — a blank pane
     /// that turns into an editor when clicked says so nowhere.
     private var reader: some View {
-        ScrollView {
+        PaneScrollView(resetKey: day.id, request: scrollRequest) {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 Group {
