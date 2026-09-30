@@ -40,6 +40,8 @@ final class AppEnvironment {
     let garminSync: GarminSyncTracker
     /// Les zones de FC et de puissance de chaque sortie, copiées de Garmin.
     let garminZones: GarminZonesFetcher
+    /// Les pesées de Garmin, recopiées dans `WeightEntry` à chaque lancement.
+    let garminWeights: GarminWeightImporter
     /// Gardé pour le remplissage des zones, qui travaille dans son propre contexte.
     let zonesContainer: ModelContainer
     let edits: EditPropagator
@@ -133,6 +135,7 @@ final class AppEnvironment {
         let garminSync = GarminSyncTracker(client: garmin, defaults: .standard)
         self.garminSync = garminSync
         self.garminZones = GarminZonesFetcher(client: garmin)
+        self.garminWeights = GarminWeightImporter(client: garmin)
         self.zonesContainer = container
         self.edits = EditPropagator(strava: client, garmin: garmin, garminSync: garminSync)
         let garminTokens = store.garminTokens()
@@ -269,11 +272,18 @@ final class AppEnvironment {
     /// Garmin refused clears the tokens from inside the client.
     func refreshGarminState() {
         let tokens = store.garminTokens()
+        let wasConnected = isGarminConnected
         isGarminConnected = tokens != nil
+        // Tout juste connecté : les pesées n'attendent pas le prochain lancement.
+        if isGarminConnected, !wasConnected {
+            garminWeights.start(container: zonesContainer)
+        }
         garminAccountName = tokens?.displayName
     }
 
     func disconnectGarmin() {
+        // Un autre compte relira tout son historique.
+        garminWeights.reset()
         Task { [garmin] in
             try? await garmin.signOut()
             refreshGarminState()
@@ -325,6 +335,7 @@ final class AppEnvironment {
         // Les zones des anciennes sorties, doucement, en fond ; puis, les plus
         // récentes connues, l'écart avec celles de Strava.
         if isGarminConnected {
+            garminWeights.start(container: zonesContainer)
             garminZones.startBackfill(container: zonesContainer) { [weak self] in
                 await self?.checkZoneDrift()
             }

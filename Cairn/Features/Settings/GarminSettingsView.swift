@@ -15,6 +15,7 @@ struct GarminSettingsView: View {
     @State private var isWorking = false
     @State private var failure: String?
     @AppStorage(AppEnvironment.alertsOnZoneDriftKey) private var alertsOnZoneDrift = true
+    @AppStorage(GarminWeightImporter.enabledKey) private var importsWeights = true
 
     var body: some View {
         Form {
@@ -22,6 +23,23 @@ struct GarminSettingsView: View {
                 Section("Connexion") {
                     LabeledContent("Compte", value: app.garminAccountName ?? "Connecté")
                     Button("Se déconnecter", role: .destructive) { app.disconnectGarmin() }
+                }
+                Section {
+                    Toggle("Récupérer les pesées", isOn: $importsWeights)
+                        .onChange(of: importsWeights) { _, isOn in
+                            if isOn { app.garminWeights.start(container: app.zonesContainer) }
+                        }
+                } header: {
+                    Text("Poids")
+                } footer: {
+                    Text("""
+                        À chaque lancement, Cairn copie les nouvelles pesées de \
+                        Garmin Connect et affiche leur courbe à côté des calories, \
+                        dans Alimentation. Désactivé, ni l'un ni l'autre ; les \
+                        pesées déjà copiées restent.
+                        """)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
                 if app.isAuthenticated {
                     Section {

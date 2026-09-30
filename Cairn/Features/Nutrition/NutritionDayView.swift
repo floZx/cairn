@@ -40,6 +40,7 @@ struct NutritionDayView: View {
     private var fatTarget = NutritionSettings.defaultFatTargetG
     @AppStorage(NutritionSettings.weightGoalKey)
     private var weightGoal = NutritionSettings.defaultWeightGoalKg
+    @AppStorage(GarminWeightImporter.enabledKey) private var showsWeightTrend = true
     @State private var importMessage: String?
     @State private var addTargetSlot: MealSlot?
     @State private var isAddingWeight = false
@@ -501,25 +502,57 @@ struct NutritionDayView: View {
         return raw.prefix(1).uppercased() + raw.dropFirst()
     }
 
+    /// With weigh-ins, two rows: the calories, larger, beside the weight
+    /// trend, then the three macros. Without, the four gauges in one row.
+    @ViewBuilder
     private func summary(_ model: NutritionDayModel) -> some View {
-        HStack(alignment: .top, spacing: 24) {
-            MacroGauge(
-                title: "Calories", consumed: model.consumed.kcal,
-                target: model.daily?.kcal, unit: "kcal"
-            )
-            MacroGauge(
-                title: "Protéines", consumed: model.consumed.protein,
-                target: model.daily?.protein, unit: "g"
-            )
-            MacroGauge(
-                title: "Glucides", consumed: model.consumed.carbs,
-                target: model.daily?.carbs, unit: "g"
-            )
-            MacroGauge(
-                title: "Lipides", consumed: model.consumed.fat,
-                target: model.daily?.fat, unit: "g"
-            )
+        let points = showsWeightTrend ? weightPoints : []
+        if points.isEmpty {
+            HStack(alignment: .top, spacing: 24) {
+                caloriesGauge(model, prominent: false)
+                macroGauges(model)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .top, spacing: 24) {
+                    caloriesGauge(model, prominent: true)
+                    NutritionWeightCard(points: points)
+                }
+                HStack(alignment: .top, spacing: 24) {
+                    macroGauges(model)
+                }
+            }
         }
+    }
+
+    /// Sorted ascending by the query; the raw string sorts chronologically.
+    private var weightPoints: [WeightPoint] {
+        weights.compactMap { entry in
+            entry.dateKey.map { WeightPoint(dateKey: $0, weightKg: entry.weightKg) }
+        }
+    }
+
+    private func caloriesGauge(_ model: NutritionDayModel, prominent: Bool) -> some View {
+        MacroGauge(
+            title: "Calories", consumed: model.consumed.kcal,
+            target: model.daily?.kcal, unit: "kcal", prominent: prominent
+        )
+    }
+
+    @ViewBuilder
+    private func macroGauges(_ model: NutritionDayModel) -> some View {
+        MacroGauge(
+            title: "Protéines", consumed: model.consumed.protein,
+            target: model.daily?.protein, unit: "g"
+        )
+        MacroGauge(
+            title: "Glucides", consumed: model.consumed.carbs,
+            target: model.daily?.carbs, unit: "g"
+        )
+        MacroGauge(
+            title: "Lipides", consumed: model.consumed.fat,
+            target: model.daily?.fat, unit: "g"
+        )
     }
 
     /// Fixed numeric columns so every meal's figures line up down the page —

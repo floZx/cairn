@@ -450,6 +450,15 @@ actor GarminClient {
         }
     }
 
+    /// One weigh-in per day between the two, both included.
+    func weighIns(from start: DateKey, to end: DateKey) async throws -> [GarminWeighIn] {
+        let json = try await getJSON(
+            "/weight-service/weight/range/\(start.raw)/\(end.raw)",
+            query: ["includeAll": "true"]
+        )
+        return GarminWeighIn.parse(json)
+    }
+
     private func getJSON(_ path: String, query: [String: String] = [:]) async throws -> Any? {
         let data = try await send("GET", path, query: query)
         return data.isEmpty ? nil : try JSONSerialization.jsonObject(with: data)

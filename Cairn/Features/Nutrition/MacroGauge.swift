@@ -11,14 +11,18 @@ struct MacroGauge: View {
     let consumed: Double
     let target: Double?
     let unit: String
+    /// The calorie gauge when it has the top row to itself, beside the
+    /// weight chart: a larger figure and a thicker bar.
+    var prominent = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(figure).font(.title3.monospacedDigit())
+            Text(figure).font((prominent ? Font.title : .title3).monospacedDigit())
             if let target, target > 0 {
                 ProgressView(value: min(consumed / target, 1))
                     .tint(gaugeColor(target: target) ?? .accentColor)
+                    .scaleEffect(x: 1, y: prominent ? 1.5 : 1, anchor: .center)
                 // suivinut's « reste » line: the number the next meal is
                 // actually planned against, not just a bar to squint at.
                 Text(remainingLabel(target: target))
