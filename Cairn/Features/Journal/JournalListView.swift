@@ -228,10 +228,8 @@ struct JournalListView: View {
         }
     }
 
-    /// The weigh-in's glyph, only while the weight has a screen of its own:
-    /// hidden since 24 September, it left a scale on rows that led nowhere.
     private func showsWeighIn(_ day: JournalDay) -> Bool {
-        day.marks.weighed && !SidebarItem.weight.estMasquee
+        day.marks.weighed
     }
 
     private func row(_ day: JournalDay) -> some View {

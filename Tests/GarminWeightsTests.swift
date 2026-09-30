@@ -54,4 +54,22 @@ struct GarminWeightsTests {
         ], in: context)
         #expect(again == 0)
     }
+
+    @Test("un jour supprimé dans Cairn ne revient pas de Garmin")
+    func deletedDayStaysDeleted() throws {
+        let context = ModelContext(try AppModelContainer.inMemory())
+        let defaults = UserDefaults(suiteName: "GarminWeightsTests-\(UUID())")!
+        let day = DateKey(raw: "2026-09-28")!
+        let entry = WeightEntry(dateKey: day, weightKg: 71.4)
+        context.insert(entry)
+        try context.save()
+
+        try GarminWeightImporter.delete(entry, in: context, defaults: defaults)
+        let deleted = Set(defaults.stringArray(forKey: GarminWeightImporter.deletedDaysKey) ?? [])
+        let changed = try GarminWeightImporter.merge(
+            [GarminWeighIn(dateKey: day, weightKg: 71.4)], in: context, ignoring: deleted
+        )
+        #expect(changed == 0)
+        #expect(try context.fetch(FetchDescriptor<WeightEntry>()).isEmpty)
+    }
 }

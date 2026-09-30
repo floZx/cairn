@@ -28,7 +28,6 @@ struct KeyboardHelpSheet: View {
             ("gs", "statistiques"),
             ("gj", "journal"),
             ("gn", "alimentation"),
-            ("gp", "poids"),
             ("t", "basculer tableau / fiches (⌥⌘L depuis partout)"),
         ]),
         Group(title: "Agir sur la sélection", rows: [
@@ -73,7 +72,6 @@ struct KeyboardHelpSheet: View {
     private var visibleGroups: [Group] {
         var cachees: Set<String> = []
         if SidebarItem.journal.estMasquee { cachees.formUnion(["gj", "gd"]) }
-        if SidebarItem.weight.estMasquee { cachees.formUnion(["gp", "w"]) }
         return groups.compactMap { group in
             if group.title == "Journal", SidebarItem.journal.estMasquee { return nil }
             return Group(

@@ -82,4 +82,15 @@ struct WeightStatsTests {
             loggedDates: ["2026-06-30"], endingAt: DateKey(raw: "2026-06-30")!
         ) == 1)
     }
+
+    @Test("la tendance moyenne les pesées des sept jours qui finissent sur chacune")
+    func trendAveragesSevenCalendarDays() {
+        let weights = [
+            point("2026-06-01", 72.0), point("2026-06-04", 71.0),
+            point("2026-06-07", 70.0), point("2026-06-08", 69.0),
+        ]
+        let trend = WeightStats.trend(weights).map(\.weightKg)
+        // Le 8 juin, la fenêtre part du 2 : la pesée du 1er en est sortie.
+        #expect(trend == [72.0, 71.5, 71.0, 70.0])
+    }
 }

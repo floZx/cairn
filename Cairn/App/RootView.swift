@@ -454,7 +454,7 @@ struct RootView: View {
     ///
     /// The menu bar follows the same rule — see `menuState`.
     var showsActivityActions: Bool {
-        !showsJournal && !showsNutrition && !showsWeight && !showsStatistics
+        !showsJournal && !showsNutrition && !showsStatistics
             && !showsPeople
     }
 
@@ -628,9 +628,10 @@ struct RootView: View {
             nutritionDateKey = citation.dateKey
             allerA(.nutrition)
         case .pesee:
-            // L'écran des pesées, et non la journée où le commentaire se
-            // modifie : une citation qui annonce un poids doit mener au poids.
-            allerA(.weight)
+            // Le poids vit dans l'en-tête d'Alimentation, sur la journée de
+            // la pesée : c'est là que la note se lit et se modifie.
+            nutritionDateKey = citation.dateKey
+            allerA(.nutrition)
         }
     }
 
@@ -661,14 +662,11 @@ struct RootView: View {
         // n'ont pas la même largeur utile.
         case .journal: vueJournal == .gens ? .people : .journal
         case .nutrition: .alimentation
-        case .weight: .poids
         case .all, nil: .activites
         }
     }
 
     var showsNutrition: Bool { sidebarSelection == .nutrition }
-
-    var showsWeight: Bool { sidebarSelection == .weight }
 
     /// One three-column split view for the whole app life, never two.
     ///
@@ -750,11 +748,6 @@ struct RootView: View {
                         dateKey: $nutritionDateKey,
                         onCommand: performOutsideActivities
                     )
-                } else if showsWeight {
-                    // Same command filter as the food journal: the weight
-                    // screen is journal territory too, an invisible activity
-                    // selection must stay unreachable from it.
-                    WeightView(onCommand: performOutsideActivities)
                 } else {
                     ActivityListView(
                         filter: filter,
@@ -1040,7 +1033,10 @@ struct RootView: View {
                         nutritionDateKey = jour
                         allerA(.nutrition)
                     },
-                    onSelectWeight: { allerA(.weight) },
+                    onSelectWeight: {
+                        nutritionDateKey = date
+                        allerA(.nutrition)
+                    },
                     attachmentsBase: app.journal.attachmentsBase,
                     onAddPhotos: { addJournalPhotos($0, to: date) },
                     onPastePhoto: { pasteJournalPhoto($0, to: date) }
@@ -1052,9 +1048,7 @@ struct RootView: View {
         } else if showsNutrition {
             // The food journal claims the pane: the side panel replaces
             // whatever activity was left selected behind it — unless the user
-            // closed it, which the toolbar button toggles. The weight screen
-            // gets no pane at all: its charts already fill the window, and a
-            // food calendar beside them answered a question nobody asked.
+            // closed it, which the toolbar button toggles.
             if nutritionPanelVisible {
                 NutritionSidePanel(selected: $nutritionDateKey)
                     .frame(minWidth: Self.nutritionPanelMinWidth)
@@ -1081,8 +1075,6 @@ struct RootView: View {
             } else {
                 collapsedDetailColumn
             }
-        } else if showsWeight {
-            collapsedDetailColumn
         } else if showsStatistics, !sortieOuverteDepuisLEcran {
             // Une branche à part plutôt qu'une condition sur `let selected` :
             // plusieurs sorties sélectionnées ouvriraient sinon la carte de

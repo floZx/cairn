@@ -109,10 +109,10 @@ struct VimKeyBufferTests {
         #expect(buffer.accept("j") == .move(1))
     }
 
-    @Test("gn et gp rejoignent les écrans du journal")
+    @Test("gn rejoint l'alimentation, gp ne mène plus nulle part")
     func gPrefixReachesJournalSections() {
         #expect(run("gn") == [.section(.nutrition)])
-        #expect(run("gp") == [.section(.weight)])
+        #expect(run("gp") == [])
     }
 
     @Test("gj va au journal")

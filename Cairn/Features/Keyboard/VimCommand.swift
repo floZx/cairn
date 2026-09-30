@@ -135,7 +135,6 @@ struct VimKeyBuffer: Equatable {
             case "s": return .section(.statistics)
             case "j": return .section(.journal)
             case "n": return .section(.nutrition)
-            case "p": return .section(.weight)
             // "Go to the day": the journal, on the selected outing's date,
             // rather than wherever it was left.
             case "d": return .openJournalDay

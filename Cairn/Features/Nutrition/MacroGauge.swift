@@ -11,18 +11,17 @@ struct MacroGauge: View {
     let consumed: Double
     let target: Double?
     let unit: String
-    /// The calorie gauge when it has the top row to itself, beside the
-    /// weight chart: a larger figure and a thicker bar.
-    var prominent = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(figure).font((prominent ? Font.title : .title3).monospacedDigit())
+            Text(figure).font(.title3.monospacedDigit())
             if let target, target > 0 {
                 ProgressView(value: min(consumed / target, 1))
-                    .tint(gaugeColor(target: target) ?? .accentColor)
-                    .scaleEffect(x: 1, y: prominent ? 1.5 : 1, anchor: .center)
+                    // Grey rather than the accent while there is nothing to
+                    // say: green, orange and red keep the colour to themselves,
+                    // as on a meal's totals.
+                    .tint(gaugeColor(target: target) ?? .secondary)
                 // suivinut's « reste » line: the number the next meal is
                 // actually planned against, not just a bar to squint at.
                 Text(remainingLabel(target: target))
@@ -42,6 +41,10 @@ struct MacroGauge: View {
     /// past its target is past it, whatever else it is, and the warning
     /// outranks the encouragement.
     private func gaugeColor(target: Double) -> Color? {
+        Self.color(consumed: consumed, target: target)
+    }
+
+    static func color(consumed: Double, target: Double) -> Color? {
         switch NutritionMath.overshoot(consumed: consumed, target: target) {
         case .moderate: .orange
         case .heavy: .red
@@ -55,6 +58,11 @@ struct MacroGauge: View {
     /// the raw values, it announced "dépassé de 1 g" under a "33 / 33 g" that
     /// exceeds nothing the reader can see.
     private func remainingLabel(target: Double) -> String {
+        Self.remainingLabel(consumed: consumed, target: target, unit: unit)
+    }
+
+    static func remainingLabel(consumed: Double, target: Double, unit: String) -> String {
+        func rounded(_ value: Double) -> String { "\(Int(value.rounded()))" }
         let remaining = target.rounded() - consumed.rounded()
         return remaining >= 0
             ? "reste \(rounded(remaining)) \(unit)"

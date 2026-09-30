@@ -44,7 +44,6 @@ enum PaneGeometry {
         case journal
         case people
         case alimentation
-        case poids
     }
 
     /// La largeur sous laquelle la colonne du milieu ne descend pas.

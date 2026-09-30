@@ -4,6 +4,8 @@ import Foundation
 struct WeightPoint: Equatable, Sendable {
     var dateKey: DateKey
     var weightKg: Double
+    /// Shown in the chart's hover bubble; the statistics never read it.
+    var note: String? = nil
 }
 
 /// Pure weight statistics, ported from suivinut's `domain/stats.py` — zero
@@ -15,6 +17,25 @@ enum WeightStats {
         guard let days, let last = weights.last else { return weights }
         let cutoff = last.dateKey.advanced(by: -days)
         return weights.filter { $0.dateKey >= cutoff }
+    }
+
+    /// Each weigh-in replaced by the mean of those of the `days` days
+    /// ending on it — the day's water and salt averaged out. Calendar days,
+    /// not a count of weigh-ins: a week with two weigh-ins is still a week.
+    static func trend(_ weights: [WeightPoint], days: Int = 7) -> [WeightPoint] {
+        var start = 0
+        var sum = 0.0
+        return weights.enumerated().map { index, point in
+            sum += point.weightKg
+            let cutoff = point.dateKey.advanced(by: -(days - 1))
+            while weights[start].dateKey < cutoff {
+                sum -= weights[start].weightKg
+                start += 1
+            }
+            var smoothed = point
+            smoothed.weightKg = sum / Double(index - start + 1)
+            return smoothed
+        }
     }
 
     static func delta(_ weights: [WeightPoint], days: Int = 7) -> Double? {

@@ -42,8 +42,7 @@ struct JournalDayCards: View {
 
     var body: some View {
         let meals = JournalDayNutrition.spokenMeals(among: mealNotes)
-        let weight = SidebarItem.weight.estMasquee
-            ? nil : JournalDayNutrition.spokenWeight(among: weights)
+        let weight = JournalDayNutrition.spokenWeight(among: weights)
         VStack(alignment: .leading, spacing: 8) {
             // One card per outing, holding what was written about it and its
             // pictures: a first set of cards naming the outings, then the same

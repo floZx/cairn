@@ -173,14 +173,12 @@ extension RootView {
                 // unreachable. ⌥⌘I is the Finder's inspector shortcut, and this
                 // is the same pane on the same side.
                 .keyboardShortcut("i", modifiers: [.option, .command])
-                // The weight screen has no pane to close; elsewhere the button
-                // needs something to act on — a selected note in the journal,
-                // a selected activity anywhere else.
+                // The button needs something to act on — a selected note in
+                // the journal, a selected activity anywhere else.
                 .disabled(
-                    showsWeight
-                        // Le journal et les gens gardent toujours leur volet
-                        // ouvert, sur une journée ou sur quelqu'un.
-                        || showsJournal
+                    // Le journal et les gens gardent toujours leur volet
+                    // ouvert, sur une journée ou sur quelqu'un.
+                    showsJournal
                         || showsPeople
                         || (showsStatistics && !sortieOuverteDepuisLEcran)
                         || (!showsNutrition && !showsJournal && !showsPeople

@@ -34,9 +34,9 @@ struct GarminSettingsView: View {
                 } footer: {
                     Text("""
                         À chaque lancement, Cairn copie les nouvelles pesées de \
-                        Garmin Connect et affiche leur courbe à côté des calories, \
-                        dans Alimentation. Désactivé, ni l'un ni l'autre ; les \
-                        pesées déjà copiées restent.
+                        Garmin Connect ; la courbe est dans Alimentation, à côté \
+                        des calories. Garmin l'emporte sur une pesée saisie à la \
+                        main, mais une pesée supprimée dans Cairn ne revient pas.
                         """)
                     .font(.caption)
                     .foregroundStyle(.secondary)

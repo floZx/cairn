@@ -49,19 +49,23 @@ struct GarminWeighIn: Sendable, Equatable {
 /// The first pass reads the whole history a year at a time; after that only
 /// the last few days are asked again, which catches a weigh-in corrected on
 /// Garmin after the fact. Garmin wins on a day it knows — the scale is the
-/// measure — but a note written in Cairn stays. Nothing is ever deleted here.
+/// measure — but a note written in Cairn stays. Nothing is ever deleted here,
+/// and a day deleted in Cairn is never brought back: see `forgetDay`.
 @MainActor
 final class GarminWeightImporter {
     private let client: GarminClient
     private let defaults: UserDefaults
     private var task: Task<Void, Never>?
 
-    /// The Garmin setting: off, nothing is asked of Garmin and the nutrition
-    /// screen shows no weight. What was already copied stays in the store.
+    /// The Garmin setting: off, nothing is asked of Garmin. What was already
+    /// copied stays, and the chart shows it.
     static let enabledKey = "garminWeightsEnabled"
 
     /// The last day a pass reached, so the next launch asks only from there.
     static let syncedThroughKey = "garminWeightsSyncedThrough"
+    /// The days deleted in Cairn, which no pass may fill again.
+    static let deletedDaysKey = "garminWeightsDeletedDays"
+
     /// Days asked again on every pass, for late corrections.
     static let overlapDays = 7
     /// How far back the first pass may go, and how many empty years in a row
@@ -80,6 +84,18 @@ final class GarminWeightImporter {
             await self?.run(container: container)
             self?.task = nil
         }
+    }
+
+    /// Deletes a weigh-in and remembers its day, so Garmin never brings it
+    /// back — the next pass re-reads the last week, and an old day would
+    /// come back with a new account's full import.
+    static func delete(
+        _ entry: WeightEntry, in context: ModelContext, defaults: UserDefaults = .standard
+    ) throws {
+        var days = Set(defaults.stringArray(forKey: deletedDaysKey) ?? [])
+        days.insert(entry.dateKeyRaw)
+        try NutritionJournal.deleteWeight(entry, in: context)
+        defaults.set(days.sorted(), forKey: deletedDaysKey)
     }
 
     /// Forgets how far the import went, for a new account.
@@ -120,7 +136,10 @@ final class GarminWeightImporter {
 
     private func store(_ found: [GarminWeighIn], in context: ModelContext, through: DateKey?) {
         guard Log.garmin.attempt("pesées Garmin enregistrées", {
-            try Self.merge(found, in: context)
+            try Self.merge(
+                found, in: context,
+                ignoring: Set(defaults.stringArray(forKey: Self.deletedDaysKey) ?? [])
+            )
         }) != nil else { return }
         if let through { defaults.set(through.raw, forKey: Self.syncedThroughKey) }
     }
@@ -129,7 +148,10 @@ final class GarminWeightImporter {
     /// is left untouched, so a pass that brings nothing new writes nothing —
     /// and sends nothing to the mirror. Returns how many days changed.
     @discardableResult
-    static func merge(_ weighIns: [GarminWeighIn], in context: ModelContext) throws -> Int {
+    static func merge(
+        _ weighIns: [GarminWeighIn], in context: ModelContext, ignoring deleted: Set<String> = []
+    ) throws -> Int {
+        let weighIns = weighIns.filter { !deleted.contains($0.dateKey.raw) }
         guard !weighIns.isEmpty else { return 0 }
         let keys = weighIns.map(\.dateKey.raw)
         let existing = try context.fetch(FetchDescriptor<WeightEntry>(

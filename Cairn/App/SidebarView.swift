@@ -7,7 +7,6 @@ enum SidebarItem: Hashable {
     case statistics
     case journal
     case nutrition
-    case weight
 }
 
 extension SidebarItem {
@@ -15,10 +14,11 @@ extension SidebarItem {
     ///
     /// Retirées le 24 septembre 2026 — le journal (et les gens, qui en sont
     /// une vue), le plan d'entraînement et le poids ; le journal est revenu
-    /// le 26, le plan a été supprimé le 29. Vider cet ensemble remet le
-    /// poids : la barre latérale, les raccourcis, les menus et les réglages le
-    /// lisent, et `RootView.allerA` refuse d'y mener.
-    static let masquees: Set<SidebarItem> = [.weight]
+    /// le 26, le plan a été supprimé le 29, l'écran du poids le 30 : le poids
+    /// vit désormais dans l'en-tête d'Alimentation. La barre latérale, les
+    /// raccourcis, les menus et les réglages lisent cet ensemble, et
+    /// `RootView.allerA` refuse de mener à ce qu'il contient.
+    static let masquees: Set<SidebarItem> = []
 
     var estMasquee: Bool { Self.masquees.contains(self) }
 }
@@ -151,10 +151,6 @@ struct SidebarView: View {
                 }
                 Label("Alimentation", systemImage: "fork.knife")
                     .tag(SidebarItem.nutrition)
-                if !SidebarItem.weight.estMasquee {
-                    Label("Poids", systemImage: "scalemass")
-                        .tag(SidebarItem.weight)
-                }
 
                 // Sits with the map rather than among the filters: it undoes a
                 // rectangle drawn there, and that is where it will be looked for.
