@@ -21,42 +21,33 @@ extension RootView {
                     .help(app.progress.statusText)
                 }
             }
-            // Des `ControlGroup` en style `.navigation`, et non des
+            // Un `ControlGroup` en style `.navigation`, et non des
             // `ToolbarItem` côte à côte : macOS 26 coule tous les boutons
-            // voisins dans une seule capsule — six icônes où plus rien ne se
-            // distinguait — et `ToolbarSpacer` n'y change rien dans cette
-            // fenêtre (essayé, fixe comme flexible). Une capsule par sujet :
-            // la bibliothèque (rapatrier, ajouter), puis la sortie choisie.
-            ToolbarItem {
-                ControlGroup {
-                    Button {
-                        app.syncNow()
-                    } label: {
-                        Label("Synchroniser", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                    .disabled(!app.isAuthenticated || app.progress.isRunning)
-                    // Already worded for every phase: the last run's date and time
-                    // when idle, "Jamais synchronisé" before the first one, and what
-                    // is happening while a sync is in flight.
-                    .help(app.progress.statusText)
-
-                    // Va avec la synchronisation : il ne vise pas la sélection.
-                    if showsActivityActions {
+            // voisins dans une seule capsule, et `ToolbarSpacer` n'y change
+            // rien dans cette fenêtre (essayé, fixe comme flexible).
+            //
+            // Plus de bouton de synchronisation : elle part seule au
+            // lancement, et le menu comme ⌘R la relancent. Le « + » a rejoint
+            // les actions sur les sorties — ajouter, modifier, favori,
+            // supprimer, la destructive en dernier comme partout sur le Mac.
+            if showsActivityActions {
+                ToolbarItem {
+                    ControlGroup {
                         Button {
                             editor = .create
                         } label: {
                             Label("Nouvelle activité", systemImage: "plus")
                         }
                         .help("Ajouter une activité saisie à la main")
-                    }
-                }
-                .controlGroupStyle(.navigation)
-            }
-            // These three act on the selected activity and belong together —
-            // and leave together, on the screens that show no activity.
-            if showsActivityActions {
-                ToolbarItem {
-                    ControlGroup {
+
+                        Button {
+                            if let selected { editor = .edit(selected) }
+                        } label: {
+                            Label("Modifier", systemImage: "pencil")
+                        }
+                        .disabled(selected == nil)
+                        .help("Modifier l'activité sélectionnée")
+
                         Button {
                             toggleFavorite()
                         } label: {
@@ -70,14 +61,6 @@ extension RootView {
                         }
                         .disabled(selection.isEmpty)
                         .help("Marquer ou retirer des favoris")
-
-                        Button {
-                            if let selected { editor = .edit(selected) }
-                        } label: {
-                            Label("Modifier", systemImage: "pencil")
-                        }
-                        .disabled(selected == nil)
-                        .help("Modifier l'activité sélectionnée")
 
                         Button {
                             pendingDeletion = selected
