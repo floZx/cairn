@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
 import { assemble, chercherDansOFF, produitParCode, type Aliment } from "./off"
-import { Scanner } from "./Scanner"
+import { prechargerLecteur, Scanner } from "./Scanner"
 import { macrosDe } from "./macros"
 
 type Recette = { uuid: string; name: string; meal_slot_uuid: string | null }
@@ -127,6 +127,12 @@ export function AjoutAliment({
   const garde = useGardeManger()
   const client = useQueryClient()
   const [scanne, setScanne] = useState(false)
+  // Le lecteur se charge pendant qu'on regarde la feuille : prêt quand on
+  // touche l'icône, au lieu de faire attendre le premier scan. Sans effet
+  // s'il l'est déjà ; un échec est rattrapé à l'ouverture du scanner.
+  useEffect(() => {
+    prechargerLecteur().catch(() => {})
+  }, [])
   const [codeLu, setCodeLu] = useState<{
     code: string
     enCours: boolean
