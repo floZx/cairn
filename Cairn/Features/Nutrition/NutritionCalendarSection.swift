@@ -25,22 +25,27 @@ struct NutritionCalendarSection: View {
         MiniCalendarView(
             selected: $selected,
             loggedDays: Set(kcalByDay.keys),
-            marks: CalorieVerdict.verdicts(kcalByDay: kcalByDay, targets: targets)
-                .mapValues(\.color)
+            marks: CalorieVerdict.verdicts(
+                kcalByDay: kcalByDay, targets: targets, today: DateKey(Date())
+            ).mapValues(\.color)
         )
     }
 }
 
 /// How a day's calories landed against its target — the calorie gauge's
-/// colours, one per day, for the calendar. A day under its target, or with
-/// no day type, has nothing to say.
+/// colours, one per day, for the calendar, plus grey under the target: on a
+/// calendar a day without a line read as "no verdict", not as "short". A day
+/// with no day type has no target, so nothing to say; today is not short
+/// yet, only on target or past it.
 enum CalorieVerdict: Equatable {
+    case under
     case onTarget
     case moderate
     case heavy
 
     var color: Color {
         switch self {
+        case .under: .gray.opacity(0.5)
         case .onTarget: .green
         case .moderate: .orange
         case .heavy: .red
@@ -48,7 +53,7 @@ enum CalorieVerdict: Equatable {
     }
 
     static func verdicts(
-        kcalByDay: [String: Double], targets: [String: Int]
+        kcalByDay: [String: Double], targets: [String: Int], today: DateKey
     ) -> [String: CalorieVerdict] {
         kcalByDay.reduce(into: [:]) { verdicts, day in
             guard let target = targets[day.key].map(Double.init) else { return }
@@ -58,6 +63,8 @@ enum CalorieVerdict: Equatable {
             case nil:
                 if NutritionMath.isOnTarget(consumed: day.value, target: target) {
                     verdicts[day.key] = .onTarget
+                } else if day.key != today.raw {
+                    verdicts[day.key] = .under
                 }
             }
         }
