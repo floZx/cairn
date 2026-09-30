@@ -96,6 +96,8 @@ struct RootView: View {
     /// Whether the keyboard map is on screen, opened with `?`.
     /// `J` / `K` : le volet de droite défile d'un cran — voir `ActivityDetailView`.
     @State var paneScroll = PaneScrollRequest()
+    /// Rend le clavier au contenu quand `j`, `k` ou `g` n'iraient nulle part.
+    @State var focusRescue = VimFocusRescue()
     /// La page des statistiques, sous `j` et `k` — pas le volet : celui-là
     /// reste à `J` et `K`, ouvert sur un record à côté.
     @State var statisticsScroll = PaneScrollRequest()
@@ -873,6 +875,16 @@ struct RootView: View {
         // Sans ça il n'allait à personne, et un clic dans la liste ne suffisait
         // pas à le lui rendre : `j` et `k` restaient morts. Mesuré par une
         // sonde : plus aucune touche n'atteignait la liste après la recherche.
+        // Le clavier perdu — un clic dans le volet, un graphe, la barre
+        // d'outils — revient au contenu à la première touche de mouvement
+        // tombée dans le vide, sans clic. Les mêmes compteurs qu'Entrée
+        // depuis la barre latérale.
+        .background {
+            VimFocusRescueInstaller(rescue: focusRescue) {
+                journalListFocus += 1
+                demandeDeFocusDuContenu += 1
+            }
+        }
         .onChange(of: searchFieldFocused) { _, cherche in
             guard !cherche else { return }
             if showsJournal { journalListFocus += 1 } else { demandeDeFocusDuContenu += 1 }
