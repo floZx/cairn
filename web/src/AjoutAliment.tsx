@@ -1,8 +1,9 @@
 import { selectionnerAuFocus } from "./saisie"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "./supabase"
-import { assemble, chercherDansOFF, type Aliment } from "./off"
+import { assemble, chercherDansOFF, produitParCode, type Aliment } from "./off"
+import { Scanner } from "./Scanner"
 import { macrosDe } from "./macros"
 
 type Recette = { uuid: string; name: string; meal_slot_uuid: string | null }
@@ -125,6 +126,47 @@ export function AjoutAliment({
   const [grammes, setGrammes] = useState("100")
   const garde = useGardeManger()
   const client = useQueryClient()
+  const [scanne, setScanne] = useState(false)
+  const [codeLu, setCodeLu] = useState<{
+    code: string
+    enCours: boolean
+    introuvable: boolean
+    erreur?: string
+  } | null>(null)
+
+  const choisir = useCallback((a: Aliment) => {
+    setChoisi(a)
+    setGrammes(String(Math.round(a.grammesFavori ?? 100)))
+  }, [])
+
+  /// Un code lu : les favoris et les récents d'abord — ils portent la portion
+  /// habituelle —, Open Food Facts ensuite. Introuvable, le code reste dans le
+  /// champ pour chercher autrement.
+  const surCode = useCallback(
+    async (code: string) => {
+      setScanne(false)
+      const connu = [...(garde.data?.favoris ?? []), ...(garde.data?.recents ?? [])].find(
+        (a) => a.productCode === code,
+      )
+      if (connu) return choisir(connu)
+      setCodeLu({ code, enCours: true, introuvable: false })
+      try {
+        const produit = await produitParCode(code)
+        if (produit) {
+          setCodeLu(null)
+          choisir(produit)
+        } else {
+          setCodeLu({ code, enCours: false, introuvable: true })
+          setQuery(code)
+        }
+      } catch (e) {
+        setCodeLu({ code, enCours: false, introuvable: false, erreur: (e as Error).message })
+        setQuery(code)
+      }
+    },
+    [garde.data, choisir],
+  )
+  const fermerScanner = useCallback(() => setScanne(false), [])
 
   // Recherche différée : on tape « saumon » lettre par lettre, et sans ce
   // délai chaque frappe partirait chez Open Food Facts.
@@ -288,14 +330,44 @@ export function AjoutAliment({
           feuille que pour chercher quelque chose, et l'ouvrir sur un champ
           vide qu'il faut encore aller toucher fait un geste de plus pour rien.
           C'est déjà ce que font la quantité et la pesée. */}
-      <input
-        className="recherche"
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Chercher un aliment…"
-        autoFocus
-      />
+      <div className="ligne-recherche">
+        <input
+          className="recherche"
+          type="search"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setCodeLu(null)
+          }}
+          placeholder="Chercher un aliment…"
+          autoFocus
+        />
+        <button
+          className="bouton-scan"
+          onClick={() => setScanne(true)}
+          aria-label="Scanner un code-barres"
+          title="Scanner un code-barres"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path
+              d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M16 8v8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+      {scanne && <Scanner onCode={surCode} onFerme={fermerScanner} />}
+      {codeLu?.enCours && <p className="attenue petit">Recherche du code {codeLu.code}…</p>}
+      {codeLu?.erreur && <p className="erreur">{codeLu.erreur}</p>}
+      {codeLu?.introuvable && (
+        <p className="attenue petit">
+          Code {codeLu.code} inconnu d'Open Food Facts, ou sans calories : cherche le produit par son
+          nom.
+        </p>
+      )}
       {recette.error && <p className="erreur">{(recette.error as Error).message}</p>}
 
       {!query && recettes.length > 0 && (
@@ -325,12 +397,7 @@ export function AjoutAliment({
       <ul className="choix">
         {liste.map((a) => (
           <li key={`${a.id}-${a.nom}`}>
-            <button
-              onClick={() => {
-                setChoisi(a)
-                setGrammes(String(Math.round(a.grammesFavori ?? 100)))
-              }}
-            >
+            <button onClick={() => choisir(a)}>
               <span className="nom">
                 {a.grammesFavori !== null && a.marque === "" ? "★ " : ""}
                 {a.nom}

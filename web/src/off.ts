@@ -71,6 +71,35 @@ export async function chercherDansOFF(query: string, signal?: AbortSignal): Prom
   })
 }
 
+/// Un produit par son code-barres, ou nul s'il est inconnu ou sans calories.
+///
+/// En direct et sans le relais : `/api/v2/product/<code>` est la seule route
+/// d'Open Food Facts ouverte au navigateur (voir `functions/off.ts`).
+export async function produitParCode(code: string, signal?: AbortSignal): Promise<Aliment | null> {
+  const reponse = await fetch(
+    `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json` +
+      "?fields=code,product_name,product_name_fr,brands,nutriments",
+    { signal },
+  )
+  if (reponse.status === 404) return null
+  if (!reponse.ok) throw new Error(`Open Food Facts : ${reponse.status}`)
+  const corps = (await reponse.json()) as {
+    status?: number
+    product?: HitOFF & { product_name_fr?: string }
+  }
+  if (corps.status !== 1 || !corps.product) return null
+  const produit = corps.product
+  return alimentDepuisOFF({
+    ...produit,
+    // Le nom français d'abord : le nom générique est souvent celui du pays
+    // où la fiche a été créée.
+    product_name: produit.product_name_fr || produit.product_name,
+    // La marque arrive en « Danone, Danone Skyr » : la première suffit.
+    brands: typeof produit.brands === "string" ? produit.brands.split(",")[0]?.trim() : produit.brands,
+    code: produit.code ?? code,
+  })
+}
+
 /// En minuscules et sans accents, comme `FoodSearch.normalized` du Mac, pour
 /// que « creme » trouve le favori « Crème ».
 export function normalise(texte: string): string {
