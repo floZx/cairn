@@ -109,6 +109,20 @@ struct ActivityDetailView: View {
                         activity.sportType.color, cornerRadius: 16, blurRadius: 80
                     )
 
+                // Les chiffres d'abord, sous le titre : c'est ce qu'on cherche
+                // en ouvrant une sortie, et il fallait passer la carte, les
+                // photos et la note pour savoir combien de kilomètres. Les
+                // photos restent avant la note, mais plus avant les chiffres.
+                statistics
+
+                if besideGlobalMap, let onOpenActivity {
+                    Button(action: onOpenActivity) {
+                        Label("Voir l'activité", systemImage: "arrow.up.right")
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Ouvrir la sortie dans Mes activités, avec ses courbes et ses tours")
+                }
+
                 // No placeholder when there is no track: a pool swim or a gym
                 // session simply has nowhere to be drawn, and a large empty
                 // panel announcing that is worse than the map's absence.
@@ -128,8 +142,19 @@ struct ActivityDetailView: View {
                     .clipShape(.rect(cornerRadius: 8))
                 }
 
-                // Above the figures: a photo says what an outing was in a way no
-                // number does, and it arrives with the detail fetch anyway.
+                // Le profil d'altitude collé à la carte : il décrit le même
+                // parcours, et le point qu'il pointe sur la trace doit rester
+                // à l'écran. Plus bas, sous les photos et la note, on le
+                // survolait les yeux sur une carte sortie du volet — signalé.
+                if profileUnderMap {
+                    StreamChartsView(
+                        series: chartSeries.filter { $0.id == "altitude" },
+                        hoverDistanceKm: $hoverDistanceKm
+                    )
+                }
+
+                // Right after the course: a photo says what an outing was in a
+                // way no number does, and it arrives with the detail fetch anyway.
                 ActivityPhotosStrip(activityUUID: activity.uuid)
 
                 notes
@@ -147,16 +172,6 @@ struct ActivityDetailView: View {
                     }
                 }
 
-                statistics
-
-                if besideGlobalMap, let onOpenActivity {
-                    Button(action: onOpenActivity) {
-                        Label("Voir l'activité", systemImage: "arrow.up.right")
-                    }
-                    .buttonStyle(.bordered)
-                    .help("Ouvrir la sortie dans Mes activités, avec ses courbes et ses tours")
-                }
-
                 SameRouteSection(activity: activity, onSelect: onSelectActivity)
 
                 // Every chart runs along the distance: with none — a gym
@@ -165,15 +180,15 @@ struct ActivityDetailView: View {
                 // the note saying why, which would read as data missing.
                 if activity.distance <= 0 {
                     EmptyView()
-                } else if !chartSeries.isEmpty {
+                } else if !lowerChartSeries.isEmpty {
                     StreamChartsView(
-                        series: chartSeries, hoverDistanceKm: $hoverDistanceKm,
+                        series: lowerChartSeries, hoverDistanceKm: $hoverDistanceKm,
                         zoneFloors: [
                             "heartrate": activity.hrZoneFloors,
                             "watts": activity.powerZoneFloors,
                         ].compactMapValues { $0 }
                     )
-                } else if let message = Self.missingChartsMessage(
+                } else if chartSeries.isEmpty, let message = Self.missingChartsMessage(
                     hasStreams: activity.streams != nil,
                     isSynced: activity.source.isSynced
                 ) {
@@ -612,6 +627,19 @@ struct ActivityDetailView: View {
 
     /// The curves shown: all of them, or only the altitude beside the global
     /// map — the one that describes the route rather than the effort.
+    /// Whether the altitude profile sits right under the map — whenever the
+    /// pane draws a map and there is a distance to chart it along.
+    private var profileUnderMap: Bool {
+        !besideGlobalMap && trackModel.coordinates.count > 1 && activity.distance > 0
+            && chartSeries.contains { $0.id == "altitude" }
+    }
+
+    /// The curves left for their usual place, lower down: the effort ones
+    /// once the profile has gone up to the map, all of them otherwise.
+    private var lowerChartSeries: [StreamSeries] {
+        profileUnderMap ? chartSeries.filter { $0.id != "altitude" } : chartSeries
+    }
+
     private var chartSeries: [StreamSeries] {
         besideGlobalMap ? trackModel.series.filter { $0.id == "altitude" } : trackModel.series
     }
