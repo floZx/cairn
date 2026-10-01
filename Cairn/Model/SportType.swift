@@ -11,11 +11,14 @@ enum SportType: String, Codable, CaseIterable, Sendable, Identifiable {
 
     init(stravaValue: String) {
         switch stravaValue {
-        case "Ride": self = .ride
+        // Zwift et consorts : une course ou une sortie vélo, en salle. Le
+        // type tombait en « Autre » — huit courses Zwift relevées le
+        // 1er octobre 2026. `isTrainer` dit déjà qu'elles sont en intérieur.
+        case "Ride", "VirtualRide": self = .ride
         case "MountainBikeRide": self = .mountainBikeRide
         case "GravelRide": self = .gravelRide
         case "EBikeRide", "EMountainBikeRide": self = .eBikeRide
-        case "Run": self = .run
+        case "Run", "VirtualRun": self = .run
         case "TrailRun": self = .trailRun
         case "Walk": self = .walk
         case "Hike": self = .hike

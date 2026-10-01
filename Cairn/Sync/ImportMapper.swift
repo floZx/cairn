@@ -307,6 +307,9 @@ struct ImportMapper {
         streams.moving = Self.pack(dto.moving?.data.map { $0 ? 1.0 : 0.0 })
         streams.time = dto.time?.data.map { Int32($0) }
             .nonEmpty.map(TrackBlob.encode(times:))
+        // Des séries nouvelles sont à renvoyer au miroir : sans ceci, une
+        // sortie redemandée garderait sur Supabase ses séries d'avant.
+        streams.mirroredAt = nil
         streams.pointCount = [
             coordinates.count,
             dto.distance?.data.count ?? 0,

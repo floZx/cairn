@@ -23,5 +23,16 @@ final class SyncState {
     /// must be read again to fold theirs into the note.
     var privateNotesMerged: Bool = false
 
+    /// Les sorties dont les séries sont à redemander alors qu'elles en ont
+    /// déjà : `pendingStreamIDs` saute celles qui en ont, celles-ci passent.
+    /// Voir `SyncEngine.requestMissingDistanceStreamsOnce()`.
+    var streamRefetchIDs: [Int64] = []
+    /// Posé une fois toutes les sorties sans série `distance` remises dans la
+    /// file. Voir `SyncEngine.requestMissingDistanceStreamsOnce()`.
+    var distanceStreamsRequested: Bool = false
+    /// Posé une fois tous les résumés relus pour reclasser les types
+    /// virtuels (`VirtualRun`, `VirtualRide`). Voir `SyncEngine.syncSummaries()`.
+    var virtualTypesReread: Bool = false
+
     init() {}
 }

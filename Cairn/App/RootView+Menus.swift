@@ -54,6 +54,7 @@ extension RootView {
             app.requestExportJournalPDF = nil
             app.requestImportGPX = nil
             app.requestShowJournalTag = nil
+            app.requestSelectActivity = nil
             app.requestShowKeyboardHelp = nil
             app.requestResyncEverything = nil
             return
@@ -88,6 +89,13 @@ extension RootView {
             vueJournal = .journees
             journalQuery = ""
             journalTags = [tag]
+        }
+        app.requestSelectActivity = { id in
+            selectedActivities = [id]
+            app.revealSelectionToken += 1
+            // Depuis les statistiques, la fiche s'ouvre à droite comme un
+            // record cliqué dans l'écran.
+            if showsStatistics { sortieOuverteDepuisLEcran = true }
         }
         app.requestShowKeyboardHelp = { showsKeyboardHelp = true }
         app.requestResyncEverything = { confirmsResync = true }

@@ -292,6 +292,11 @@ struct ActivityDetailView: View {
                 }
             }
 
+            if let medals = app.bestEfforts.medals[activity.uuid] {
+                EffortMedalsRow(medals: medals, uuid: activity.uuid)
+                    .padding(.top, 2)
+            }
+
             if !headerLabels.isEmpty {
                 FlowLayout {
                     ForEach(headerLabels) { label in

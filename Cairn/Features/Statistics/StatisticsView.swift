@@ -92,6 +92,7 @@ struct StatisticsView: View {
                         periodStart: stats.periodStart ?? Date(),
                         onSelect: onSelect
                     )
+                    BestEffortsCard(activities: activities, onSelect: onSelect)
                     // Two columns once the window has room for them: the
                     // volume and the week read side by side, the table and the
                     // records likewise.

@@ -323,6 +323,18 @@ struct RootView: View {
             Text(writeFailureMessage ?? "")
         }
         .alert(
+            goneFromStravaTitle,
+            isPresented: Binding(
+                get: { !app.goneFromStrava.isEmpty },
+                set: { if !$0 { app.goneFromStrava = [] } }
+            )
+        ) {
+            Button("Les retirer de Cairn", role: .destructive) { app.removeGoneFromStrava() }
+            Button("Les garder", role: .cancel) { app.goneFromStrava = [] }
+        } message: {
+            Text(goneFromStravaMessage)
+        }
+        .alert(
             "Zones de FC à mettre à jour sur Strava",
             isPresented: Binding(
                 get: { app.zoneDrift != nil },
@@ -1193,4 +1205,28 @@ enum ExpandedMap: Equatable {
     case global
     case comparison
     case activity(PersistentIdentifier)
+}
+
+// MARK: - Sorties disparues de Strava
+
+extension RootView {
+    var goneFromStravaTitle: String {
+        let count = app.goneFromStrava.count
+        return count == 1
+            ? "Une sortie n'existe plus sur Strava"
+            : "\(count) sorties n'existent plus sur Strava"
+    }
+
+    /// Les cinq plus récentes nommées, le reste compté : de quoi reconnaître
+    /// un ménage qu'on a fait soi-même — ou s'alarmer d'un compte vidé.
+    var goneFromStravaMessage: String {
+        let gone = app.goneFromStrava
+        var lines = gone.prefix(5).map { "• \($0.name), \(Format.dateOnly($0.startDate))" }
+        if gone.count > 5 { lines.append("• et \(gone.count - 5) autres") }
+        lines.append("")
+        lines.append(
+            "Supprimées sur Strava, ou un souci de compte ? Cairn les garde tant que vous ne dites pas de les retirer."
+        )
+        return lines.joined(separator: "\n")
+    }
 }

@@ -36,6 +36,10 @@ struct ActivityListView: View {
     @Query(sort: [SortDescriptor(\Activity.startDate, order: .reverse)])
     private var query: [Activity]
 
+    /// Les podiums des meilleurs efforts, pour la médaille de la colonne
+    /// « Étiquettes ».
+    @Environment(AppEnvironment.self) private var app
+
     // Le tri « Date » du menu, et non `startDate` : l'ordre est le même, mais
     // celui-là n'était reconnu par personne — ni le menu, qui n'y cochait
     // rien, ni les en-têtes de mois, qui ne s'affichaient pas.
@@ -254,6 +258,14 @@ struct ActivityListView: View {
             }
             keepCardSelection()
         }
+        // Une sortie ouverte d'ailleurs — le podium d'un record — alors que la
+        // liste est déjà là : elle s'y place, comme au retour de la carte.
+        .onChange(of: app.revealSelectionToken) { _, _ in
+            if let selected = selection.first,
+               let index = rows.firstIndex(where: { $0.id == selected }) {
+                scroller.scrollWhenAttached(toRow: tableRow(index, in: rows))
+            }
+        }
         .onAppear {
             if let first = Self.initialSelection(
                 rows: rows, current: selection, hasAutoSelected: hasAutoSelected
@@ -457,6 +469,9 @@ struct ActivityListView: View {
 
             TableColumn("Étiquettes") { activity in
                 HStack(spacing: 4) {
+                    if let medals = app.bestEfforts.medals[activity.uuid] {
+                        EffortMedalBadge(medals: medals, uuid: activity.uuid)
+                    }
                     ForEach(activity.labels) { label in
                         Image(systemName: label.symbolName)
                             // The favourite keeps the yellow it has in the

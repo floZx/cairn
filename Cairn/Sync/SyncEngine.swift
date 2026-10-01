@@ -34,6 +34,14 @@ struct SyncStateSnapshot: Sendable, Equatable {
     var isInitialImportDone: Bool
 }
 
+/// Une sortie que Strava ne rend plus.
+struct GoneFromStrava: Sendable, Equatable, Identifiable {
+    let stravaID: Int64
+    let name: String
+    let startDate: Date
+    var id: Int64 { stravaID }
+}
+
 actor SyncEngine {
     private let source: StravaSyncSource
     private let container: ModelContainer
@@ -88,7 +96,17 @@ actor SyncEngine {
     @discardableResult
     func syncSummaries() async throws -> Int {
         let state = try state()
-        let after = state.lastSummaryEpoch
+        // Une fois : tout l'historique relu depuis le début, pour que les
+        // courses Zwift rangées en « Autre » prennent leur vrai type. Une
+        // dizaine de requêtes ; un type corrigé à la main reste protégé.
+        let after = state.virtualTypesReread ? state.lastSummaryEpoch : 0
+        // Une relecture complète voit tout ce que Strava a encore. Ce qui
+        // manque à l'appel n'est **jamais retiré d'office** : une sortie
+        // disparue de Strava — compte piraté, fausse manœuvre — reste dans le
+        // journal, qui est la référence. Elle est seulement signalée, et c'est
+        // à l'athlète de dire si elle part. Voir `goneFromStrava`.
+        let fullPass = after == 0
+        var seen = Set<Int64>()
         var page = 1
         var imported = 0
         var newestEpoch = after
@@ -104,6 +122,7 @@ actor SyncEngine {
                 if batch.isEmpty { break }
 
                 for dto in batch {
+                    seen.insert(dto.id)
                     do {
                         // Asked before the upsert, which is the only moment the
                         // answer still exists.
@@ -141,7 +160,9 @@ actor SyncEngine {
                 page += 1
             }
 
-            state.lastSummaryEpoch = newestEpoch
+            if fullPass { goneFromStrava = try missingFromStrava(seen: seen) }
+            state.lastSummaryEpoch = max(newestEpoch, state.lastSummaryEpoch)
+            state.virtualTypesReread = true
             state.isInitialImportDone = true
             state.lastRunAt = Date()
             state.lastErrorMessage = nil
@@ -170,6 +191,7 @@ actor SyncEngine {
     func syncStreams(limit: Int? = nil) async throws -> Int {
         // Named `initial` rather than `state`: a local called `state` would
         // shadow the `state()` method the loop below re-reads on each iteration.
+        try requestMissingDistanceStreamsOnce()
         let initial = try state()
         let total = initial.pendingStreamIDs.count
         guard total > 0 else {
@@ -221,7 +243,8 @@ actor SyncEngine {
             // clears a backlog queued under the old condition — otherwise those
             // 102 trackless activities each cost a request to re-download
             // streams already on disk.
-            if try mapper.activity(stravaID: stravaID)?.streams != nil {
+            if try mapper.activity(stravaID: stravaID)?.streams != nil,
+               !current.streamRefetchIDs.contains(stravaID) {
                 try dequeue(stravaID)
                 continue
             }
@@ -293,6 +316,79 @@ actor SyncEngine {
     private func dequeue(_ stravaID: Int64) throws {
         let state = try state()
         state.pendingStreamIDs.removeAll { $0 == stravaID }
+        state.streamRefetchIDs.removeAll { $0 == stravaID }
+        try context.save()
+    }
+
+    /// Les sorties que la dernière relecture complète n'a pas revues sur
+    /// Strava, en attendant que l'athlète décide. Rien n'est persisté : une
+    /// sortie gardée sera signalée de nouveau à la prochaine relecture
+    /// complète, qui reste rare — « Resynchroniser tout », à la main.
+    private(set) var goneFromStrava: [GoneFromStrava] = []
+
+    /// Rend les sorties signalées, et oublie la liste.
+    func takeGoneFromStrava() -> [GoneFromStrava] {
+        defer { goneFromStrava = [] }
+        return goneFromStrava
+    }
+
+    private func missingFromStrava(seen: Set<Int64>) throws -> [GoneFromStrava] {
+        guard !seen.isEmpty else { return [] }
+        let strava = ActivitySource.strava.rawValue
+        return try context.fetch(FetchDescriptor<Activity>(
+            predicate: #Predicate { $0.sourceRaw == strava },
+            sortBy: [SortDescriptor(\Activity.startDate, order: .reverse)]
+        ))
+        .filter { $0.stravaID != 0 && !seen.contains($0.stravaID) }
+        .map { GoneFromStrava(stravaID: $0.stravaID, name: $0.name, startDate: $0.startDate) }
+    }
+
+    /// Retire de Cairn les sorties que l'athlète a confirmées comme
+    /// supprimées sur Strava. Sans pierre tombale (`DiscardedActivity`) : une
+    /// sortie restaurée sur Strava dans ses trente jours doit pouvoir revenir.
+    func removeGoneFromStrava(_ stravaIDs: [Int64]) throws -> Int {
+        let wanted = Set(stravaIDs)
+        let strava = ActivitySource.strava.rawValue
+        let targets = try context.fetch(FetchDescriptor<Activity>(
+            predicate: #Predicate { $0.sourceRaw == strava }
+        )).filter { wanted.contains($0.stravaID) }
+        for activity in targets { context.delete(activity) }
+        try context.save()
+        return targets.count
+    }
+
+    /// Remet dans la file, une fois, chaque sortie Strava importée sans sa
+    /// série `distance`.
+    ///
+    /// Tout l'historique est arrivé le 6 août 2026 avant que cette série ne
+    /// soit demandée à Strava (`d1698ce`, le soir même) : 780 sorties sont
+    /// restées sans elle, l'axe des graphes la recalculant depuis le GPS — un
+    /// demi-pour-cent trop long — et les meilleurs efforts depuis la vitesse.
+    /// Cairn se veut une copie de Strava : ce qui manque se redemande.
+    ///
+    /// Les sorties sans distance (renforcement, séances sans capteur) restent
+    /// à l'écart : Strava n'a pas de série à leur rendre, la requête serait
+    /// perdue. Une requête par sortie, au rythme de la file — 200 par quart
+    /// d'heure —, et une interruption reprend où elle s'était arrêtée.
+    func requestMissingDistanceStreamsOnce() throws {
+        let state = try state()
+        guard !state.distanceStreamsRequested else { return }
+        let strava = ActivitySource.strava.rawValue
+        let candidates = try context.fetch(FetchDescriptor<Activity>(
+            predicate: #Predicate { $0.sourceRaw == strava && $0.distance > 0 },
+            sortBy: [SortDescriptor(\Activity.startDate, order: .reverse)]
+        ))
+        var queued = Set(state.pendingStreamIDs)
+        var refetch: [Int64] = []
+        for activity in candidates {
+            guard let streams = activity.streams, streams.distance == nil else { continue }
+            refetch.append(activity.stravaID)
+            if queued.insert(activity.stravaID).inserted {
+                state.pendingStreamIDs.append(activity.stravaID)
+            }
+        }
+        state.streamRefetchIDs = refetch
+        state.distanceStreamsRequested = true
         try context.save()
     }
 

@@ -32,6 +32,10 @@ final class AppEnvironment {
     /// création de la structure, et reposerait son observateur avec.
     let journalLibrary = JournalLibraryCache()
 
+    /// Les meilleurs efforts à pied, de 400 m au marathon, et les podiums
+    /// qu'en tirent les statistiques et les badges de la liste.
+    let bestEfforts = BestEffortsIndex()
+
     let mirrorClient: MirrorClient
     let mirror: MirrorEngine
     /// Garmin Connect, written to and never read into the journal: it only
@@ -96,6 +100,14 @@ final class AppEnvironment {
     var requestExportJournalPDF: (() -> Void)?
     /// Un tag cliqué dans une note : le journal, filtré sur lui.
     var requestShowJournalTag: ((JournalTag) -> Void)?
+    /// Ouvre une sortie, d'où qu'on la nomme — le podium d'un record, par
+    /// exemple, cliqué depuis une fiche de la liste.
+    var requestSelectActivity: ((PersistentIdentifier) -> Void)?
+    /// Avance à chaque sortie ouverte par `requestSelectActivity` : la liste
+    /// s'y place, au milieu de ce qui est visible. Un compteur et non la
+    /// sélection elle-même, qui change aussi sous un simple clic — et une
+    /// ligne cliquée ne doit pas bouger sous la souris.
+    var revealSelectionToken = 0
     var requestToggleListStyle: (() -> Void)?
     var requestShowKeyboardHelp: (() -> Void)?
     /// Opens the confirmation, not the resync itself: see
@@ -196,6 +208,7 @@ final class AppEnvironment {
         Task { [mirror] in await mirror.restoreProgress() }
 
         journalLock.avantDeVerrouiller = { [journal] in journal.saveNow() }
+        bestEfforts.start(container: container)
         watchForJournalLock()
     }
 
@@ -313,7 +326,26 @@ final class AppEnvironment {
     /// Re-reads every summary from Strava, picking up anything edited there
     /// after the fact. Streams are left as they are.
     func resyncEverything() {
-        runSync { [engine] in try await engine.resyncEverything() }
+        runSync { [engine, weak self] in
+            try await engine.resyncEverything()
+            let gone = await engine.takeGoneFromStrava()
+            await MainActor.run { self?.goneFromStrava = gone }
+        }
+    }
+
+    /// Les sorties que Strava ne rend plus, présentées par la fenêtre pour
+    /// que l'athlète décide. Jamais retirées sans lui : voir
+    /// `SyncEngine.goneFromStrava`.
+    var goneFromStrava: [GoneFromStrava] = []
+
+    func removeGoneFromStrava() {
+        let ids = goneFromStrava.map(\.stravaID)
+        goneFromStrava = []
+        Task { [engine] in
+            await Log.sync.attempt("retrait des sorties supprimées sur Strava") {
+                try await engine.removeGoneFromStrava(ids)
+            }
+        }
     }
 
     /// Whether launching the app looks for new activities.

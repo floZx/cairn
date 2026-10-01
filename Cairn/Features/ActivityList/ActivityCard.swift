@@ -15,6 +15,7 @@ import SwiftData
 /// same fixed-height probe apply here.
 struct ActivityCard: View {
     let activity: Activity
+    @Environment(AppEnvironment.self) private var app
     @AppStorage(ActivityCardThumbnail.storageKey)
     private var thumbnailStyle: ActivityCardThumbnail = .trace
 
@@ -227,6 +228,9 @@ struct ActivityCard: View {
 
     private func markers(showsPhotos: Bool) -> some View {
         HStack(spacing: 5) {
+            if let medals = app.bestEfforts.medals[activity.uuid] {
+                EffortMedalBadge(medals: medals, uuid: activity.uuid)
+            }
             if showsPhotos, !activity.photos.isEmpty {
                 Image(systemName: "photo")
                     .help(

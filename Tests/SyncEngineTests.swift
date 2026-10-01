@@ -386,6 +386,39 @@ struct SyncSummariesTests {
         #expect(progress.lastRunAt != nil)
         #expect(!progress.isRunning)
     }
+
+    @Test("une sortie disparue de Strava est signalée, jamais retirée sans confirmation")
+    func fullPassKeepsActivitiesGoneFromStrava() async throws {
+        let container = try AppModelContainer.inMemory()
+        let before = FakeSource(pages: [(1...6).map { makeSummary(id: Int64($0), epoch: $0 * 1000) }])
+        _ = try await SyncEngine(
+            source: before, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
+        ).syncSummaries()
+
+        // Strava ne rend plus que la 1 : compte vidé, ou sorties supprimées.
+        let after = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        let emptied = SyncEngine(
+            source: after, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
+        )
+        try await emptied.resyncEverything()
+        #expect(await emptied.takeGoneFromStrava().count == 5)
+        let engine = SyncEngine(
+            source: FakeSource(pages: [(1...5).map { makeSummary(id: Int64($0), epoch: $0 * 1000) }]),
+            container: container, progress: SyncProgress(), maxEagerCompletions: 0
+        )
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<Activity>()) == 6)
+
+        // Signalées, et retirées seulement sur confirmation.
+        try await engine.resyncEverything()
+        let gone = await engine.takeGoneFromStrava()
+        #expect(gone.map(\.stravaID) == [6])
+        #expect(await engine.takeGoneFromStrava().isEmpty)
+        #expect(try await engine.removeGoneFromStrava(gone.map(\.stravaID)) == 1)
+        let left = try ModelContext(container).fetch(FetchDescriptor<Activity>()).map(\.stravaID).sorted()
+        #expect(left == [1, 2, 3, 4, 5])
+    }
 }
 
 @Suite("SyncEngine — phase B")
@@ -681,6 +714,40 @@ struct SyncStreamsTests {
         }
         // The activity stays queued, so a retry picks it up.
         #expect(try await engine.stateSnapshot().pendingStreamIDs == [1])
+    }
+
+    @Test("une sortie sans série distance est redemandée une fois, et une seule")
+    func refetchesStreamsMissingDistanceOnce() async throws {
+        let source = FakeSource(pages: [[makeSummary(id: 1, epoch: 1000)]])
+        let container = try AppModelContainer.inMemory()
+        let engine = SyncEngine(
+            source: source, container: container, progress: SyncProgress(),
+            maxEagerCompletions: 0
+        )
+        _ = try await engine.syncSummaries()
+
+        // L'historique du 6 août 2026 : des séries, mais pas `distance`.
+        let context = ModelContext(container)
+        let mapper = ImportMapper(context: context)
+        let activity = try #require(try mapper.activity(stravaID: 1))
+        mapper.apply(streams: StreamSetDTO(
+            latlng: StreamDTO(data: [[45.0, 4.0], [45.001, 4.001]]), distance: nil,
+            altitude: nil, time: StreamDTO(data: [0, 10]), heartrate: nil, cadence: nil,
+            watts: nil, velocity_smooth: nil, temp: nil, grade_smooth: nil, moving: nil
+        ), to: activity)
+        try context.save()
+
+        #expect(try await engine.syncStreams() == 1)
+        #expect(await source.streamRequests == [1])
+
+        let reread = ModelContext(container)
+        let refreshed = try #require(try ImportMapper(context: reread).activity(stravaID: 1))
+        #expect(refreshed.streams?.distance != nil)
+
+        // Fait une fois : un nouveau passage ne redemande rien.
+        _ = try await engine.syncStreams()
+        #expect(await source.streamRequests == [1])
+        #expect(try await engine.stateSnapshot().pendingStreamIDs.isEmpty)
     }
 }
 
