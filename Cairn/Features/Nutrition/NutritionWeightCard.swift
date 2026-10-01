@@ -67,6 +67,7 @@ struct NutritionWeightCard: View {
                     .italic()
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .liensDeNote()
                     .dayEntryActions(edit: onEditDay, delete: onDeleteDay)
             }
             if !windowed.isEmpty {

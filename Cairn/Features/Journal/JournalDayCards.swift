@@ -78,6 +78,7 @@ struct JournalDayCards: View {
                         .help("Ouvrir dans Poids")
                     }
                 }
+                .liensDeNote()
             }
         }
     }

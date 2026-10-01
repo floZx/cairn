@@ -268,6 +268,7 @@ struct JournalListView: View {
         return Text("\(lead) \(rest)")
             .lineLimit(3)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .liensDeNote()
     }
 
     /// What the day did and what it is filed under, top right; its pictures

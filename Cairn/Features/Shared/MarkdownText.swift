@@ -349,6 +349,20 @@ struct MarkdownText: View {
 }
 
 
+extension View {
+    /// Rend cliquables les mentions et les tags d'un texte fait par
+    /// `MarkdownText.inline` : une personne ouvre sa fiche en popover, un tag
+    /// filtre le journal — comme dans le volet.
+    ///
+    /// Sans ceci, l'aperçu d'une journée dans la liste portait bien ses
+    /// liens `cairn-personne:`, mais rien ne les interceptait : macOS
+    /// cherchait une application pour les ouvrir, et n'en trouvait pas.
+    /// Signalé, capture à l'appui.
+    func liensDeNote() -> some View {
+        BlocDeNote { self }
+    }
+}
+
 /// Un bloc de note, avec la fiche d'une personne citée ancrée sur lui.
 ///
 /// Le bloc et non la note : une popover posée sur la note entière s'ouvrait
