@@ -223,9 +223,9 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         /// AppKit cessait de remplir la fenêtre, et la droite de l'écran
         /// restait noire. Signalé, capture à l'appui.
         ///
-        /// Le diviseur est en outre rendu inerte (`PoigneeInerte`) : il
-        /// revenait au tiers à chaque glissé, et le curseur de redimension-
-        /// nement promettait un réglage qui n'existait plus.
+        /// Le diviseur est en outre figé (`DiviseurFige`) : il revenait au
+        /// tiers à chaque glissé, et le curseur de redimensionnement
+        /// promettait un réglage qui n'existait plus.
         ///
         /// Volet fermé, rien n'est imposé : la liste prend toute la place.
         fileprivate func capMiddle(of splitView: NSSplitView) {
@@ -234,7 +234,7 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
             let target = detailOpen
                 ? PaneGeometry.listWidth(for: ecran, windowWidth: splitView.bounds.width)
                 : nil
-            defer { placeBlocker(on: splitView, active: target != nil) }
+            defer { DiviseurFige.figer(target != nil, splitView: splitView) }
             guard let target else { return }
             let middle = splitView.arrangedSubviews[1].frame.width
             guard abs(middle - target) > 1 else { return }
@@ -244,35 +244,6 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
                 ofDividerAt: 1
             )
             enPose = false
-        }
-
-        private var blocker: PoigneeInerte?
-
-        /// Couvre le diviseur entre la liste et le volet, pour qu'il ne se
-        /// tire plus ni n'affiche le curseur de redimensionnement.
-        private func placeBlocker(on splitView: NSSplitView, active: Bool) {
-            let view = blocker ?? {
-                let new = PoigneeInerte()
-                splitView.addSubview(new, positioned: .above, relativeTo: nil)
-                blocker = new
-                return new
-            }()
-            if view.superview !== splitView {
-                splitView.addSubview(view, positioned: .above, relativeTo: nil)
-            }
-            view.isHidden = !active
-            guard active else { return }
-            let middle = splitView.arrangedSubviews[1].frame
-            // Quelques points de part et d'autre : AppKit accepte de saisir
-            // un diviseur fin un peu à côté de sa ligne.
-            let frame = NSRect(
-                x: middle.maxX - 4, y: 0,
-                width: splitView.dividerThickness + 8, height: splitView.bounds.height
-            )
-            if view.frame != frame {
-                view.frame = frame
-                splitView.window?.invalidateCursorRects(for: view)
-            }
         }
 
         /// Called at startup, once the split view has been found.
@@ -548,15 +519,6 @@ struct SplitViewHoldingPriorities: NSViewRepresentable {
         guard item.holdingPriority != priority else { return }
         item.holdingPriority = priority
     }
-}
-
-/// Une bande transparente posée sur le diviseur : elle prend les clics et
-/// garde la flèche, si bien que le diviseur ne se tire plus.
-private final class PoigneeInerte: NSView {
-    override func mouseDown(with event: NSEvent) {}
-    override func mouseDragged(with event: NSEvent) {}
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override func resetCursorRects() { addCursorRect(bounds, cursor: .arrow) }
 }
 
 /// A zero-size, non-drawing view that reports when it joins a window.
