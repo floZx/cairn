@@ -57,22 +57,34 @@ struct MapStyleApplyTests {
         }
     }
 
-    @Test("les fonds topo forcent l'apparence claire, les fonds Apple héritent")
+    @Test("les fonds topo suivent le mode, les fonds Apple héritent")
     func pinsAppearanceForRasterStyles() {
         let mapView = MKMapView()
         var state = MapStyleState()
 
         // Paper-toned tiles with no dark variant: a dark basemap under them
         // shows as a dark hole while a zoom settles.
-        mapView.apply(.ignTopo, state: &state)
+        mapView.apply(.ignTopo, state: &state, dark: false, darkLevel: 0.6)
         #expect(mapView.appearance?.name == .aqua)
+        #expect((state.topoOverlay as? RasterTileOverlay)?.darkLevel == 0)
 
         // Apple's own styles have a real dark map, so they follow the system.
-        mapView.apply(.satellite, state: &state)
+        mapView.apply(.satellite, state: &state, dark: false)
         #expect(mapView.appearance == nil)
 
-        mapView.apply(.openTopo, state: &state)
+        mapView.apply(.openTopo, state: &state, dark: false)
         #expect(mapView.appearance?.name == .aqua)
+
+        // De nuit, les tuiles passent en négatif et la carte d'Apple dessous
+        // suit — un simple changement de mode suffit à tout refaire.
+        mapView.apply(.openTopo, state: &state, dark: true, darkLevel: 0.6)
+        #expect(mapView.appearance?.name == .darkAqua)
+        #expect((state.topoOverlay as? RasterTileOverlay)?.darkLevel == 0.6)
+
+        // « Aucun » dans les préférences : les tuiles restent claires.
+        mapView.apply(.openTopo, state: &state, dark: true, darkLevel: 0)
+        #expect(mapView.appearance?.name == .aqua)
+        #expect((state.topoOverlay as? RasterTileOverlay)?.darkLevel == 0)
     }
 
     @Test("le calque laisse le fond d'Apple dessous, sinon les zooms flashent")

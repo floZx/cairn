@@ -7,6 +7,11 @@ import MapKit
 /// MKMapView anyway, and sharing the renderer keeps the two maps looking
 /// identical.
 struct ActivityMapView: NSViewRepresentable {
+    /// Lu pour que le passage en mode sombre redessine les tuiles
+    /// topographiques — voir `RasterTileOverlay.darkened`.
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(MapStyle.darkLevelKey) private var darkLevel = MapStyle.defaultDarkLevel
+    @AppStorage(MapNightTint.storageKey) private var nightTint: MapNightTint = .green
     let coordinates: [Coordinate]
     /// Follows the cursor over the charts. Updating it must not disturb the
     /// map's framing, which is why the track is only rebuilt when it changes.
@@ -26,7 +31,12 @@ struct ActivityMapView: NSViewRepresentable {
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
         let coordinator = context.coordinator
-        mapView.apply(style, state: &coordinator.mapStyleState)
+        // Fond topo de nuit effacé comme sur la carte globale : la trace passe
+        // devant — demandé après l'avoir vu là-bas.
+        mapView.apply(
+            style, state: &coordinator.mapStyleState, mutesTiles: true,
+            dark: colorScheme == .dark, darkLevel: darkLevel, tint: nightTint
+        )
 
         var hasher = Hasher()
         hasher.combine(coordinates.count)
@@ -35,6 +45,10 @@ struct ActivityMapView: NSViewRepresentable {
         // In the signature so changing the colour redraws: MapKit keeps its
         // renderers, and a new stroke colour alone would not reach the screen.
         hasher.combine(trackColor)
+        // Le fond topo appelle une trace plus épaisse et soulignée : la
+        // changer de fond doit la redessiner.
+        let onRaster = style.tileSource != nil
+        hasher.combine(onRaster)
         let signature = hasher.finalize()
 
         // Rebuilding and re-framing on every update would fight the user's own
@@ -43,6 +57,7 @@ struct ActivityMapView: NSViewRepresentable {
         if coordinator.renderedSignature != signature {
             coordinator.renderedSignature = signature
             coordinator.trackColor = trackColor
+            coordinator.onRaster = onRaster
             mapView.removeOverlays(
                 mapView.overlays.filter { !($0 is MKTileOverlay) }
             )
@@ -55,6 +70,14 @@ struct ActivityMapView: NSViewRepresentable {
             let polyline = MKPolyline(
                 coordinates: coordinates.map(\.clLocation), count: coordinates.count
             )
+            // Sur un fond topographique, un liseré sombre sous la trace : les
+            // routes, l'eau et les courbes de niveau y sont de la même famille
+            // de couleurs qu'elle, et elle s'y perdait — « la trace ne ressort
+            // pas », signalé, capture du mode sombre à l'appui.
+            if onRaster {
+                let points = coordinates.map(\.clLocation)
+                mapView.addTrackOverlays([TrackCasing(coordinates: points, count: points.count)])
+            }
             mapView.addTrackOverlays([polyline])
             if let first = coordinates.first {
                 let start = StartAnnotation()
@@ -103,6 +126,9 @@ struct ActivityMapView: NSViewRepresentable {
         var marker: HoverAnnotation?
         var mapStyleState = MapStyleState()
         var trackColor: TrackColor = .accent
+        /// Vrai sur un fond IGN ou OpenTopoMap : trace plus épaisse, liseré
+        /// dessous.
+        var onRaster = false
         /// A tilt still owed, because the view had no geometry when it was framed.
         var wantsTilt = false
 
@@ -164,6 +190,14 @@ struct ActivityMapView: NSViewRepresentable {
             if let tiles = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tiles)
             }
+            if overlay is TrackCasing {
+                let renderer = MKPolylineRenderer(overlay: overlay)
+                renderer.strokeColor = NSColor.black.withAlphaComponent(0.6)
+                renderer.lineWidth = 6
+                renderer.lineCap = .round
+                renderer.lineJoin = .round
+                return renderer
+            }
             if overlay is SelectionHalo {
                 let renderer = MKPolylineRenderer(overlay: overlay)
                 renderer.strokeColor = .white
@@ -184,7 +218,7 @@ struct ActivityMapView: NSViewRepresentable {
             // Thin enough that the route's own shape stays readable, and that the
             // direction arrowheads stand out as barbs rather than bulges: at 4 the
             // stroke swallowed the switchbacks it was meant to show.
-            renderer.lineWidth = 2
+            renderer.lineWidth = onRaster ? 3.5 : 2
             return renderer
         }
 
@@ -230,4 +264,6 @@ struct ActivityMapView: NSViewRepresentable {
 /// Les deux traits de la portion sélectionnée, reconnus par leur classe dans
 /// `rendererFor` : le liseré dessous, la ligne dessus.
 final class SelectionHalo: MKPolyline {}
+/// Le liseré sombre sous la trace, sur un fond topographique.
+final class TrackCasing: MKPolyline {}
 final class SelectionLine: MKPolyline {}

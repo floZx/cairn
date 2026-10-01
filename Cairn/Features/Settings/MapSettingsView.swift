@@ -3,6 +3,12 @@ import SwiftUI
 /// Everything about how the maps look and what they store locally.
 struct MapSettingsView: View {
     @AppStorage(TrackColor.storageKey) private var trackColor: TrackColor = .accent
+    @AppStorage(MapStyle.darkLevelKey) private var darkLevel = MapStyle.defaultDarkLevel
+    @AppStorage(MapNightTint.storageKey) private var nightTint: MapNightTint = .green
+    /// Ce que le curseur montre pendant qu'on le tire. Le réglage n'est écrit
+    /// qu'au lâcher : chaque valeur refait toutes les tuiles des cartes
+    /// ouvertes, et les refaire à chaque pixel de glissé les faisait clignoter.
+    @State private var darkDraft: Double?
     /// Read when the pane appears rather than on every redraw: walking the
     /// cache directory is cheap but not free.
     @State private var cacheSize = MapSettingsView.formattedCacheSize()
@@ -32,6 +38,53 @@ struct MapSettingsView: View {
                         + "superposent, et la carte de comparaison en attribue une "
                         + "par activité sélectionnée."
                 )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Section {
+                LabeledContent("Assombrissement") {
+                    HStack {
+                        Slider(
+                            value: Binding(
+                                get: { darkDraft ?? darkLevel },
+                                set: { darkDraft = $0 }
+                            ),
+                            in: 0...1, step: 0.05
+                        ) {
+                            Text("Assombrissement")
+                        } minimumValueLabel: {
+                            Text("Aucun")
+                        } maximumValueLabel: {
+                            Text("Fort")
+                        } onEditingChanged: { editing in
+                            guard !editing, let draft = darkDraft else { return }
+                            darkLevel = draft
+                            darkDraft = nil
+                        }
+                        .labelsHidden()
+                        let shown = darkDraft ?? darkLevel
+                        Text(shown == 0 ? "—" : "\(Int((shown * 100).rounded())) %")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                }
+                Picker("Teinte", selection: $nightTint) {
+                    ForEach(MapNightTint.allCases) { tint in
+                        Text(tint.displayName).tag(tint)
+                    }
+                }
+                .disabled(darkLevel == 0)
+            } header: {
+                Text("Cartes topographiques en mode sombre")
+            } footer: {
+                Text("""
+                    L'IGN et OpenTopoMap n'ont pas de carte de nuit : en mode \
+                    sombre, Cairn passe leurs tuiles en négatif en gardant leurs \
+                    couleurs, puis les assombrit d'autant et les teinte. « Aucun » \
+                    les laisse claires.
+                    """)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }

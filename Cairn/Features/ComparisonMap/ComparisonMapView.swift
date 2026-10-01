@@ -113,6 +113,11 @@ final class ColoredPolyline: MKPolyline {
 
 /// Draws each track in its own colour and frames them all together.
 struct MultiTrackMapRepresentable: NSViewRepresentable {
+    /// Lu pour que le passage en mode sombre redessine les tuiles
+    /// topographiques — voir `RasterTileOverlay.darkened`.
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(MapStyle.darkLevelKey) private var darkLevel = MapStyle.defaultDarkLevel
+    @AppStorage(MapNightTint.storageKey) private var nightTint: MapNightTint = .green
     let tracks: [ComparedTrack]
     let style: MapStyle
 
@@ -126,7 +131,7 @@ struct MultiTrackMapRepresentable: NSViewRepresentable {
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
         let coordinator = context.coordinator
-        mapView.apply(style, state: &coordinator.mapStyleState)
+        mapView.apply(style, state: &coordinator.mapStyleState, dark: colorScheme == .dark, darkLevel: darkLevel, tint: nightTint)
 
         let signature = Self.signature(of: tracks)
         // Rebuilding on every update would fight the user's own zoom, and

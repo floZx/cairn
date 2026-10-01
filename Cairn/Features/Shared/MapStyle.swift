@@ -15,6 +15,14 @@ struct TileSource: Sendable {
 /// instead. Those are the only styles that talk to a server other than
 /// Apple's.
 enum MapStyle: String, CaseIterable, Identifiable, Sendable {
+    /// Les préférences : à quel point les fonds topographiques s'assombrissent
+    /// en mode sombre, de 0 (tuiles laissées claires) à 1.
+    static let darkLevelKey = "mapDarkLevel"
+    static let defaultDarkLevel = 0.5
+    static var storedDarkLevel: Double {
+        UserDefaults.standard.object(forKey: darkLevelKey) as? Double ?? defaultDarkLevel
+    }
+
     case standard
     case satellite
     case hybrid

@@ -106,6 +106,11 @@ struct GlobalTrack {
 /// it draws. The thin translucent stroke still gives repeated routes a heatmap
 /// look for free.
 struct TrackMapRepresentable: NSViewRepresentable {
+    /// Lu pour que le passage en mode sombre redessine les tuiles
+    /// topographiques — voir `RasterTileOverlay.darkened`.
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(MapStyle.darkLevelKey) private var darkLevel = MapStyle.defaultDarkLevel
+    @AppStorage(MapNightTint.storageKey) private var nightTint: MapNightTint = .green
     let tracks: [GlobalTrack]
     let isSelectingRegion: Bool
     let style: MapStyle
@@ -149,7 +154,10 @@ struct TrackMapRepresentable: NSViewRepresentable {
     }
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
-        mapView.apply(style, state: &context.coordinator.mapStyleState, muted: true)
+        mapView.apply(
+            style, state: &context.coordinator.mapStyleState, muted: true,
+            dark: colorScheme == .dark, darkLevel: darkLevel, tint: nightTint
+        )
 
         // Assigned only on a real change. Writing MapKit properties on every
         // SwiftUI update — and this view is rebuilt whenever the filtered

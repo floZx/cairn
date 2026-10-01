@@ -1,4 +1,6 @@
 import MapKit
+import CoreImage
+import CoreImage.CIFilterBuiltins
 
 /// A raster basemap drawn instead of Apple's.
 ///
@@ -20,7 +22,23 @@ import MapKit
 /// land; the cost is only that MapKit keeps rendering a layer that is then
 /// covered.
 final class RasterTileOverlay: MKTileOverlay {
-    init(source: TileSource) {
+    /// De 0 à 1 : à quel point chaque tuile est assombrie, 0 la laissant
+    /// telle quelle. Voir `darkened(_:level:)`.
+    let darkLevel: Double
+    /// La teinte de la carte de nuit — voir `MapNightTint`.
+    let tint: MapNightTint
+    var darkened: Bool { darkLevel > 0 }
+
+    /// La carte globale : sept cents traces par-dessus, le fond doit se taire.
+    let muted: Bool
+
+    init(
+        source: TileSource, darkLevel: Double = 0, tint: MapNightTint = .green,
+        muted: Bool = false
+    ) {
+        self.darkLevel = darkLevel
+        self.tint = tint
+        self.muted = muted
         super.init(urlTemplate: source.urlTemplate)
         canReplaceMapContent = false
         minimumZ = 2
@@ -48,7 +66,71 @@ final class RasterTileOverlay: MKTileOverlay {
                 .removeCachedResponse(for: request)
             throw TileLoadError.notAnImage(status: status, bytes: data.count)
         }
-        return data
+        guard darkened else { return data }
+        return Self.darkened(data, level: darkLevel, tint: tint, muted: muted) ?? data
+    }
+
+    private static let context = CIContext(options: [.cacheIntermediates: false])
+
+    /// Une carte de nuit fabriquée à partir de celle de jour.
+    ///
+    /// Ni l'IGN ni OpenTopoMap ne servent de tuiles sombres — les capacités de
+    /// la Géoplateforme n'en listent aucune —, et une carte papier en plein
+    /// mode sombre éblouissait au milieu du volet. Le négatif fait le fond
+    /// noir et le texte blanc ; une rotation de teinte d'un demi-tour rend
+    /// ensuite aux couleurs leur sens — l'eau bleue, les forêts vertes, les
+    /// routes jaunes — que le négatif seul avait inversées. Contraste et
+    /// luminosité baissent ensuite avec `level`, réglé dans les préférences :
+    /// à 0,5, le fond du papier tombe vers un gris presque noir, et les
+    /// blancs du texte ne crient plus.
+    ///
+    /// Fait à la volée, sur la tuile déjà en cache : le disque garde l'image
+    /// d'origine, et repasser au mode clair ne télécharge rien.
+    static func darkened(
+        _ data: Data, level: Double, tint: MapNightTint = .neutral, muted: Bool = false
+    ) -> Data? {
+        guard let input = CIImage(data: data) else { return nil }
+        let invert = CIFilter.colorInvert()
+        invert.inputImage = input
+        let hue = CIFilter.hueAdjust()
+        hue.inputImage = invert.outputImage
+        hue.angle = .pi
+        let controls = CIFilter.colorControls()
+        controls.inputImage = hue.outputImage
+        let level = Float(min(max(level, 0), 1))
+        controls.contrast = 0.9 - 0.3 * level
+        controls.brightness = -0.02 - 0.2 * level
+        // Moins de couleur que de jour : le fond sert la trace, et ses bleus
+        // et ses jaunes vifs lui disputaient le regard.
+        controls.saturation = 0.7 - 0.2 * level
+        // Sur la carte globale, beaucoup plus effacé encore, comme Plans y est
+        // mis en sourdine : le relief inversé y faisait des taches claires,
+        // routes et rivières des traits vifs, et sept cents traces fines s'y
+        // perdaient — « avec Plan les traces sont bien visibles, pas avec
+        // notre version », captures côte à côte.
+        if muted {
+            // Le contraste rabattu seul éclaircissait le tout — il pivote
+            // autour du gris moyen — : la luminosité descend d'autant.
+            controls.contrast *= 0.7
+            controls.brightness -= 0.22
+            controls.saturation *= 0.5
+        }
+        var tinted = controls.outputImage
+        if let (scale, bias) = tint.matrix {
+            let matrix = CIFilter.colorMatrix()
+            matrix.inputImage = tinted
+            matrix.rVector = CIVector(x: scale.r, y: 0, z: 0, w: 0)
+            matrix.gVector = CIVector(x: 0, y: scale.g, z: 0, w: 0)
+            matrix.bVector = CIVector(x: 0, y: 0, z: scale.b, w: 0)
+            matrix.biasVector = CIVector(x: bias.r, y: bias.g, z: bias.b, w: 0)
+            tinted = matrix.outputImage
+        }
+        guard let output = tinted,
+              let space = CGColorSpace(name: CGColorSpace.sRGB)
+        else { return nil }
+        return context.pngRepresentation(
+            of: output.cropped(to: input.extent), format: .RGBA8, colorSpace: space
+        )
     }
 
     /// Whether a payload starts like an image both providers actually serve.
@@ -70,6 +152,10 @@ enum TileLoadError: Error {
 /// What a map view has already been told, so it is not told again.
 struct MapStyleState {
     var applied: MapStyle?
+    /// L'assombrissement des tuiles à la dernière pose — 0 en mode clair —
+    /// et leur teinte : les tuiles topographiques se refont quand l'un change.
+    var darkLevel: Double?
+    var tint: MapNightTint?
     var topoOverlay: MKTileOverlay?
 }
 
@@ -103,12 +189,26 @@ extension MKMapView {
     /// under the raster layers, on the mistaken theory that MapKit would not
     /// draw a tile overlay in a pitched view; pitch and rotation work fine.
     ///
+    /// `mutesTiles` fait de même pour les fonds topographiques de nuit seulement
+    /// — la carte d'une fiche le demande sans vouloir pour autant d'un Plan
+    /// éteint. Par défaut, il suit `muted`.
+    ///
     /// `muted` greys Apple's plan down, for a map whose point is what is drawn
     /// on it — the global map, where the saturated green relief fought seven
     /// hundred coloured tracks.
-    func apply(_ style: MapStyle, state: inout MapStyleState, muted: Bool = false) {
-        guard state.applied != style else { return }
+    func apply(
+        _ style: MapStyle, state: inout MapStyleState, muted: Bool = false,
+        mutesTiles: Bool? = nil,
+        dark: Bool = NSApp.effectiveAppearance.isDark,
+        darkLevel: Double = MapStyle.storedDarkLevel,
+        tint: MapNightTint = MapNightTint.stored
+    ) {
+        let level = dark ? darkLevel : 0
+        guard state.applied != style || state.darkLevel != level || state.tint != tint
+        else { return }
         state.applied = style
+        state.darkLevel = level
+        state.tint = tint
 
         if muted, style == .standard {
             preferredConfiguration = MKStandardMapConfiguration(
@@ -124,7 +224,11 @@ extension MKMapView {
         // through as a dark hole during a zoom. Pinning this map view to a light
         // appearance makes that moment match the tiles. Back to inheriting for
         // Apple's own styles, which do have a proper dark map.
-        appearance = style.tileSource == nil ? nil : NSAppearance(named: .aqua)
+        //
+        // Depuis que les tuiles passent en négatif la nuit, la carte d'Apple
+        // dessous suit : sombre sous des tuiles sombres.
+        appearance = style.tileSource == nil
+            ? nil : NSAppearance(named: level > 0 ? .darkAqua : .aqua)
 
         // The old layer goes first even when the new style is also tiled: IGN
         // and OpenTopoMap are different sources, and keeping whichever was
@@ -134,7 +238,9 @@ extension MKMapView {
             state.topoOverlay = nil
         }
         if let source = style.tileSource {
-            let tiles = RasterTileOverlay(source: source)
+            let tiles = RasterTileOverlay(
+                source: source, darkLevel: level, tint: tint, muted: mutesTiles ?? muted
+            )
             // At index 0 of the level, so the tracks added after it stay on top.
             insertOverlay(tiles, at: 0, level: Self.rasterLevel)
             state.topoOverlay = tiles
@@ -142,6 +248,46 @@ extension MKMapView {
             // tilt set by hand: see `flattenCamera` for why the two cannot share
             // a view.
             flattenCamera()
+        }
+    }
+}
+
+extension NSAppearance {
+    var isDark: Bool { bestMatch(from: [.darkAqua, .aqua]) == .darkAqua }
+}
+
+/// La teinte des cartes topographiques de nuit.
+///
+/// Neutre, le négatif donne un fond gris presque noir. Vert, il rejoint le
+/// mode sombre de Plans, où un fond vert-de-gris laisse mieux ressortir une
+/// trace de couleur — préféré le 1er octobre 2026, capture de Plans à
+/// l'appui.
+enum MapNightTint: String, CaseIterable, Identifiable, Sendable {
+    case green
+    case neutral
+
+    var id: String { rawValue }
+    static let storageKey = "mapNightTint"
+    static var stored: MapNightTint {
+        UserDefaults.standard.string(forKey: storageKey).flatMap(MapNightTint.init) ?? .green
+    }
+
+    var displayName: String {
+        switch self {
+        case .green: "Vert, comme Plans"
+        case .neutral: "Gris neutre"
+        }
+    }
+
+    /// Le gain et le décalage de chaque canal : le rouge baisse, le vert et
+    /// un peu le bleu montent dans les sombres. Réglé sur une tuile IGN de
+    /// Sury-le-Comtal, à côté du mode sombre de Plans.
+    fileprivate var matrix: (
+        scale: (r: CGFloat, g: CGFloat, b: CGFloat), bias: (r: CGFloat, g: CGFloat, b: CGFloat)
+    )? {
+        switch self {
+        case .neutral: nil
+        case .green: ((0.72, 0.92, 0.80), (0.03, 0.10, 0.07))
         }
     }
 }
