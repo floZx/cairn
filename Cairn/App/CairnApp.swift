@@ -115,6 +115,19 @@ struct CairnApp: App {
                 .keyboardShortcut("d")
                 .disabled(unavailable(app.requestToggleFavorite))
             }
+            // À la place de l'élément que SwiftUI met d'office (⌃⌘S) : la
+            // même commande, sur le ⌘B des éditeurs et des navigateurs, et pas
+            // deux fois dans le menu. `toggleSidebar(_:)` remonte la chaîne
+            // jusqu'au contrôleur du `NavigationSplitView`.
+            CommandGroup(replacing: .sidebar) {
+                Button("Afficher ou masquer la barre latérale") {
+                    NSApp.sendAction(
+                        #selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil
+                    )
+                }
+                .keyboardShortcut("b")
+                .disabled(isMainWindow != true)
+            }
             // Le menu Présentation, où macOS range ce qui change la façon de
             // voir sans rien changer à ce qu'on voit.
             CommandGroup(after: .toolbar) {
