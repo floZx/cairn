@@ -4643,3 +4643,88 @@ mark.trouve {
 .compte-resultats {
   margin: 4px 0 8px 16px;
 }
+
+/* ---- Meilleurs efforts --------------------------------------------------- */
+
+/* La médaille d'une ligne, au bout du titre : le nom cède la place, jamais
+   elle. */
+.titre-medaille {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.titre-medaille .nom {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medaille-sortie {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: -4px 0;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pastille-record {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  color: var(--texte);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pastille-record strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.podiums section + section {
+  margin-top: 14px;
+}
+
+.podiums h4 {
+  margin: 6px 0 4px;
+}
+
+.place-podium {
+  display: grid;
+  grid-template-columns: 20px 4.2em 4.6em minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.temps-podium {
+  font-variant-numeric: tabular-nums;
+}
+
+.temps-podium.ici {
+  font-weight: 600;
+}
+
+.sortie-podium {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sortie-podium .lien,
+.sortie-podium strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-size: inherit;
+  padding: 0;
+}

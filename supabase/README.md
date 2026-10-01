@@ -25,7 +25,7 @@ réglages.
    rejouer sur un projet déjà provisionné échouera sur les objets déjà créés.
 
    `schema.sql` décrit l'**état final** : un projet neuf n'a besoin de rien
-   d'autre. Les fichiers numérotés (`002-…` à `018-…`) sont les migrations
+   d'autre. Les fichiers numérotés (`002-…` à `019-…`) sont les migrations
    d'un projet créé avant elles, à passer dans l'ordre, chacune une seule
    fois. `004-purge-activites-orphelines.sql` est un nettoyage ponctuel, pas
    un changement de schéma.

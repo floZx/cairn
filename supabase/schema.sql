@@ -68,6 +68,11 @@ create table activity (
   power_zone_floors   double precision[],
   power_zone_seconds  double precision[],
   zones_checked_at    timestamptz,
+  -- Les meilleurs efforts de la sortie, calculés par le Mac depuis ses séries :
+  -- des secondes, dans l'ordre 400 m, 1/2 mile, 1 km, 1 mile, 2 miles, 5 km,
+  -- 10 km, 15 km, 10 miles, 20 km, semi, 30 km, marathon ; 0 pour une
+  -- distance non couverte. Voir 019-meilleurs-efforts.sql.
+  best_efforts        double precision[],
 
   is_favorite     boolean not null default false,
   is_commute      boolean not null default false,

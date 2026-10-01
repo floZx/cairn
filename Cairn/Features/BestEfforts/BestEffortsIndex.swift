@@ -4,10 +4,10 @@ import Observation
 
 /// Les meilleurs efforts de toute la bibliothèque, tenus à jour en fond.
 ///
-/// Un calcul et non une colonne : `Activity` traverse le miroir, et chaque
-/// propriété stockée y est une colonne de Supabase. Ce qui se recalcule depuis
-/// les séries n'a rien à faire là-bas — et le recalcul est bon marché : les
-/// séries distance et temps d'une sortie, une fenêtre glissante par distance.
+/// Recalculés depuis les séries à chaque lancement — c'est bon marché : les
+/// séries distance et temps d'une sortie, une fenêtre glissante par
+/// distance — et recopiés dans `Activity.bestEfforts` quand ils changent,
+/// pour que le web les ait par le miroir sans télécharger les séries.
 ///
 /// Seules les sorties nouvelles ou changées sont relues : chacune garde une
 /// empreinte, et une écriture qui ne la touche pas ne coûte qu'une requête sur
@@ -150,12 +150,30 @@ final class BestEffortsIndex {
                 scan.unchanged[activity.uuid] = activity.startDate
                 continue
             }
+            let times = BestEfforts.compute(streams: streams)
             scan.computed.append(ActivityEfforts(
-                uuid: activity.uuid,
-                date: activity.startDate,
-                times: BestEfforts.compute(streams: streams)
+                uuid: activity.uuid, date: activity.startDate, times: times
             ))
+            // Écrit sur la sortie pour le web, qui n'a pas les séries.
+            // Seulement s'il change : chaque écriture part vers Supabase.
+            let encoded = BestEfforts.encode(times)
+            if activity.bestEfforts != encoded { activity.bestEfforts = encoded }
+        }
+        clearStale(in: context, keeping: Set(scan.fingerprints.keys))
+        if context.hasChanges {
+            Log.maintenance.attempt("meilleurs efforts enregistrés") { try context.save() }
         }
         return scan
+    }
+
+    /// Efface les meilleurs efforts d'une sortie qui n'y a plus droit : passée
+    /// au vélo, marquée sur tapis, séries retirées.
+    nonisolated private static func clearStale(in context: ModelContext, keeping: Set<String>) {
+        guard let all = Log.maintenance.attempt("sorties portant des records", {
+            try context.fetch(FetchDescriptor<Activity>())
+        }) else { return }
+        for activity in all where activity.bestEfforts != nil && !keeping.contains(activity.uuid) {
+            activity.bestEfforts = nil
+        }
     }
 }

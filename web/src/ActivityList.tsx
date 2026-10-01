@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
+import { MedailleSortie } from "./Records"
 import { nomDuSport } from "./sports"
 import { PastilleSport, Symbole } from "./IconeSport"
 import { chiffresDeLaLigne, heure } from "./format"
@@ -337,7 +338,10 @@ export function ActivityList({
                 présentation « Calendrier » du Mac. */}
             <TuileSortie iso={a.start_local_date} />
             <div>
-              <div className="titre">{a.name}</div>
+              <div className="titre titre-medaille">
+                <span className="nom">{a.name}</span>
+                <MedailleSortie uuid={a.uuid} onOuvrir={onOuvrir} />
+              </div>
               <div className="chiffres-ligne">{chiffresDeLaLigne(a)}</div>
             </div>
             <PastilleSport sport={a.sport_type_raw} taille={24} />

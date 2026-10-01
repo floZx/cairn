@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject, type
 import { Chargement } from "./Chrome"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
+import { CarteMeilleursEfforts } from "./Records"
 import { POIDS_MASQUE } from "./masquees"
 import { nomDuSport } from "./sports"
 import { Symbole, symboleDuSport } from "./IconeSport"
@@ -874,6 +875,8 @@ export function Stats({ onOuvrir }: { onOuvrir: (uuid: string) => void }) {
               ))}
             </ul>
           </Carte>
+
+          <CarteMeilleursEfforts onOuvrir={onOuvrir} />
 
           <Carte titre="Records de la période">
             <ListeRecords records={s.records} onOuvrir={onOuvrir} />

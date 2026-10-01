@@ -1,6 +1,7 @@
 import { Suspense, lazy, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "./supabase"
+import { PastillesRecords } from "./Records"
 import { cadenceDuSport, nomDuSport } from "./sports"
 import { IconeSport, couleurDuSport } from "./IconeSport"
 import { allureOuVitesse, dateEtHeure, denivele, distance, duree } from "./format"
@@ -133,6 +134,7 @@ export function ActivityDetail({
             <span className="etiquette-tag attenue">Manuelle</span>
           )}
         </div>
+        <PastillesRecords uuid={data.uuid} onOuvrir={onOuvrir} />
       </div>
 
       {/* La carte d'abord : c'est ce qui dit la sortie d'un coup d'œil, et

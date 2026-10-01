@@ -87,6 +87,15 @@ struct BestEffortsTests {
         #expect(medals["d"] == nil)
     }
 
+    @Test func encodesInDistanceOrder() {
+        #expect(BestEfforts.encode([:]) == nil)
+        let encoded = try! #require(BestEfforts.encode([.m400: 97, .km10: 2659]))
+        #expect(encoded.count == EffortDistance.allCases.count)
+        #expect(encoded[EffortDistance.m400.rawValue] == 97)
+        #expect(encoded[EffortDistance.km10.rawValue] == 2659)
+        #expect(encoded[EffortDistance.km5.rawValue] == 0)
+    }
+
     @Test func raceTimeFormat() {
         #expect(Format.raceTime(1294) == "21:34")
         #expect(Format.raceTime(6127) == "1:42:07")

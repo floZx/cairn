@@ -53,6 +53,16 @@ final class Activity {
     /// `GarminZonesFetcher`.
     var zonesCheckedAt: Date?
 
+    /// Les meilleurs efforts de la sortie, en secondes, rangés dans l'ordre de
+    /// `EffortDistance` (400 m d'abord) ; 0 pour une distance qu'elle ne
+    /// couvre pas. Nil hors course et trail, sur tapis, ou sans séries.
+    ///
+    /// Un calcul et non une mesure : `BestEffortsIndex` le refait depuis les
+    /// séries et l'écrit ici pour une seule raison, que le web l'ait sans
+    /// télécharger les séries de toute la bibliothèque. L'ordre ne fait que
+    /// s'allonger : une distance nouvelle se range à la fin.
+    var bestEfforts: [Double]?
+
     /// Marked by hand in Cairn and nowhere else: Strava has no equivalent, so
     /// there is nothing for a sync to overwrite and nothing to protect.
     var isFavorite: Bool = false

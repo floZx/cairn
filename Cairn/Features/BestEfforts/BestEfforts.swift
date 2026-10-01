@@ -163,6 +163,16 @@ enum BestEfforts {
     }
 }
 
+extension BestEfforts {
+    /// Ce qu'`Activity.bestEfforts` garde : une case par distance, dans
+    /// l'ordre de `EffortDistance`, 0 où la sortie ne va pas. Nil quand elle
+    /// ne couvre même pas 400 m.
+    static func encode(_ times: [EffortDistance: Double]) -> [Double]? {
+        guard !times.isEmpty else { return nil }
+        return EffortDistance.allCases.map { times[$0] ?? 0 }
+    }
+}
+
 /// Une sortie et ses meilleurs efforts, tels qu'un classement les lit.
 struct ActivityEfforts: Sendable, Equatable {
     let uuid: String
