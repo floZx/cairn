@@ -96,6 +96,9 @@ struct StreamChartsView: View {
     /// Where the pointer was last seen, in a box: remembering it must not
     /// rebuild the charts.
     @State private var pointer = PointerMemory()
+    /// La plage tirée à la souris sur le profil d'altitude, en km — tenue par
+    /// la fiche, qui la montre aussi sur la carte. Voir `ProfileSelection`.
+    @Binding var selection: ClosedRange<Double>?
 
     private var maxDistanceKm: Double {
         series.compactMap { $0.points.last?.distanceKm }.max() ?? 0
@@ -143,6 +146,8 @@ struct StreamChartsView: View {
                 }
             }
         }
+        // Une autre sortie, un autre tracé : la plage d'avant n'y veut rien dire.
+        .onChange(of: maxDistanceKm) { _, _ in selection = nil }
     }
 
     /// « FC », « Puissance », « Cadence » : le nom court, pour le sélecteur.
@@ -166,6 +171,43 @@ struct StreamChartsView: View {
 
     private func header(for serie: StreamSeries) -> some View {
         HStack {
+            if serie.isFilled, let range = selection,
+               let stats = ProfileSelection.compute(
+                   points: serie.points, from: range.lowerBound, to: range.upperBound
+               ) {
+                selectionSummary(stats)
+            } else {
+                plainHeader(for: serie)
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    /// « 2,4 km · +124 m −8 m · pente 4,9 % », et de quoi l'effacer.
+    private func selectionSummary(_ stats: ProfileSelection) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(Color.accentColor).frame(width: 7, height: 7)
+            Text("Sélection")
+            Text(Format.distance(stats.distanceKm * 1000))
+                .foregroundStyle(.primary)
+            Text("+\(Int(stats.gain.rounded())) m  −\(Int(stats.loss.rounded())) m")
+            Text("pente \(Format.typedNumber((stats.grade * 10).rounded() / 10)) %")
+                .foregroundStyle(.primary)
+            Spacer()
+            Button {
+                selection = nil
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+            }
+            .buttonStyle(.plain)
+            .help("Effacer la sélection")
+        }
+        .monospacedDigit()
+    }
+
+    private func plainHeader(for serie: StreamSeries) -> some View {
+        HStack {
             // The same colour as its plot, so the reading below and the trace
             // above are read as one thing.
             Circle()
@@ -179,8 +221,6 @@ struct StreamChartsView: View {
                     .monospacedDigit()
             }
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
     }
 
     private func chart(for serie: StreamSeries) -> some View {
@@ -211,6 +251,13 @@ struct StreamChartsView: View {
             // reprend le dernier point du précédent : la ligne ne se casse pas.
             if let floors = zoneFloors[serie.id] {
                 zoneLine(for: serie, floors: floors)
+            }
+            if serie.isFilled, let selection {
+                RectangleMark(
+                    xStart: .value("km", selection.lowerBound),
+                    xEnd: .value("km", selection.upperBound)
+                )
+                .foregroundStyle(Color.accentColor.opacity(0.18))
             }
             if let hoverDistanceKm {
                 RuleMark(x: .value("km", hoverDistanceKm))
@@ -253,6 +300,27 @@ struct StreamChartsView: View {
                         case .ended:
                             hoverDistanceKm = nil
                         }
+                    }
+                    // Sur le profil seulement : tirer à la souris choisit un
+                    // tronçon, dont l'en-tête donne longueur, D+ et pente. Un
+                    // clic simple l'efface.
+                    .gesture(
+                        DragGesture(minimumDistance: 4)
+                            .onChanged { drag in
+                                guard serie.isFilled, let plotFrame = proxy.plotFrame else { return }
+                                let origin = geometry[plotFrame].origin.x
+                                guard let a = proxy.value(atX: drag.startLocation.x - origin, as: Double.self),
+                                      let b = proxy.value(atX: drag.location.x - origin, as: Double.self)
+                                else { return }
+                                let limit = max(maxDistanceKm, 0.1)
+                                let lo = min(max(min(a, b), 0), limit)
+                                let hi = min(max(max(a, b), 0), limit)
+                                selection = lo...hi
+                                hoverDistanceKm = min(max(b, 0), limit)
+                            }
+                    )
+                    .onTapGesture {
+                        if serie.isFilled { selection = nil }
                     }
             }
         }

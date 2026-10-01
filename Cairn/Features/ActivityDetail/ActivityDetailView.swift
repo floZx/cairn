@@ -76,6 +76,9 @@ struct ActivityDetailView: View {
 
     /// Distance under the cursor in a chart, mirrored on the map as a marker.
     @State private var hoverDistanceKm: Double?
+    /// La plage choisie à la souris sur le profil d'altitude, en km, montrée
+    /// aussi sur la carte.
+    @State private var profileSelection: ClosedRange<Double>?
     @State private var showsGarminSync = false
     @State private var showsAllLaps = false
     @AppStorage(MapStyle.storageKey) private var mapStyle: MapStyle = .standard
@@ -130,6 +133,9 @@ struct ActivityDetailView: View {
                     ActivityMapView(
                         coordinates: trackModel.coordinates,
                         highlight: hoverDistanceKm.flatMap(trackModel.coordinate(atKilometre:)),
+                        segment: profileSelection.map {
+                            trackModel.coordinates(fromKilometre: $0.lowerBound, to: $0.upperBound)
+                        } ?? [],
                         style: mapStyle,
                         trackColor: trackColor
                     )
@@ -149,7 +155,8 @@ struct ActivityDetailView: View {
                 if profileUnderMap {
                     StreamChartsView(
                         series: chartSeries.filter { $0.id == "altitude" },
-                        hoverDistanceKm: $hoverDistanceKm
+                        hoverDistanceKm: $hoverDistanceKm,
+                        selection: $profileSelection
                     )
                 }
 
@@ -186,7 +193,8 @@ struct ActivityDetailView: View {
                         zoneFloors: [
                             "heartrate": activity.hrZoneFloors,
                             "watts": activity.powerZoneFloors,
-                        ].compactMapValues { $0 }
+                        ].compactMapValues { $0 },
+                        selection: .constant(nil)
                     )
                 } else if chartSeries.isEmpty, let message = Self.missingChartsMessage(
                     hasStreams: activity.streams != nil,

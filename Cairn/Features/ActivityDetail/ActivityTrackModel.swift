@@ -23,6 +23,19 @@ struct ActivityTrackModel {
         return coordinates[min(index, coordinates.count - 1)]
     }
 
+    /// Le tronçon de la trace entre deux distances, pour montrer sur la carte
+    /// la plage choisie sur le profil. Vide quand il n'y a rien à tracer.
+    func coordinates(fromKilometre start: Double, to end: Double) -> [Coordinate] {
+        guard coordinates.count > 1,
+              let a = DistanceAxis.nearestIndex(to: min(start, end) * 1000, in: distancesMetres),
+              let b = DistanceAxis.nearestIndex(to: max(start, end) * 1000, in: distancesMetres)
+        else { return [] }
+        let last = coordinates.count - 1
+        let lo = min(a, last), hi = min(b, last)
+        guard hi > lo else { return [] }
+        return Array(coordinates[lo...hi])
+    }
+
     static func build(for activity: Activity) -> ActivityTrackModel {
         let coordinates = activity.displayCoordinates
 

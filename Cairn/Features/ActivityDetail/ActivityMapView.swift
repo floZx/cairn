@@ -11,6 +11,8 @@ struct ActivityMapView: NSViewRepresentable {
     /// Follows the cursor over the charts. Updating it must not disturb the
     /// map's framing, which is why the track is only rebuilt when it changes.
     var highlight: Coordinate?
+    /// La portion choisie sur le profil d'altitude, tracée par-dessus la trace.
+    var segment: [Coordinate] = []
     var style: MapStyle = .standard
     var trackColor: TrackColor = .accent
 
@@ -46,6 +48,8 @@ struct ActivityMapView: NSViewRepresentable {
             )
             mapView.removeAnnotations(mapView.annotations)
             coordinator.marker = nil
+            coordinator.segmentOverlays = []
+            coordinator.segmentSignature = nil
 
             guard coordinates.count > 1 else { return }
             let polyline = MKPolyline(
@@ -68,6 +72,8 @@ struct ActivityMapView: NSViewRepresentable {
             coordinator.wantsTilt = style.rendersInThreeDimensions
                 && !mapView.tiltForTerrain()
         }
+
+        coordinator.showSegment(segment, on: mapView)
 
         // The marker is an annotation whose coordinate is moved in place, not an
         // overlay torn down and rebuilt: removing and re-adding an overlay on
@@ -102,6 +108,43 @@ struct ActivityMapView: NSViewRepresentable {
 
         private static let markerIdentifier = "hover"
 
+        var segmentOverlays: [MKPolyline] = []
+        var segmentSignature: Int?
+
+        /// Redessine la portion sélectionnée quand elle change, et seulement
+        /// alors : la mise à jour tombe à chaque mouvement de souris.
+        ///
+        /// Deux traits l'un sur l'autre — un liseré blanc, puis une couleur qui
+        /// tranche sur la trace, deux fois plus épais qu'elle — : la portion
+        /// ressort sur n'importe quel fond.
+        /// Orange sur une trace bleue, violette ou noire ; bleu sur une trace
+        /// déjà chaude. Dans la couleur de la trace, la portion se perdait :
+        /// « bleu sur bleu », signalé.
+        static func selectionColor(against track: TrackColor) -> NSColor {
+            switch track {
+            case .orange, .red: .systemBlue
+            default: .systemOrange
+            }
+        }
+
+        func showSegment(_ segment: [Coordinate], on mapView: MKMapView) {
+            var hasher = Hasher()
+            hasher.combine(segment.count)
+            hasher.combine(segment.first)
+            hasher.combine(segment.last)
+            let signature = segment.count > 1 ? hasher.finalize() : nil
+            guard signature != segmentSignature else { return }
+            segmentSignature = signature
+            mapView.removeOverlays(segmentOverlays)
+            segmentOverlays = []
+            guard segment.count > 1 else { return }
+            let points = segment.map(\.clLocation)
+            let halo = SelectionHalo(coordinates: points, count: points.count)
+            let line = SelectionLine(coordinates: points, count: points.count)
+            segmentOverlays = [halo, line]
+            mapView.addTrackOverlays(segmentOverlays)
+        }
+
         /// Where a deferred tilt finally lands.
         ///
         /// `updateNSView` runs before SwiftUI has laid the map out, so the camera
@@ -120,6 +163,20 @@ struct ActivityMapView: NSViewRepresentable {
         ) -> MKOverlayRenderer {
             if let tiles = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tiles)
+            }
+            if overlay is SelectionHalo {
+                let renderer = MKPolylineRenderer(overlay: overlay)
+                renderer.strokeColor = .white
+                renderer.lineWidth = 8
+                renderer.lineCap = .round
+                return renderer
+            }
+            if overlay is SelectionLine {
+                let renderer = MKPolylineRenderer(overlay: overlay)
+                renderer.strokeColor = Self.selectionColor(against: trackColor)
+                renderer.lineWidth = 5
+                renderer.lineCap = .round
+                return renderer
             }
             // Directed: chevrons along the line show which way it was run.
             let renderer = DirectedPolylineRenderer(overlay: overlay)
@@ -169,3 +226,8 @@ struct ActivityMapView: NSViewRepresentable {
         }()
     }
 }
+
+/// Les deux traits de la portion sélectionnée, reconnus par leur classe dans
+/// `rendererFor` : le liseré dessous, la ligne dessus.
+final class SelectionHalo: MKPolyline {}
+final class SelectionLine: MKPolyline {}
