@@ -62,6 +62,25 @@ enum PaneGeometry {
         }
     }
 
+    /// La largeur de la liste — activités ou journal — volet de droite
+    /// ouvert : le tiers de la fenêtre, jamais sous `minimumMiddle`. Nil pour
+    /// les écrans dont le milieu reste libre.
+    ///
+    /// Fixe et non plus réglable : un maximum seul ramenait la liste au tiers
+    /// à chaque glissé du diviseur, et un diviseur qui revient toujours au
+    /// même endroit n'est pas un réglage. Demandé le 1er octobre 2026.
+    ///
+    /// Les listes seulement : la carte et les statistiques occupent le milieu
+    /// pour elles-mêmes, et les rogner au tiers les rendrait illisibles.
+    static func listWidth(for ecran: Ecran, windowWidth: Double) -> Double? {
+        switch ecran {
+        case .activites, .journal:
+            return max(minimumMiddle(for: ecran), (windowWidth / 3).rounded())
+        default:
+            return nil
+        }
+    }
+
     enum Colonne: String, Sendable {
         case laterale
         case detail

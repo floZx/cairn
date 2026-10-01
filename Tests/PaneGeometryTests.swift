@@ -248,4 +248,15 @@ struct PaneGeometryTests {
         #expect(position == 749)
         #expect(1_200 - position - 1 == 450)
     }
+
+    @Test("la liste fait le tiers de la fenêtre, jamais moins que son minimum")
+    func listIsAThirdOfTheWindow() {
+        #expect(PaneGeometry.listWidth(for: .activites, windowWidth: 1_800) == 600)
+        // Un tiers de 1 200 tombe sous les 480 du journal : le minimum l'emporte.
+        #expect(PaneGeometry.listWidth(for: .journal, windowWidth: 1_200) == 480)
+        #expect(PaneGeometry.listWidth(for: .activites, windowWidth: 900) == 320)
+        // La carte et les statistiques gardent le milieu pour elles.
+        #expect(PaneGeometry.listWidth(for: .carte, windowWidth: 1_800) == nil)
+        #expect(PaneGeometry.listWidth(for: .statistiques, windowWidth: 1_800) == nil)
+    }
 }
