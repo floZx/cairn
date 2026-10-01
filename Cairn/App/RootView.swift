@@ -842,6 +842,7 @@ struct RootView: View {
         // stood in for it — clipping each divider to stop at the bottom of the
         // bar — went with it.
         .background(SplitViewHoldingPriorities(ecran: ecranDesVolets))
+        .background(WindowFrameMemory())
         // Sur les deux colonnes et non sur celle du milieu : une note du
         // journal se lit dans le volet de droite, et l'action y arrivait vide —
         // « Voir sa fiche » ne faisait rien. Signalé.
