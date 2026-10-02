@@ -408,12 +408,11 @@ struct RootView: View {
                 }
             case let .activity(id):
                 if let activity = allActivities.first(where: { $0.id == id }) {
-                    ActivityMapView(
-                        coordinates: activity.displayCoordinates,
-                        style: expandedStyle,
+                    ExpandedActivityMap(
+                        activity: activity,
+                        style: $expandedStyle,
                         trackColor: expandedTrackColor
                     )
-                    .mapChrome(style: $expandedStyle)
                 }
             }
         }

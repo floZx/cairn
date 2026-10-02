@@ -161,8 +161,8 @@ struct StreamChartsView: View {
     /// La valeur sous le curseur, avec son unité.
     @ViewBuilder
     private func reading(for serie: StreamSeries) -> some View {
-        if let value = value(of: serie, at: hoverDistanceKm) {
-            Text("\(Int(value.rounded())) \(serie.unit)")
+        if let km = hoverDistanceKm, let value = value(of: serie, at: km) {
+            Text("\(Self.kilometre(km)) · \(Int(value.rounded())) \(serie.unit)")
                 .monospacedDigit()
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -175,7 +175,7 @@ struct StreamChartsView: View {
                let stats = ProfileSelection.compute(
                    points: serie.points, from: range.lowerBound, to: range.upperBound
                ) {
-                selectionSummary(stats)
+                selectionSummary(stats, serie: serie)
             } else {
                 plainHeader(for: serie)
             }
@@ -185,7 +185,7 @@ struct StreamChartsView: View {
     }
 
     /// « 2,4 km · +124 m −8 m · pente 4,9 % », et de quoi l'effacer.
-    private func selectionSummary(_ stats: ProfileSelection) -> some View {
+    private func selectionSummary(_ stats: ProfileSelection, serie: StreamSeries) -> some View {
         HStack(spacing: 6) {
             Circle().fill(Color.accentColor).frame(width: 7, height: 7)
             Text("Sélection")
@@ -195,6 +195,11 @@ struct StreamChartsView: View {
             Text("pente \(Format.typedNumber((stats.grade * 10).rounded() / 10)) %")
                 .foregroundStyle(.primary)
             Spacer()
+            // La lecture sous la souris reste là pendant une sélection : la
+            // remplacer par le résumé la faisait disparaître — signalé.
+            if let km = hoverDistanceKm, let value = value(of: serie, at: km) {
+                Text("\(Self.kilometre(km)) · \(Int(value.rounded())) \(serie.unit)")
+            }
             Button {
                 selection = nil
             } label: {
@@ -216,11 +221,18 @@ struct StreamChartsView: View {
             Text("\(serie.label) (\(serie.unit))")
             Spacer()
             // The hovered reading, so the cursor answers "how high was I here?"
-            if let value = value(of: serie, at: hoverDistanceKm) {
-                Text("\(Int(value.rounded())) \(serie.unit)")
+            if let km = hoverDistanceKm, let value = value(of: serie, at: km) {
+                Text("\(Self.kilometre(km)) · \(Int(value.rounded())) \(serie.unit)")
                     .monospacedDigit()
             }
         }
+    }
+
+    /// « 5,32 km » : la distance sous la souris, au centième — un dixième
+    /// fait cent mètres, trop gros pour dire où commence une côte.
+    static func kilometre(_ km: Double) -> String {
+        let value = km.formatted(.number.precision(.fractionLength(2)).locale(Locale(identifier: "fr_FR")))
+        return "\(value) km"
     }
 
     private func chart(for serie: StreamSeries) -> some View {
@@ -263,6 +275,17 @@ struct StreamChartsView: View {
                 RuleMark(x: .value("km", hoverDistanceKm))
                     .lineStyle(StrokeStyle(lineWidth: 1))
                     .foregroundStyle(.secondary)
+                    // Le kilomètre au pied du trait, là où l'œil est déjà.
+                    .annotation(
+                        position: .overlay, alignment: .bottom,
+                        overflowResolution: .init(x: .fit(to: .plot), y: .disabled)
+                    ) {
+                        Text(Self.kilometre(hoverDistanceKm))
+                            .font(.caption2.monospacedDigit())
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(.regularMaterial, in: .capsule)
+                    }
             }
         }
         // Scaled to the readings rather than to zero: an altitude profile
