@@ -139,7 +139,7 @@ struct MultiTrackMapRepresentable: NSViewRepresentable {
         guard coordinator.renderedSignature != signature else { return }
         coordinator.renderedSignature = signature
 
-        mapView.removeOverlays(mapView.overlays.filter { !($0 is MKTileOverlay) })
+        mapView.removeOverlays(mapView.overlays.filter { !MKMapView.isBasemap($0) })
         mapView.removeAnnotations(mapView.annotations)
 
         let polylines = tracks.filter(\.isDrawable).map { track in
@@ -208,8 +208,8 @@ struct MultiTrackMapRepresentable: NSViewRepresentable {
         func mapView(
             _ mapView: MKMapView, rendererFor overlay: any MKOverlay
         ) -> MKOverlayRenderer {
-            if let tiles = overlay as? MKTileOverlay {
-                return MKTileOverlayRenderer(tileOverlay: tiles)
+            if let basemap = MKMapView.basemapRenderer(for: overlay) {
+                return basemap
             }
             let renderer = DirectedPolylineRenderer(overlay: overlay)
             renderer.strokeColor = (overlay as? ColoredPolyline)?.color

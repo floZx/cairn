@@ -203,7 +203,7 @@ struct TrackMapRepresentable: NSViewRepresentable {
         context.coordinator.renderedSignature = signature
         context.coordinator.highlighted = nil
 
-        mapView.removeOverlays(mapView.overlays.filter { !($0 is MKTileOverlay) })
+        mapView.removeOverlays(mapView.overlays.filter { !MKMapView.isBasemap($0) })
         // Kept for hit testing, which MapKit does not do for overlay renderers.
         context.coordinator.hitIDs = tracks.map(\.id)
         context.coordinator.hitPoints = tracks.map {
@@ -336,8 +336,8 @@ struct TrackMapRepresentable: NSViewRepresentable {
         func mapView(
             _ mapView: MKMapView, rendererFor overlay: any MKOverlay
         ) -> MKOverlayRenderer {
-            if let tiles = overlay as? MKTileOverlay {
-                return MKTileOverlayRenderer(tileOverlay: tiles)
+            if let basemap = MKMapView.basemapRenderer(for: overlay) {
+                return basemap
             }
             if let line = overlay as? HighlightPolyline {
                 let renderer = MKPolylineRenderer(polyline: line)

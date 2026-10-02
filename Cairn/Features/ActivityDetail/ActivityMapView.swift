@@ -59,7 +59,7 @@ struct ActivityMapView: NSViewRepresentable {
             coordinator.trackColor = trackColor
             coordinator.onRaster = onRaster
             mapView.removeOverlays(
-                mapView.overlays.filter { !($0 is MKTileOverlay) }
+                mapView.overlays.filter { !MKMapView.isBasemap($0) }
             )
             mapView.removeAnnotations(mapView.annotations)
             coordinator.marker = nil
@@ -85,15 +85,49 @@ struct ActivityMapView: NSViewRepresentable {
                 start.color = trackColor.nsColor
                 mapView.addAnnotation(start)
             }
-            mapView.setVisibleMapRect(
-                polyline.boundingMapRect,
-                edgePadding: NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24),
-                animated: false
-            )
-            // Apple's backgrounds only. Asked for now and, if the view has no
-            // geometry yet, again from the delegate below.
-            coordinator.wantsTilt = style.rendersInThreeDimensions
-                && !mapView.tiltForTerrain()
+            // D'une sortie à l'autre dans le même coin, la caméra glisse
+            // jusqu'à la nouvelle trace au lieu de sauter : les tuiles du
+            // secteur sont déjà là, et l'œil suit le passage. Un saut net
+            // reste de mise loin d'ici — un vol au-dessus de la France
+            // chargerait tout le trajet — et au premier cadrage.
+            let target = polyline.boundingMapRect
+            let padding = NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
+            let nearby = coordinator.hasFramed
+                && Self.isNearby(target, mapView.visibleMapRect)
+            // Une carte neuve sur un fond topo reste cachée le temps que ses
+            // premières dalles arrivent, puis apparaît en fondu : sans quoi
+            // Plans s'affichait d'abord, puis l'IGN par-dessus, dalle après
+            // dalle — « perturbant ». MapKit dessine son fond avant tout
+            // calque posé dessus, un aplat sous les dalles n'y changeait rien.
+            if !coordinator.hasFramed,
+               let tiles = coordinator.mapStyleState.topoOverlay as? RasterTileOverlay {
+                coordinator.revealWhenLoaded(mapView, tiles: tiles)
+            }
+            coordinator.hasFramed = true
+            // En 3D, le glissé passe par la caméra — inclinaison comprise — :
+            // un cadrage animé sous une caméra penchée perdait parfois la
+            // trace, « en Plan, parfois la trace ne s'affiche pas ».
+            // Les tuiles de l'arrivée sont demandées dès le départ : le temps
+            // du glissé, elles ont le temps d'arriver, et l'IGN se pose sans
+            // que Plan transparaisse d'abord.
+            if let tiles = coordinator.mapStyleState.topoOverlay as? RasterTileOverlay {
+                tiles.prefetch(
+                    mapView.mapRectThatFits(target, edgePadding: padding),
+                    viewWidth: mapView.bounds.width,
+                    scale: mapView.window?.backingScaleFactor ?? 2
+                )
+            }
+            if nearby, let ratio = coordinator.flatRatio,
+               mapView.glide(to: target, edgePadding: padding, flatRatio: ratio) {
+                coordinator.wantsTilt = false
+            } else {
+                mapView.setVisibleMapRect(target, edgePadding: padding, animated: false)
+                if let ratio = mapView.flatDistanceRatio() { coordinator.flatRatio = ratio }
+                // Apple's backgrounds only. Asked for now and, if the view has no
+                // geometry yet, again from the delegate below.
+                coordinator.wantsTilt = style.rendersInThreeDimensions
+                    && !mapView.tiltForTerrain()
+            }
         }
 
         coordinator.showSegment(segment, on: mapView)
@@ -121,8 +155,25 @@ struct ActivityMapView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
+    /// Si deux cadrages sont assez proches pour qu'un glissé de l'un à
+    /// l'autre reste un geste court : centres à moins de trois fois la taille
+    /// de la vue actuelle, et une échelle qui ne change pas de plus d'un
+    /// facteur huit.
+    static func isNearby(_ target: MKMapRect, _ current: MKMapRect) -> Bool {
+        guard !current.isNull, !current.isEmpty, !target.isNull else { return false }
+        let span = max(current.width, current.height)
+        let dx = target.midX - current.midX, dy = target.midY - current.midY
+        let distance = (dx * dx + dy * dy).squareRoot()
+        let scale = max(target.width, target.height) / span
+        return distance < 3 * span && scale > 1 / 8 && scale < 8
+    }
+
     final class Coordinator: NSObject, MKMapViewDelegate {
         var renderedSignature: Int?
+        /// Vrai une fois une trace cadrée : la suivante peut y glisser.
+        var hasFramed = false
+        /// Relevé au dernier cadrage à plat : voir `flatDistanceRatio`.
+        var flatRatio: Double?
         var marker: HoverAnnotation?
         var mapStyleState = MapStyleState()
         var trackColor: TrackColor = .accent
@@ -171,6 +222,35 @@ struct ActivityMapView: NSViewRepresentable {
             mapView.addTrackOverlays(segmentOverlays)
         }
 
+        private var revealPending = false
+
+        /// Masque la carte et la montre en fondu dès que ses dalles se sont
+        /// posées — ou au bout d'une seconde et demie, quoi qu'il arrive.
+        func revealWhenLoaded(_ mapView: MKMapView, tiles: RasterTileOverlay) {
+            revealPending = true
+            mapView.alphaValue = 0
+            tiles.onIdle = { [weak self, weak mapView] in
+                guard let mapView else { return }
+                self?.reveal(mapView)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self, weak mapView] in
+                guard let mapView else { return }
+                self?.reveal(mapView)
+            }
+        }
+
+        private func reveal(_ mapView: MKMapView) {
+            guard revealPending else { return }
+            revealPending = false
+            // Le temps pour MapKit de peindre les dernières dalles reçues.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.25
+                    mapView.animator().alphaValue = 1
+                }
+            }
+        }
+
         /// Where a deferred tilt finally lands.
         ///
         /// `updateNSView` runs before SwiftUI has laid the map out, so the camera
@@ -179,6 +259,10 @@ struct ActivityMapView: NSViewRepresentable {
         /// tilting, so the region change tilting itself causes is a no-op rather
         /// than a loop.
         func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+            // Relevé à chaque mouvement à plat : sur un fond IGN, aucune
+            // inclinaison n'est attendue, et le premier cadrage tombe avant que
+            // la vue ait une taille — le glissé n'avait jamais de quoi viser.
+            if let ratio = mapView.flatDistanceRatio() { flatRatio = ratio }
             guard wantsTilt, mapView.frame.width > 0 else { return }
             wantsTilt = false
             if !mapView.tiltForTerrain() { wantsTilt = true }
@@ -187,8 +271,8 @@ struct ActivityMapView: NSViewRepresentable {
         func mapView(
             _ mapView: MKMapView, rendererFor overlay: any MKOverlay
         ) -> MKOverlayRenderer {
-            if let tiles = overlay as? MKTileOverlay {
-                return MKTileOverlayRenderer(tileOverlay: tiles)
+            if let basemap = MKMapView.basemapRenderer(for: overlay) {
+                return basemap
             }
             if overlay is TrackCasing {
                 let renderer = MKPolylineRenderer(overlay: overlay)

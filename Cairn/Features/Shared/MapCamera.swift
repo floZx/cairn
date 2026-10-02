@@ -18,7 +18,7 @@ extension MKMapView {
     /// route so far off it had to be zoomed back in by hand. That derivation had
     /// the effect backwards: a tilted camera sees *more* ground, not less,
     /// because everything beyond the centre compresses towards the horizon.
-    private static let pitchedDistanceFactor = 1.15
+    static let pitchedDistanceFactor = 1.15
 
     /// Leans the camera over the terrain, keeping what is already framed.
     ///
@@ -66,6 +66,47 @@ extension MKMapView {
     /// levels in one image, with place names outsized in the distance. That
     /// includes a tilt the user set by hand before switching background, which is
     /// why this overrules it here and nowhere else.
+    /// Le rapport, caméra à plat, entre sa distance et la hauteur au sol de
+    /// ce qu'elle cadre — nil si la caméra penche ou si la vue n'a pas de
+    /// taille. Relevé au cadrage à plat, il permet ensuite de viser un cadrage
+    /// en 3D par la caméra seule.
+    func flatDistanceRatio() -> Double? {
+        let current = camera
+        let rect = visibleMapRect
+        guard current.pitch < 1, current.centerCoordinateDistance > 0,
+              frame.height > 0, !rect.isNull, rect.height > 0
+        else { return nil }
+        let meters = rect.height * MKMetersPerMapPointAtLatitude(current.centerCoordinate.latitude)
+        return current.centerCoordinateDistance / meters
+    }
+
+    /// Glisse vers un cadrage en gardant l'inclinaison et le cap actuels.
+    ///
+    /// Pas `setVisibleMapRect(animated:)` : sous une caméra penchée,
+    /// l'animation se mêlait à l'inclinaison reposée juste après, et la trace
+    /// finissait parfois hors champ. Ici, une seule caméra cible, calculée
+    /// d'avance. À plat aussi, pour l'IGN : le cadrage animé y filait bien plus
+    /// vite que le mouvement de caméra, plus posé, qu'on a en Plan.
+    func glide(to target: MKMapRect, edgePadding: NSEdgeInsets, flatRatio: Double) -> Bool {
+        let current = camera
+        guard frame.width > 0 else { return false }
+        let fitted = mapRectThatFits(target, edgePadding: edgePadding)
+        let center = MKMapPoint(x: target.midX, y: target.midY).coordinate
+        let meters = fitted.height * MKMetersPerMapPointAtLatitude(center.latitude)
+        guard meters > 0 else { return false }
+        let pitched = current.pitch >= 1
+        setCamera(
+            MKMapCamera(
+                lookingAtCenter: center,
+                fromDistance: meters * flatRatio * (pitched ? Self.pitchedDistanceFactor : 1),
+                pitch: pitched ? current.pitch : 0,
+                heading: current.heading
+            ),
+            animated: true
+        )
+        return true
+    }
+
     func flattenCamera() {
         let current = camera
         guard current.pitch > 0, current.centerCoordinateDistance > 0 else { return }

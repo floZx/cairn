@@ -1,5 +1,6 @@
 import MapKit
 import CoreImage
+import ImageIO
 import CoreImage.CIFilterBuiltins
 
 /// A raster basemap drawn instead of Apple's.
@@ -56,7 +57,38 @@ final class RasterTileOverlay: MKTileOverlay {
     /// one such response would keep that patch of map wrong for good, whichever
     /// way you panned. Hence the eviction before throwing: MapKit asks again
     /// later, and next time it may well work.
+    /// Appelé sur le fil principal quand plus aucune dalle n'est en cours de
+    /// chargement — après au moins une. Une fois, puis oublié.
+    @MainActor var onIdle: (() -> Void)?
+
+    private let inFlight = NSLock()
+    nonisolated(unsafe) private var pending = 0
+
     override func loadTile(at path: MKTileOverlayPath) async throws -> Data {
+        inFlight.withLock { pending += 1 }
+        defer {
+            let idle = inFlight.withLock { pending -= 1; return pending == 0 }
+            if idle { Task { @MainActor in self.settle() } }
+        }
+        return try await fetchTile(at: path)
+    }
+
+    /// Calme confirmé un instant plus tard : des dalles servies depuis la
+    /// mémoire reviennent une à une, chacune laissant croire au calme.
+    @MainActor private func settle() {
+        guard onIdle != nil else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [self] in
+            guard inFlight.withLock({ pending == 0 }), let done = onIdle else { return }
+            onIdle = nil
+            done()
+        }
+    }
+
+    private func fetchTile(at path: MKTileOverlayPath) async throws -> Data {
+        let key = "\(path.z)/\(path.x)/\(path.y)/\(urlTemplate ?? "")/\(darkLevel)/\(tint.rawValue)/\(muted)" as NSString
+        // Avant tout aller-retour, même au cache disque : une tuile préchargée
+        // pour un glissé doit tomber tout de suite.
+        if darkened, let done = Self.processed.object(forKey: key) { return done as Data }
         let request = URLRequest(url: url(forTilePath: path))
         let (data, response) = try await TileCache.session.data(for: request)
 
@@ -67,10 +99,57 @@ final class RasterTileOverlay: MKTileOverlay {
             throw TileLoadError.notAnImage(status: status, bytes: data.count)
         }
         guard darkened else { return data }
-        return Self.darkened(data, level: darkLevel, tint: tint, muted: muted) ?? data
+        let result = Self.darkened(data, level: darkLevel, tint: tint, muted: muted) ?? data
+        Self.processed.setObject(result as NSData, forKey: key, cost: result.count)
+        return result
+    }
+
+    /// Charge d'avance les tuiles d'un cadrage à venir, pour qu'elles soient
+    /// prêtes — en cache disque, et déjà assombries la nuit — quand MapKit
+    /// les demandera à l'arrivée d'un glissé.
+    ///
+    /// Le niveau que MapKit choisira n'est pas connu au point près : les deux
+    /// qui encadrent l'échelle visée, au facteur d'écran près. Plafonné, pour
+    /// qu'un cadrage immense ne lance pas des centaines de requêtes.
+    func prefetch(_ rect: MKMapRect, viewWidth: CGFloat, scale: CGFloat) {
+        guard viewWidth > 0, rect.width > 0 else { return }
+        // En points, pas en pixels : relevé à l'usage, MapKit demande sur un
+        // écran Retina le niveau des points, en tuiles de facteur 2.
+        let ideal = log2(MKMapRect.world.width * Double(viewWidth) / rect.width / 256)
+        let levels = Set([Int(ideal.rounded(.down)), Int(ideal.rounded(.up))])
+            .map { min(max($0, minimumZ), maximumZ) }
+        var paths: [MKTileOverlayPath] = []
+        for z in Set(levels) {
+            let tiles = Double(1 << z)
+            let span = MKMapRect.world.width / tiles
+            let x0 = max(0, Int(rect.minX / span)), x1 = min(Int(tiles) - 1, Int(rect.maxX / span))
+            let y0 = max(0, Int(rect.minY / span)), y1 = min(Int(tiles) - 1, Int(rect.maxY / span))
+            guard x0 <= x1, y0 <= y1 else { continue }
+            for x in x0...x1 {
+                for y in y0...y1 {
+                    paths.append(MKTileOverlayPath(x: x, y: y, z: z, contentScaleFactor: scale))
+                }
+            }
+        }
+        guard paths.count <= 200 else { return }
+        // La variante à rappel du même `loadTile` : c'est la surcharge
+        // ci-dessous qui répond, cache et assombrissement compris.
+        for path in paths {
+            loadTile(at: path) { _, _ in }
+        }
     }
 
     private static let context = CIContext(options: [.cacheIntermediates: false])
+
+    /// Les tuiles de nuit déjà faites, en mémoire. Le disque garde la tuile
+    /// d'origine ; la refaire en négatif à chaque passage coûtait un rendu et
+    /// un encodage par tuile, et revenir sur une sortie du même secteur — le
+    /// cas courant — les refaisait toutes. Plafonné à 64 Mo.
+    nonisolated(unsafe) private static let processed: NSCache<NSString, NSData> = {
+        let cache = NSCache<NSString, NSData>()
+        cache.totalCostLimit = 64 * 1024 * 1024
+        return cache
+    }()
 
     /// Une carte de nuit fabriquée à partir de celle de jour.
     ///
@@ -128,8 +207,12 @@ final class RasterTileOverlay: MKTileOverlay {
         guard let output = tinted,
               let space = CGColorSpace(name: CGColorSpace.sRGB)
         else { return nil }
-        return context.pngRepresentation(
-            of: output.cropped(to: input.extent), format: .RGBA8, colorSpace: space
+        // En JPEG plutôt qu'en PNG : la tuile est opaque, et l'encodage est
+        // plusieurs fois plus rapide — c'est lui qui retardait l'apparition
+        // de chaque tuile de nuit.
+        return context.jpegRepresentation(
+            of: output.cropped(to: input.extent), colorSpace: space,
+            options: [kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: 0.9]
         )
     }
 
@@ -252,6 +335,22 @@ extension MKMapView {
     }
 }
 
+extension MKMapView {
+    /// Le fond de tuiles, que les vues gardent quand elles redessinent leurs
+    /// traces.
+    static func isBasemap(_ overlay: any MKOverlay) -> Bool {
+        overlay is MKTileOverlay
+    }
+
+    /// Le rendu du fond, ou nil pour une trace.
+    static func basemapRenderer(for overlay: any MKOverlay) -> MKOverlayRenderer? {
+        if let tiles = overlay as? MKTileOverlay {
+            return MKTileOverlayRenderer(tileOverlay: tiles)
+        }
+        return nil
+    }
+}
+
 extension NSAppearance {
     var isDark: Bool { bestMatch(from: [.darkAqua, .aqua]) == .darkAqua }
 }
@@ -291,3 +390,7 @@ enum MapNightTint: String, CaseIterable, Identifiable, Sendable {
         }
     }
 }
+
+/// Ses réglages sont fixés à la création, le compte des dalles en cours est
+/// sous verrou et `onIdle` reste sur le fil principal.
+extension RasterTileOverlay: @unchecked Sendable {}
