@@ -31,6 +31,10 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    /// Le fond que `i` met à la place : Plan depuis l'IGN, l'IGN depuis tout
+    /// le reste.
+    var toggledTopo: MapStyle { self == .ignTopo ? .standard : .ignTopo }
+
     var displayName: String {
         switch self {
         case .standard: "Plan"

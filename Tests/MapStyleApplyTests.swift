@@ -220,4 +220,12 @@ struct MapStyleApplyTests {
         // here, several WMTS implementations labelling their exception image/png.
         #expect(RasterTileOverlay.looksLikeAnImage(Data([0x00, 0x89, 0x50, 0x4E, 0x47])) == false)
     }
+
+    @Test("i bascule entre l'IGN et Plan, et ramène tout autre fond à l'IGN")
+    func toggledTopo() {
+        #expect(MapStyle.ignTopo.toggledTopo == .standard)
+        #expect(MapStyle.standard.toggledTopo == .ignTopo)
+        #expect(MapStyle.satellite.toggledTopo == .ignTopo)
+        #expect(MapStyle.openTopo.toggledTopo == .ignTopo)
+    }
 }

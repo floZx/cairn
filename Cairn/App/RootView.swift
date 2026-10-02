@@ -155,6 +155,7 @@ struct RootView: View {
     @State var journalExportProgress: ExportJournalSheet.Progress?
     /// Shared with every map so the chosen background and colour carry over.
     @AppStorage(MapStyle.storageKey) var expandedStyle: MapStyle = .standard
+    @AppStorage(MapStyle.globalStorageKey) var globalMapStyle: MapStyle = MapStyle.globalDefault
     @AppStorage(TrackColor.storageKey) var expandedTrackColor: TrackColor = .accent
     @Query var allActivities: [Activity]
     /// Only the outings that wrote something down.
@@ -419,6 +420,22 @@ struct RootView: View {
 
         map
             .frame(minWidth: 900, minHeight: 600)
+            // La fenêtre est transparente — pour le verre de la barre latérale
+            // — et, carte agrandie, plus rien ne peignait sous la barre de
+            // titre : on y voyait ce qu'il y avait derrière la fenêtre.
+            .background(
+                VisualEffectBackground.opaque
+                    .ignoresSafeArea(edges: .top)
+            )
+            // `i` ici aussi : la carte prend le focus clavier et les touches
+            // vim ne l'atteignent pas, d'où un raccourci de fenêtre, comme
+            // Échap pour « Réduire ».
+            .background {
+                Button("Basculer IGN / Plan") { perform(.toggleTopo) }
+                    .keyboardShortcut("i", modifiers: [])
+                    .opacity(0)
+                    .accessibilityHidden(true)
+            }
             .overlay(alignment: .topLeading) {
                 Button {
                     expandedMap = nil

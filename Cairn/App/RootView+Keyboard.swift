@@ -90,6 +90,14 @@ extension RootView {
             toggleFavorite()
         case .expandMap:
             if let selected { expandedMap = .activity(selected.id) }
+        case .toggleTopo:
+            // Chaque carte garde son propre fond : la globale le sien, les
+            // fiches le leur.
+            if showsGlobalMap || expandedMap == .global {
+                globalMapStyle = globalMapStyle.toggledTopo
+            } else {
+                expandedStyle = expandedStyle.toggledTopo
+            }
         case .closePane:
             if showsStatistics {
                 // Le volet s'y ouvre par le drapeau, pas par la sélection :

@@ -80,6 +80,7 @@ struct VimKeyBufferTests {
         #expect(run("x") == [.delete])
         #expect(run("f") == [.toggleFavorite])
         #expect(run("o") == [.expandMap])
+        #expect(run("i") == [.toggleTopo])
         #expect(run("/") == [.openSearch])
         #expect(run("?") == [.showHelp])
     }
@@ -283,6 +284,7 @@ struct ToggleListStyleKeyTests {
         #expect(VimCommand.delete.actsOnActivities)
         #expect(VimCommand.toggleFavorite.actsOnActivities)
         #expect(VimCommand.expandMap.actsOnActivities)
+        #expect(VimCommand.toggleTopo.actsOnActivities)
         #expect(VimCommand.toggleListStyle.actsOnActivities)
         #expect(VimCommand.openSearch.actsOnActivities)
         // Navigation, escape, help and pane-closing stay meaningful anywhere.

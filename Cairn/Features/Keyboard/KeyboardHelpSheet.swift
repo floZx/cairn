@@ -36,6 +36,7 @@ struct KeyboardHelpSheet: View {
             ("f", "favori"),
             ("x", "supprimer"),
             ("o", "ouvrir la carte en grand"),
+            ("i", "basculer la carte entre IGN et Plan"),
             ("h", "fermer le volet de droite"),
             ("gd", "ouvrir le journal au jour de l'activité"),
         ]),

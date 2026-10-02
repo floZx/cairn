@@ -125,7 +125,10 @@ struct ActivityMapView: NSViewRepresentable {
                 )
             }
             if nearby, let ratio = coordinator.flatRatio,
-               mapView.glide(to: target, edgePadding: padding, flatRatio: ratio) {
+               mapView.glide(
+                   to: target, edgePadding: padding, flatRatio: ratio,
+                   threeDimensional: style.rendersInThreeDimensions
+               ) {
                 coordinator.wantsTilt = false
             } else {
                 mapView.setVisibleMapRect(target, edgePadding: padding, animated: false)

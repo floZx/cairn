@@ -21,6 +21,10 @@ enum VimCommand: Equatable, Sendable {
     case delete
     case toggleFavorite
     case expandMap
+    /// `i` : le fond de la carte passe de l'IGN à Plan, ou de tout autre fond
+    /// à l'IGN — celui de la carte globale sur la carte globale, celui des
+    /// fiches ailleurs.
+    case toggleTopo
     /// Close the detail pane. Distinct from `.clear`, which peels the search
     /// first: `h` has one meaning and no order of operations.
     case closePane
@@ -57,7 +61,7 @@ enum VimCommand: Equatable, Sendable {
     /// there would open an editor for an outing the screen does not show.
     var actsOnActivities: Bool {
         switch self {
-        case .edit, .editNotes, .delete, .toggleFavorite, .expandMap,
+        case .edit, .editNotes, .delete, .toggleFavorite, .expandMap, .toggleTopo,
              .toggleListStyle, .openSearch, .openJournalDay:
             return true
         case .move, .first, .last, .halfPage, .clear, .section, .closePane,
@@ -169,6 +173,7 @@ struct VimKeyBuffer: Equatable {
         case "x": _ = takeCount(); return .delete
         case "f": _ = takeCount(); return .toggleFavorite
         case "o": _ = takeCount(); return .expandMap
+        case "i": _ = takeCount(); return .toggleTopo
         // Left, as in vim: the pane on the right goes away.
         case "h": _ = takeCount(); return .closePane
         case "t": _ = takeCount(); return .toggleListStyle

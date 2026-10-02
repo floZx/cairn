@@ -87,19 +87,27 @@ extension MKMapView {
     /// finissait parfois hors champ. Ici, une seule caméra cible, calculée
     /// d'avance. À plat aussi, pour l'IGN : le cadrage animé y filait bien plus
     /// vite que le mouvement de caméra, plus posé, qu'on a en Plan.
-    func glide(to target: MKMapRect, edgePadding: NSEdgeInsets, flatRatio: Double) -> Bool {
+    ///
+    /// `threeDimensional` dit si l'arrivée doit pencher : une caméra encore à
+    /// plat — revenue de l'IGN par `i` — se penche pendant le glissé, au lieu
+    /// de rester à plat sur un Plan en relief.
+    func glide(
+        to target: MKMapRect, edgePadding: NSEdgeInsets, flatRatio: Double,
+        threeDimensional: Bool
+    ) -> Bool {
         let current = camera
         guard frame.width > 0 else { return false }
         let fitted = mapRectThatFits(target, edgePadding: edgePadding)
         let center = MKMapPoint(x: target.midX, y: target.midY).coordinate
         let meters = fitted.height * MKMetersPerMapPointAtLatitude(center.latitude)
         guard meters > 0 else { return false }
-        let pitched = current.pitch >= 1
+        let pitch: CGFloat = threeDimensional
+            ? (current.pitch >= 1 ? current.pitch : Self.terrainPitch) : 0
         setCamera(
             MKMapCamera(
                 lookingAtCenter: center,
-                fromDistance: meters * flatRatio * (pitched ? Self.pitchedDistanceFactor : 1),
-                pitch: pitched ? current.pitch : 0,
+                fromDistance: meters * flatRatio * (pitch >= 1 ? Self.pitchedDistanceFactor : 1),
+                pitch: pitch,
                 heading: current.heading
             ),
             animated: true
