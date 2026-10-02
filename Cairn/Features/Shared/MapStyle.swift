@@ -113,6 +113,19 @@ enum MapStyle: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Remembered across launches, and shared by every map in the app.
+    /// Remembered across launches, and shared by the activity's map, the
+    /// expanded one and the comparison map.
     static let storageKey = "mapStyle"
+
+    /// La carte globale a le sien : on peut vouloir Plan pour voir sept cents
+    /// traces d'un coup et l'IGN pour lire une sortie. Demandé le 2 octobre
+    /// 2026.
+    static let globalStorageKey = "mapStyleGlobal"
+
+    /// Le fond de la carte globale tant qu'elle n'en a pas choisi : celui que
+    /// toutes les cartes partageaient jusque-là, pour que la séparation ne
+    /// change rien à l'écran.
+    static var globalDefault: MapStyle {
+        UserDefaults.standard.string(forKey: storageKey).flatMap(MapStyle.init) ?? .standard
+    }
 }

@@ -13,7 +13,9 @@ struct GlobalMapView: View {
     var selected: PersistentIdentifier?
 
     @State private var isSelectingRegion = false
-    @AppStorage(MapStyle.storageKey) private var style: MapStyle = .standard
+    /// Son propre fond, distinct de celui des fiches — voir
+    /// `MapStyle.globalStorageKey`.
+    @AppStorage(MapStyle.globalStorageKey) private var style: MapStyle = MapStyle.globalDefault
 
     /// Newest first, so the palette slot a track gets never changes between
     /// redraws — the same reason the comparison map sorts before colouring.
@@ -46,6 +48,13 @@ struct GlobalMapView: View {
                 isSelectingRegion = false
             }
         )
+        // Écrit une première fois, pour que changer ensuite le fond des
+        // fiches ne change plus celui-ci par ricochet.
+        .onAppear {
+            if UserDefaults.standard.object(forKey: MapStyle.globalStorageKey) == nil {
+                style = MapStyle.globalDefault
+            }
+        }
         .mapChrome(style: $style) {
             if let onExpand {
                 MapExpandButton(action: onExpand)
