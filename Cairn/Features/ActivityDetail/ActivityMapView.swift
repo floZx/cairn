@@ -92,8 +92,15 @@ struct ActivityMapView: NSViewRepresentable {
             // chargerait tout le trajet — et au premier cadrage.
             let target = polyline.boundingMapRect
             let padding = NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
-            let nearby = coordinator.hasFramed
-                && Self.isNearby(target, mapView.visibleMapRect)
+            // Le cadrage d'arrivée tel que la vue le montrera, et non la trace
+            // brute : une trace étroite dans une vue large semblait huit fois
+            // plus petite que le cadre d'une trace large, et le glissé
+            // sautait — du 27 au 26 septembre, pas dans l'autre sens.
+            let nearby = coordinator.hasFramed && mapView.bounds.width > 0
+                && Self.isNearby(
+                    mapView.mapRectThatFits(target, edgePadding: padding),
+                    mapView.visibleMapRect
+                )
             // Une carte neuve sur un fond topo reste cachée le temps que ses
             // premières dalles arrivent, puis apparaît en fondu : sans quoi
             // Plans s'affichait d'abord, puis l'IGN par-dessus, dalle après
