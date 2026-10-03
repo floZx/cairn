@@ -146,7 +146,11 @@ export function enLigne(texte: string): ReactNode[] {
       // Une citation de personne. Le `@` doit ouvrir le mot — après une espace
       // ou une ouvrante — et c'est cette seule règle qui écarte les adresses
       // de courriel, où il suit une lettre.
-      `|((?<=^|[\\s([{«"'*>–—-])@[\\p{L}\\p{N}_-]+)`,
+      `|((?<=^|[\\s([{«"'*>–—-])@[\\p{L}\\p{N}_-]+)` +
+      // Une adresse collée telle quelle, ou entre chevrons. Elle doit ouvrir
+      // le mot, comme la citation : `x.com/@sam` ne se découpe pas.
+      `|(<https?:\\/\\/[^\\s>]+>)` +
+      `|((?<=^|[\\s([{«"'])(?:https?:\\/\\/|www\\.)[^\\s<>]+)`,
     "gu",
   )
   let dernierIndex = 0
@@ -155,8 +159,30 @@ export function enLigne(texte: string): ReactNode[] {
 
   while ((m = motif.exec(texte)) !== null) {
     if (m.index > dernierIndex) morceaux.push(texte.slice(dernierIndex, m.index))
-    const brut = m[0]
-    if (brut.startsWith("**")) {
+    let brut = m[0]
+    if (brut.startsWith("<")) {
+      const url = brut.slice(1, -1)
+      morceaux.push(
+        <a key={cle++} href={url} target="_blank" rel="noreferrer">
+          {url}
+        </a>,
+      )
+    } else if (/^(https?:|www\.)/.test(brut)) {
+      // La ponctuation qui clôt la phrase n'est pas à l'adresse : « voir
+      // https://x.fr. » s'arrête avant le point. Une parenthèse finale n'en
+      // fait partie que si l'adresse en ouvre une — Wikipédia en a.
+      while (/[.,;:!?»"')\]]$/.test(brut)) {
+        if (brut.endsWith(")") && brut.split("(").length > brut.split(")").length - 1) break
+        brut = brut.slice(0, -1)
+      }
+      motif.lastIndex = m.index + brut.length
+      const href = brut.startsWith("www.") ? `https://${brut}` : brut
+      morceaux.push(
+        <a key={cle++} href={href} target="_blank" rel="noreferrer">
+          {brut}
+        </a>,
+      )
+    } else if (brut.startsWith("**")) {
       morceaux.push(<strong key={cle++}>{brut.slice(2, -2)}</strong>)
     } else if (brut.startsWith("*")) {
       morceaux.push(<em key={cle++}>{brut.slice(1, -1)}</em>)
