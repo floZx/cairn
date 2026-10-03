@@ -13,6 +13,11 @@ struct RecipePickerSheet: View {
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
     @State private var selectedID: PersistentIdentifier?
     @State private var errorMessage: String?
+    /// Posé dès que la recette part dans le repas. Entrée et le double-clic
+    /// mènent tous deux à `apply()`, et rien ne garantit qu'un seul geste ne
+    /// déclenche pas les deux — une recette chargée deux fois doublerait le
+    /// repas sans prévenir.
+    @State private var applied = false
     @FocusState private var listFocused: Bool
 
     var body: some View {
@@ -38,6 +43,15 @@ struct RecipePickerSheet: View {
                             .monospacedDigit()
                     }
                     .tag(recipe.persistentModelID)
+                }
+                // Le double-clic applique, comme Entrée : c'est le geste de
+                // toute liste du Mac pour « ouvrir » la ligne. Le menu est
+                // vide exprès — seule l'action principale est voulue.
+                .contextMenu(forSelectionType: PersistentIdentifier.self) { _ in
+                } primaryAction: { ids in
+                    guard let id = ids.first else { return }
+                    selectedID = id
+                    apply()
                 }
                 .frame(minHeight: 200)
                 .focused($listFocused)
@@ -75,13 +89,14 @@ struct RecipePickerSheet: View {
     }
 
     private func apply() {
-        guard let recipe = recipes.first(
+        guard !applied, let recipe = recipes.first(
             where: { $0.persistentModelID == selectedID }
         ) else { return }
         do {
             try NutritionJournal.applyRecipe(
                 recipe, to: dateKey, slot: slot, in: modelContext
             )
+            applied = true
             dismiss()
         } catch {
             errorMessage =
