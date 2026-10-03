@@ -45,6 +45,12 @@ struct JournalListView: View {
     /// The selection this cursor stands for, so a selection made elsewhere — a
     /// click, the calendar, ⌘N — is recognised as not ours and re-derived.
     @State private var cursorSelection: DateKey?
+    /// Ce que le gestionnaire de touches lit — voir `DernierRendu`. Les jours
+    /// changent sous la liste affichée : une note écrite sur le téléphone,
+    /// une sortie synchronisée.
+    @State private var dernierRendu = DernierRendu<[JournalDay], DateKey?>(
+        lignes: [], selection: nil
+    )
 
     /// The note to open on arriving in the section, or nil to leave things be.
     ///
@@ -80,6 +86,7 @@ struct JournalListView: View {
         // Le mois une fois, dans un en-tête collant, et plus dans chaque
         // ligne : la date longue en gras, identique d'une ligne à l'autre,
         // prenait le poids qui revient à ce qui est écrit.
+        let _ = dernierRendu.retenir(days, selection: selection)
         List(selection: $selection) {
             ForEach(JournalRowLayout.months(of: days)) { month in
                 Section {
@@ -157,6 +164,9 @@ struct JournalListView: View {
             }
         }
         .vimKeys(focusRequest: focusRequest) { command in
+            // Ceux du dernier rendu, pas ceux capturés — voir `DernierRendu`.
+            let days = dernierRendu.lignes
+            let selection = dernierRendu.selection
             switch command {
             case let .move(delta):
                 return moveSelection(by: delta)
@@ -190,7 +200,7 @@ struct JournalListView: View {
             }
         }
         .onKeyPress(.return) {
-            guard selection != nil else { return .ignored }
+            guard dernierRendu.selection != nil else { return .ignored }
             onOpenEditor()
             return .handled
         }
@@ -198,6 +208,7 @@ struct JournalListView: View {
 
     /// Moves the cursor and the selection to a row, and takes the list there.
     private func moveTo(_ index: Int) -> Bool {
+        let days = dernierRendu.lignes
         guard days.indices.contains(index) else { return false }
         let date = days[index].date
         cursor = index
@@ -211,7 +222,7 @@ struct JournalListView: View {
 
     private func moveSelection(by delta: Int) -> Bool {
         guard let destination = VimMotion.destination(
-            from: startingPoint, delta: delta, count: days.count
+            from: startingPoint, delta: delta, count: dernierRendu.lignes.count
         ) else { return false }
         return moveTo(destination)
     }
@@ -219,11 +230,12 @@ struct JournalListView: View {
     /// Where the next motion starts from: the remembered cursor while it still
     /// stands for what is selected, the selection otherwise.
     private var startingPoint: Int? {
+        let days = dernierRendu.lignes
         if let cursor, days.indices.contains(cursor),
            days[cursor].date == cursorSelection {
             return cursor
         }
-        return selection.flatMap { key in
+        return dernierRendu.selection.flatMap { key in
             days.firstIndex { $0.date == key }
         }
     }

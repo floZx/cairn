@@ -63,23 +63,10 @@ struct ActivityListView: View {
     @State private var cursor: Int?
     @State private var cursorSelection: Set<PersistentIdentifier> = []
 
-    /// Les lignes et la sélection du dernier rendu, pour le gestionnaire de
-    /// touches.
-    ///
-    /// Ce gestionnaire est une fermeture que SwiftUI ne remplace pas toujours
-    /// quand la vue est redessinée : il peut garder une copie de la vue
-    /// antérieure à l'arrivée d'une sortie. Relevé le 3 octobre 2026 — la
-    /// liste montrait 812 sorties, la nouvelle en tête, et `k` travaillait
-    /// encore sur les 811 d'avant : il butait sur l'ancienne première et la
-    /// nouvelle restait hors d'atteinte. Ce n'est pas systématique, d'où un
-    /// défaut vu deux jours de suite puis introuvable à l'essai.
-    ///
-    /// Une classe tenue par `@State` est la même instance pour toutes les
-    /// copies de la vue, vieilles comprises : le corps y dépose ce qu'il vient
-    /// de calculer, et le gestionnaire lit là plutôt que dans ce qu'il a
-    /// capturé. Pas observée, et c'est voulu : y écrire pendant le rendu ne
-    /// doit pas en provoquer un autre.
-    @State private var latest = LatestRows()
+    /// Ce que le gestionnaire de touches lit — voir `DernierRendu`.
+    @State private var dernierRendu = DernierRendu<[Activity], Set<PersistentIdentifier>>(
+        lignes: [], selection: []
+    )
 
     /// Bumped whenever the keyboard should come back to the list.
     @State private var focusRequest = 0
@@ -194,9 +181,9 @@ struct ActivityListView: View {
         if let cursor, cursor < rows.count, cursorSelection.contains(rows[cursor].id) {
             return cursor
         }
-        // `latest` et non `selection` : la `Binding` lue depuis une copie
-        // périmée de la vue rend la sélection d'avant — voir `latest`.
-        let selection = latest.selection
+        // Pas `selection` : la `Binding` lue depuis une copie périmée de la
+        // vue rend la sélection d'avant — voir `DernierRendu`.
+        let selection = dernierRendu.selection
         return selection.count == 1 ? rows.firstIndex { $0.id == selection.first } : nil
     }
 
@@ -204,8 +191,7 @@ struct ActivityListView: View {
         // Bound once: `rows` filters and sorts the whole query, and it used to be
         // recomputed for the table and again for each half of the title.
         let rows = rows
-        latest.rows = rows
-        latest.selection = selection
+        dernierRendu.retenir(rows, selection: selection)
         return Group {
             if style == .cards {
                 cards(rows)
@@ -242,7 +228,7 @@ struct ActivityListView: View {
         // else goes to the parent, which is also what the statistics and the
         // map hand it.
         .vimKeys(focusRequest: focusRequest) { command in
-            perform(command, in: latest.rows)
+            perform(command, in: dernierRendu.lignes)
             return true
         }
         // Switching presentation destroys the table the keyboard was in, and
@@ -523,9 +509,3 @@ struct ActivityListView: View {
     }
 }
 
-/// Voir `ActivityListView.latest`.
-@MainActor
-private final class LatestRows {
-    var rows: [Activity] = []
-    var selection: Set<PersistentIdentifier> = []
-}
