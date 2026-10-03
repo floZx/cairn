@@ -462,15 +462,6 @@ input, button { font: inherit; }
   gap: 12px;
 }
 
-.editeur {
-  display: flex;
-  flex-direction: column;
-  /* Toute la hauteur restante : sur un téléphone, écrire une note est la seule
-     chose qu'on fait à ce moment-là. */
-  min-height: 70vh;
-  padding-top: 12px;
-}
-
 .barre-editeur {
   display: flex;
   align-items: center;
@@ -1216,8 +1207,7 @@ input, button { font: inherit; }
 
 /* Une feuille porte déjà sa marge et sa hauteur : celles que les éditeurs se
    donnaient quand ils occupaient tout l'écran feraient double emploi. */
-.feuille-modale .feuille,
-.feuille-modale .editeur {
+.feuille-modale .feuille {
   min-height: 0;
   padding-top: 0;
 }
@@ -1714,31 +1704,6 @@ body {
    trente. */
 .saisie-note.courte {
   min-height: 7.5em;
-}
-
-/* ---- Joindre une photo --------------------------------------------------- */
-
-.joindre {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 12px;
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--champ);
-  color: var(--accent);
-  font-size: 17px;
-  cursor: pointer;
-}
-
-/* Le champ de fichier natif est illisible et impossible à styler ; le
-   `<label>` qui l'entoure sert de bouton et le déclenche. */
-.joindre input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
 }
 
 /* ---- Courbes -------------------------------------------------------------- */
@@ -4727,4 +4692,156 @@ mark.trouve {
   text-align: left;
   font-size: inherit;
   padding: 0;
+}
+
+/* ---- Écrire une note : une page entière, comme Notes --------------------- */
+
+/* Par-dessus tout, onglets compris : écrire est la seule chose qu'on fait à
+   ce moment-là. `top` et `height` suivent la fenêtre visuelle — voir
+   `NoteEditor` —, ce qui pose la barre d'outils sur le clavier. */
+.page-note {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: var(--fond);
+  transform: translateX(100%);
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.page-note.entree {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-note {
+    transition: none;
+  }
+}
+
+/* Rien que le chevron, à la place et à la taille de celui des fiches : la
+   bande sous l'heure, qu'iOS 27 floute, ne porte rien d'autre. */
+.tete-note {
+  flex: none;
+  padding: calc(env(safe-area-inset-top) + 6px) 12px 4px;
+}
+
+.tete-note .retour {
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.28),
+    inset 0 0.5px 0 color-mix(in srgb, var(--lueur) 42%, transparent),
+    inset 0 -0.5px 0 color-mix(in srgb, var(--lueur) 30%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--texte);
+  cursor: pointer;
+}
+
+.tete-note .retour:active {
+  opacity: 0.55;
+}
+
+.corps-note {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0 20px 24px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* La date en petit au-dessus du texte, comme Notes : elle situe, elle ne
+   titre pas. */
+.date-note {
+  margin: 4px 0 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--attenue);
+}
+
+.date-note::first-letter {
+  text-transform: uppercase;
+}
+
+/* Le texte à même la page, sans cadre, et dans la police où il se relit :
+   écrit en serif, il ne change plus d'allure en quittant la page. */
+.texte-note {
+  flex: 1;
+  min-height: 8em;
+  font-family: ui-serif, "New York", Georgia, serif;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--texte);
+  outline: none;
+}
+
+.outils-note {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 4px 12px;
+  /* La barre d'accueil, clavier baissé. */
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+  border-top: 0.5px solid var(--trait);
+  background: var(--fond);
+}
+
+/* Clavier levé, il couvre la barre d'accueil — mais iOS garde sa réserve
+   dans `env()`, et la barre flottait à trois centimètres du clavier. */
+.page-note.en-saisie .outils-note {
+  padding-bottom: 4px;
+}
+
+.propositions-note {
+  flex: 1;
+  min-width: 0;
+}
+
+.propositions-note .barre-citations {
+  margin: 0;
+}
+
+.outil-note {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 36px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.outil-note.ok {
+  font-weight: 600;
+}
+
+.outil-note.envoi {
+  opacity: 0.4;
+}
+
+.outil-note input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }

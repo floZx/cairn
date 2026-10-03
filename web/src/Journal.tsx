@@ -7,7 +7,7 @@ import { chiffresDeLaLigne } from "./format"
 import { CARACTERES_ETIQUETTE, etiquettesDe } from "./tags"
 import { estChiffre, ouvrir as dechiffrer, useChiffre } from "./chiffre"
 import { NoteEditor, jourCourant, type NoteAEditer } from "./NoteEditor"
-import { Feuille, Chargement } from "./Chrome"
+import { Chargement } from "./Chrome"
 import { PastilleSport, Symbole } from "./IconeSport"
 import { TuileDuJour, mois } from "./TuileDuJour"
 import { replie, unites } from "./citations"
@@ -509,9 +509,7 @@ export function Journal({
     <>
       {barre}
       {enEdition && (
-        <Feuille titre="Note" onFerme={() => setEnEdition(null)}>
-          <NoteEditor note={enEdition} onFerme={() => setEnEdition(null)} />
-        </Feuille>
+        <NoteEditor note={enEdition} onFerme={() => setEnEdition(null)} />
       )}
 
       {parMois(avecAujourdhui).map((mois) => (
